@@ -33,12 +33,12 @@ export const authenticateToken = async (req, res, next) => {
     const user = users[0];
     
     // 注意：用户表没有status字段，所以暂时跳过状态检查
-    // if (user.status !== 'active') {
-    //   return res.status(401).json({
-    //     success: false,
-    //     error: '用户账户已被禁用'
-    //   });
-    // }
+    if (user.status !== 'active') {
+      return res.status(401).json({
+        success: false,
+        error: '用户账户已被禁用'
+      });
+    }
 
     req.user = user;
     next();

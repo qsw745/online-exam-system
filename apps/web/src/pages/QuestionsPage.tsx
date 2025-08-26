@@ -536,302 +536,273 @@ const QuestionsPage: React.FC = () => {
         <Space style={{ width: '100%' }} align="start">
           <div style={{ flex: 1 }}>
             <Title level={2} style={{ margin: 0 }}>
-              {viewType === 'favorites' ? '收藏题目' : 
-               viewType === 'wrong' ? '错题本' : 
-               viewType === 'browse' ? '题目浏览' :
-               viewType === 'manage' ? '题目管理' : 
-               t('questions.title')}
+              {viewType === 'favorites'
+                ? '收藏题目'
+                : viewType === 'wrong'
+                ? '错题本'
+                : viewType === 'browse'
+                ? '题目浏览'
+                : viewType === 'manage'
+                ? '题目管理'
+                : t('questions.title')}
             </Title>
             <Text type="secondary">
-              {viewType === 'favorites' ? '查看您收藏的题目' : 
-               viewType === 'wrong' ? '查看您做错的题目' : 
-               viewType === 'browse' ? '浏览和练习题目' :
-               viewType === 'manage' ? '管理和维护题目' : 
-               t('questions.description')}
+              {viewType === 'favorites'
+                ? '查看您收藏的题目'
+                : viewType === 'wrong'
+                ? '查看您做错的题目'
+                : viewType === 'browse'
+                ? '浏览和练习题目'
+                : viewType === 'manage'
+                ? '管理和维护题目'
+                : t('questions.description')}
             </Text>
           </div>
           <Space>
             {/* 管理员功能按钮 */}
             {user?.role === 'admin' && viewType === 'manage' && (
               <>
-                <Button 
-                  type="primary" 
+                <Button
+                  type="primary"
                   icon={<Plus style={{ width: 16, height: 16 }} />}
                   onClick={() => setAddModalVisible(true)}
                 >
                   新增题目
                 </Button>
-                <Button 
-                  icon={<Upload style={{ width: 16, height: 16 }} />}
-                  onClick={() => setImportModalVisible(true)}
-                >
+                <Button icon={<Upload style={{ width: 16, height: 16 }} />} onClick={() => setImportModalVisible(true)}>
                   批量导入
                 </Button>
               </>
             )}
 
-      {/* 新增题目对话框 */}
-      <Modal
-        title="新增题目"
-        open={showAddModal}
-        onCancel={() => {
-          setShowAddModal(false)
-          addForm.resetFields()
-          setQuestionType('single_choice')
-          setOptionCount(4)
-        }}
-        onOk={() => addForm.submit()}
-        confirmLoading={addLoading}
-        width={800}
-        destroyOnClose
-      >
-        <Form
-          form={addForm}
-          layout="vertical"
-          onFinish={handleAddQuestion}
-          initialValues={{
-            difficulty: 'medium',
-            score: 10
-          }}
-        >
-          <Form.Item
-            label="题目标题"
-            name="title"
-            rules={[{ required: true, message: '请输入题目标题' }]}
-          >
-            <Input placeholder="请输入题目标题" />
-          </Form.Item>
-
-          <Form.Item
-            label="题目内容"
-            name="content"
-            rules={[{ required: true, message: '请输入题目内容' }]}
-          >
-            <Input.TextArea rows={3} placeholder="请输入题目内容" />
-          </Form.Item>
-
-          <Form.Item
-            label="题目类型"
-            name="type"
-            rules={[{ required: true, message: '请选择题目类型' }]}
-          >
-            <Radio.Group
-              value={questionType}
-              onChange={(e) => handleQuestionTypeChange(e.target.value)}
+            {/* 新增题目对话框 */}
+            <Modal
+              title="新增题目"
+              open={showAddModal}
+              onCancel={() => {
+                setShowAddModal(false)
+                addForm.resetFields()
+                setQuestionType('single_choice')
+                setOptionCount(4)
+              }}
+              onOk={() => addForm.submit()}
+              confirmLoading={addLoading}
+              width={800}
+              destroyOnHidden
             >
-              <Radio value="single_choice">单选题</Radio>
-              <Radio value="multiple_choice">多选题</Radio>
-              <Radio value="true_false">判断题</Radio>
-              <Radio value="short_answer">简答题</Radio>
-            </Radio.Group>
-          </Form.Item>
-
-          {/* 选择题和判断题的选项设置 */}
-          {(questionType === 'single_choice' || questionType === 'multiple_choice') && (
-            <>
-              <Form.Item label="选项数量">
-                <Radio.Group
-                  value={optionCount}
-                  onChange={(e) => handleOptionCountChange(e.target.value)}
-                >
-                  <Radio value={2}>2个选项</Radio>
-                  <Radio value={3}>3个选项</Radio>
-                  <Radio value={4}>4个选项</Radio>
-                  <Radio value={5}>5个选项</Radio>
-                  <Radio value={6}>6个选项</Radio>
-                </Radio.Group>
-              </Form.Item>
-
-              {Array.from({ length: optionCount }, (_, index) => (
-                <Form.Item
-                  key={index}
-                  label={`选项${String.fromCharCode(65 + index)}`}
-                  name={`option_${String.fromCharCode(65 + index)}`}
-                  rules={[{ required: true, message: `请输入选项${String.fromCharCode(65 + index)}` }]}
-                >
-                  <Input placeholder={`请输入选项${String.fromCharCode(65 + index)}内容`} />
+              <Form
+                form={addForm}
+                layout="vertical"
+                onFinish={handleAddQuestion}
+                initialValues={{
+                  difficulty: 'medium',
+                  score: 10,
+                }}
+              >
+                <Form.Item label="题目标题" name="title" rules={[{ required: true, message: '请输入题目标题' }]}>
+                  <Input placeholder="请输入题目标题" />
                 </Form.Item>
-              ))}
 
-              <Form.Item
-                label="正确答案"
-                name="correct_answer"
-                rules={[{ required: true, message: '请选择正确答案' }]}
-              >
-                {questionType === 'single_choice' ? (
-                  <Radio.Group>
-                    {Array.from({ length: optionCount }, (_, index) => (
-                      <Radio key={index} value={String.fromCharCode(65 + index)}>
-                        选项{String.fromCharCode(65 + index)}
-                      </Radio>
-                    ))}
+                <Form.Item label="题目内容" name="content" rules={[{ required: true, message: '请输入题目内容' }]}>
+                  <Input.TextArea rows={3} placeholder="请输入题目内容" />
+                </Form.Item>
+
+                <Form.Item label="题目类型" name="type" rules={[{ required: true, message: '请选择题目类型' }]}>
+                  <Radio.Group value={questionType} onChange={e => handleQuestionTypeChange(e.target.value)}>
+                    <Radio value="single_choice">单选题</Radio>
+                    <Radio value="multiple_choice">多选题</Radio>
+                    <Radio value="true_false">判断题</Radio>
+                    <Radio value="short_answer">简答题</Radio>
                   </Radio.Group>
-                ) : (
-                  <Select
-                    mode="multiple"
-                    placeholder="请选择正确答案（可多选）"
-                    style={{ width: '100%' }}
-                  >
+                </Form.Item>
+
+                {/* 选择题和判断题的选项设置 */}
+                {(questionType === 'single_choice' || questionType === 'multiple_choice') && (
+                  <>
+                    <Form.Item label="选项数量">
+                      <Radio.Group value={optionCount} onChange={e => handleOptionCountChange(e.target.value)}>
+                        <Radio value={2}>2个选项</Radio>
+                        <Radio value={3}>3个选项</Radio>
+                        <Radio value={4}>4个选项</Radio>
+                        <Radio value={5}>5个选项</Radio>
+                        <Radio value={6}>6个选项</Radio>
+                      </Radio.Group>
+                    </Form.Item>
+
                     {Array.from({ length: optionCount }, (_, index) => (
-                      <Select.Option key={index} value={String.fromCharCode(65 + index)}>
-                        选项{String.fromCharCode(65 + index)}
-                      </Select.Option>
+                      <Form.Item
+                        key={index}
+                        label={`选项${String.fromCharCode(65 + index)}`}
+                        name={`option_${String.fromCharCode(65 + index)}`}
+                        rules={[{ required: true, message: `请输入选项${String.fromCharCode(65 + index)}` }]}
+                      >
+                        <Input placeholder={`请输入选项${String.fromCharCode(65 + index)}内容`} />
+                      </Form.Item>
                     ))}
-                  </Select>
+
+                    <Form.Item
+                      label="正确答案"
+                      name="correct_answer"
+                      rules={[{ required: true, message: '请选择正确答案' }]}
+                    >
+                      {questionType === 'single_choice' ? (
+                        <Radio.Group>
+                          {Array.from({ length: optionCount }, (_, index) => (
+                            <Radio key={index} value={String.fromCharCode(65 + index)}>
+                              选项{String.fromCharCode(65 + index)}
+                            </Radio>
+                          ))}
+                        </Radio.Group>
+                      ) : (
+                        <Select mode="multiple" placeholder="请选择正确答案（可多选）" style={{ width: '100%' }}>
+                          {Array.from({ length: optionCount }, (_, index) => (
+                            <Select.Option key={index} value={String.fromCharCode(65 + index)}>
+                              选项{String.fromCharCode(65 + index)}
+                            </Select.Option>
+                          ))}
+                        </Select>
+                      )}
+                    </Form.Item>
+                  </>
                 )}
-              </Form.Item>
-            </>
-          )}
 
-          {/* 判断题的答案设置 */}
-          {questionType === 'true_false' && (
-            <Form.Item
-              label="正确答案"
-              name="correct_answer"
-              rules={[{ required: true, message: '请选择正确答案' }]}
+                {/* 判断题的答案设置 */}
+                {questionType === 'true_false' && (
+                  <Form.Item
+                    label="正确答案"
+                    name="correct_answer"
+                    rules={[{ required: true, message: '请选择正确答案' }]}
+                  >
+                    <Radio.Group>
+                      <Radio value="正确">正确</Radio>
+                      <Radio value="错误">错误</Radio>
+                    </Radio.Group>
+                  </Form.Item>
+                )}
+
+                {/* 简答题的答案设置 */}
+                {questionType === 'short_answer' && (
+                  <Form.Item
+                    label="参考答案"
+                    name="correct_answer"
+                    rules={[{ required: true, message: '请输入参考答案' }]}
+                  >
+                    <Input.TextArea rows={3} placeholder="请输入参考答案" />
+                  </Form.Item>
+                )}
+
+                <Row gutter={16}>
+                  <Col span={8}>
+                    <Form.Item
+                      label="难度等级"
+                      name="difficulty"
+                      rules={[{ required: true, message: '请选择难度等级' }]}
+                    >
+                      <Select>
+                        <Select.Option value="easy">简单</Select.Option>
+                        <Select.Option value="medium">中等</Select.Option>
+                        <Select.Option value="hard">困难</Select.Option>
+                      </Select>
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label="知识点" name="knowledge_point">
+                      <Input placeholder="请输入知识点" />
+                    </Form.Item>
+                  </Col>
+                  <Col span={8}>
+                    <Form.Item label="分值" name="score" rules={[{ required: true, message: '请输入分值' }]}>
+                      <Input type="number" min={1} placeholder="请输入分值" />
+                    </Form.Item>
+                  </Col>
+                </Row>
+
+                <Form.Item label="解析" name="explanation">
+                  <Input.TextArea rows={2} placeholder="请输入题目解析（可选）" />
+                </Form.Item>
+              </Form>
+            </Modal>
+
+            {/* 批量导入对话框 */}
+            <Modal
+              title="批量导入题目"
+              open={showImportModal}
+              onCancel={() => {
+                setShowImportModal(false)
+                setImportFile(null)
+                setImportProgress(0)
+              }}
+              footer={[
+                <Button
+                  key="cancel"
+                  onClick={() => {
+                    setShowImportModal(false)
+                    setImportFile(null)
+                    setImportProgress(0)
+                  }}
+                >
+                  取消
+                </Button>,
+                <Button key="template" onClick={downloadTemplate}>
+                  下载模板
+                </Button>,
+                <Button
+                  key="import"
+                  type="primary"
+                  loading={importLoading}
+                  disabled={!importFile}
+                  onClick={handleImport}
+                >
+                  开始导入
+                </Button>,
+              ]}
+              width={600}
+              destroyOnHidden
             >
-              <Radio.Group>
-                <Radio value="正确">正确</Radio>
-                <Radio value="错误">错误</Radio>
-              </Radio.Group>
-            </Form.Item>
-          )}
+              <Space direction="vertical" style={{ width: '100%' }} size="large">
+                <div>
+                  <Text strong>选择文件</Text>
+                  <div style={{ marginTop: 8 }}>
+                    <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} style={{ width: '100%' }} />
+                  </div>
+                  {importFile && (
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      已选择文件：{importFile.name} ({(importFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </Text>
+                  )}
+                </div>
 
-          {/* 简答题的答案设置 */}
-          {questionType === 'short_answer' && (
-            <Form.Item
-              label="参考答案"
-              name="correct_answer"
-              rules={[{ required: true, message: '请输入参考答案' }]}
-            >
-              <Input.TextArea rows={3} placeholder="请输入参考答案" />
-            </Form.Item>
-          )}
+                {importLoading && (
+                  <div>
+                    <Text strong>导入进度</Text>
+                    <Progress percent={importProgress} status="active" />
+                  </div>
+                )}
 
-          <Row gutter={16}>
-            <Col span={8}>
-              <Form.Item
-                label="难度等级"
-                name="difficulty"
-                rules={[{ required: true, message: '请选择难度等级' }]}
-              >
-                <Select>
-                  <Select.Option value="easy">简单</Select.Option>
-                  <Select.Option value="medium">中等</Select.Option>
-                  <Select.Option value="hard">困难</Select.Option>
-                </Select>
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                label="知识点"
-                name="knowledge_point"
-              >
-                <Input placeholder="请输入知识点" />
-              </Form.Item>
-            </Col>
-            <Col span={8}>
-              <Form.Item
-                label="分值"
-                name="score"
-                rules={[{ required: true, message: '请输入分值' }]}
-              >
-                <Input type="number" min={1} placeholder="请输入分值" />
-              </Form.Item>
-            </Col>
-          </Row>
+                <Divider />
 
-          <Form.Item
-            label="解析"
-            name="explanation"
-          >
-            <Input.TextArea rows={2} placeholder="请输入题目解析（可选）" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* 批量导入对话框 */}
-      <Modal
-        title="批量导入题目"
-        open={showImportModal}
-        onCancel={() => {
-          setShowImportModal(false)
-          setImportFile(null)
-          setImportProgress(0)
-        }}
-        footer={[
-          <Button key="cancel" onClick={() => {
-            setShowImportModal(false)
-            setImportFile(null)
-            setImportProgress(0)
-          }}>
-            取消
-          </Button>,
-          <Button key="template" onClick={downloadTemplate}>
-            下载模板
-          </Button>,
-          <Button
-            key="import"
-            type="primary"
-            loading={importLoading}
-            disabled={!importFile}
-            onClick={handleImport}
-          >
-            开始导入
-          </Button>
-        ]}
-        width={600}
-        destroyOnClose
-      >
-        <Space direction="vertical" style={{ width: '100%' }} size="large">
-          <div>
-            <Text strong>选择文件</Text>
-            <div style={{ marginTop: 8 }}>
-              <input
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                onChange={handleFileSelect}
-                style={{ width: '100%' }}
-              />
-            </div>
-            {importFile && (
-              <Text type="secondary" style={{ fontSize: '12px' }}>
-                已选择文件：{importFile.name} ({(importFile.size / 1024 / 1024).toFixed(2)} MB)
-              </Text>
-            )}
-          </div>
-
-          {importLoading && (
-            <div>
-              <Text strong>导入进度</Text>
-              <Progress percent={importProgress} status="active" />
-            </div>
-          )}
-
-          <Divider />
-
-          <div>
-            <Text strong>导入说明</Text>
-            <ul style={{ marginTop: 8, paddingLeft: 20 }}>
-              <li>支持Excel文件(.xlsx, .xls)和CSV文件</li>
-              <li>单次最多导入1000道题目</li>
-              <li>文件大小不能超过10MB</li>
-              <li>必填字段：题目标题、题目内容、题目类型、难度等级</li>
-              <li>题目类型：single_choice(单选)、multiple_choice(多选)、true_false(判断)、short_answer(简答)</li>
-              <li>难度等级：easy(简单)、medium(中等)、hard(困难)</li>
-              <li>选择题选项用"|"分隔，如：A选项|B选项|C选项|D选项</li>
-              <li>多选题正确答案用","分隔，如：A,C</li>
-            </ul>
-          </div>
-        </Space>
-      </Modal>
+                <div>
+                  <Text strong>导入说明</Text>
+                  <ul style={{ marginTop: 8, paddingLeft: 20 }}>
+                    <li>支持Excel文件(.xlsx, .xls)和CSV文件</li>
+                    <li>单次最多导入1000道题目</li>
+                    <li>文件大小不能超过10MB</li>
+                    <li>必填字段：题目标题、题目内容、题目类型、难度等级</li>
+                    <li>题目类型：single_choice(单选)、multiple_choice(多选)、true_false(判断)、short_answer(简答)</li>
+                    <li>难度等级：easy(简单)、medium(中等)、hard(困难)</li>
+                    <li>选择题选项用"|"分隔，如：A选项|B选项|C选项|D选项</li>
+                    <li>多选题正确答案用","分隔，如：A,C</li>
+                  </ul>
+                </div>
+              </Space>
+            </Modal>
             {/* 连续练习按钮 */}
             {viewType === 'all' && state.questions.length > 0 && state.questions[0]?.id && (
               <Link
                 to={`/questions/${state.questions[0].id}/practice?mode=continuous&${new URLSearchParams({
                   ...(state.filterType !== 'all' && { type: state.filterType }),
                   ...(state.filterDifficulty !== 'all' && { difficulty: state.filterDifficulty }),
-                  ...(state.searchTerm && { search: state.searchTerm })
+                  ...(state.searchTerm && { search: state.searchTerm }),
                 }).toString()}`}
               >
                 <Button type="primary" icon={<Play style={{ width: 16, height: 16 }} />}>
@@ -852,7 +823,7 @@ const QuestionsPage: React.FC = () => {
                 <Input
                   prefix={<Search style={{ width: 16, height: 16, color: '#999' }} />}
                   value={state.searchTerm}
-                  onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                  onChange={e => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
                   placeholder={t('questions.search_placeholder')}
                   allowClear
                 />
@@ -864,7 +835,7 @@ const QuestionsPage: React.FC = () => {
                   <Filter style={{ width: 16, height: 16, color: '#999' }} />
                   <Select
                     value={state.filterType}
-                    onChange={(value) => handleFilterChange('type', value)}
+                    onChange={value => handleFilterChange('type', value)}
                     style={{ width: 150 }}
                   >
                     <Select.Option value="all">{t('questions.all_types')}</Select.Option>
@@ -876,7 +847,7 @@ const QuestionsPage: React.FC = () => {
                 </Space>
                 <Select
                   value={state.filterDifficulty}
-                  onChange={(value) => handleFilterChange('difficulty', value)}
+                  onChange={value => handleFilterChange('difficulty', value)}
                   style={{ width: 120 }}
                 >
                   <Select.Option value="all">{t('questions.all_difficulties')}</Select.Option>
@@ -892,95 +863,97 @@ const QuestionsPage: React.FC = () => {
 
       {/* 题目列表 */}
       <Row gutter={[16, 16]}>
-        {state.questions.filter(question => question && question.id).map((question) => (
-          <Col key={question.id} xs={24} md={12} lg={8}>
-            <Card
-              hoverable
-              actions={[
-                <Link to={`/questions/${question.id}`} key="view">
+        {state.questions
+          .filter(question => question && question.id)
+          .map(question => (
+            <Col key={question.id} xs={24} md={12} lg={8}>
+              <Card
+                hoverable
+                actions={[
+                  <Link to={`/questions/${question.id}`} key="view">
+                    <Space>
+                      <Eye style={{ width: 16, height: 16 }} />
+                      <span>查看</span>
+                    </Space>
+                  </Link>,
+                ]}
+              >
+                <Space style={{ width: '100%' }} align="start">
+                  <div style={{ flex: 1 }}>
+                    <Title level={4} style={{ margin: 0, marginBottom: 8 }}>
+                      <Link to={`/questions/${question.id}`} style={{ color: 'inherit' }}>
+                        {question.content}
+                      </Link>
+                    </Title>
+                    <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                      <Space>
+                        <BookmarkPlus style={{ width: 16, height: 16 }} />
+                        <Text type="secondary">{question.knowledge_point}</Text>
+                      </Space>
+                      <Space>
+                        <Clock style={{ width: 16, height: 16 }} />
+                        <Text type="secondary">
+                          {new Date(question.created_at).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
+                        </Text>
+                      </Space>
+                    </Space>
+                  </div>
+                  <Button
+                    type="text"
+                    icon={
+                      <Heart
+                        style={{
+                          width: 20,
+                          height: 20,
+                          color: favorites.has(question.id) ? '#ff4d4f' : '#d9d9d9',
+                        }}
+                        fill={favorites.has(question.id) ? 'currentColor' : 'none'}
+                      />
+                    }
+                    onClick={() => handleFavorite(question.id)}
+                  />
+                </Space>
+                <div style={{ marginTop: 16 }}>
                   <Space>
-                    <Eye style={{ width: 16, height: 16 }} />
-                    <span>查看</span>
-                  </Space>
-                </Link>
-              ]}
-            >
-              <Space style={{ width: '100%' }} align="start">
-                <div style={{ flex: 1 }}>
-                  <Title level={4} style={{ margin: 0, marginBottom: 8 }}>
-                    <Link to={`/questions/${question.id}`} style={{ color: 'inherit' }}>
-                      {question.content}
-                    </Link>
-                  </Title>
-                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
-                    <Space>
-                      <BookmarkPlus style={{ width: 16, height: 16 }} />
-                      <Text type="secondary">{question.knowledge_point}</Text>
-                    </Space>
-                    <Space>
-                      <Clock style={{ width: 16, height: 16 }} />
-                      <Text type="secondary">
-                        {new Date(question.created_at).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
-                      </Text>
-                    </Space>
+                    <Tag
+                      color={
+                        {
+                          single: 'blue',
+                          multiple: 'purple',
+                          judge: 'green',
+                          fill: 'orange',
+                          essay: 'red',
+                        }[question.type] || 'default'
+                      }
+                    >
+                      {{
+                        single: '单选题',
+                        multiple: '多选题',
+                        judge: '判断题',
+                        fill: '填空题',
+                        essay: '问答题',
+                      }[question.type] || question.type}
+                    </Tag>
+                    <Tag
+                      color={
+                        {
+                          easy: 'success',
+                          medium: 'warning',
+                          hard: 'error',
+                        }[question.difficulty] || 'default'
+                      }
+                    >
+                      {{
+                        easy: '简单',
+                        medium: '中等',
+                        hard: '困难',
+                      }[question.difficulty] || question.difficulty}
+                    </Tag>
                   </Space>
                 </div>
-                <Button
-                  type="text"
-                  icon={
-                    <Heart 
-                      style={{ 
-                        width: 20, 
-                        height: 20, 
-                        color: favorites.has(question.id) ? '#ff4d4f' : '#d9d9d9'
-                      }} 
-                      fill={favorites.has(question.id) ? 'currentColor' : 'none'} 
-                    />
-                  }
-                  onClick={() => handleFavorite(question.id)}
-                />
-              </Space>
-              <div style={{ marginTop: 16 }}>
-                <Space>
-                  <Tag
-                    color={
-                      {
-                        single: 'blue',
-                        multiple: 'purple',
-                        judge: 'green',
-                        fill: 'orange',
-                        essay: 'red'
-                      }[question.type] || 'default'
-                    }
-                  >
-                    {{
-                      single: '单选题',
-                      multiple: '多选题',
-                      judge: '判断题',
-                      fill: '填空题',
-                      essay: '问答题'
-                    }[question.type] || question.type}
-                  </Tag>
-                  <Tag
-                    color={
-                      {
-                        easy: 'success',
-                        medium: 'warning',
-                        hard: 'error'
-                      }[question.difficulty] || 'default'
-                    }
-                  >
-                    {{
-                      easy: '简单',
-                      medium: '中等',
-                      hard: '困难'
-                    }[question.difficulty] || question.difficulty}
-                  </Tag>
-                </Space>
-              </div>
-            </Card>
-          </Col>
-        ))}
+              </Card>
+            </Col>
+          ))}
       </Row>
 
       {/* 空状态 */}
@@ -1006,12 +979,11 @@ const QuestionsPage: React.FC = () => {
             onChange={handlePageChange}
             onShowSizeChange={handlePageSizeChange}
             {...createPaginationConfig({
-              pageSizeOptions: ['10', '15', '20', '30', '40', '50']
+              pageSizeOptions: ['10', '15', '20', '30', '40', '50'],
             })}
           />
         </Card>
       )}
-
     </Space>
   )
 }

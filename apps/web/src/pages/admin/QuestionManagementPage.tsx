@@ -1,47 +1,29 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  BookOpen,
-  AlertCircle,
-  CheckCircle,
-  X,
-  Upload,
-  Download,
-  FileText
-} from 'lucide-react'
-import { 
-  Modal, 
-  Button, 
-  Upload as AntUpload, 
-  Progress, 
-  message, 
-  Form, 
-  Input, 
-  Select, 
-  Radio, 
-  Space,
+import {
+  Alert,
+  Upload as AntUpload,
+  Button,
   Card,
-  Typography,
+  Col,
+  Form,
+  Input,
+  Modal,
+  Progress,
+  Radio,
+  Row,
+  Select,
+  Space,
   Table,
-  Checkbox,
   Tag,
   Tooltip,
-  Row,
-  Col,
-  Divider,
-  Alert
+  Typography,
+  message,
 } from 'antd'
+import { BookOpen, Download, Edit, Eye, FileText, Plus, Trash2, Upload } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import LoadingSpinner from '../../components/LoadingSpinner'
-import { api, questions as questionsApi } from '../../lib/api'
-import { parseFile, ParsedQuestion } from '../../utils/fileParser'
-import { createPaginationConfig } from '../../constants/pagination'
+import { questions as questionsApi } from '../../lib/api'
+import { parseFile } from '../../utils/fileParser'
 
 const { Title, Paragraph } = Typography
 const { Search: AntSearch } = Input
@@ -67,6 +49,8 @@ const QuestionManagementPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState<Question[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
   const [filterType, setFilterType] = useState('all')
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [selectedQuestion, setSelectedQuestion] = useState<Question | null>(null)
@@ -92,20 +76,26 @@ const QuestionManagementPage: React.FC = () => {
 
   useEffect(() => {
     loadQuestions()
-  }, [currentPage, searchTerm, filterType, pageSize])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, debouncedSearch, filterType, pageSize])
 
+  // 防抖：当 searchTerm 停 300ms 才更新 debouncedSearch
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm), 300)
+    return () => clearTimeout(t)
+  }, [searchTerm])
   const loadQuestions = async () => {
     try {
       setLoading(true)
       const params = {
         page: currentPage,
         limit: pageSize,
-        search: searchTerm || undefined,
-        type: filterType === 'all' ? undefined : filterType
+        search: debouncedSearch || undefined,
+        type: filterType === 'all' ? undefined : filterType,
       }
       const response = await questionsApi.getAll(params)
       setQuestions(response.data.questions || [])
-      
+
       // 处理分页信息
       if (response.data.pagination) {
         setTotalPages(response.data.pagination.totalPages)
@@ -137,17 +127,18 @@ const QuestionManagementPage: React.FC = () => {
     if (file) {
       const allowedTypes = ['.xlsx', '.xls', '.csv']
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
-      
+
       if (!allowedTypes.includes(fileExtension)) {
         message.error('请选择Excel文件(.xlsx, .xls)或CSV文件(.csv)')
         return
       }
-      
-      if (file.size > 10 * 1024 * 1024) { // 10MB限制
+
+      if (file.size > 10 * 1024 * 1024) {
+        // 10MB限制
         message.error('文件大小不能超过10MB')
         return
       }
-      
+
       setImportFile(file)
     }
   }
@@ -178,7 +169,11 @@ const QuestionManagementPage: React.FC = () => {
 
       // 显示解析结果
       if (parseResult.errors && parseResult.errors.length > 0) {
-        message.warning(`解析完成，但有 ${parseResult.errors.length} 个错误：\n${parseResult.errors.slice(0, 3).join('\n')}${parseResult.errors.length > 3 ? '\n...' : ''}`)
+        message.warning(
+          `解析完成，但有 ${parseResult.errors.length} 个错误：\n${parseResult.errors.slice(0, 3).join('\n')}${
+            parseResult.errors.length > 3 ? '\n...' : ''
+          }`
+        )
       }
 
       message.info(`解析成功，共 ${questions.length} 道题目，开始导入...`)
@@ -195,7 +190,7 @@ const QuestionManagementPage: React.FC = () => {
         answer: q.answer,
         knowledge_points: q.knowledge_points || [],
         explanation: q.explanation || '',
-        score: q.score || 1
+        score: q.score || 1,
       }))
 
       setImportProgress(70)
@@ -206,7 +201,7 @@ const QuestionManagementPage: React.FC = () => {
 
       // 处理导入结果
       const { success_count, fail_count, errors } = importResult.data
-      
+
       if (success_count > 0) {
         message.success(`导入完成！成功导入 ${success_count} 道题目${fail_count > 0 ? `，失败 ${fail_count} 道` : ''}`)
         loadQuestions() // 刷新题目列表
@@ -216,7 +211,6 @@ const QuestionManagementPage: React.FC = () => {
         console.error('导入错误详情:', errors)
         message.error(`部分题目导入失败：\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? '\n...' : ''}`)
       }
-
     } catch (error: any) {
       console.error('批量导入错误:', error)
       message.error(error.message || '批量导入失败')
@@ -232,34 +226,37 @@ const QuestionManagementPage: React.FC = () => {
   const handleAddQuestion = async (values: any) => {
     try {
       setAddLoading(true)
-      
+
       // 构建题目数据
       const questionData: any = {
         title: values.title,
         content: values.content,
         question_type: questionType,
         difficulty: values.difficulty,
-        knowledge_points: values.knowledge_points ? values.knowledge_points.split(',').map((kp: string) => kp.trim()) : [],
+        knowledge_points: values.knowledge_points
+          ? values.knowledge_points.split(',').map((kp: string) => kp.trim())
+          : [],
         explanation: values.explanation,
-        score: values.score || 1
+        score: values.score || 1,
       }
-      
+
       // 根据题目类型处理选项和答案
       if (questionType === 'single_choice' || questionType === 'multiple_choice') {
         const options = []
         const correctAnswers = []
-        
+
         for (let i = 0; i < optionCount; i++) {
           const optionKey = String.fromCharCode(65 + i) // A, B, C, D...
           const optionContent = values[`option_${optionKey}`]
           if (optionContent) {
             options.push({
               content: optionContent,
-              is_correct: questionType === 'single_choice' 
-                ? values.correct_answer === optionKey
-                : (values.correct_answers || []).includes(optionKey)
+              is_correct:
+                questionType === 'single_choice'
+                  ? values.correct_answer === optionKey
+                  : (values.correct_answers || []).includes(optionKey),
             })
-            
+
             if (questionType === 'single_choice' && values.correct_answer === optionKey) {
               correctAnswers.push(optionKey)
             } else if (questionType === 'multiple_choice' && (values.correct_answers || []).includes(optionKey)) {
@@ -267,7 +264,7 @@ const QuestionManagementPage: React.FC = () => {
             }
           }
         }
-        
+
         questionData.options = JSON.stringify(options)
         questionData.correct_answer = correctAnswers.join(',')
       } else if (questionType === 'true_false') {
@@ -275,7 +272,7 @@ const QuestionManagementPage: React.FC = () => {
       } else if (questionType === 'short_answer') {
         questionData.answer = values.answer
       }
-      
+
       await questionsApi.create(questionData)
       message.success('题目创建成功')
       setShowAddModal(false)
@@ -290,7 +287,7 @@ const QuestionManagementPage: React.FC = () => {
       setAddLoading(false)
     }
   }
-  
+
   // 题目类型变化处理
   const handleQuestionTypeChange = (type: string) => {
     setQuestionType(type)
@@ -298,7 +295,7 @@ const QuestionManagementPage: React.FC = () => {
       setOptionCount(4)
     }
   }
-  
+
   // 选项数量变化处理
   const handleOptionCountChange = (count: number) => {
     setOptionCount(count)
@@ -320,7 +317,7 @@ const QuestionManagementPage: React.FC = () => {
 "变量声明题","JavaScript中var和let的区别是什么？","multiple_choice","hard","2","JavaScript基础,变量声明","var有函数作用域","let有块级作用域","var可以重复声明","let不可以重复声明","A,C","var和let在作用域和声明方面有区别"
 "判断题示例","JavaScript是一种编程语言","true_false","easy","1","JavaScript基础","","","","","true","JavaScript确实是一种编程语言"
 "简答题示例","请简述JavaScript的特点","short_answer","medium","5","JavaScript基础","","","","","JavaScript是一种动态类型的解释型编程语言","这是简答题的参考答案"`
-      
+
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
@@ -330,7 +327,7 @@ const QuestionManagementPage: React.FC = () => {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-      
+
       message.success('模板下载成功')
     } catch (error) {
       console.error('模板下载失败:', error)
@@ -420,27 +417,23 @@ const QuestionManagementPage: React.FC = () => {
     }
   }, [selectedQuestions, questions])
 
-
-
   const getTypeLabel = (type: string) => {
     const typeMap = {
-      'single_choice': '单选题',
-      'multiple_choice': '多选题',
-      'true_false': '判断题',
-      'short_answer': '简答题'
+      single_choice: '单选题',
+      multiple_choice: '多选题',
+      true_false: '判断题',
+      short_answer: '简答题',
     }
     return typeMap[type as keyof typeof typeMap] || type
-  }
-
-  if (loading) {
-    return <LoadingSpinner text="加载题目列表..." />
   }
 
   return (
     <div style={{ padding: '24px' }}>
       {/* 页面标题 */}
       <div style={{ marginBottom: '24px' }}>
-        <Title level={2} style={{ margin: 0 }}>题目管理</Title>
+        <Title level={2} style={{ margin: 0 }}>
+          题目管理
+        </Title>
         <Paragraph type="secondary" style={{ margin: '8px 0 0 0' }}>
           管理考试题库中的所有题目
         </Paragraph>
@@ -455,18 +448,13 @@ const QuestionManagementPage: React.FC = () => {
               <AntSearch
                 placeholder="搜索题目..."
                 value={searchTerm}
-                onChange={(e) => handleSearch(e.target.value)}
+                onChange={e => setSearchTerm(e.target.value)}
                 style={{ width: 300 }}
                 allowClear
               />
 
               {/* 筛选器 */}
-              <Select
-                value={filterType}
-                onChange={handleFilterChange}
-                style={{ width: 150 }}
-                placeholder="题目类型"
-              >
+              <Select value={filterType} onChange={handleFilterChange} style={{ width: 150 }} placeholder="题目类型">
                 <Select.Option value="all">所有类型</Select.Option>
                 <Select.Option value="single_choice">单选题</Select.Option>
                 <Select.Option value="multiple_choice">多选题</Select.Option>
@@ -475,31 +463,19 @@ const QuestionManagementPage: React.FC = () => {
               </Select>
             </Space>
           </Col>
-          
+
           <Col>
             <Space>
               {/* 操作按钮 */}
               {selectedQuestions.length > 0 && (
-                <Button
-                  danger
-                  icon={<Trash2 size={16} />}
-                  onClick={handleBatchDelete}
-                >
+                <Button danger icon={<Trash2 size={16} />} onClick={handleBatchDelete}>
                   批量删除 ({selectedQuestions.length})
                 </Button>
               )}
-              <Button
-                type="default"
-                icon={<Upload size={16} />}
-                onClick={() => setShowImportModal(true)}
-              >
+              <Button type="default" icon={<Upload size={16} />} onClick={() => setShowImportModal(true)}>
                 批量导入
               </Button>
-              <Button
-                type="primary"
-                icon={<Plus size={16} />}
-                onClick={() => setShowAddModal(true)}
-              >
+              <Button type="primary" icon={<Plus size={16} />} onClick={() => setShowAddModal(true)}>
                 新增题目
               </Button>
             </Space>
@@ -510,21 +486,22 @@ const QuestionManagementPage: React.FC = () => {
       {/* 题目列表 */}
       <Card>
         <Table
+          loading={loading}
           rowSelection={{
-             type: 'checkbox',
-             selectedRowKeys: selectedQuestions,
-             onChange: (selectedRowKeys) => {
-               setSelectedQuestions(selectedRowKeys as string[])
-             },
-             onSelectAll: (selected) => {
-               if (selected) {
-                 setSelectedQuestions(questions.map(q => q.id))
-               } else {
-                 setSelectedQuestions([])
-               }
-               setSelectAll(selected)
-             }
-           }}
+            type: 'checkbox',
+            selectedRowKeys: selectedQuestions,
+            onChange: selectedRowKeys => {
+              setSelectedQuestions(selectedRowKeys as string[])
+            },
+            onSelectAll: selected => {
+              if (selected) {
+                setSelectedQuestions(questions.map(q => q.id))
+              } else {
+                setSelectedQuestions([])
+              }
+              setSelectAll(selected)
+            },
+          }}
           columns={[
             {
               title: '题目内容',
@@ -546,10 +523,10 @@ const QuestionManagementPage: React.FC = () => {
               width: 120,
               render: (type: string) => {
                 const typeConfig = {
-                  'single_choice': { color: 'blue', text: '单选题' },
-                  'multiple_choice': { color: 'green', text: '多选题' },
-                  'true_false': { color: 'orange', text: '判断题' },
-                  'short_answer': { color: 'purple', text: '简答题' }
+                  single_choice: { color: 'blue', text: '单选题' },
+                  multiple_choice: { color: 'green', text: '多选题' },
+                  true_false: { color: 'orange', text: '判断题' },
+                  short_answer: { color: 'purple', text: '简答题' },
                 }
                 const config = typeConfig[type as keyof typeof typeConfig] || { color: 'default', text: type }
                 return <Tag color={config.color}>{config.text}</Tag>
@@ -656,15 +633,18 @@ const QuestionManagementPage: React.FC = () => {
           setIsBatchDelete(false)
         }}
         footer={[
-          <Button key="cancel" onClick={() => {
-            setShowDeleteModal(false)
-            setIsBatchDelete(false)
-          }}>
+          <Button
+            key="cancel"
+            onClick={() => {
+              setShowDeleteModal(false)
+              setIsBatchDelete(false)
+            }}
+          >
             取消
           </Button>,
-          <Button 
-            key="delete" 
-            type="primary" 
+          <Button
+            key="delete"
+            type="primary"
             danger
             onClick={() => {
               if (isBatchDelete) {
@@ -675,14 +655,13 @@ const QuestionManagementPage: React.FC = () => {
             }}
           >
             确认删除
-          </Button>
+          </Button>,
         ]}
       >
         <p>
-          {isBatchDelete 
+          {isBatchDelete
             ? `确定要删除选中的 ${selectedQuestions.length} 道题目吗？此操作无法撤销。`
-            : `确定要删除题目 ${selectedQuestion?.content}？此操作无法撤销。`
-          }
+            : `确定要删除题目 ${selectedQuestion?.content}？此操作无法撤销。`}
         </p>
       </Modal>
 
@@ -698,8 +677,8 @@ const QuestionManagementPage: React.FC = () => {
         }}
         width={800}
         footer={[
-          <Button 
-            key="cancel" 
+          <Button
+            key="cancel"
             onClick={() => {
               setShowAddModal(false)
               addForm.resetFields()
@@ -710,45 +689,22 @@ const QuestionManagementPage: React.FC = () => {
           >
             取消
           </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            onClick={() => addForm.submit()}
-            loading={addLoading}
-          >
+          <Button key="submit" type="primary" onClick={() => addForm.submit()} loading={addLoading}>
             创建题目
-          </Button>
+          </Button>,
         ]}
       >
-        <Form
-          form={addForm}
-          layout="vertical"
-          onFinish={handleAddQuestion}
-        >
-          <Form.Item
-            name="title"
-            label="题目标题"
-            rules={[{ required: true, message: '请输入题目标题' }]}
-          >
+        <Form form={addForm} layout="vertical" onFinish={handleAddQuestion}>
+          <Form.Item name="title" label="题目标题" rules={[{ required: true, message: '请输入题目标题' }]}>
             <Input placeholder="请输入题目标题" />
           </Form.Item>
 
-          <Form.Item
-            name="content"
-            label="题目内容"
-            rules={[{ required: true, message: '请输入题目内容' }]}
-          >
+          <Form.Item name="content" label="题目内容" rules={[{ required: true, message: '请输入题目内容' }]}>
             <Input.TextArea rows={3} placeholder="请输入题目内容" />
           </Form.Item>
 
-          <Form.Item
-            label="题目类型"
-            required
-          >
-            <Radio.Group
-              value={questionType}
-              onChange={(e) => handleQuestionTypeChange(e.target.value)}
-            >
+          <Form.Item label="题目类型" required>
+            <Radio.Group value={questionType} onChange={e => handleQuestionTypeChange(e.target.value)}>
               <Radio value="single_choice">单选题</Radio>
               <Radio value="multiple_choice">多选题</Radio>
               <Radio value="true_false">判断题</Radio>
@@ -759,11 +715,7 @@ const QuestionManagementPage: React.FC = () => {
           {(questionType === 'single_choice' || questionType === 'multiple_choice') && (
             <>
               <Form.Item label="选项数量">
-                <Select
-                  value={optionCount}
-                  onChange={handleOptionCountChange}
-                  style={{ width: 120 }}
-                >
+                <Select value={optionCount} onChange={handleOptionCountChange} style={{ width: 120 }}>
                   <Select.Option value={2}>2个</Select.Option>
                   <Select.Option value={3}>3个</Select.Option>
                   <Select.Option value={4}>4个</Select.Option>
@@ -811,10 +763,7 @@ const QuestionManagementPage: React.FC = () => {
                   label="正确答案（多选）"
                   rules={[{ required: true, message: '请选择正确答案' }]}
                 >
-                  <Select
-                    mode="multiple"
-                    placeholder="请选择正确答案"
-                  >
+                  <Select mode="multiple" placeholder="请选择正确答案">
                     {Array.from({ length: optionCount }, (_, i) => {
                       const optionKey = String.fromCharCode(65 + i)
                       return (
@@ -830,11 +779,7 @@ const QuestionManagementPage: React.FC = () => {
           )}
 
           {questionType === 'true_false' && (
-            <Form.Item
-              name="correct_answer"
-              label="正确答案"
-              rules={[{ required: true, message: '请选择正确答案' }]}
-            >
+            <Form.Item name="correct_answer" label="正确答案" rules={[{ required: true, message: '请选择正确答案' }]}>
               <Radio.Group>
                 <Radio value="true">正确</Radio>
                 <Radio value="false">错误</Radio>
@@ -843,20 +788,12 @@ const QuestionManagementPage: React.FC = () => {
           )}
 
           {questionType === 'short_answer' && (
-            <Form.Item
-              name="answer"
-              label="参考答案"
-              rules={[{ required: true, message: '请输入参考答案' }]}
-            >
+            <Form.Item name="answer" label="参考答案" rules={[{ required: true, message: '请输入参考答案' }]}>
               <Input.TextArea rows={3} placeholder="请输入参考答案" />
             </Form.Item>
           )}
 
-          <Form.Item
-            name="difficulty"
-            label="难度等级"
-            rules={[{ required: true, message: '请选择难度等级' }]}
-          >
+          <Form.Item name="difficulty" label="难度等级" rules={[{ required: true, message: '请选择难度等级' }]}>
             <Select placeholder="请选择难度等级">
               <Select.Option value="easy">简单</Select.Option>
               <Select.Option value="medium">中等</Select.Option>
@@ -864,26 +801,15 @@ const QuestionManagementPage: React.FC = () => {
             </Select>
           </Form.Item>
 
-          <Form.Item
-            name="knowledge_points"
-            label="知识点"
-            extra="多个知识点用逗号分隔"
-          >
+          <Form.Item name="knowledge_points" label="知识点" extra="多个知识点用逗号分隔">
             <Input placeholder="请输入知识点，多个用逗号分隔" />
           </Form.Item>
 
-          <Form.Item
-            name="score"
-            label="分值"
-            initialValue={1}
-          >
+          <Form.Item name="score" label="分值" initialValue={1}>
             <Input type="number" min={1} placeholder="请输入题目分值" />
           </Form.Item>
 
-          <Form.Item
-            name="explanation"
-            label="题目解析"
-          >
+          <Form.Item name="explanation" label="题目解析">
             <Input.TextArea rows={3} placeholder="请输入题目解析" />
           </Form.Item>
         </Form>
@@ -900,8 +826,8 @@ const QuestionManagementPage: React.FC = () => {
         }}
         width={800}
         footer={[
-          <Button 
-            key="cancel" 
+          <Button
+            key="cancel"
             onClick={() => {
               setShowImportModal(false)
               setImportFile(null)
@@ -920,7 +846,7 @@ const QuestionManagementPage: React.FC = () => {
             icon={!importing && <Upload />}
           >
             {importing ? '导入中...' : '开始导入'}
-          </Button>
+          </Button>,
         ]}
       >
         {/* 导入说明 */}
@@ -943,10 +869,7 @@ const QuestionManagementPage: React.FC = () => {
 
         {/* 下载模板 */}
         <div style={{ marginBottom: 24 }}>
-          <Button 
-            onClick={downloadTemplate}
-            icon={<Download size={16} />}
-          >
+          <Button onClick={downloadTemplate} icon={<Download size={16} />}>
             下载导入模板
           </Button>
         </div>
@@ -955,15 +878,21 @@ const QuestionManagementPage: React.FC = () => {
         <div style={{ marginBottom: 24 }}>
           <AntUpload.Dragger
             accept=".xlsx,.xls,.csv"
-            beforeUpload={(file) => {
+            beforeUpload={file => {
               setImportFile(file)
               return false
             }}
-            fileList={importFile ? [{
-              uid: '1',
-              name: importFile.name,
-              status: 'done' as const
-            }] : []}
+            fileList={
+              importFile
+                ? [
+                    {
+                      uid: '1',
+                      name: importFile.name,
+                      status: 'done' as const,
+                    },
+                  ]
+                : []
+            }
             onRemove={() => setImportFile(null)}
             disabled={importing}
             style={{ padding: '20px' }}
@@ -973,9 +902,7 @@ const QuestionManagementPage: React.FC = () => {
               <div style={{ fontSize: 16, marginBottom: 8 }}>
                 {importFile ? importFile.name : '点击选择文件或拖拽文件到此处'}
               </div>
-              <div style={{ color: '#999', fontSize: 14 }}>
-                支持 .xlsx, .xls, .csv 格式
-              </div>
+              <div style={{ color: '#999', fontSize: 14 }}>支持 .xlsx, .xls, .csv 格式</div>
             </div>
           </AntUpload.Dragger>
         </div>
@@ -986,8 +913,8 @@ const QuestionManagementPage: React.FC = () => {
             <div style={{ marginBottom: 8 }}>
               <Typography.Text strong>导入进度</Typography.Text>
             </div>
-            <Progress 
-              percent={importProgress} 
+            <Progress
+              percent={importProgress}
               status="active"
               strokeColor={{
                 '0%': '#108ee9',

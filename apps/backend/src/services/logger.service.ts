@@ -2,13 +2,14 @@ import { pool } from '../config/database.js';
 import { ResultSetHeader } from 'mysql2';
 
 export interface UserLogData {
-  userId: number;
-  action: string;
-  resourceType?: string;
-  resourceId?: number;
-  details?: any;
-  ipAddress?: string;
-  userAgent?: string;
+  userId?: number
+  username?: string // <- 新增，可选
+  action: string
+  resourceType?: string
+  resourceId?: number
+  details?: any
+  ipAddress?: string
+  userAgent?: string
 }
 
 export interface SystemLogData {

@@ -610,10 +610,10 @@ const RoleManagementPage: React.FC = () => {
                   console.log('正在调用获取排序号接口...')
                   const response = await api.get('/roles/next-sort-order')
                   console.log('获取排序号响应:', response)
-                  if (response.data.success) {
-                    console.log('成功获取排序号:', response.data.data)
+                  if (response.data) {
+                    console.log('成功获取排序号:', response.data)
                     setNextSortOrder(response.data.data)
-                    form.setFieldsValue({ sort_order: response.data.data })
+                    form.setFieldsValue({ sort_order: response.data })
                   } else {
                     console.error('获取排序号失败 - 响应不成功:', response.data)
                     setNextSortOrder(1)
@@ -670,6 +670,7 @@ const RoleManagementPage: React.FC = () => {
         }}
         width={600}
         destroyOnHidden={true}
+        forceRender
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
           <Row gutter={16}>

@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, Plus, Trash2, X } from 'lucide-react'
-import { 
-  message, 
-  Card, 
-  Typography, 
-  Button, 
-  Form, 
-  Input, 
-  Select, 
-  Radio, 
-  Checkbox, 
-  Space, 
-  Tag, 
-  Row, 
+import {
+  Button,
+  Card,
+  Checkbox,
   Col,
-  Divider
+  Divider,
+  Form,
+  Input,
+  message,
+  Radio,
+  Row,
+  Select,
+  Space,
+  Tag,
+  Typography,
 } from 'antd'
-import { questions as questionsApi } from '../../lib/api'
+import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { questions as questionsApi } from '../../lib/api'
 
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input
@@ -40,7 +40,7 @@ const QuestionCreatePage: React.FC = () => {
     { content: '', is_correct: false },
     { content: '', is_correct: false },
     { content: '', is_correct: false },
-    { content: '', is_correct: false }
+    { content: '', is_correct: false },
   ])
   const [answer, setAnswer] = useState('')
   const [explanation, setExplanation] = useState('')
@@ -48,7 +48,7 @@ const QuestionCreatePage: React.FC = () => {
   const [knowledgePointInput, setKnowledgePointInput] = useState('')
   const [isViewMode, setIsViewMode] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
-  
+
   // 根据路由判断当前模式
   useEffect(() => {
     if (id) {
@@ -58,30 +58,30 @@ const QuestionCreatePage: React.FC = () => {
       } else if (path.includes('question-edit')) {
         setIsEditMode(true)
       }
-      
+
       // 获取题目详情
       fetchQuestionDetail(id)
     }
   }, [id])
-  
+
   // 获取题目详情
   const fetchQuestionDetail = async (questionId: string) => {
     try {
       setInitialLoading(true)
       const response = await questionsApi.getById(questionId)
       const question = response.data.question
-      
+
       if (question) {
         setContent(question.content || '')
         setType(question.question_type || 'single_choice')
         setExplanation(question.explanation || '')
         setKnowledgePoints(question.knowledge_points || [])
-        
+
         // 处理选项和答案
         if (question.options && Array.isArray(question.options)) {
           setOptions(question.options)
         }
-        
+
         if (question.question_type === 'true_false') {
           // 判断题答案处理
           if (question.correct_answer && Array.isArray(question.correct_answer)) {
@@ -103,7 +103,7 @@ const QuestionCreatePage: React.FC = () => {
   const handleOptionChange = (index: number, field: keyof Option, value: string | boolean) => {
     const newOptions = [...options]
     newOptions[index] = { ...newOptions[index], [field]: value }
-    
+
     // 如果是单选题，确保只有一个选项被标记为正确
     if (type === 'single_choice' && field === 'is_correct' && value === true) {
       newOptions.forEach((option, i) => {
@@ -112,7 +112,7 @@ const QuestionCreatePage: React.FC = () => {
         }
       })
     }
-    
+
     setOptions(newOptions)
   }
 
@@ -147,13 +147,12 @@ const QuestionCreatePage: React.FC = () => {
   }
 
   // 表单提交处理
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async () => {
     if (!content.trim()) {
       message.error('请输入题目内容')
       return
     }
-    
+
     // 选择题验证
     if (type === 'single_choice' || type === 'multiple_choice') {
       // 检查是否有空选项
@@ -162,7 +161,7 @@ const QuestionCreatePage: React.FC = () => {
         message.error('选项内容不能为空')
         return
       }
-      
+
       // 检查是否有正确选项
       const hasCorrectOption = options.some(option => option.is_correct)
       if (!hasCorrectOption) {
@@ -170,22 +169,22 @@ const QuestionCreatePage: React.FC = () => {
         return
       }
     }
-    
+
     // 判断题验证
     if (type === 'true_false' && !answer) {
       message.error('请选择正确答案')
       return
     }
-    
+
     // 简答题验证
     if (type === 'short_answer' && !answer.trim()) {
       message.error('请输入参考答案')
       return
     }
-    
+
     try {
       setLoading(true)
-      
+
       // 准备提交数据
       const questionData: any = {
         content,
@@ -193,16 +192,14 @@ const QuestionCreatePage: React.FC = () => {
         knowledge_points: knowledgePoints,
         explanation,
         exam_id: 1, // 默认使用ID为1的考试
-        score: 10 // 默认分值
+        score: 10, // 默认分值
       }
-      
+
       // 根据题目类型设置答案
       if (type === 'single_choice' || type === 'multiple_choice') {
         questionData.options = JSON.stringify(options)
         questionData.correct_answer = JSON.stringify(
-          options
-            .map((option, index) => option.is_correct ? index : null)
-            .filter(index => index !== null)
+          options.map((option, index) => (option.is_correct ? index : null)).filter(index => index !== null)
         )
       } else if (type === 'true_false') {
         questionData.options = JSON.stringify([{ content: '正确' }, { content: '错误' }])
@@ -211,7 +208,7 @@ const QuestionCreatePage: React.FC = () => {
         questionData.options = JSON.stringify([])
         questionData.correct_answer = JSON.stringify(answer)
       }
-      
+
       if (isEditMode && id) {
         // 提交更新请求
         await questionsApi.update(id, questionData)
@@ -221,7 +218,7 @@ const QuestionCreatePage: React.FC = () => {
         await questionsApi.create(questionData)
         message.success('题目创建成功')
       }
-      
+
       navigate('/admin/questions')
     } catch (error: any) {
       console.error(isEditMode ? '更新题目错误:' : '创建题目错误:', error)
@@ -261,16 +258,15 @@ const QuestionCreatePage: React.FC = () => {
       <Card style={{ marginBottom: '24px' }}>
         <Row justify="space-between" align="middle">
           <Col>
-            <Title level={2} style={{ margin: 0 }}>{getPageTitle()}</Title>
+            <Title level={2} style={{ margin: 0 }}>
+              {getPageTitle()}
+            </Title>
             <Paragraph type="secondary" style={{ margin: '8px 0 0 0' }}>
               {getPageDescription()}
             </Paragraph>
           </Col>
           <Col>
-            <Button
-              onClick={() => navigate('/admin/questions')}
-              icon={<ArrowLeft style={{ width: 16, height: 16 }} />}
-            >
+            <Button onClick={() => navigate('/admin/questions')} icon={<ArrowLeft style={{ width: 16, height: 16 }} />}>
               返回题目列表
             </Button>
           </Col>
@@ -279,23 +275,12 @@ const QuestionCreatePage: React.FC = () => {
 
       {/* 创建表单 */}
       <Card>
-        <Form
-          layout="vertical"
-          onFinish={isViewMode ? undefined : handleSubmit}
-          disabled={isViewMode}
-        >
+        <Form layout="vertical" onFinish={isViewMode ? undefined : handleSubmit} disabled={isViewMode}>
           {/* 基本信息 */}
           <Row gutter={[24, 16]}>
             <Col xs={24} md={12}>
-              <Form.Item
-                label="题目类型"
-                required
-              >
-                <Select
-                  value={type}
-                  onChange={(value) => setType(value)}
-                  disabled={isViewMode}
-                >
+              <Form.Item label="题目类型" required>
+                <Select value={type} onChange={value => setType(value)} disabled={isViewMode}>
                   <Option value="single_choice">单选题</Option>
                   <Option value="multiple_choice">多选题</Option>
                   <Option value="true_false">判断题</Option>
@@ -306,13 +291,10 @@ const QuestionCreatePage: React.FC = () => {
           </Row>
 
           {/* 题目内容 */}
-          <Form.Item
-            label="题目内容"
-            required
-          >
+          <Form.Item label="题目内容" required>
             <TextArea
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={e => setContent(e.target.value)}
               placeholder="输入题目内容"
               rows={4}
               disabled={isViewMode}
@@ -347,14 +329,14 @@ const QuestionCreatePage: React.FC = () => {
                     <Col flex="none">
                       <Checkbox
                         checked={option.is_correct}
-                        onChange={(e) => handleOptionChange(index, 'is_correct', e.target.checked)}
+                        onChange={e => handleOptionChange(index, 'is_correct', e.target.checked)}
                         disabled={isViewMode}
                       />
                     </Col>
                     <Col flex="auto">
                       <Input
                         value={option.content}
-                        onChange={(e) => handleOptionChange(index, 'content', e.target.value)}
+                        onChange={e => handleOptionChange(index, 'content', e.target.value)}
                         placeholder={`选项 ${index + 1}`}
                         disabled={isViewMode}
                       />
@@ -377,15 +359,8 @@ const QuestionCreatePage: React.FC = () => {
 
           {/* 判断题答案 */}
           {type === 'true_false' && (
-            <Form.Item
-              label="正确答案"
-              required
-            >
-              <Radio.Group
-                value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
-                disabled={isViewMode}
-              >
+            <Form.Item label="正确答案" required>
+              <Radio.Group value={answer} onChange={e => setAnswer(e.target.value)} disabled={isViewMode}>
                 <Radio value="true">正确</Radio>
                 <Radio value="false">错误</Radio>
               </Radio.Group>
@@ -394,13 +369,10 @@ const QuestionCreatePage: React.FC = () => {
 
           {/* 简答题答案 */}
           {type === 'short_answer' && (
-            <Form.Item
-              label="参考答案"
-              required
-            >
+            <Form.Item label="参考答案" required>
               <TextArea
                 value={answer}
-                onChange={(e) => setAnswer(e.target.value)}
+                onChange={e => setAnswer(e.target.value)}
                 placeholder="输入参考答案"
                 rows={4}
                 disabled={isViewMode}
@@ -409,12 +381,10 @@ const QuestionCreatePage: React.FC = () => {
           )}
 
           {/* 解析 */}
-          <Form.Item
-            label="题目解析"
-          >
+          <Form.Item label="题目解析">
             <TextArea
               value={explanation}
-              onChange={(e) => setExplanation(e.target.value)}
+              onChange={e => setExplanation(e.target.value)}
               placeholder="输入题目解析（可选）"
               rows={4}
               disabled={isViewMode}
@@ -422,38 +392,27 @@ const QuestionCreatePage: React.FC = () => {
           </Form.Item>
 
           {/* 知识点 */}
-          <Form.Item
-            label="知识点"
-          >
+          <Form.Item label="知识点">
             <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
               <Input
                 value={knowledgePointInput}
-                onChange={(e) => setKnowledgePointInput(e.target.value)}
+                onChange={e => setKnowledgePointInput(e.target.value)}
                 placeholder="输入知识点"
-                onPressEnter={(e) => {
+                onPressEnter={e => {
                   e.preventDefault()
                   addKnowledgePoint()
                 }}
                 disabled={isViewMode}
               />
-              <Button
-                type="primary"
-                onClick={addKnowledgePoint}
-                disabled={isViewMode}
-              >
+              <Button type="primary" onClick={addKnowledgePoint} disabled={isViewMode}>
                 添加
               </Button>
             </Space.Compact>
-            
+
             {knowledgePoints.length > 0 && (
               <Space wrap>
                 {knowledgePoints.map((point, index) => (
-                  <Tag
-                    key={index}
-                    closable={!isViewMode}
-                    onClose={() => removeKnowledgePoint(index)}
-                    color="blue"
-                  >
+                  <Tag key={index} closable={!isViewMode} onClose={() => removeKnowledgePoint(index)} color="blue">
                     {point}
                   </Tag>
                 ))}
@@ -465,17 +424,9 @@ const QuestionCreatePage: React.FC = () => {
           <Divider />
           <Row justify="end">
             <Space>
-              <Button
-                onClick={() => navigate('/admin/questions')}
-              >
-                返回
-              </Button>
+              <Button onClick={() => navigate('/admin/questions')}>返回</Button>
               {!isViewMode && (
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  loading={loading}
-                >
+                <Button type="primary" htmlType="submit" loading={loading}>
                   {isEditMode ? '更新题目' : '创建题目'}
                 </Button>
               )}

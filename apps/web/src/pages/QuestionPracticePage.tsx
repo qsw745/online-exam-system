@@ -113,7 +113,7 @@ export default function QuestionPracticePage() {
       const allQuestions = response.data?.questions || []
       
       if (allQuestions.length === 0) {
-        message.error('没有找到符合条件的题目')
+        // message.error('没有找到符合条件的题目')
         navigate('/questions/all')
         return
       }
@@ -136,7 +136,7 @@ export default function QuestionPracticePage() {
         const questionIds = shuffledQuestions.map((q: any) => q.id.toString())
         setQuestionList(questionIds)
         
-        message.success(`找到 ${unpracticedQuestions.length} 道未练习的题目`)
+        // message.success(`找到 ${unpracticedQuestions.length} 道未练习的题目`)
       }
       
       // 如果有指定的题目ID，找到它在列表中的位置
@@ -688,6 +688,3 @@ export default function QuestionPracticePage() {
     </div>
   )
 }
-
-
-
