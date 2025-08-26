@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试前端菜单API</title>
+</head>
+<body>
+    <h1>测试前端菜单API</h1>
+    <button onclick="testMenuAPI()">测试菜单API</button>
+    <div id="result"></div>
+
+    <script>
+        async function testMenuAPI() {
+            try {
+                const response = await fetch('http://localhost:3000/api/menu/menus');
+                const data = await response.json();
+                
+                console.log('API响应:', data);
+                console.log('菜单数量:', data.data ? data.data.length : 0);
+                
+                document.getElementById('result').innerHTML = `
+                    <h2>API响应结果:</h2>
+                    <p>成功: ${data.success}</p>
+                    <p>菜单数量: ${data.data ? data.data.length : 0}</p>
+                    <h3>菜单列表:</h3>
+                    <pre>${JSON.stringify(data, null, 2)}</pre>
+                `;
+            } catch (error) {
+                console.error('API调用失败:', error);
+                document.getElementById('result').innerHTML = `
+                    <h2>API调用失败:</h2>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

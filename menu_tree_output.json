@@ -1,0 +1,451 @@
+﻿{
+    "success":  true,
+    "data":  [
+                 {
+                     "id":  1,
+                     "name":  "dashboard",
+                     "title":  "仪表盘",
+                     "path":  "/dashboard",
+                     "component":  "DashboardPage",
+                     "icon":  "dashboard",
+                     "parent_id":  null,
+                     "sort_order":  0,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "dashboard:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+
+                                  ]
+                 },
+                 {
+                     "id":  2,
+                     "name":  "exam",
+                     "title":  "考试管理",
+                     "path":  "/exam",
+                     "component":  null,
+                     "icon":  "file-text",
+                     "parent_id":  null,
+                     "sort_order":  1,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "exam:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+                                      {
+                                          "id":  8,
+                                          "name":  "exam-list",
+                                          "title":  "考试列表",
+                                          "path":  "/exam/list",
+                                          "component":  "ExamPage",
+                                          "icon":  "unordered-list",
+                                          "parent_id":  2,
+                                          "sort_order":  2,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "exam:list",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  9,
+                                          "name":  "exam-results",
+                                          "title":  "考试结果",
+                                          "path":  "/results",
+                                          "component":  "ResultsPage",
+                                          "icon":  "trophy",
+                                          "parent_id":  2,
+                                          "sort_order":  5,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "exam:results",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  10,
+                                          "name":  "exam-practice",
+                                          "title":  "题目练习",
+                                          "path":  "/practice",
+                                          "component":  "QuestionPracticePage",
+                                          "icon":  "edit",
+                                          "parent_id":  2,
+                                          "sort_order":  9,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "exam:practice",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      }
+                                  ]
+                 },
+                 {
+                     "id":  3,
+                     "name":  "question",
+                     "title":  "题库管理",
+                     "path":  "/questions",
+                     "component":  "QuestionsPage",
+                     "icon":  "question-circle",
+                     "parent_id":  null,
+                     "sort_order":  8,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "question:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+                                      {
+                                          "id":  61,
+                                          "name":  "题库学习",
+                                          "title":  "题库学习",
+                                          "path":  "/admin/questions",
+                                          "component":  "QuestionsPage",
+                                          "icon":  "question-circle",
+                                          "parent_id":  3,
+                                          "sort_order":  1,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "question:view",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      }
+                                  ]
+                 },
+                 {
+                     "id":  4,
+                     "name":  "user",
+                     "title":  "用户管理",
+                     "path":  "/admin/users",
+                     "component":  "UserManagementPage",
+                     "icon":  "user",
+                     "parent_id":  null,
+                     "sort_order":  12,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "user:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+
+                                  ]
+                 },
+                 {
+                     "id":  5,
+                     "name":  "system",
+                     "title":  "系统管理",
+                     "path":  "/system",
+                     "component":  null,
+                     "icon":  "setting",
+                     "parent_id":  null,
+                     "sort_order":  15,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "system:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+                                      {
+                                          "id":  12,
+                                          "name":  "system-settings",
+                                          "title":  "系统设置",
+                                          "path":  "/settings",
+                                          "component":  "SettingsPage",
+                                          "icon":  "setting",
+                                          "parent_id":  5,
+                                          "sort_order":  3,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "system:settings",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  13,
+                                          "name":  "system-logs",
+                                          "title":  "系统日志",
+                                          "path":  "/logs",
+                                          "component":  "LogsPage",
+                                          "icon":  "file-text",
+                                          "parent_id":  5,
+                                          "sort_order":  6,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "system:logs",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  14,
+                                          "name":  "system-notifications",
+                                          "title":  "通知管理",
+                                          "path":  "/notifications",
+                                          "component":  "NotificationsPage",
+                                          "icon":  "bell",
+                                          "parent_id":  5,
+                                          "sort_order":  10,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "system:notifications",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  15,
+                                          "name":  "system-tasks",
+                                          "title":  "任务管理",
+                                          "path":  "/tasks",
+                                          "component":  "TasksPage",
+                                          "icon":  "calendar",
+                                          "parent_id":  5,
+                                          "sort_order":  13,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "system:tasks",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  16,
+                                          "name":  "system-menus",
+                                          "title":  "菜单管理",
+                                          "path":  "/admin/menus",
+                                          "component":  "MenuManagePage",
+                                          "icon":  "menu",
+                                          "parent_id":  5,
+                                          "sort_order":  16,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "system:menus",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      }
+                                  ]
+                 },
+                 {
+                     "id":  6,
+                     "name":  "learning",
+                     "title":  "学习中心",
+                     "path":  "/learning",
+                     "component":  null,
+                     "icon":  "book",
+                     "parent_id":  null,
+                     "sort_order":  18,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "learning:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+                                      {
+                                          "id":  17,
+                                          "name":  "learning-progress",
+                                          "title":  "学习进度",
+                                          "path":  "/learning/progress",
+                                          "component":  "LearningProgressPage",
+                                          "icon":  "line-chart",
+                                          "parent_id":  6,
+                                          "sort_order":  4,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "learning:progress",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      },
+                                      {
+                                          "id":  18,
+                                          "name":  "learning-favorites",
+                                          "title":  "我的收藏",
+                                          "path":  "/favorites",
+                                          "component":  "FavoritesPage",
+                                          "icon":  "heart",
+                                          "parent_id":  6,
+                                          "sort_order":  7,
+                                          "level":  2,
+                                          "is_hidden":  false,
+                                          "is_disabled":  false,
+                                          "is_system":  false,
+                                          "menu_type":  "menu",
+                                          "permission_code":  "learning:favorites",
+                                          "redirect":  null,
+                                          "meta":  {
+                                                       "requireAuth":  true
+                                                   },
+                                          "created_at":  "",
+                                          "updated_at":  "",
+                                          "children":  [
+
+                                                       ]
+                                      }
+                                  ]
+                 },
+                 {
+                     "id":  7,
+                     "name":  "analytics",
+                     "title":  "数据分析",
+                     "path":  "/analytics",
+                     "component":  "AnalyticsPage",
+                     "icon":  "bar-chart",
+                     "parent_id":  null,
+                     "sort_order":  20,
+                     "level":  1,
+                     "is_hidden":  false,
+                     "is_disabled":  false,
+                     "is_system":  false,
+                     "menu_type":  "menu",
+                     "permission_code":  "analytics:view",
+                     "redirect":  null,
+                     "meta":  {
+                                  "requireAuth":  true
+                              },
+                     "created_at":  "",
+                     "updated_at":  "",
+                     "children":  [
+
+                                  ]
+                 }
+             ]
+}
