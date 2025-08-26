@@ -1,16 +1,21 @@
-import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import {
-  CreateMenuRequest,
-  CreateRoleRequest,
-  Menu,
-  MenuTreeNode,
-  Role,
-  UpdateMenuRequest,
-  UpdateRoleRequest,
-  UserMenuPermission,
-} from '../models/menu.model.js'
+import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
 
+import { pool } from '../config/database.js';
+import {
+    CreateMenuRequest,
+    CreateRoleRequest,
+    Menu,
+    MenuTreeNode,
+    Role,
+    UpdateMenuRequest,
+    UpdateRoleRequest,
+    UserMenuPermission,
+} from '../models/menu.model.js';
+type MenuUpdate = {
+  id: number;
+  parent_id?: number | null;   // 未提供则不修改
+  sort_order?: number;         // 未提供则不修改
+};
 // 从 userId 推断主组织（当没传 orgId 时兜底）
 export async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
@@ -33,6 +38,7 @@ export async function isUserAdminInOrg(userId: number, orgId: number): Promise<b
   return !!row
 }
 export class MenuService {
+
   // 获取所有菜单
   static async getAllMenus(): Promise<Menu[]> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM menus ORDER BY sort_order ASC, id ASC')
@@ -177,38 +183,71 @@ export class MenuService {
   }
 
   // 批量更新菜单排序
-  static async batchUpdateMenuSort(
-    menuUpdates: Array<{ id: number; sort_order: number; parent_id?: number }>
-  ): Promise<boolean> {
-    const connection = await pool.getConnection()
+static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
+    if (!updates || updates.length === 0) return true;
 
+    let conn: PoolConnection | null = null;
     try {
-      await connection.beginTransaction()
+      conn = await pool.getConnection();
+      await conn.beginTransaction();
 
-      for (const update of menuUpdates) {
-        const { id, sort_order, parent_id } = update
+      // 1) 取出涉及到的 id，构建节点映射(id,parent_id)
+      const ids = Array.from(new Set([
+        ...updates.map(u => u.id),
+        ...updates.map(u => u.parent_id).filter((v): v is number => typeof v === 'number'),
+      ]));
 
-        if (parent_id !== undefined) {
-          // 如果需要更新父级ID，同时更新排序和父级
-          await connection.execute('UPDATE menus SET sort_order = ?, parent_id = ? WHERE id = ?', [
-            sort_order,
-            parent_id,
-            id,
-          ])
-        } else {
-          // 只更新排序
-          await connection.execute('UPDATE menus SET sort_order = ? WHERE id = ?', [sort_order, id])
+      if (ids.length) {
+        const [rows] = await conn.query<any[]>(
+          `SELECT id, parent_id FROM menus WHERE id IN (${ids.map(()=>'?').join(',')})`,
+          ids
+        );
+        const nodeMap = new Map<number, { id:number; parent_id: number|null }>(
+          rows.map(r => [r.id, { id: r.id, parent_id: r.parent_id }])
+        );
+
+        // 2) 防环校验：不能把节点挂到自己的子孙下面
+        const isInSubtree = (ancestorId: number, candidateId: number | null | undefined) => {
+          if (candidateId == null) return false;
+          let cur = nodeMap.get(candidateId);
+          while (cur) {
+            if (cur.parent_id === ancestorId) return true;
+            if (cur.parent_id == null) break;
+            cur = nodeMap.get(cur.parent_id);
+          }
+          return false;
+        };
+
+        for (const u of updates) {
+          if (u.parent_id !== undefined) {
+            if (u.parent_id === u.id) {
+              throw new Error('不能把节点设为自己的父级');
+            }
+            if (isInSubtree(u.id, u.parent_id)) {
+              throw new Error('不能拖到自己的子级里');
+            }
+          }
         }
       }
 
-      await connection.commit()
-      return true
-    } catch (error) {
-      await connection.rollback()
-      console.error('批量更新菜单排序失败:', error)
-      return false
+      // 3) 逐条最小化更新（只更新给到的字段）
+      for (const u of updates) {
+        const sets: string[] = [];
+        const vals: any[] = [];
+        if (u.parent_id !== undefined) { sets.push('parent_id=?'); vals.push(u.parent_id); }
+        if (u.sort_order !== undefined) { sets.push('sort_order=?'); vals.push(u.sort_order); }
+        if (!sets.length) continue;
+        vals.push(u.id);
+        await conn.query(`UPDATE menus SET ${sets.join(', ')} WHERE id=?`, vals);
+      }
+
+      await conn.commit();
+      return true;
+    } catch (err) {
+      if (conn) await conn.rollback();
+      throw err;
     } finally {
-      connection.release()
+      if (conn) conn.release();
     }
   }
 

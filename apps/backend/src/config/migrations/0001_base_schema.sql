@@ -22,8 +22,8 @@ CREATE TABLE IF NOT EXISTS menus (
 
 -- 用户-角色关系（类型对齐：role_id → INT UNSIGNED，user_id → INT）
 CREATE TABLE IF NOT EXISTS role_users (
-  role_id     INT UNSIGNED NOT NULL,  -- 对齐 roles.id
-  user_id     INT NOT NULL,           -- 对齐 users.id
+  role_id     INT NOT NULL,           -- 改成和 roles.id 一样（若 roles.id 是 BIGINT 就写 BIGINT）
+  user_id     INT NOT NULL,           -- 跟 users.id 一致
   assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY(role_id, user_id),
   CONSTRAINT fk_ru_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS role_users (
 
 -- 角色-菜单关系（role_id → INT UNSIGNED，menu_id → INT）
 CREATE TABLE IF NOT EXISTS role_menus (
-  role_id INT UNSIGNED NOT NULL,      -- 对齐 roles.id
+ role_id INT NOT NULL,       -- 对齐 roles.id
   menu_id INT NOT NULL,               -- 对齐 menus.id
   PRIMARY KEY(role_id, menu_id),
   CONSTRAINT fk_rm_role FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
