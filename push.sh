@@ -11,13 +11,13 @@ fi
 branch=$(git rev-parse --abbrev-ref HEAD)
 echo "🟦 当前分支: $branch"
 
-# 确保存在远程
+# 检查远程
 if ! git remote | grep -q "^origin$"; then
-  echo "❌ 未找到远程 origin，请先添加：git remote add origin <github-url>"
+  echo "⚠️ 未找到远程 origin，请先添加：git remote add origin <gitee-url>"
   exit 1
 fi
-if ! git remote | grep -q "^gitee$"; then
-  echo "⚠️ 未找到远程 gitee：git remote add gitee <gitee-url>"
+if ! git remote | grep -q "^github$"; then
+  echo "ℹ️ 未找到 github 远程（可选）：git remote add github <github-url>"
 fi
 
 # 显示当前状态
@@ -40,8 +40,7 @@ if ! git rev-parse --abbrev-ref --symbolic-full-name "@{u}" >/dev/null 2>&1; the
   git branch --set-upstream-to "origin/$branch" || true
 fi
 
-echo "⬇️ 先拉取远程最新（rebase + autostash）"
-# autostash 会在拉取前自动暂存未提交改动，结束后自动还原
+echo "⬇️ 先拉取 Gitee 最新（rebase + autostash）"
 if ! git pull --rebase --autostash origin "$branch"; then
   echo "❌ rebase 发生冲突。请按以下步骤处理："
   echo "   1) 逐个解决冲突文件"
@@ -51,7 +50,7 @@ if ! git pull --rebase --autostash origin "$branch"; then
   exit 1
 fi
 
-# 再做一次 ahead/behind 检查，仅用于提示（不阻断）
+# 再做一次 ahead/behind 检查，仅用于提示
 upstream="$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo origin/$branch)"
 if [ -n "$upstream" ]; then
   mapfile -t counts < <(git rev-list --left-right --count "$upstream...HEAD")
@@ -60,13 +59,20 @@ if [ -n "$upstream" ]; then
   echo "📊 相对 $upstream：ahead=$ahead, behind=$behind"
 fi
 
-echo "🚀 推送到 GitHub（origin/$branch）"
-git push origin "$branch"
-
-if git remote | grep -q "^gitee$"; then
-  echo "🚀 推送到 Gitee（gitee/$branch）"
-  git push gitee "$branch"
+echo "🚀 推送到 Gitee（origin/$branch）"
+if ! git push origin "$branch"; then
+  echo "❌ 推送 Gitee 失败"
+  if git remote | grep -q "^github$"; then
+    echo "➡️ 尝试推送 GitHub（github/$branch）"
+    git push github "$branch" || echo "⚠️ GitHub 推送也失败，请检查网络"
+  fi
+  exit 1
 fi
 
-echo "✅ 完成：$branch 已与远程同步（未使用 --force，安全）"
+# 可选：同步 GitHub
+if git remote | grep -q "^github$"; then
+  echo "📤 同步到 GitHub（github/$branch）"
+  git push github "$branch" || echo "⚠️ GitHub 推送失败（忽略）"
+fi
 
+echo "✅ 完成：$branch 已与远程同步（默认 Gitee，GitHub 备份）"
