@@ -1,0 +1,44 @@
+{
+  "name": "web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "rimraf node_modules/.vite-temp && tsc -b && vite build",
+    "build:prod": "rimraf node_modules/.vite-temp && tsc -b && cross-env BUILD_MODE=prod vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@ant-design/icons": "^6.0.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@hookform/resolvers": "^5.2.1",
+    "@tanstack/react-query": "^5.85.3",
+    "@types/papaparse": "^5.3.16",
+    "@types/react-datepicker": "^7.0.0",
+    "antd": "^5.27.1",
+    "axios": "^1.11.0",
+    "dayjs": "^1.11.13",
+    "lucide-react": "^0.540.0",
+    "papaparse": "^5.5.3",
+    "react": "^18.3.1",
+    "react-datepicker": "^8.6.0",
+    "react-dom": "^18.3.1",
+    "react-hook-form": "^7.62.0",
+    "react-i18next": "^15.7.1",
+    "react-router-dom": "^7.8.1",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^5.0.1",
+    "typescript": "^5.9.2",
+    "vite": "^5.0.0",
+    "rimraf": "^5.0.5",
+    "cross-env": "^7.0.3"
+  }
+}

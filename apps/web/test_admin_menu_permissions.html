@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试Admin菜单权限</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        .info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+        .menu-item {
+            margin: 5px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-left: 3px solid #007bff;
+        }
+        .menu-item.has-permission {
+            border-left-color: #28a745;
+            background: #d4edda;
+        }
+        .menu-item.no-permission {
+            border-left-color: #dc3545;
+            background: #f8d7da;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Admin菜单权限测试</h1>
+        <p>测试admin账号是否能获取所有菜单权限，不受角色控制</p>
+        
+        <div class="test-section">
+            <h3>1. 测试Admin用户菜单权限</h3>
+            <button onclick="testAdminMenuPermissions()">获取Admin用户菜单权限</button>
+            <div id="adminMenuResult" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>2. 测试普通用户菜单权限（对比）</h3>
+            <button onclick="testNormalUserMenuPermissions()">获取普通用户菜单权限</button>
+            <div id="normalUserResult" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>3. 测试Admin菜单树</h3>
+            <button onclick="testAdminMenuTree()">获取Admin菜单树</button>
+            <div id="adminMenuTreeResult" class="result"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>4. 测试特定菜单权限检查</h3>
+            <button onclick="testSpecificMenuPermission()">检查特定菜单权限</button>
+            <div id="specificPermissionResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api';
+        
+        // 假设admin用户ID为2（根据之前的测试脚本）
+        const ADMIN_USER_ID = 2;
+        const NORMAL_USER_ID = 3; // 假设普通用户ID为3
+        
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                return await response.json();
+            } catch (error) {
+                throw error;
+            }
+        }
+        
+        function displayResult(elementId, data, isError = false) {
+            const element = document.getElementById(elementId);
+            element.className = `result ${isError ? 'error' : 'success'}`;
+            element.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
+        }
+        
+        function displayMenuPermissions(elementId, permissions, title) {
+            const element = document.getElementById(elementId);
+            element.className = 'result info';
+            
+            let html = `<strong>${title}</strong>\n\n`;
+            html += `总菜单数: ${permissions.length}\n`;
+            
+            const hasPermissionCount = permissions.filter(p => p.has_permission).length;
+            html += `有权限菜单数: ${hasPermissionCount}\n\n`;
+            
+            html += '<div style="max-height: 300px; overflow-y: auto;">';
+            permissions.forEach(menu => {
+                const permissionClass = menu.has_permission ? 'has-permission' : 'no-permission';
+                const permissionText = menu.has_permission ? '✓' : '✗';
+                html += `<div class="menu-item ${permissionClass}">`;
+                html += `${permissionText} [${menu.menu_id}] ${menu.menu_title || menu.menu_name} `;
+                html += `(${menu.permission_source || 'none'})`;
+                if (menu.path) html += ` - ${menu.path}`;
+                html += `</div>`;
+            });
+            html += '</div>';
+            
+            element.innerHTML = html;
+        }
+        
+        async function testAdminMenuPermissions() {
+            try {
+                const data = await makeRequest(`${API_BASE}/menus/users/${ADMIN_USER_ID}/permissions`);
+                
+                if (data.success) {
+                    displayMenuPermissions('adminMenuResult', data.data, 'Admin用户菜单权限');
+                } else {
+                    displayResult('adminMenuResult', `错误: ${data.message || '获取权限失败'}`, true);
+                }
+            } catch (error) {
+                displayResult('adminMenuResult', `请求失败: ${error.message}`, true);
+            }
+        }
+        
+        async function testNormalUserMenuPermissions() {
+            try {
+                const data = await makeRequest(`${API_BASE}/menus/users/${NORMAL_USER_ID}/permissions`);
+                
+                if (data.success) {
+                    displayMenuPermissions('normalUserResult', data.data, '普通用户菜单权限');
+                } else {
+                    displayResult('normalUserResult', `错误: ${data.message || '获取权限失败'}`, true);
+                }
+            } catch (error) {
+                displayResult('normalUserResult', `请求失败: ${error.message}`, true);
+            }
+        }
+        
+        async function testAdminMenuTree() {
+            try {
+                const data = await makeRequest(`${API_BASE}/menus/users/${ADMIN_USER_ID}/tree`);
+                
+                if (data.success) {
+                    const element = document.getElementById('adminMenuTreeResult');
+                    element.className = 'result success';
+                    
+                    let html = '<strong>Admin用户菜单树</strong>\n\n';
+                    html += `菜单树节点数: ${data.data.length}\n\n`;
+                    
+                    function renderMenuTree(menus, level = 0) {
+                        let result = '';
+                        menus.forEach(menu => {
+                            const indent = '  '.repeat(level);
+                            result += `${indent}[${menu.id}] ${menu.title} (${menu.path || 'no-path'})\n`;
+                            if (menu.children && menu.children.length > 0) {
+                                result += renderMenuTree(menu.children, level + 1);
+                            }
+                        });
+                        return result;
+                    }
+                    
+                    html += '<pre>' + renderMenuTree(data.data) + '</pre>';
+                    element.innerHTML = html;
+                } else {
+                    displayResult('adminMenuTreeResult', `错误: ${data.message || '获取菜单树失败'}`, true);
+                }
+            } catch (error) {
+                displayResult('adminMenuTreeResult', `请求失败: ${error.message}`, true);
+            }
+        }
+        
+        async function testSpecificMenuPermission() {
+            try {
+                // 测试几个特定菜单ID的权限
+                const testMenuIds = [1, 3, 4, 5, 61, 62];
+                let results = [];
+                
+                for (const menuId of testMenuIds) {
+                    try {
+                        const data = await makeRequest(`${API_BASE}/menus/users/${ADMIN_USER_ID}/permissions/${menuId}`);
+                        results.push({
+                            menuId,
+                            hasPermission: data.success ? data.data.hasPermission : false,
+                            error: data.success ? null : data.message
+                        });
+                    } catch (error) {
+                        results.push({
+                            menuId,
+                            hasPermission: false,
+                            error: error.message
+                        });
+                    }
+                }
+                
+                const element = document.getElementById('specificPermissionResult');
+                element.className = 'result info';
+                
+                let html = '<strong>Admin用户特定菜单权限检查</strong>\n\n';
+                results.forEach(result => {
+                    const status = result.hasPermission ? '✓ 有权限' : '✗ 无权限';
+                    const errorText = result.error ? ` (错误: ${result.error})` : '';
+                    html += `菜单ID ${result.menuId}: ${status}${errorText}\n`;
+                });
+                
+                element.innerHTML = '<pre>' + html + '</pre>';
+            } catch (error) {
+                displayResult('specificPermissionResult', `测试失败: ${error.message}`, true);
+            }
+        }
+        
+        // 页面加载时自动运行测试
+        window.addEventListener('load', () => {
+            console.log('页面加载完成，可以开始测试Admin菜单权限');
+        });
+    </script>
+</body>
+</html>

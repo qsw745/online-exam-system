@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>菜单问题调试</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .result { background: #f5f5f5; padding: 10px; margin: 10px 0; white-space: pre-wrap; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        button { padding: 8px 16px; margin: 5px; background: #007bff; color: white; border: none; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>菜单权限问题调试</h1>
+    
+    <div class="test-section">
+        <h2>测试1: 直接API调用</h2>
+        <button onclick="testDirectAPI()">测试菜单API</button>
+        <div id="apiResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试2: 模拟前端逻辑</h2>
+        <button onclick="testFrontendLogic()">模拟前端处理</button>
+        <div id="frontendResult" class="result"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>测试3: 检查浏览器控制台</h2>
+        <p>请打开浏览器开发者工具的控制台，查看是否有错误信息</p>
+        <button onclick="logDebugInfo()">输出调试信息</button>
+    </div>
+
+    <script>
+        async function testDirectAPI() {
+            const resultDiv = document.getElementById('apiResult');
+            try {
+                console.log('开始测试菜单API...');
+                const response = await fetch('/api/menu/menus');
+                console.log('API响应状态:', response.status);
+                
+                const data = await response.json();
+                console.log('API响应数据:', data);
+                
+                if (response.ok && data.success) {
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ API调用成功\n菜单数量: ${data.data?.length || 0}\n第一个菜单: ${data.data?.[0]?.title || '无'}`;
+                } else {
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ API调用失败\n状态: ${response.status}\n数据: ${JSON.stringify(data, null, 2)}`;
+                }
+            } catch (error) {
+                console.error('API测试错误:', error);
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 网络错误: ${error.message}`;
+            }
+        }
+        
+        async function testFrontendLogic() {
+            const resultDiv = document.getElementById('frontendResult');
+            try {
+                // 模拟 axios 请求（类似前端的 api.get）
+                const response = await fetch('/api/menu/menus', {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const responseData = await response.json();
+                console.log('模拟前端 - 原始响应:', responseData);
+                
+                // 模拟前端响应拦截器逻辑
+                if (!responseData.success) {
+                    throw new Error(responseData.message || '请求失败');
+                }
+                
+                const data = responseData.data || {};
+                console.log('模拟前端 - 处理后数据:', data);
+                
+                // 模拟 loadMenus 函数逻辑
+                let menus = [];
+                if (responseData && responseData.success && responseData.data) {
+                    console.log('设置菜单数据:', responseData.data);
+                    menus = responseData.data;
+                } else {
+                    console.error('菜单数据格式错误:', responseData);
+                }
+                
+                resultDiv.className = 'result success';
+                resultDiv.textContent = `✅ 前端逻辑模拟成功\n菜单数组长度: ${menus.length}\n菜单列表:\n${menus.map(m => `- ${m.title} (ID: ${m.id})`).join('\n')}`;
+                
+            } catch (error) {
+                console.error('前端逻辑测试错误:', error);
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ 前端逻辑错误: ${error.message}`;
+            }
+        }
+        
+        function logDebugInfo() {
+            console.log('=== 调试信息 ===');
+            console.log('当前URL:', window.location.href);
+            console.log('User Agent:', navigator.userAgent);
+            console.log('本地存储:', localStorage);
+            console.log('会话存储:', sessionStorage);
+            
+            // 检查是否有全局错误
+            window.addEventListener('error', function(e) {
+                console.error('全局错误:', e.error);
+            });
+            
+            // 检查未处理的 Promise 拒绝
+            window.addEventListener('unhandledrejection', function(e) {
+                console.error('未处理的 Promise 拒绝:', e.reason);
+            });
+            
+            alert('调试信息已输出到控制台，请查看开发者工具');
+        }
+        
+        // 页面加载时自动运行测试
+        window.onload = function() {
+            console.log('页面加载完成，开始自动测试');
+            testDirectAPI();
+        };
+    </script>
+</body>
+</html>
