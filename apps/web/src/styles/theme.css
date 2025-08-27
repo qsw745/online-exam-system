@@ -1,0 +1,77 @@
+/* src/styles/theme.css */
+
+/* —— Light 默认 —— */
+:root {
+  --app-bg: #ffffff;
+  --surface-1: #ffffff;
+  --surface-2: #f8fafc;         /* 页面底色 */
+  --surface-3: #f1f5f9;         /* 分隔/条带 */
+  --text-1: #111827;            /* 主文字 */
+  --text-2: #374151;            /* 次文字 */
+  --border-1: #e5e7eb;
+
+  /* 顶部栏 & 图标按钮 */
+  --header-bg: rgba(255,255,255,.95);
+  --header-border: #e5e7eb;
+  --icon: #111827;
+  --icon-muted: #6b7280;
+  --icon-btn-bg: transparent;
+  --icon-btn-hover-bg: rgba(59,130,246,.08);  /* 与 lightTokens.controlItemBgHover 呼应 */
+  --icon-btn-active-bg: rgba(59,130,246,.14);
+}
+
+/* —— Dark —— */
+:root[data-theme="dark"] {
+  --app-bg: #0f172a;     /* slate-900 */
+  --surface-1: #0b1220;  /* 卡片底 */
+  --surface-2: #0f172a;  /* 页面底色 */
+  --surface-3: #111827;  /* 分隔/条带 */
+  --text-1: #e5e7eb;
+  --text-2: #94a3b8;
+  --border-1: #334155;
+
+  --header-bg: #111827;                /* 顶部栏更深且实色 */
+  --header-border: #1f2937;
+  --icon: #e5e7eb;
+  --icon-muted: #94a3b8;
+  --icon-btn-bg: transparent;
+  --icon-btn-hover-bg: rgba(139,92,246,.12);  /* 与 darkTokens.controlItemBgHover 呼应 */
+  --icon-btn-active-bg: rgba(139,92,246,.18);
+}
+
+/* 通用背景/文字（可选） */
+html, body, #root {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+/* 顶部导航（你 Header 里可去掉大量 inline 色值） */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  width: 100%;
+  border-bottom: 1px solid var(--header-border);
+  background-color: var(--header-bg);
+  backdrop-filter: blur(8px);
+}
+
+/* 图标按钮的通用样式 */
+.icon-btn {
+  padding: 8px;
+  border: none;
+  background: var(--icon-btn-bg);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color .15s ease;
+  color: var(--icon);             /* 关键：让图标吃 currentColor */
+}
+.icon-btn:hover { background: var(--icon-btn-hover-bg); }
+.icon-btn:active { background: var(--icon-btn-active-bg); }
+
+.icon {
+  width: 20px;
+  height: 20px;
+  display: inline-block;
+  vertical-align: middle;
+}

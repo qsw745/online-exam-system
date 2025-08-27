@@ -15,7 +15,7 @@ import {
   Volume2,
   Trophy
 } from 'lucide-react'
-import { useTheme } from '../hooks/useTheme'
+
 import { api, users, settings } from '../lib/api'
 import { Card, Switch, Select, Button, Space, Typography, Spin, Row, Col, message } from 'antd'
 
@@ -35,7 +35,7 @@ interface PrivacySettings {
 }
 
 export default function SettingsPage() {
-  const { theme, toggleTheme } = useTheme()
+  
   const { language, setLanguage, t } = useLanguage()
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
@@ -90,7 +90,7 @@ export default function SettingsPage() {
           notifications,
           privacy,
           appearance: {
-            theme,
+           
             language
           }
         })

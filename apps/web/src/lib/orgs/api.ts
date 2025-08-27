@@ -12,6 +12,8 @@ export interface OrgNode {
   address?: string | null
   description?: string | null
   is_enabled?: boolean
+  sort_order?: number // 👈 新增  // 👈 新增
+
   children?: OrgNode[]
 }
 

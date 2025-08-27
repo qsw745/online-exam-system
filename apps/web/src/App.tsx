@@ -6,10 +6,10 @@ import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-d
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { MenuPermissionProvider } from './contexts/MenuPermissionContext'
-
+import { useTheme } from './providers/AntdThemeProvider'
 import Layout from './components/Layout'
 import LoadingSpinner from './components/LoadingSpinner'
-import { useTheme } from './hooks/useTheme'
+
 import AdminPage from './pages/admin/AdminPage'
 import OrgManage from './pages/admin/OrgManage'
 import AnalyticsPage from './pages/AnalyticsPage'
@@ -34,6 +34,8 @@ import SettingsPage from './pages/SettingsPage'
 import TasksPage from './pages/TasksPage'
 import WrongQuestionsPage from './pages/WrongQuestionsPage'
 import { antdTheme, darkAntdTheme } from './theme/antd-theme'
+
+
 // 创建 Query Client
 const queryClient = new QueryClient({
   defaultOptions: {

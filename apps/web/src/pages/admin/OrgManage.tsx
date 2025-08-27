@@ -1,10 +1,10 @@
-import { OrgAPI, type OrgNode } from '../../lib/orgs/api' // ⬅️ 新增：从 lib 调用
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons'
 import {
   Button,
   Card,
   Form,
   Input,
+  InputNumber,
   Layout,
   message,
   Modal,
@@ -17,6 +17,7 @@ import {
 } from 'antd'
 import type { DataNode, EventDataNode } from 'antd/es/tree'
 import React, { useEffect, useMemo, useState } from 'react'
+import { OrgAPI, type OrgNode } from '../../lib/orgs/api' // ⬅️ 新增：从 lib 调用
 
 const { Sider, Content } = Layout
 const { Title, Text } = Typography
@@ -33,6 +34,7 @@ export interface OrgNode {
   address?: string | null
   description?: string | null
   is_enabled?: boolean
+  sort_order?: number // 👈 新增
   children?: OrgNode[]
 }
 
@@ -78,10 +80,12 @@ const api = {
 }
 
 // ====== 辅助：把后端树转 antd TreeData ======
+const sortByOrder = (nodes: OrgNode[]) => [...nodes].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+
 const toTreeData = (nodes: OrgNode[]): DataNode[] =>
-  nodes.map(n => ({
+  sortByOrder(nodes).map(n => ({
     key: n.id,
-    title: n.name,
+    title: `${n.sort_order ?? 0}. ${n.name}`, // 可以调试时带上顺序
     children: n.children ? toTreeData(n.children) : undefined,
   }))
 
@@ -134,12 +138,12 @@ const OrgManage: React.FC = () => {
 
   // 加载详情
   useEffect(() => {
-    const run = async () => {
-      if (!selectedId) {
-        setDetail(null)
-        form.resetFields()
-        return
-      }
+    if (!selectedId) {
+      setDetail(null)
+      form.resetFields() // 现在安全了：Form 始终挂载
+      return
+    }
+    ;(async () => {
       setDetailLoading(true)
       try {
         const res = await OrgAPI.get(selectedId)
@@ -152,16 +156,8 @@ const OrgManage: React.FC = () => {
       } finally {
         setDetailLoading(false)
       }
-    }
-    run()
+    })()
   }, [selectedId])
-
-  // ------ 过滤树（本地简单包含匹配） ------
-  const filteredTreeData = useMemo(() => {
-    if (!search.trim()) return toTreeData(tree)
-    const filtered = filterTree(tree, search.trim())
-    return toTreeData(filtered)
-  }, [tree, search])
 
   const filterTree = (nodes: OrgNode[], kw: string): OrgNode[] => {
     const keep: OrgNode[] = []
@@ -174,6 +170,12 @@ const OrgManage: React.FC = () => {
     }
     return keep
   }
+  // ------ 过滤树（本地简单包含匹配） ------
+  const filteredTreeData = useMemo(() => {
+    if (!search.trim()) return toTreeData(tree)
+    const filtered = filterTree(tree, search.trim())
+    return toTreeData(filtered)
+  }, [tree, search])
 
   // ------ Tree 交互 ------
   const onSelect = (_: React.Key[], info: { node: EventDataNode }) => {
@@ -197,6 +199,7 @@ const OrgManage: React.FC = () => {
         address: values.address?.trim() || null,
         description: values.description?.trim() || null,
         is_enabled: !!values.is_enabled,
+        sort_order: values.sort_order ?? 0, // 👈 新增
       })
       message.success('保存成功')
       setEditing(false)
@@ -248,6 +251,7 @@ const OrgManage: React.FC = () => {
   }
 
   // ------ UI ------
+  // ------ UI ------
   return (
     <Layout style={{ height: '100%', background: 'transparent' }}>
       <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
@@ -271,7 +275,7 @@ const OrgManage: React.FC = () => {
         </div>
 
         <div style={{ padding: '0 12px 12px' }}>
-          <Card size="small" bodyStyle={{ padding: 0 }}>
+          <Card size="small" styles={{ body: { padding: 0 } }}>
             <div style={{ height: 'calc(100vh - 200px)', overflow: 'auto' }}>
               <Spin spinning={treeLoading}>
                 <Tree
@@ -325,68 +329,75 @@ const OrgManage: React.FC = () => {
             </Space>
           }
         >
-          {detailLoading ? (
-            <div style={{ textAlign: 'center', padding: 48 }}>
-              <Spin />
-            </div>
-          ) : detail ? (
-            <Form
-              form={form}
-              layout="vertical"
-              disabled={!editing}
-              initialValues={{ is_enabled: true }}
-              style={{ maxWidth: 720 }}
-            >
-              <Form.Item
-                label="组织名称"
-                name="name"
-                rules={[
-                  { required: true, message: '请输入组织名称' },
-                  { max: 64, message: '名称不超过64个字符' },
-                ]}
-              >
-                <Input placeholder="例如：教务处 / 技术中心" />
-              </Form.Item>
+          <Form
+            form={form}
+            layout="vertical"
+            disabled={!editing}
+            preserve={false}
+            initialValues={{ is_enabled: true }}
+            style={{ maxWidth: 720 }}
+          >
+            {detailLoading ? (
+              <div style={{ textAlign: 'center', padding: 48 }}>
+                <Spin />
+              </div>
+            ) : detail ? (
+              <>
+                <Form.Item
+                  label="组织名称"
+                  name="name"
+                  rules={[
+                    { required: true, message: '请输入组织名称' },
+                    { max: 64, message: '名称不超过64个字符' },
+                  ]}
+                >
+                  <Input placeholder="例如：教务处 / 技术中心" />
+                </Form.Item>
 
-              <Form.Item label="组织编码" name="code" rules={[{ max: 64, message: '编码不超过64个字符' }]}>
-                <Input placeholder="可选，便于唯一识别" />
-              </Form.Item>
+                <Form.Item label="组织编码" name="code" rules={[{ max: 64, message: '编码不超过64个字符' }]}>
+                  <Input placeholder="可选，便于唯一识别" />
+                </Form.Item>
 
-              <Form.Item label="负责人" name="leader" rules={[{ max: 64 }]}>
-                <Input placeholder="负责人姓名" />
-              </Form.Item>
+                <Form.Item label="负责人" name="leader" rules={[{ max: 64 }]}>
+                  <Input placeholder="负责人姓名" />
+                </Form.Item>
 
-              <Form.Item label="联系电话" name="phone" rules={[{ max: 32 }]}>
-                <Input placeholder="电话/手机" />
-              </Form.Item>
+                <Form.Item label="联系电话" name="phone" rules={[{ max: 32 }]}>
+                  <Input placeholder="电话/手机" />
+                </Form.Item>
 
-              <Form.Item
-                label="电子邮箱"
-                name="email"
-                rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128 }]}
-              >
-                <Input placeholder="example@domain.com" />
-              </Form.Item>
+                <Form.Item
+                  label="电子邮箱"
+                  name="email"
+                  rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128 }]}
+                >
+                  <Input placeholder="example@domain.com" />
+                </Form.Item>
 
-              <Form.Item label="地址" name="address" rules={[{ max: 128 }]}>
-                <Input placeholder="详细地址" />
-              </Form.Item>
+                <Form.Item label="地址" name="address" rules={[{ max: 128 }]}>
+                  <Input placeholder="详细地址" />
+                </Form.Item>
 
-              <Form.Item label="描述" name="description" rules={[{ max: 500 }]}>
-                <Input.TextArea rows={4} placeholder="备注描述..." />
-              </Form.Item>
+                <Form.Item label="排序号" name="sort_order">
+                  <InputNumber min={0} step={1} style={{ width: '100%' }} placeholder="用于兄弟节点的显示顺序" />
+                </Form.Item>
 
-              <Form.Item label="是否启用" name="is_enabled" valuePropName="checked">
-                <Switch />
-              </Form.Item>
-            </Form>
-          ) : (
-            <div style={{ padding: 24, color: '#999' }}>请选择左侧组织查看详情</div>
-          )}
+                <Form.Item label="描述" name="description" rules={[{ max: 500 }]}>
+                  <Input.TextArea rows={4} placeholder="备注描述..." />
+                </Form.Item>
+
+                <Form.Item label="是否启用" name="is_enabled" valuePropName="checked">
+                  <Switch disabled />
+                </Form.Item>
+              </>
+            ) : (
+              <div style={{ padding: 24, color: '#999' }}>请选择左侧组织查看详情</div>
+            )}
+          </Form>
         </Card>
       </Content>
 
-      {/* 新增组织弹窗（默认作为当前选中节点的子组织；若未选中则创建根组织） */}
+      {/* 新增组织弹窗 */}
       <Modal
         title={detail ? `新增子组织（上级：${detail.name}）` : '新增根组织'}
         open={addModalOpen}
