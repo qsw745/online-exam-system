@@ -24,7 +24,8 @@ import favoritesRoutes from './routes/favorites.routes.js';
 import discussionsRoutes from './routes/discussions.routes.js';
 import menuRoutes from './routes/menu.routes.js';
 import roleRoutes from './routes/role.routes.js';
-
+import { orgRoutes } from './routes/org.routes.js';
+import { orgUserRoutes } from './routes/org-user.routes.js';
 const app = express();
 
 // 中间件
@@ -56,7 +57,8 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api/discussions', discussionsRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/roles', roleRoutes);
-
+app.use('/api/orgs', orgRoutes)
+app.use('/api/orgs', orgUserRoutes)
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true, time: new Date().toISOString() });
 });

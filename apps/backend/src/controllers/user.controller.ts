@@ -61,7 +61,7 @@ export class UserController {
       const { id } = req.params;
       
       const [users] = await pool.query<IUser[]>(
-        'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, created_at, updated_at FROM users WHERE id = ?',
+        'SELECT id, username, email, role, nickname, status,school, class_name, experience_points, level, avatar_url, created_at, updated_at FROM users WHERE id = ?',
         [parseInt(id)]
       );
       
