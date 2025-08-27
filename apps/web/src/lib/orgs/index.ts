@@ -12,4 +12,5 @@ export const orgs = {
 
   // 从机构移除某用户
   removeUser: async (orgId: number, userId: number) => api.delete(`/orgs/${orgId}/users/${userId}`),
+  setPrimary: async (userId: number, orgId: number) => api.put(`/orgs/${orgId}/users/${userId}/primary`, {}),
 }

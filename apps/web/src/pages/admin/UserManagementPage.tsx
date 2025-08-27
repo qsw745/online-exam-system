@@ -119,6 +119,9 @@ const UserManagementPage: React.FC = () => {
   const isComposing = useRef(false)
   // 状态
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+  type UIUser = User & { org_id?: number | null; org_name?: string | null }
+  const [orgPickerOpen, setOrgPickerOpen] = useState(false)
+  const [orgPickerSelected, setOrgPickerSelected] = useState<number | null>(null)
 
   // 辅助：一次性展开全部（或只展开根也行）
   const collectAllKeys = (nodes: any[] = []): React.Key[] =>
@@ -172,7 +175,7 @@ const UserManagementPage: React.FC = () => {
     // 兜底
     return 'active'
   }
-  const mapItemsToUI = (items: any[]): User[] =>
+  const mapItemsToUI = (items: any[]): UIUser[] =>
     (items || []).map((x: any) => ({
       id: x.id,
       email: x.email ?? '',
@@ -182,9 +185,11 @@ const UserManagementPage: React.FC = () => {
       class_name: x.class_name ?? '',
       experience_points: x.experience_points ?? 0,
       level: x.level ?? 1,
-      status: normalizeStatus(x), // ← 关键：不再直接用 is_active
+      status: normalizeStatus(x),
       created_at: x.created_at,
       updated_at: x.updated_at,
+      org_id: x.org_id ?? null,
+      org_name: x.org_name ?? null,
     }))
   /** ========== 用户加载 ========== */
   useEffect(() => {
@@ -404,6 +409,13 @@ const UserManagementPage: React.FC = () => {
       key: 'role',
       render: (role: string) => getRoleTag(role),
     },
+    {
+      title: '部门',
+      dataIndex: 'org_name',
+      key: 'org_name',
+      render: (_: any, r: UIUser) => (r.org_name ? <Tag>{r.org_name}</Tag> : <Text type="secondary">未分配</Text>),
+    },
+
     {
       title: '状态',
       dataIndex: 'status',
@@ -826,6 +838,21 @@ const UserManagementPage: React.FC = () => {
                 <Option value="admin">管理员</Option>
               </Select>
             </Form.Item>
+            <Form.Item label="所属机构">
+              <Space>
+                <Input value={editingUser?.['org_name' as any] || '未分配'} readOnly style={{ width: 240 }} />
+                <Button
+                  onClick={() => {
+                    // 默认选中当前部门
+                    setOrgPickerSelected((editingUser as any)?.org_id ?? selectedOrgId ?? null)
+                    setOrgPickerOpen(true)
+                  }}
+                >
+                  修改
+                </Button>
+              </Space>
+            </Form.Item>
+
             <Form.Item
               label="昵称"
               name="nickname"
@@ -892,6 +919,58 @@ const UserManagementPage: React.FC = () => {
           </Select>
           <Text type="secondary">提示：支持多选。若需创建新账号，请到“用户新增”入口后再关联。</Text>
         </Space>
+      </Modal>
+      <Modal
+        title="选择所属机构"
+        open={orgPickerOpen}
+        onCancel={() => setOrgPickerOpen(false)}
+        onOk={async () => {
+          if (!editingUser || !orgPickerSelected) {
+            setOrgPickerOpen(false)
+            return
+          }
+          try {
+            // 调后端“设为主组织”接口（见上文）
+            await orgs.setPrimary(editingUser.id, orgPickerSelected)
+            message.success('已更新所属机构')
+            setOrgPickerOpen(false)
+            // 刷新列表和详情
+            await loadUsers()
+            if (selectedUser?.id === editingUser.id) {
+              // 如果详情弹窗也开着，可以顺便刷新一下详情（可选）
+              loadUserDetail(editingUser.id)
+            }
+            // 同步编辑表单显示（可选）
+            const targetName = (function findName(nodes: any[]): string | null {
+              for (const n of nodes) {
+                if (n.id === orgPickerSelected) return n.name
+                const x = n.children && findName(n.children)
+                if (x) return x
+              }
+              return null
+            })(treeData.map(t => t.raw))
+            editForm.setFieldValue('org_name', targetName || '')
+            setEditingUser(prev =>
+              prev ? { ...prev, ['org_id' as any]: orgPickerSelected, ['org_name' as any]: targetName } : prev
+            )
+          } catch (e: any) {
+            message.error(e?.message || '更新失败')
+          }
+        }}
+        okText="确定"
+      >
+        <div style={{ maxHeight: 480, overflow: 'auto', padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+          <Tree
+            blockNode
+            showIcon
+            defaultExpandAll
+            icon={<ApartmentOutlined />}
+            selectedKeys={orgPickerSelected ? [orgPickerSelected] : []}
+            onSelect={keys => setOrgPickerSelected(Number(keys?.[0]) || null)}
+            treeData={treeData as any}
+            loading={treeLoading as any}
+          />
+        </div>
       </Modal>
     </Layout>
   )

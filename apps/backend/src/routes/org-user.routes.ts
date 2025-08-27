@@ -31,4 +31,8 @@ router.post('/:orgId/users', auth, requireRole(['admin']), OrgUserController.add
  */
 router.delete('/:orgId/users/:userId', auth, requireRole(['admin']), OrgUserController.removeUser)
 
+
+// 把用户在某机构设为主组织（若关系不存在会自动插入）
+router.put('/:orgId/users/:userId/primary', auth, requireRole(['admin']), OrgUserController.setPrimary)
+
 export { router as orgUserRoutes }

@@ -55,6 +55,89 @@ type OrgUsersList = {
 
 export const OrgUserController = {
   /**
+   * PUT /orgs/:orgId/users/:userId/primary
+   * 把 userId 在 orgId 上标记为主组织：
+   *  - 若 user_organizations 中不存在该关系，先插入（is_primary=0）
+   *  - 将该用户其它组织的 is_primary 置 0，再把当前置 1
+   */
+  async setPrimary(req: AuthRequest, res: Response<ApiResponse<{ user_id: number; org_id: number }>>) {
+    const orgId = Number(req.params.orgId)
+    const userId = Number(req.params.userId)
+
+    if (!Number.isFinite(orgId) || !Number.isFinite(userId)) {
+      return res.status(400).json({ success: false, error: '无效的参数' })
+    }
+
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      // 1) 校验组织存在
+      const [[org]] = await conn.query<RowDataPacket[]>('SELECT id FROM organizations WHERE id=? LIMIT 1', [orgId])
+      if (!org) {
+        await conn.rollback()
+        return res.status(404).json({ success: false, error: '组织不存在' })
+      }
+
+      // 2) 校验用户存在
+      const [[u]] = await conn.query<RowDataPacket[]>('SELECT id FROM users WHERE id=? LIMIT 1', [userId])
+      if (!u) {
+        await conn.rollback()
+        return res.status(404).json({ success: false, error: '用户不存在' })
+      }
+
+      // 3) 确保用户-组织关系存在（没有则插入一条，is_primary=0）
+      await conn.query<ResultSetHeader>(
+        `
+        INSERT IGNORE INTO user_organizations (user_id, org_id, is_primary, created_at, updated_at)
+        VALUES (?, ?, 0, NOW(), NOW())
+        `,
+        [userId, orgId]
+      )
+
+      // 4) 先清零该用户所有主组织标记
+      await conn.query<ResultSetHeader>(
+        `UPDATE user_organizations SET is_primary=0, updated_at=NOW() WHERE user_id=?`,
+        [userId]
+      )
+
+      // 5) 把当前组织置为主组织
+      const [ret] = await conn.query<ResultSetHeader>(
+        `UPDATE user_organizations SET is_primary=1, updated_at=NOW() WHERE user_id=? AND org_id=?`,
+        [userId, orgId]
+      )
+      if (ret.affectedRows === 0) {
+        await conn.rollback()
+        return res.status(400).json({ success: false, error: '设置主组织失败' })
+      }
+
+      await conn.commit()
+
+      // 记录日志（可选）
+      await LoggerService.logUserAction({
+        userId: req.user?.id || 0,
+        username: req.user?.username,
+        action: 'set_primary_org',
+        resourceType: 'organization',
+        resourceId: orgId,
+        details: { user_id: userId, org_id: orgId },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      })
+
+      return res.json({ success: true, data: { user_id: userId, org_id: orgId } })
+    } catch (error) {
+      console.error('设置主组织错误:', error)
+      try {
+        await conn.rollback()
+      } catch {}
+      return res.status(500).json({ success: false, error: '设置主组织失败' })
+    } finally {
+      conn.release()
+    }
+  },
+
+  /**
    * GET /orgs/:orgId/users
    * ?page? &limit? &search? &role? &include_children?
    * - search 同时在 username/real_name/email/phone 模糊
@@ -190,18 +273,21 @@ export const OrgUserController = {
       // 查询
       const [rows] = await pool.query<RowDataPacket[]>(
         `
-      SELECT
-        ${selectCols.join(', ')},
-        IFNULL(GROUP_CONCAT(DISTINCT r.code ORDER BY r.code SEPARATOR ','), '') AS role_codes
-      FROM users u
-      JOIN user_organizations uo ON uo.user_id = u.id
-      LEFT JOIN user_org_roles uor ON uor.user_id = u.id AND uor.org_id = uo.org_id
-      LEFT JOIN roles r ON r.id = uor.role_id
-      ${whereSQL}
-      GROUP BY u.id
-      ORDER BY u.id ASC
-      LIMIT ? OFFSET ?
-      `,
+  SELECT
+    ${selectCols.join(', ')},
+    ANY_VALUE(uo.org_id)              AS org_id,
+    ANY_VALUE(o.name)                 AS org_name,
+    IFNULL(GROUP_CONCAT(DISTINCT r.code ORDER BY r.code SEPARATOR ','), '') AS role_codes
+  FROM users u
+  JOIN user_organizations uo ON uo.user_id = u.id
+  LEFT JOIN organizations o   ON o.id = uo.org_id
+  LEFT JOIN user_org_roles uor ON uor.user_id = u.id AND uor.org_id = uo.org_id
+  LEFT JOIN roles r ON r.id = uor.role_id
+  ${whereSQL}
+  GROUP BY u.id
+  ORDER BY u.id ASC
+  LIMIT ? OFFSET ?
+  `,
         [...whereVals, limit, offset]
       )
 
