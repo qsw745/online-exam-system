@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { DiscussionsController } from '../controllers/discussions.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
 import { body, param, query } from 'express-validator';
 import { validateRequest } from '../middleware/validation.js';
 

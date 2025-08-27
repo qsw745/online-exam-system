@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { WrongQuestionController } from '../controllers/wrong-question.controller';
-import { authenticateToken } from '../middleware/auth.js';
+import { WrongQuestionController } from '../controllers/wrong-question.controller.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
 
 const router = Router();
 

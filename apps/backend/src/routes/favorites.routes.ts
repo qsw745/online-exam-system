@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { FavoritesController } from '../controllers/favorites.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
 import { validateRequest } from '../middleware/validation.js';
 import { body, param, query } from 'express-validator';
 

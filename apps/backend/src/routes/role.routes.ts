@@ -13,7 +13,7 @@ import {
   addUsersToRole,
   getNextSortOrder
 } from '../controllers/role.controller.js';
-import { authenticateToken } from '../middleware/auth.js';
+import { authenticateToken } from '../middleware/auth.middleware.js';
 import { requireRole } from '../middleware/roleAuth.js';
 import { ROLE_IDS } from '../constants/roles.js';
 

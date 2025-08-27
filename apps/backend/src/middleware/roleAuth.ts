@@ -1,93 +1,65 @@
-import { Request, Response, NextFunction } from 'express';
-import { AuthRequest } from './auth.js';
-import { RoleService } from '../services/role.service.js';
-import { ROLE_IDS } from '../constants/roles.js';
+// apps/backend/src/middleware/roleAuth.ts
+import type { NextFunction, Request, Response } from 'express'
+import { ROLE_IDS } from '../constants/roles.js'
+import { RoleService } from '../services/role.service.js'
 
 /**
- * 角色权限检查中间件
- * @param requiredRoleIds 需要的角色ID数组
- * @returns Express中间件函数
+ * 角色ID检查中间件工厂（按数值ID判断）
+ * 使用方式：
+ *   router.get('/xxx', authenticateToken, requireRoleByIds([ROLE_IDS.ADMIN]), handler)
  */
-export const requireRole = (requiredRoleIds: number[]) => {
-  return async (req: AuthRequest, res: Response, next: NextFunction) => {
+export const requireRoleByIds = (requiredRoleIds: number[]) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // 检查用户是否已认证
-      if (!req.user || !req.user.id) {
-        return res.status(401).json({
-          success: false,
-          message: '用户未认证'
-        });
+      const user = (req as any).user
+      const userId: number | undefined = user?.id
+      if (!userId) {
+        return res.status(401).json({ success: false, message: '用户未认证' })
       }
 
-      const userId = req.user.id;
-
-      // 检查用户是否拥有任一所需角色
-      const hasRole = await RoleService.userHasAnyRole(userId, requiredRoleIds);
-
+      const hasRole = await RoleService.userHasAnyRole(userId, requiredRoleIds)
       if (!hasRole) {
-        return res.status(403).json({
-          success: false,
-          message: '权限不足，需要指定的角色权限'
-        });
+        return res.status(403).json({ success: false, message: '权限不足，需要指定的角色权限' })
       }
 
-      next();
+      return next()
     } catch (error) {
-      console.error('角色权限检查失败:', error);
-      res.status(500).json({
-        success: false,
-        message: '权限检查失败'
-      });
+      console.error('角色权限检查失败:', error)
+      return res.status(500).json({ success: false, message: '权限检查失败' })
     }
-  };
-};
+  }
+}
 
-/**
- * 检查用户是否拥有指定角色
- * @param userId 用户ID
- * @param roleId 角色ID
- * @returns 是否拥有角色
- */
+/** 为了兼容旧用法：导出别名 requireRole（与 requireRoleByIds 等价） */
+export const requireRole = requireRoleByIds
+
+/** 单角色检查（工具函数，可选） */
 export const checkUserRole = async (userId: number, roleId: number): Promise<boolean> => {
   try {
-    return await RoleService.userHasRole(userId, roleId);
+    return await RoleService.userHasRole(userId, roleId)
   } catch (error) {
-    console.error('检查用户角色失败:', error);
-    return false;
+    console.error('检查用户角色失败:', error)
+    return false
   }
-};
+}
 
-/**
- * 检查用户是否拥有任一指定角色
- * @param userId 用户ID
- * @param roleIds 角色ID数组
- * @returns 是否拥有任一角色
- */
+/** 任一角色检查（工具函数，可选） */
 export const checkUserAnyRole = async (userId: number, roleIds: number[]): Promise<boolean> => {
   try {
-    return await RoleService.userHasAnyRole(userId, roleIds);
+    return await RoleService.userHasAnyRole(userId, roleIds)
   } catch (error) {
-    console.error('检查用户角色失败:', error);
-    return false;
+    console.error('检查用户角色失败:', error)
+    return false
   }
-};
+}
 
-/**
- * 超级管理员权限检查中间件
- */
-export const requireSuperAdmin = requireRole([ROLE_IDS.SUPER_ADMIN]);
-
-/**
- * 管理员权限检查中间件（包括超级管理员）
- */
-export const requireAdmin = requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]);
-
-/**
- * 教师权限检查中间件（包括管理员）
- */
-export const requireTeacher = requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]);
-
-/**
- * 学生权限检查中间件（包括所有角色）
- */
-export const requireStudent = requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN, ROLE_IDS.TEACHER, ROLE_IDS.STUDENT]);
+/** 预置中间件（按ID集合） */
+export const requireSuperAdmin = requireRoleByIds([ROLE_IDS.SUPER_ADMIN])
+export const requireAdmin = requireRoleByIds([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN])
+export const requireTeacher = requireRoleByIds([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN, ROLE_IDS.TEACHER])
+export const requireStudent = requireRoleByIds([
+  ROLE_IDS.SUPER_ADMIN,
+  ROLE_IDS.ADMIN,
+  ROLE_IDS.TEACHER,
+  ROLE_IDS.STUDENT,
+])

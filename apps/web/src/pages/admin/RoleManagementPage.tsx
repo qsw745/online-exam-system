@@ -161,7 +161,7 @@ const RoleManagementPage: React.FC = () => {
         console.log('菜单数据预览:', menuData.slice(0, 3))
         setMenus(menuData)
         console.log('菜单状态已设置，数组长度:', menuData.length)
-        message.success(`成功加载 ${menuData.length} 个菜单项`)
+        // message.success(`成功加载 ${menuData.length} 个菜单项`)
       } else {
         console.error('没有找到有效的菜单数据:', {
           responseData: response.data,

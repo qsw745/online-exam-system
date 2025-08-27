@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { ExamController } from '../controllers/exam.controller.js';
-import { auth, checkRole } from '../middleware/auth.middleware.js';
+import { auth, requireRole } from '../middleware/auth.middleware.js';
 
 const router = Router();
 
@@ -11,13 +11,13 @@ router.get('/', auth, ExamController.list);
 router.get('/:id', auth, ExamController.getById);
 
 // 创建考试（仅教师和管理员可访问）
-router.post('/', auth, checkRole(['admin', 'teacher']), ExamController.create);
+router.post('/', auth, requireRole(['admin', 'teacher']), ExamController.create)
 
 // 更新考试（仅教师和管理员可访问）
-router.put('/:id', auth, checkRole(['admin', 'teacher']), ExamController.update);
+router.put('/:id', auth, requireRole(['admin', 'teacher']), ExamController.update)
 
 // 删除考试（仅教师和管理员可访问）
-router.delete('/:id', auth, checkRole(['admin', 'teacher']), ExamController.delete);
+router.delete('/:id', auth, requireRole(['admin', 'teacher']), ExamController.delete)
 
 // 开始考试
 router.post('/:id/start', auth, ExamController.start);

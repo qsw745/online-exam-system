@@ -1,28 +1,30 @@
-import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise';
+import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
-import { pool } from '../config/database.js';
+import { pool } from '../config/database.js'
 import {
-    CreateMenuRequest,
-    CreateRoleRequest,
-    Menu,
-    MenuTreeNode,
-    Role,
-    UpdateMenuRequest,
-    UpdateRoleRequest,
-    UserMenuPermission,
-} from '../models/menu.model.js';
+  CreateMenuRequest,
+  CreateRoleRequest,
+  Menu,
+  MenuTreeNode,
+  Role,
+  UpdateMenuRequest,
+  UpdateRoleRequest,
+  UserMenuPermission,
+} from '../models/menu.model.js'
+
 type MenuUpdate = {
-  id: number;
-  parent_id?: number | null;   // 未提供则不修改
-  sort_order?: number;         // 未提供则不修改
-};
+  id: number
+  parent_id?: number | null // 未提供则不修改
+  sort_order?: number // 未提供则不修改
+}
+
 // 从 userId 推断主组织（当没传 orgId 时兜底）
 export async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
     `SELECT org_id FROM user_organizations WHERE user_id=? ORDER BY is_primary DESC LIMIT 1`,
     [userId]
   )
-  return row?.org_id ?? null
+  return (row as any)?.org_id ?? null
 }
 
 // 判断用户在某 org 是否 admin
@@ -37,12 +39,12 @@ export async function isUserAdminInOrg(userId: number, orgId: number): Promise<b
   )
   return !!row
 }
-export class MenuService {
 
+export class MenuService {
   // 获取所有菜单
   static async getAllMenus(): Promise<Menu[]> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM menus ORDER BY sort_order ASC, id ASC')
-    return rows as Menu[]
+    return rows as unknown as Menu[]
   }
 
   // 获取菜单树结构
@@ -71,7 +73,7 @@ export class MenuService {
   // 根据ID获取菜单
   static async getMenuById(id: number): Promise<Menu | null> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM menus WHERE id = ?', [id])
-    return rows.length > 0 ? (rows[0] as Menu) : null
+    return rows.length > 0 ? (rows[0] as unknown as Menu) : null
   }
 
   // 创建菜单
@@ -135,8 +137,8 @@ export class MenuService {
   static async updateMenu(menuData: UpdateMenuRequest): Promise<boolean> {
     const { id, ...updateData } = menuData
 
-    const fields = []
-    const values = []
+    const fields: string[] = []
+    const values: any[] = []
 
     for (const [key, value] of Object.entries(updateData)) {
       if (value !== undefined) {
@@ -173,7 +175,7 @@ export class MenuService {
       id,
     ])
 
-    if (childRows[0].count > 0) {
+    if ((childRows[0] as any).count > 0) {
       throw new Error('无法删除包含子菜单的菜单项')
     }
 
@@ -183,48 +185,50 @@ export class MenuService {
   }
 
   // 批量更新菜单排序
-static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
-    if (!updates || updates.length === 0) return true;
+  static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
+    if (!updates || updates.length === 0) return true
 
-    let conn: PoolConnection | null = null;
+    let conn: PoolConnection | null = null
     try {
-      conn = await pool.getConnection();
-      await conn.beginTransaction();
+      conn = await pool.getConnection()
+      await conn.beginTransaction()
 
       // 1) 取出涉及到的 id，构建节点映射(id,parent_id)
-      const ids = Array.from(new Set([
-        ...updates.map(u => u.id),
-        ...updates.map(u => u.parent_id).filter((v): v is number => typeof v === 'number'),
-      ]));
+      const ids = Array.from(
+        new Set([
+          ...updates.map(u => u.id),
+          ...updates.map(u => u.parent_id).filter((v): v is number => typeof v === 'number'),
+        ])
+      )
 
       if (ids.length) {
         const [rows] = await conn.query<any[]>(
-          `SELECT id, parent_id FROM menus WHERE id IN (${ids.map(()=>'?').join(',')})`,
+          `SELECT id, parent_id FROM menus WHERE id IN (${ids.map(() => '?').join(',')})`,
           ids
-        );
-        const nodeMap = new Map<number, { id:number; parent_id: number|null }>(
+        )
+        const nodeMap = new Map<number, { id: number; parent_id: number | null }>(
           rows.map(r => [r.id, { id: r.id, parent_id: r.parent_id }])
-        );
+        )
 
         // 2) 防环校验：不能把节点挂到自己的子孙下面
         const isInSubtree = (ancestorId: number, candidateId: number | null | undefined) => {
-          if (candidateId == null) return false;
-          let cur = nodeMap.get(candidateId);
+          if (candidateId == null) return false
+          let cur = nodeMap.get(candidateId)
           while (cur) {
-            if (cur.parent_id === ancestorId) return true;
-            if (cur.parent_id == null) break;
-            cur = nodeMap.get(cur.parent_id);
+            if (cur.parent_id === ancestorId) return true
+            if (cur.parent_id == null) break
+            cur = nodeMap.get(cur.parent_id)
           }
-          return false;
-        };
+          return false
+        }
 
         for (const u of updates) {
           if (u.parent_id !== undefined) {
             if (u.parent_id === u.id) {
-              throw new Error('不能把节点设为自己的父级');
+              throw new Error('不能把节点设为自己的父级')
             }
             if (isInSubtree(u.id, u.parent_id)) {
-              throw new Error('不能拖到自己的子级里');
+              throw new Error('不能拖到自己的子级里')
             }
           }
         }
@@ -232,35 +236,41 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
 
       // 3) 逐条最小化更新（只更新给到的字段）
       for (const u of updates) {
-        const sets: string[] = [];
-        const vals: any[] = [];
-        if (u.parent_id !== undefined) { sets.push('parent_id=?'); vals.push(u.parent_id); }
-        if (u.sort_order !== undefined) { sets.push('sort_order=?'); vals.push(u.sort_order); }
-        if (!sets.length) continue;
-        vals.push(u.id);
-        await conn.query(`UPDATE menus SET ${sets.join(', ')} WHERE id=?`, vals);
+        const sets: string[] = []
+        const vals: any[] = []
+        if (u.parent_id !== undefined) {
+          sets.push('parent_id=?')
+          vals.push(u.parent_id)
+        }
+        if (u.sort_order !== undefined) {
+          sets.push('sort_order=?')
+          vals.push(u.sort_order)
+        }
+        if (!sets.length) continue
+        vals.push(u.id)
+        await conn.query(`UPDATE menus SET ${sets.join(', ')} WHERE id=?`, vals)
       }
 
-      await conn.commit();
-      return true;
+      await conn.commit()
+      return true
     } catch (err) {
-      if (conn) await conn.rollback();
-      throw err;
+      if (conn) await conn.rollback()
+      throw err
     } finally {
-      if (conn) conn.release();
+      if (conn) conn.release()
     }
   }
 
   // 获取所有角色
   static async getAllRoles(): Promise<Role[]> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM roles ORDER BY sort_order ASC, id ASC')
-    return rows as Role[]
+    return rows as unknown as Role[]
   }
 
   // 根据ID获取角色
   static async getRoleById(id: number): Promise<Role | null> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM roles WHERE id = ?', [id])
-    return rows.length > 0 ? (rows[0] as Role) : null
+    return rows.length > 0 ? (rows[0] as unknown as Role) : null
   }
 
   // ✳️ 新：为用户在某组织分配角色（覆盖式）
@@ -293,13 +303,13 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
   static async getUserRolesInOrg(userId: number, orgId: number): Promise<Role[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT r.*
-     FROM user_org_roles uor
-     JOIN roles r ON r.id=uor.role_id
-     WHERE uor.user_id=? AND uor.org_id=? AND r.is_disabled=0
-     ORDER BY r.sort_order ASC, r.id ASC`,
+       FROM user_org_roles uor
+       JOIN roles r ON r.id=uor.role_id
+       WHERE uor.user_id=? AND uor.org_id=? AND r.is_disabled=0
+       ORDER BY r.sort_order ASC, r.id ASC`,
       [userId, orgId]
     )
-    return rows as Role[]
+    return rows as unknown as Role[]
   }
 
   // 兼容：旧方法（无 org）—> 取主组织再委托到 InOrg
@@ -321,15 +331,15 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
 
     if (!code) throw new Error('角色编码(code)必填且唯一')
 
-    let finalSortOrder = sort_order
+    let finalSortOrder = sort_order as number | undefined
     if (finalSortOrder == null) {
       const [[maxRow]] = await pool.query<RowDataPacket[]>('SELECT COALESCE(MAX(sort_order),0) AS max_sort FROM roles')
-      finalSortOrder = (maxRow?.max_sort || 0) + 1
+      finalSortOrder = ((maxRow as any)?.max_sort || 0) + 1
     }
 
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO roles (name, code, description, sort_order, is_system, is_disabled)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [name, code, description || null, finalSortOrder, !!is_system, false]
     )
     return result.insertId
@@ -339,8 +349,8 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
   static async updateRole(roleData: UpdateRoleRequest): Promise<boolean> {
     const { id, ...updateData } = roleData
 
-    const fields = []
-    const values = []
+    const fields: string[] = []
+    const values: any[] = []
 
     for (const [key, value] of Object.entries(updateData)) {
       if (value !== undefined) {
@@ -370,7 +380,7 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
       'SELECT COUNT(*) AS cnt FROM user_org_roles WHERE role_id=?',
       [id]
     )
-    if ((usingRow?.cnt || 0) > 0) {
+    if (((usingRow as any)?.cnt || 0) > 0) {
       throw new Error('该角色正在被用户使用，无法删除')
     }
 
@@ -408,7 +418,7 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
   // 获取角色的菜单权限
   static async getRoleMenus(roleId: number): Promise<number[]> {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT menu_id FROM role_menus WHERE role_id = ?', [roleId])
-    return rows.map(row => row.menu_id)
+    return (rows as Array<any>).map(row => row.menu_id)
   }
 
   // ✳️ 新：按组织取用户的菜单权限
@@ -419,23 +429,23 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
         `SELECT m.*,
               TRUE AS has_permission,
               'admin' AS permission_source
-       FROM menus m
-       WHERE m.is_disabled = 0
-       ORDER BY m.sort_order ASC, m.id ASC`
+         FROM menus m
+         WHERE m.is_disabled = 0
+         ORDER BY m.sort_order ASC, m.id ASC`
       )
-      return rows.map(r => ({
+      return (rows as any[]).map(r => ({
         menu_id: r.id,
         menu_name: r.name,
         menu_title: r.title,
-        path: r.path,
-        component: r.component,
-        icon: r.icon,
-        parent_id: r.parent_id,
+        path: r.path ?? null,
+        component: r.component ?? null,
+        icon: r.icon ?? null,
+        parent_id: r.parent_id ?? null,
         sort_order: r.sort_order,
         level: r.level,
         menu_type: r.menu_type,
-        permission_code: r.permission_code,
-        redirect: r.redirect,
+        permission_code: r.permission_code ?? null,
+        redirect: r.redirect ?? null,
         meta: r.meta ? (typeof r.meta === 'string' ? JSON.parse(r.meta) : r.meta) : null,
         has_permission: true,
         permission_source: 'admin',
@@ -470,25 +480,40 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
           WHEN rm.menu_id IS NOT NULL     THEN 'role'
           ELSE 'none'
         END AS permission_source
-     FROM menus m
-     LEFT JOIN user_menus um
-       ON um.menu_id=m.id AND um.user_id=?
-     LEFT JOIN (
-        SELECT DISTINCT rm.menu_id
-        FROM user_org_roles uor
-        JOIN role_menus rm ON rm.role_id = uor.role_id
-        WHERE uor.user_id=? AND uor.org_id=?
-     ) rm ON rm.menu_id=m.id
-     WHERE m.is_disabled=0
-     ORDER BY m.sort_order ASC, m.id ASC`,
+       FROM menus m
+       LEFT JOIN user_menus um
+         ON um.menu_id=m.id AND um.user_id=?
+       LEFT JOIN (
+          SELECT DISTINCT rm.menu_id
+          FROM user_org_roles uor
+          JOIN role_menus rm ON rm.role_id = uor.role_id
+          WHERE uor.user_id=? AND uor.org_id=?
+       ) rm ON rm.menu_id=m.id
+       WHERE m.is_disabled=0
+       ORDER BY m.sort_order ASC, m.id ASC`,
       [userId, userId, orgId]
     )
 
-    return rows.map(row => ({
-      ...row,
-      meta: row.meta ? (typeof row.meta === 'string' ? JSON.parse(row.meta) : row.meta) : null,
-      has_permission: !!row.has_permission,
+    // ✅ 显式映射为 UserMenuPermission，避免 TS 只看到 RowDataPacket 而报错
+    const mapped: UserMenuPermission[] = (rows as any[]).map(r => ({
+      menu_id: r.menu_id,
+      menu_name: r.menu_name,
+      menu_title: r.menu_title,
+      path: r.path ?? null,
+      component: r.component ?? null,
+      icon: r.icon ?? null,
+      parent_id: r.parent_id ?? null,
+      sort_order: r.sort_order,
+      level: r.level,
+      menu_type: r.menu_type,
+      permission_code: r.permission_code ?? null,
+      redirect: r.redirect ?? null,
+      meta: r.meta ? (typeof r.meta === 'string' ? JSON.parse(r.meta) : r.meta) : null,
+      has_permission: !!r.has_permission,
+      permission_source: r.permission_source as UserMenuPermission['permission_source'],
     }))
+
+    return mapped
   }
 
   // 兼容：不带 org 的旧方法
@@ -503,6 +528,7 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
     if (!orgId) return []
     return this.getUserMenuTreeInOrg(userId, orgId)
   }
+
   static async getUserMenuTreeInOrg(userId: number, orgId: number) {
     const perms: UserMenuPermission[] = await this.getUserMenuPermissionsInOrg(userId, orgId)
 
@@ -527,7 +553,7 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
             permission_code: p.permission_code ?? null,
             redirect: p.redirect ?? null,
             meta: p.meta ?? null,
-            created_at: '' as any, // 如果模型是 string，这里给个占位或改模型为可选
+            created_at: '' as any,
             updated_at: '' as any,
           } as Menu)
       )
@@ -552,19 +578,19 @@ static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
          WHEN rm.menu_id IS NOT NULL     THEN 1
          ELSE 0
        END AS has_permission
-     FROM menus m
-     LEFT JOIN user_menus um ON um.menu_id=m.id AND um.user_id=?
-     LEFT JOIN (
-       SELECT DISTINCT rm.menu_id
-       FROM user_org_roles uor
-       JOIN role_menus rm ON rm.role_id=uor.role_id
-       WHERE uor.user_id=? AND uor.org_id=?
-     ) rm ON rm.menu_id=m.id
-     WHERE m.id=? AND m.is_disabled=0
-     LIMIT 1`,
+       FROM menus m
+       LEFT JOIN user_menus um ON um.menu_id=m.id AND um.user_id=?
+       LEFT JOIN (
+         SELECT DISTINCT rm.menu_id
+         FROM user_org_roles uor
+         JOIN role_menus rm ON rm.role_id=uor.role_id
+         WHERE uor.user_id=? AND uor.org_id=?
+       ) rm ON rm.menu_id=m.id
+       WHERE m.id=? AND m.is_disabled=0
+       LIMIT 1`,
       [userId, userId, orgId, menuId]
     )
-    return !!row?.has_permission
+    return !!(row as any)?.has_permission
   }
 
   // 兼容：不带 org 的旧方法

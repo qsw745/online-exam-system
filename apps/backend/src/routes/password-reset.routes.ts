@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { PasswordResetController } from '../controllers/password-reset.controller.js';
-import { auth, checkRole } from '../middleware/auth.middleware.js';
+import { auth, requireRole } from '../middleware/auth.middleware.js'
 
 const router = Router();
 
@@ -14,6 +14,6 @@ router.get('/validate-token/:token', PasswordResetController.validateResetToken)
 router.post('/reset-password', PasswordResetController.resetPassword);
 
 // 清理过期令牌（仅管理员）
-router.delete('/clean-expired-tokens', auth, checkRole(['admin']), PasswordResetController.cleanExpiredTokens);
+router.delete('/clean-expired-tokens', auth, requireRole(['admin']), PasswordResetController.cleanExpiredTokens)
 
 export { router as passwordResetRoutes };
