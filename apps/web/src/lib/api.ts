@@ -67,9 +67,10 @@ http.interceptors.request.use(
         if (window.location.pathname !== '/login') window.location.href = '/login'
         return config
       }
-      if (!config.headers) {
+      // 确保 headers 存在
+      if (!config.headers)
         config.headers = new AxiosHeaders()
-      }
+        // 用 set 更安全
       ;(config.headers as AxiosHeaders).set('Authorization', `Bearer ${token}`)
     }
     return config
@@ -102,13 +103,14 @@ async function normalize<T = any>(promise: Promise<AxiosResponse<any>>): Promise
       if (!response.data.success) {
         return { success: false, error: response.data.message || response.data.error || '请求失败' }
       }
-      const result: ApiSuccess<T> = {
-        success: true,
-        data: (response.data.data ?? {}) as T,
-      }
-      if (response.data.total !== undefined) result.total = response.data.total
-      if (response.data.page !== undefined) result.page = response.data.page
-      if (response.data.limit !== undefined) result.limit = response.data.limit
+      const payload = response.data
+      const picked = payload.data ?? payload.result ?? payload.list ?? payload.items ?? payload // 兜底更多命名
+
+      const result: ApiSuccess<T> = { success: true, data: (picked ?? {}) as T }
+
+      if (payload.total !== undefined) result.total = payload.total
+      if (payload.page !== undefined) result.page = payload.page
+      if (payload.limit !== undefined) result.limit = payload.limit
 
       // /users/me 特殊处理：补 role
       const url = response.config.url || ''
@@ -122,11 +124,13 @@ async function normalize<T = any>(promise: Promise<AxiosResponse<any>>): Promise
     // 否则包装成标准格式
     return { success: true, data: (response.data ?? {}) as T }
   } catch (err: any) {
-    if (err?.response) {
-      const msg = err.response.data?.message || err.response.data?.error || '请求失败'
+    const e = err as AxiosError<any>
+
+    if (e.response) {
+      const msg = e.response.data?.message || e.response.data?.error || '请求失败'
       return { success: false, error: msg }
     }
-    if (err?.request) return { success: false, error: '服务器无响应，请检查网络连接' }
+    if (e.request) return { success: false, error: '服务器无响应，请检查网络连接' }
     return { success: false, error: '请求配置错误，请稍后重试' }
   }
 }
@@ -232,11 +236,13 @@ export const results = {
 export const dashboard = {
   getStats: () =>
     api
-      .get('/dashboard/stats')
+      .get<{ total_tasks: number; completed_tasks: number; average_score: number; best_score: number }>(
+        '/dashboard/stats'
+      )
       .then(res =>
         res.success
           ? res
-          : { success: true, data: { total_tasks: 0, completed_tasks: 0, average_score: 0, best_score: 0 } }
+          : { success: true, data: { total_tasks: 0, completed_tasks: 0, average_score: 0, best_score: 0 } as const }
       ),
 }
 
@@ -260,8 +266,7 @@ export const papers = {
 
 export const profile = {
   update: (profileData: any) => api.put('/users/me', profileData),
-  uploadAvatar: (formData: FormData) =>
-    api.post('/users/me/avatar', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  uploadAvatar: (formData: FormData) => api.post('/users/me/avatar', formData),
 }
 
 export const wrongQuestions = {
