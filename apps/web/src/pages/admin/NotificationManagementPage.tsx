@@ -1,34 +1,23 @@
-import React, { useState, useEffect } from 'react'
 import {
-  Card,
-  Table,
+  App,
   Button,
-  Modal,
+  Card,
+  Checkbox,
   Form,
   Input,
+  Modal,
+  Popconfirm,
   Select,
   Space,
-  Typography,
-  App,
+  Table,
   Tag,
-  Popconfirm,
-  Row,
-  Col,
-  DatePicker,
-  Checkbox
+  Typography,
 } from 'antd'
-import {
-  Bell,
-  Plus,
-  Send,
-  Edit,
-  Trash2,
-  Users,
-  Search
-} from 'lucide-react'
-import { api } from '../../lib/api'
 import type { ColumnsType } from 'antd/es/table'
+import { Bell, Edit, Plus, Send, Trash2 } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import { createPaginationConfig } from '../../constants/pagination'
+import { api } from '../../lib/api'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -118,7 +107,7 @@ const NotificationManagementPage: React.FC = () => {
     form.setFieldsValue({
       title: notification.title,
       content: notification.content,
-      type: notification.type
+      type: notification.type,
     })
     setModalVisible(true)
   }
@@ -128,18 +117,16 @@ const NotificationManagementPage: React.FC = () => {
       if (values.send_to_all) {
         // 批量发送给所有用户或指定角色的用户
         let targetUserIds = users.map(user => user.id)
-        
+
         if (values.role_filter) {
-          targetUserIds = users
-            .filter(user => user.role === values.role_filter)
-            .map(user => user.id)
+          targetUserIds = users.filter(user => user.role === values.role_filter).map(user => user.id)
         }
 
         const response = await api.post('/notifications/batch', {
           user_ids: targetUserIds,
           title: values.title,
           content: values.content,
-          type: values.type
+          type: values.type,
         })
 
         if (response.success) {
@@ -154,7 +141,7 @@ const NotificationManagementPage: React.FC = () => {
             user_id: values.user_ids[0],
             title: values.title,
             content: values.content,
-            type: values.type
+            type: values.type,
           })
 
           if (response.success) {
@@ -167,7 +154,7 @@ const NotificationManagementPage: React.FC = () => {
             user_ids: values.user_ids,
             title: values.title,
             content: values.content,
-            type: values.type
+            type: values.type,
           })
 
           if (response.success) {
@@ -210,7 +197,7 @@ const NotificationManagementPage: React.FC = () => {
       info: 'blue',
       success: 'green',
       warning: 'orange',
-      error: 'red'
+      error: 'red',
     }
     return colors[type as keyof typeof colors] || 'blue'
   }
@@ -220,7 +207,7 @@ const NotificationManagementPage: React.FC = () => {
       info: '信息',
       success: '成功',
       warning: '警告',
-      error: '错误'
+      error: '错误',
     }
     return texts[type as keyof typeof texts] || '信息'
   }
@@ -231,7 +218,7 @@ const NotificationManagementPage: React.FC = () => {
       dataIndex: 'title',
       key: 'title',
       width: 200,
-      ellipsis: true
+      ellipsis: true,
     },
     {
       title: '内容',
@@ -242,45 +229,35 @@ const NotificationManagementPage: React.FC = () => {
         <Text style={{ maxWidth: 300 }} ellipsis={{ tooltip: text }}>
           {text}
         </Text>
-      )
+      ),
     },
     {
       title: '类型',
       dataIndex: 'type',
       key: 'type',
       width: 80,
-      render: (type: string) => (
-        <Tag color={getTypeColor(type)}>
-          {getTypeText(type)}
-        </Tag>
-      )
+      render: (type: string) => <Tag color={getTypeColor(type)}>{getTypeText(type)}</Tag>,
     },
     {
       title: '接收用户',
       dataIndex: 'user',
       key: 'user',
       width: 120,
-      render: (user: any) => (
-        <Text>{user?.real_name || user?.username || '未知用户'}</Text>
-      )
+      render: (user: any) => <Text>{user?.real_name || user?.username || '未知用户'}</Text>,
     },
     {
       title: '状态',
       dataIndex: 'is_read',
       key: 'is_read',
       width: 80,
-      render: (isRead: boolean) => (
-        <Tag color={isRead ? 'green' : 'orange'}>
-          {isRead ? '已读' : '未读'}
-        </Tag>
-      )
+      render: (isRead: boolean) => <Tag color={isRead ? 'green' : 'orange'}>{isRead ? '已读' : '未读'}</Tag>,
     },
     {
       title: '发送时间',
       dataIndex: 'created_at',
       key: 'created_at',
       width: 160,
-      render: (date: string) => new Date(date).toLocaleString()
+      render: (date: string) => new Date(date).toLocaleString(),
     },
     {
       title: '操作',
@@ -302,18 +279,13 @@ const NotificationManagementPage: React.FC = () => {
             okText="确定"
             cancelText="取消"
           >
-            <Button
-              type="text"
-              size="small"
-              danger
-              icon={<Trash2 style={{ width: 16, height: 16 }} />}
-            >
+            <Button type="text" size="small" danger icon={<Trash2 style={{ width: 16, height: 16 }} />}>
               删除
             </Button>
           </Popconfirm>
         </Space>
-      )
-    }
+      ),
+    },
   ]
 
   return (
@@ -321,13 +293,11 @@ const NotificationManagementPage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <Space align="center">
           <Bell style={{ width: 24, height: 24, color: '#1890ff' }} />
-          <Title level={2} style={{ margin: 0 }}>通知管理</Title>
+          <Title level={2} style={{ margin: 0 }}>
+            通知管理
+          </Title>
         </Space>
-        <Button
-          type="primary"
-          icon={<Plus style={{ width: 16, height: 16 }} />}
-          onClick={handleCreate}
-        >
+        <Button type="primary" icon={<Plus style={{ width: 16, height: 16 }} />} onClick={handleCreate}>
           发送通知
         </Button>
       </div>
@@ -341,7 +311,7 @@ const NotificationManagementPage: React.FC = () => {
           pagination={{
             total: notifications.length,
             pageSize: 10,
-            ...createPaginationConfig()
+            ...createPaginationConfig(),
           }}
         />
       </Card>
@@ -362,35 +332,18 @@ const NotificationManagementPage: React.FC = () => {
           onFinish={handleSubmit}
           initialValues={{
             type: 'info',
-            send_to_all: false
+            send_to_all: false,
           }}
         >
-          <Form.Item
-            name="title"
-            label="通知标题"
-            rules={[{ required: true, message: '请输入通知标题' }]}
-          >
+          <Form.Item name="title" label="通知标题" rules={[{ required: true, message: '请输入通知标题' }]}>
             <Input placeholder="请输入通知标题" />
           </Form.Item>
 
-          <Form.Item
-            name="content"
-            label="通知内容"
-            rules={[{ required: true, message: '请输入通知内容' }]}
-          >
-            <TextArea
-              rows={4}
-              placeholder="请输入通知内容"
-              showCount
-              maxLength={500}
-            />
+          <Form.Item name="content" label="通知内容" rules={[{ required: true, message: '请输入通知内容' }]}>
+            <TextArea rows={4} placeholder="请输入通知内容" showCount maxLength={500} />
           </Form.Item>
 
-          <Form.Item
-            name="type"
-            label="通知类型"
-            rules={[{ required: true, message: '请选择通知类型' }]}
-          >
+          <Form.Item name="type" label="通知类型" rules={[{ required: true, message: '请选择通知类型' }]}>
             <Select placeholder="请选择通知类型">
               <Option value="info">信息</Option>
               <Option value="success">成功</Option>
@@ -402,26 +355,19 @@ const NotificationManagementPage: React.FC = () => {
           {!editingNotification && (
             <>
               <Form.Item name="send_to_all" valuePropName="checked">
-                <Checkbox>
-                  发送给所有用户
-                </Checkbox>
+                <Checkbox>发送给所有用户</Checkbox>
               </Form.Item>
 
               <Form.Item
                 noStyle
-                shouldUpdate={(prevValues, currentValues) =>
-                  prevValues.send_to_all !== currentValues.send_to_all
-                }
+                shouldUpdate={(prevValues, currentValues) => prevValues.send_to_all !== currentValues.send_to_all}
               >
                 {({ getFieldValue }) => {
                   const sendToAll = getFieldValue('send_to_all')
-                  
+
                   if (sendToAll) {
                     return (
-                      <Form.Item
-                        name="role_filter"
-                        label="角色筛选（可选）"
-                      >
+                      <Form.Item name="role_filter" label="角色筛选（可选）">
                         <Select placeholder="选择角色筛选，不选则发送给所有用户" allowClear>
                           <Option value="admin">管理员</Option>
                           <Option value="teacher">教师</Option>
@@ -440,9 +386,7 @@ const NotificationManagementPage: React.FC = () => {
                           mode="multiple"
                           placeholder="请选择接收通知的用户"
                           showSearch
-                          filterOption={(input, option) =>
-                            (option?.children as string)?.toLowerCase().includes(input.toLowerCase())
-                          }
+                          optionFilterProp="children" // ✅ 用 children 作为搜索字段
                         >
                           {users.map(user => (
                             <Option key={user.id} value={user.id}>
@@ -460,17 +404,15 @@ const NotificationManagementPage: React.FC = () => {
 
           <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
             <Space>
-              <Button onClick={() => {
-                setModalVisible(false)
-                form.resetFields()
-              }}>
+              <Button
+                onClick={() => {
+                  setModalVisible(false)
+                  form.resetFields()
+                }}
+              >
                 取消
               </Button>
-              <Button
-                type="primary"
-                htmlType="submit"
-                icon={<Send style={{ width: 16, height: 16 }} />}
-              >
+              <Button type="primary" htmlType="submit" icon={<Send style={{ width: 16, height: 16 }} />}>
                 {editingNotification ? '更新' : '发送'}
               </Button>
             </Space>

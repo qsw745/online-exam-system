@@ -1,0 +1,33 @@
+version: "3.9"
+services:
+  proxy:
+    image: caddy:2
+    container_name: proxy
+    ports:
+      - "80:80"
+      # 有域名+公网就加上:
+      # - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - web
+
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+    container_name: web
+    expose:
+      - "80"
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+    container_name: backend
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      # 其它环境变量...
+    ports:
+      - "3000:3000"

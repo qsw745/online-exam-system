@@ -1,23 +1,29 @@
-import React, { useState, useEffect } from 'react'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
-import { 
-  ArrowLeft, 
-  CheckCircle, 
+import { Button, Card, Checkbox, Input, message, Radio, Space, Spin, Tag, Typography } from 'antd'
+import {
   AlertTriangle,
+  ArrowLeft,
   BookOpen,
-  Heart,
-  HeartOff,
-  Eye,
-  EyeOff,
+  CheckCircle,
   ChevronLeft,
   ChevronRight,
-  SkipForward
+  Eye,
+  EyeOff,
+  Heart,
+  HeartOff,
+  SkipForward,
 } from 'lucide-react'
-import { api, wrongQuestions, questions as questionsApi } from '../lib/api'
+import { useEffect, useState } from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { message, Spin, Card, Button, Space, Tag, Radio, Checkbox, Input, Progress, Alert, Typography } from 'antd'
 import { useLanguage } from '../contexts/LanguageContext'
+import { api, questions as questionsApi, wrongQuestions } from '../lib/api'
+// 就地声明也可以（二选一）：
+type ApiSuccess<T = any> = { success: true; data: T; total?: number; page?: number; limit?: number }
+type ApiFailure = { success: false; error: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 
+const isSuccess = <T,>(r: ApiResult<T>): r is ApiSuccess<T> => r?.success === true
+const isFailure = <T,>(r: ApiResult<T>): r is ApiFailure => r?.success === false
 
 const { TextArea } = Input
 const { Title, Text } = Typography
@@ -42,7 +48,7 @@ export default function QuestionPracticePage() {
   const navigate = useNavigate()
   const location = useLocation()
   const { user } = useAuth()
-   const {t,language} = useLanguage()
+  const { t, language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [question, setQuestion] = useState<Question | null>(null)
@@ -52,7 +58,7 @@ export default function QuestionPracticePage() {
   const [isAnswered, setIsAnswered] = useState(false)
   const [isCorrect, setIsCorrect] = useState(false)
   const [isFavorited, setIsFavorited] = useState(false)
-  
+
   // 连续刷题相关状态
   const [questionList, setQuestionList] = useState<string[]>([])
   const [currentIndex, setCurrentIndex] = useState(0)
@@ -70,7 +76,7 @@ export default function QuestionPracticePage() {
     const type = searchParams.get('type')
     const difficulty = searchParams.get('difficulty')
     const search = searchParams.get('search')
-    
+
     if (mode === 'continuous') {
       setPracticeMode('continuous')
       setPracticeFilters({ type: type || undefined, difficulty: difficulty || undefined, search: search || undefined })
@@ -87,42 +93,51 @@ export default function QuestionPracticePage() {
   }, [location.search, id])
 
   // 初始化连续练习模式
-  const initializeContinuousPractice = async (filters: { type?: string | null, difficulty?: string | null, search?: string | null }) => {
+  const initializeContinuousPractice = async (filters: {
+    type?: string | null
+    difficulty?: string | null
+    search?: string | null
+  }) => {
     try {
       setLoading(true)
-      
+
       // 获取用户已练习过的题目ID列表
       let practicedQuestionIds: number[] = []
       try {
-        const practicedResponse = await wrongQuestions.getPracticedQuestions()
-        practicedQuestionIds = practicedResponse.data || []
-      } catch (error) {
-        console.log('获取已练习题目列表失败，将显示所有题目:', error)
+        const practicedResponse = await wrongQuestions.getPracticedQuestions() // ApiResult<any>
+        if (isSuccess<any>(practicedResponse)) {
+          // 后端可能是直接数组或 { ids: number[] }，都兜底一下
+          const d = practicedResponse.data as any
+          practicedQuestionIds = Array.isArray(d) ? d : d?.ids ?? []
+        } else {
+          console.log('获取已练习题目列表失败：', practicedResponse.error)
+        }
+      } catch (e) {
+        console.log('获取已练习题目列表异常，将显示所有题目:', e)
       }
-      
+
       const params: any = {
         limit: 100, // 增加获取数量以确保有足够的未练习题目
-        page: 1
+        page: 1,
       }
-      
+
       if (filters.type) params.type = filters.type
       if (filters.difficulty) params.difficulty = filters.difficulty
       if (filters.search) params.search = filters.search
-      
-      const response = await questionsApi.list(params)
-      const allQuestions = response.data?.questions || []
-      
-      if (allQuestions.length === 0) {
-        // message.error('没有找到符合条件的题目')
+
+      // 2) 题库列表
+      const response = await questionsApi.list(params) // ApiResult<{questions: any[]} | any[]>
+      if (!isSuccess(response)) {
+        message.error('获取题目失败')
         navigate('/questions/all')
         return
       }
-      
+      const d = response.data as any
+      const allQuestions: any[] = Array.isArray(d) ? d : d?.questions ?? []
+
       // 过滤掉已练习过的题目
-      const unpracticedQuestions = allQuestions.filter((q: any) => 
-        !practicedQuestionIds.includes(parseInt(q.id))
-      )
-      
+      const unpracticedQuestions = allQuestions.filter((q: any) => !practicedQuestionIds.includes(parseInt(q.id)))
+
       // 如果没有未练习的题目，提示用户
       if (unpracticedQuestions.length === 0) {
         message.info('您已完成所有符合条件的题目练习！将显示所有题目供复习。')
@@ -135,15 +150,16 @@ export default function QuestionPracticePage() {
         const shuffledQuestions = [...unpracticedQuestions].sort(() => Math.random() - 0.5)
         const questionIds = shuffledQuestions.map((q: any) => q.id.toString())
         setQuestionList(questionIds)
-        
+
         // message.success(`找到 ${unpracticedQuestions.length} 道未练习的题目`)
       }
-      
+
       // 如果有指定的题目ID，找到它在列表中的位置
       if (id) {
-        const questionIds = unpracticedQuestions.length > 0 
-          ? unpracticedQuestions.map((q: any) => q.id.toString())
-          : allQuestions.map((q: any) => q.id.toString())
+        const questionIds =
+          unpracticedQuestions.length > 0
+            ? unpracticedQuestions.map((q: any) => q.id.toString())
+            : allQuestions.map((q: any) => q.id.toString())
         const index = questionIds.indexOf(id)
         if (index !== -1) {
           setCurrentIndex(index)
@@ -155,9 +171,10 @@ export default function QuestionPracticePage() {
         }
       } else {
         // 没有指定题目，从第一题开始
-        const questionIds = unpracticedQuestions.length > 0 
-          ? unpracticedQuestions.map((q: any) => q.id.toString())
-          : allQuestions.map((q: any) => q.id.toString())
+        const questionIds =
+          unpracticedQuestions.length > 0
+            ? unpracticedQuestions.map((q: any) => q.id.toString())
+            : allQuestions.map((q: any) => q.id.toString())
         setCurrentIndex(0)
         loadQuestion(questionIds[0])
       }
@@ -175,33 +192,43 @@ export default function QuestionPracticePage() {
       if (!questionId || questionId === 'undefined' || questionId === 'null') {
         throw new Error('无效的题目ID')
       }
-      
+
       setLoading(true)
       const response = await api.get(`/questions/${questionId}`)
-      const questionData = response.data.question
+      if (!isSuccess<any>(response)) {
+        throw new Error(response.error || '加载题目失败')
+      }
+      // 后端可能给 {question: {...}} 或直接 {...}
+      const r = response.data as any
+      const questionData = r?.question ?? r
       setQuestion(questionData)
-      
+
       // 重置答题状态
       resetQuestion()
-      
+
       // 检查是否已收藏
       try {
-        const favResponse = await api.get('/favorites')
-        const favorites = favResponse.data.favorites || []
-        setIsFavorited(favorites.some((fav: any) => fav.question_id === questionData.id))
+        const favResponse = await api.get('/favorites') // ApiResult<any>
+        if (isSuccess<any>(favResponse)) {
+          const favData = favResponse.data as any
+          const favorites: any[] = Array.isArray(favData) ? favData : favData?.favorites ?? []
+          setIsFavorited(favorites.some((fav: any) => fav.question_id === questionData.id))
+        } else {
+          console.log('获取收藏状态失败：', favResponse.error)
+        }
       } catch (error) {
-        console.log('获取收藏状态失败:', error)
+        console.log('获取收藏状态异常:', error)
       }
     } catch (error: any) {
       console.error('加载题目失败:', error)
-      
+
       // 根据错误类型显示不同的提示
       if (error.message === '无效的题目ID' || error.response?.status === 404) {
         message.error('题目不存在或已被删除')
       } else {
         message.error('加载题目失败')
       }
-      
+
       // 在连续练习模式下，尝试跳到下一题或返回题库
       if (practiceMode === 'continuous') {
         if (questionList.length > 1 && currentIndex < questionList.length - 1) {
@@ -221,7 +248,7 @@ export default function QuestionPracticePage() {
 
   const handleAnswerChange = (optionIndex: number) => {
     if (isAnswered) return
-    
+
     if (question?.question_type === 'single_choice' || question?.question_type === 'true_false') {
       setSelectedAnswers([optionIndex])
     } else if (question?.question_type === 'multiple_choice') {
@@ -235,16 +262,16 @@ export default function QuestionPracticePage() {
 
   const handleSubmitAnswer = () => {
     if (!question) return
-    
+
     let correct = false
-    
+
     if (question.question_type === 'single_choice' || question.question_type === 'multiple_choice') {
-      const correctAnswers = question.options?.map((option, index) => 
-        option.is_correct ? index : -1
-      ).filter(index => index !== -1) || []
-      
-      correct = selectedAnswers.length === correctAnswers.length && 
-                selectedAnswers.every(answer => correctAnswers.includes(answer))
+      const correctAnswers =
+        question.options?.map((option, index) => (option.is_correct ? index : -1)).filter(index => index !== -1) || []
+
+      correct =
+        selectedAnswers.length === correctAnswers.length &&
+        selectedAnswers.every(answer => correctAnswers.includes(answer))
     } else if (question.question_type === 'true_false') {
       // 数据库中存储的是字符串 "true" 或 "false"
       // 前端选择: 0=正确, 1=错误
@@ -255,11 +282,11 @@ export default function QuestionPracticePage() {
       // 简答题暂时不自动判断正确性
       correct = true
     }
-    
+
     setIsCorrect(correct)
     setIsAnswered(true)
     setShowExplanation(true)
-    
+
     // 记录答题结果
     recordAnswer(correct)
   }
@@ -269,7 +296,7 @@ export default function QuestionPracticePage() {
       await wrongQuestions.recordPractice({
         question_id: parseInt(question?.id || '0'),
         is_correct: correct,
-        answer: question?.question_type === 'short_answer' ? textAnswer : selectedAnswers
+        answer: question?.question_type === 'short_answer' ? textAnswer : selectedAnswers,
       })
     } catch (error) {
       console.error('记录答题结果失败:', error)
@@ -308,16 +335,16 @@ export default function QuestionPracticePage() {
       if (nextIndex < questionList.length) {
         setCurrentIndex(nextIndex)
         const nextQuestionId = questionList[nextIndex]
-        
+
         // 构建URL参数，过滤掉undefined值
         const params = new URLSearchParams()
         params.set('mode', 'continuous')
         if (practiceFilters.type) params.set('type', practiceFilters.type)
         if (practiceFilters.difficulty) params.set('difficulty', practiceFilters.difficulty)
         if (practiceFilters.search) params.set('search', practiceFilters.search)
-        
+
         // 导航到下一题
-        
+
         navigate(`/questions/${nextQuestionId}/practice?${params.toString()}`, { replace: true })
         loadQuestion(nextQuestionId)
       } else {
@@ -334,14 +361,14 @@ export default function QuestionPracticePage() {
       if (prevIndex >= 0) {
         setCurrentIndex(prevIndex)
         const prevQuestionId = questionList[prevIndex]
-        
+
         // 构建URL参数，过滤掉undefined值
         const params = new URLSearchParams()
         params.set('mode', 'continuous')
         if (practiceFilters.type) params.set('type', practiceFilters.type)
         if (practiceFilters.difficulty) params.set('difficulty', practiceFilters.difficulty)
         if (practiceFilters.search) params.set('search', practiceFilters.search)
-        
+
         navigate(`/questions/${prevQuestionId}/practice?${params.toString()}`, { replace: true })
         loadQuestion(prevQuestionId)
       }
@@ -357,19 +384,19 @@ export default function QuestionPracticePage() {
 
   const getQuestionTypeLabel = (type: string) => {
     const typeMap = {
-      'single_choice': '单选题',
-      'multiple_choice': '多选题',
-      'true_false': '判断题',
-      'short_answer': '简答题'
+      single_choice: '单选题',
+      multiple_choice: '多选题',
+      true_false: '判断题',
+      short_answer: '简答题',
     }
     return typeMap[type as keyof typeof typeMap] || type
   }
 
   const getDifficultyLabel = (difficulty: string) => {
     const difficultyMap = {
-      'easy': '简单',
-      'medium': '中等',
-      'hard': '困难'
+      easy: '简单',
+      medium: '中等',
+      hard: '困难',
     }
     return difficultyMap[difficulty as keyof typeof difficultyMap] || difficulty
   }
@@ -378,7 +405,7 @@ export default function QuestionPracticePage() {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <Spin size="large" tip={t('questions.loading')}>
-          <div style={{ minHeight: '200px',minWidth:"200px" }} />
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
         </Spin>
       </div>
     )
@@ -386,7 +413,16 @@ export default function QuestionPracticePage() {
 
   if (!question) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '20px' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '100vh',
+          padding: '20px',
+        }}
+      >
         <Space direction="vertical" align="center" size="large">
           <AlertTriangle style={{ width: 64, height: 64, color: '#ff4d4f' }} />
           <Title level={2}>题目不存在</Title>
@@ -405,13 +441,10 @@ export default function QuestionPracticePage() {
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
-            <Button
-              icon={<ArrowLeft style={{ width: 16, height: 16 }} />}
-              onClick={() => navigate('/questions/all')}
-            >
+            <Button icon={<ArrowLeft style={{ width: 16, height: 16 }} />} onClick={() => navigate('/questions/all')}>
               返回题库
             </Button>
-            
+
             {/* 连续练习模式的进度显示 */}
             {practiceMode === 'continuous' && questionList.length > 0 && (
               <Tag color="blue" icon={<BookOpen style={{ width: 16, height: 16 }} />}>
@@ -419,7 +452,7 @@ export default function QuestionPracticePage() {
               </Tag>
             )}
           </Space>
-          
+
           <Space>
             {/* 连续练习模式的导航按钮 */}
             {practiceMode === 'continuous' && (
@@ -431,7 +464,7 @@ export default function QuestionPracticePage() {
                 >
                   上一题
                 </Button>
-                
+
                 <Button
                   icon={<SkipForward style={{ width: 16, height: 16 }} />}
                   onClick={skipCurrentQuestion}
@@ -439,29 +472,37 @@ export default function QuestionPracticePage() {
                 >
                   跳过
                 </Button>
-                
-                <Button
-                  type="primary"
-                  onClick={goToNextQuestion}
-                  disabled={currentIndex === questionList.length - 1}
-                >
+
+                <Button type="primary" onClick={goToNextQuestion} disabled={currentIndex === questionList.length - 1}>
                   下一题
                   <ChevronRight style={{ width: 16, height: 16 }} />
                 </Button>
               </Space>
             )}
-            
+
             <Button
-              icon={isFavorited ? <Heart style={{ width: 16, height: 16 }} /> : <HeartOff style={{ width: 16, height: 16 }} />}
+              icon={
+                isFavorited ? (
+                  <Heart style={{ width: 16, height: 16 }} />
+                ) : (
+                  <HeartOff style={{ width: 16, height: 16 }} />
+                )
+              }
               onClick={toggleFavorite}
               danger={isFavorited}
               type={isFavorited ? 'primary' : 'default'}
             >
               {isFavorited ? '已收藏' : '收藏'}
             </Button>
-            
+
             <Button
-              icon={showExplanation ? <EyeOff style={{ width: 16, height: 16 }} /> : <Eye style={{ width: 16, height: 16 }} />}
+              icon={
+                showExplanation ? (
+                  <EyeOff style={{ width: 16, height: 16 }} />
+                ) : (
+                  <Eye style={{ width: 16, height: 16 }} />
+                )
+              }
               onClick={() => setShowExplanation(!showExplanation)}
               type="primary"
               ghost
@@ -475,77 +516,82 @@ export default function QuestionPracticePage() {
         <Card>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <Space>
-              <Tag color="blue">
-                {getQuestionTypeLabel(question.question_type)}
-              </Tag>
+              <Tag color="blue">{getQuestionTypeLabel(question.question_type)}</Tag>
               {question.difficulty && (
-                <Tag color={
-                  question.difficulty === 'easy' ? 'green' :
-                  question.difficulty === 'medium' ? 'orange' : 'red'
-                }>
+                <Tag
+                  color={question.difficulty === 'easy' ? 'green' : question.difficulty === 'medium' ? 'orange' : 'red'}
+                >
                   {getDifficultyLabel(question.difficulty)}
                 </Tag>
               )}
             </Space>
-            
+
             {isAnswered && (
-              <Tag 
-                color={isCorrect ? 'success' : 'error'}
-                icon={<CheckCircle style={{ width: 16, height: 16 }} />}
-              >
+              <Tag color={isCorrect ? 'success' : 'error'} icon={<CheckCircle style={{ width: 16, height: 16 }} />}>
                 {isCorrect ? '回答正确' : '回答错误'}
               </Tag>
             )}
           </div>
-          
+
           <div style={{ marginBottom: 24 }}>
-            <Text style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.6 }}>
-              {question.content}
-            </Text>
+            <Text style={{ fontSize: 16, fontWeight: 500, lineHeight: 1.6 }}>{question.content}</Text>
           </div>
 
           {/* 选择题选项 */}
-          {(question.question_type === 'single_choice' || question.question_type === 'multiple_choice') && question.options && (
-            <div style={{ marginBottom: 24 }}>
-              <Space direction="vertical" style={{ width: '100%' }}>
-                {question.options.map((option, index) => {
-                  const isSelected = selectedAnswers.includes(index)
-                  const isCorrectOption = option.is_correct
-                  const showCorrect = isAnswered && isCorrectOption
-                  const showWrong = isAnswered && isSelected && !isCorrectOption
-                  
-                  const OptionComponent = question.question_type === 'single_choice' ? Radio : Checkbox
-                  
-                  return (
-                    <Card
-                      key={index}
-                      size="small"
-                      style={{
-                        backgroundColor: showCorrect ? '#f6ffed' : showWrong ? '#fff2f0' : isSelected ? '#f0f5ff' : '#fafafa',
-                        borderColor: showCorrect ? '#b7eb8f' : showWrong ? '#ffccc7' : isSelected ? '#91caff' : '#d9d9d9',
-                        cursor: isAnswered ? 'default' : 'pointer'
-                      }}
-                      onClick={() => !isAnswered && handleAnswerChange(index)}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
-                          <OptionComponent
-                            checked={isSelected}
-                            onChange={() => handleAnswerChange(index)}
-                            disabled={isAnswered}
-                            style={{ marginRight: 12 }}
-                          />
-                          <Text>{option.content}</Text>
+          {(question.question_type === 'single_choice' || question.question_type === 'multiple_choice') &&
+            question.options && (
+              <div style={{ marginBottom: 24 }}>
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  {question.options.map((option, index) => {
+                    const isSelected = selectedAnswers.includes(index)
+                    const isCorrectOption = option.is_correct
+                    const showCorrect = isAnswered && isCorrectOption
+                    const showWrong = isAnswered && isSelected && !isCorrectOption
+
+                    const OptionComponent = question.question_type === 'single_choice' ? Radio : Checkbox
+
+                    return (
+                      <Card
+                        key={index}
+                        size="small"
+                        style={{
+                          backgroundColor: showCorrect
+                            ? '#f6ffed'
+                            : showWrong
+                            ? '#fff2f0'
+                            : isSelected
+                            ? '#f0f5ff'
+                            : '#fafafa',
+                          borderColor: showCorrect
+                            ? '#b7eb8f'
+                            : showWrong
+                            ? '#ffccc7'
+                            : isSelected
+                            ? '#91caff'
+                            : '#d9d9d9',
+                          cursor: isAnswered ? 'default' : 'pointer',
+                        }}
+                        onClick={() => !isAnswered && handleAnswerChange(index)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                            <OptionComponent
+                              checked={isSelected}
+                              onChange={() => handleAnswerChange(index)}
+                              disabled={isAnswered}
+                              style={{ marginRight: 12 }}
+                            />
+                            <Text>{option.content}</Text>
+                          </div>
+                          {showCorrect && <CheckCircle style={{ width: 20, height: 20, color: '#52c41a' }} />}
+                          {showWrong && <AlertTriangle style={{ width: 20, height: 20, color: '#ff4d4f' }} />}
                         </div>
-                        {showCorrect && <CheckCircle style={{ width: 20, height: 20, color: '#52c41a' }} />}
-                        {showWrong && <AlertTriangle style={{ width: 20, height: 20, color: '#ff4d4f' }} />}
-                      </div>
-                    </Card>
-                  )
-                })}
-              </Space>
-            </div>
-          )}
+                      </Card>
+                    )
+                  })}
+                </Space>
+              </div>
+            )}
 
           {/* 判断题选项 */}
           {question.question_type === 'true_false' && (
@@ -560,15 +606,27 @@ export default function QuestionPracticePage() {
                   const isCorrectOption = correctIndex === index
                   const showCorrect = isAnswered && isCorrectOption
                   const showWrong = isAnswered && isSelected && !isCorrectOption
-                  
+
                   return (
                     <Card
                       key={index}
                       size="small"
                       style={{
-                        backgroundColor: showCorrect ? '#f6ffed' : showWrong ? '#fff2f0' : isSelected ? '#f0f5ff' : '#fafafa',
-                        borderColor: showCorrect ? '#b7eb8f' : showWrong ? '#ffccc7' : isSelected ? '#91caff' : '#d9d9d9',
-                        cursor: isAnswered ? 'default' : 'pointer'
+                        backgroundColor: showCorrect
+                          ? '#f6ffed'
+                          : showWrong
+                          ? '#fff2f0'
+                          : isSelected
+                          ? '#f0f5ff'
+                          : '#fafafa',
+                        borderColor: showCorrect
+                          ? '#b7eb8f'
+                          : showWrong
+                          ? '#ffccc7'
+                          : isSelected
+                          ? '#91caff'
+                          : '#d9d9d9',
+                        cursor: isAnswered ? 'default' : 'pointer',
                       }}
                       onClick={() => !isAnswered && handleAnswerChange(index)}
                     >
@@ -597,7 +655,7 @@ export default function QuestionPracticePage() {
             <div style={{ marginBottom: 24 }}>
               <TextArea
                 value={textAnswer}
-                onChange={(e) => setTextAnswer(e.target.value)}
+                onChange={e => setTextAnswer(e.target.value)}
                 placeholder="请输入您的答案..."
                 disabled={isAnswered}
                 rows={6}
@@ -615,34 +673,30 @@ export default function QuestionPracticePage() {
                   size="large"
                   icon={<CheckCircle style={{ width: 16, height: 16 }} />}
                   onClick={handleSubmitAnswer}
-                  disabled={(
-                    (question.question_type === 'single_choice' || question.question_type === 'multiple_choice' || question.question_type === 'true_false') && selectedAnswers.length === 0
-                  ) || (
-                    question.question_type === 'short_answer' && textAnswer.trim() === ''
-                  )}
+                  disabled={
+                    ((question.question_type === 'single_choice' ||
+                      question.question_type === 'multiple_choice' ||
+                      question.question_type === 'true_false') &&
+                      selectedAnswers.length === 0) ||
+                    (question.question_type === 'short_answer' && textAnswer.trim() === '')
+                  }
                 >
                   提交答案
                 </Button>
               ) : (
                 <Space>
                   {practiceMode === 'single' && (
-                    <Button
-                      icon={<BookOpen style={{ width: 16, height: 16 }} />}
-                      onClick={resetQuestion}
-                    >
+                    <Button icon={<BookOpen style={{ width: 16, height: 16 }} />} onClick={resetQuestion}>
                       重新练习
                     </Button>
                   )}
-                  
+
                   {practiceMode === 'continuous' && (
                     <>
-                      <Button
-                        icon={<BookOpen style={{ width: 16, height: 16 }} />}
-                        onClick={resetQuestion}
-                      >
+                      <Button icon={<BookOpen style={{ width: 16, height: 16 }} />} onClick={resetQuestion}>
                         重新练习
                       </Button>
-                      
+
                       <Button
                         type="primary"
                         size="large"
@@ -663,18 +717,26 @@ export default function QuestionPracticePage() {
         {/* 题目解析 */}
         {showExplanation && question.explanation && (
           <Card
-            title={<Title level={4} style={{ margin: 0, color: '#1890ff' }}>题目解析</Title>}
+            title={
+              <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+                题目解析
+              </Title>
+            }
             style={{ backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
           >
-            <Text style={{ color: '#1890ff', lineHeight: 1.6 }}>
-              {question.explanation}
-            </Text>
+            <Text style={{ color: '#1890ff', lineHeight: 1.6 }}>{question.explanation}</Text>
           </Card>
         )}
 
         {/* 知识点 */}
         {question.knowledge_points && question.knowledge_points.length > 0 && (
-          <Card title={<Title level={4} style={{ margin: 0 }}>相关知识点</Title>}>
+          <Card
+            title={
+              <Title level={4} style={{ margin: 0 }}>
+                相关知识点
+              </Title>
+            }
+          >
             <Space wrap>
               {question.knowledge_points.map((point, index) => (
                 <Tag key={index} color="default">

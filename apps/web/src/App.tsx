@@ -3,12 +3,12 @@ import { App as AntdApp, ConfigProvider } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import React, { Suspense } from 'react'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
+import Layout from './components/Layout'
+import LoadingSpinner from './components/LoadingSpinner'
 import { AuthProvider, useAuth } from './contexts/AuthContext'
 import { LanguageProvider } from './contexts/LanguageContext'
 import { MenuPermissionProvider } from './contexts/MenuPermissionContext'
 import { useTheme } from './providers/AntdThemeProvider'
-import Layout from './components/Layout'
-import LoadingSpinner from './components/LoadingSpinner'
 
 import AdminPage from './pages/admin/AdminPage'
 import OrgManage from './pages/admin/OrgManage'
@@ -35,7 +35,6 @@ import TasksPage from './pages/TasksPage'
 import WrongQuestionsPage from './pages/WrongQuestionsPage'
 import { antdTheme, darkAntdTheme } from './theme/antd-theme'
 
-
 // 创建 Query Client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +55,7 @@ const queryClient = new QueryClient({
 
 // 受保护的路由组件
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { user, loading, error } = useAuth()
+  const { user, loading } = useAuth()
 
   if (loading) {
     return (
@@ -71,7 +70,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
               <p className="text-xs text-blue-700">提示：如果加载时间过长，请尝试刷新页面</p>
             </div>
 
-            {error && (
+            {/* {error && (
               <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                 <p className="text-sm text-red-600 mb-2">{error}</p>
                 <div className="space-y-2">
@@ -93,7 +92,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
                   </button>
                 </div>
               </div>
-            )}
+            )} */}
           </div>
         </div>
       </div>
@@ -298,14 +297,14 @@ function AppRoutes() {
 
 // 主应用组件
 function App() {
-  const { isDarkMode } = useTheme()
+  const { mode } = useTheme()
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <MenuPermissionProvider>
           <LanguageProvider>
-            <ConfigProvider locale={zhCN} theme={isDarkMode ? darkAntdTheme : antdTheme} componentSize="middle">
+            <ConfigProvider locale={zhCN} theme={mode === 'dark' ? darkAntdTheme : antdTheme} componentSize="middle">
               <AntdApp>
                 <Router>
                   <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">

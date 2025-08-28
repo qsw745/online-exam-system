@@ -1,24 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
-import { 
-  Clock, 
-  ChevronLeft, 
-  ChevronRight, 
-  CheckCircle, 
-  AlertTriangle,
-  Flag,
-  Send
-} from 'lucide-react'
-import { api, exams } from '../lib/api'
+import { message } from 'antd'
+import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import LoadingSpinner from '../components/LoadingSpinner'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import LoadingSpinner from '../components/LoadingSpinner'
-import { message } from 'antd'
+import { exams } from '../lib/api'
+type OptionItem = string | { content: string }
 
 interface Question {
   id: string
   content: string
-  options: string[]
+  options: OptionItem[]
+
   correct_answer: number
   explanation: string
   type: 'single' | 'multiple' | 'true_false' | 'short_answer'
@@ -34,13 +28,16 @@ interface ExamPaper {
   total_score: number
   questions: Question[]
 }
-
+type ApiFailure = { success: false; error: string }
+function isFailure(r: any): r is ApiFailure {
+  return r && r.success === false
+}
 export default function ExamPage() {
   const { taskId } = useParams<{ taskId: string }>()
   const navigate = useNavigate()
   const { user } = useAuth()
   const { t } = useLanguage()
-  
+
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [exam, setExam] = useState<ExamPaper | null>(null)
@@ -53,12 +50,17 @@ export default function ExamPage() {
   useEffect(() => {
     const loadExam = async () => {
       try {
-        const { data } = await exams.getById(taskId!)
+        const res = await exams.getById(taskId!)
+        if (isFailure(res)) {
+          throw new Error(res.error || '加载试卷失败')
+        }
+        const data = res.data as any
         setExam(data)
-        if (data && data.exam && data.exam.duration) {
-          setTimeLeft(data.exam.duration * 60) // 转换为秒
+        // 如果你期望 data.exam.duration：
+        if (data?.exam?.duration) {
+          setTimeLeft(data.exam.duration * 60)
         } else {
-          console.error('考试数据无效或缺少duration字段:', data)
+          console.error('考试数据无效或缺少 duration 字段:', data)
           message.error('考试数据无效')
           navigate('/dashboard')
           return
@@ -80,7 +82,7 @@ export default function ExamPage() {
     if (!timeLeft || loading) return
 
     const timer = setInterval(() => {
-      setTimeLeft((time) => {
+      setTimeLeft(time => {
         if (time <= 1) {
           clearInterval(timer)
           handleSubmit()
@@ -94,14 +96,14 @@ export default function ExamPage() {
   }, [timeLeft, loading])
 
   const handleAnswerChange = (questionId: string, selectedOptions: number[]) => {
-    setAnswers((prev) => ({
+    setAnswers(prev => ({
       ...prev,
-      [questionId]: selectedOptions
+      [questionId]: selectedOptions,
     }))
   }
 
   const toggleFlagQuestion = (index: number) => {
-    setFlaggedQuestions((prev) => {
+    setFlaggedQuestions(prev => {
       const newSet = new Set(prev)
       if (newSet.has(index)) {
         newSet.delete(index)
@@ -119,7 +121,7 @@ export default function ExamPage() {
     try {
       await exams.submit(taskId!, {
         answers,
-        time_spent: exam.duration * 60 - timeLeft
+        time_spent: exam.duration * 60 - timeLeft,
       })
 
       navigate(`/results/${taskId}`)
@@ -193,9 +195,7 @@ export default function ExamPage() {
           <button
             onClick={() => toggleFlagQuestion(currentQuestionIndex)}
             className={`flex items-center space-x-2 px-3 py-1 rounded-md ${
-              flaggedQuestions.has(currentQuestionIndex)
-                ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-gray-100 text-gray-600'
+              flaggedQuestions.has(currentQuestionIndex) ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-600'
             }`}
           >
             <Flag className="w-4 h-4" />
@@ -208,64 +208,64 @@ export default function ExamPage() {
         </div>
 
         <div className="space-y-4">
-          {currentQuestion?.type === 'true_false' ? (
-            // 判断题特殊处理
-            ['正确', '错误'].map((option, index) => (
-              <label
-                key={index}
-                className="flex items-center space-x-3 p-4 rounded-lg border cursor-pointer hover:bg-gray-50"
-              >
-                <input
-                  type="radio"
-                  name={`question-${currentQuestion?.id}`}
-                  checked={answers[currentQuestion?.id]?.includes(index) || false}
-                  onChange={() => {
-                    handleAnswerChange(currentQuestion.id, [index])
-                  }}
-                  className="w-4 h-4 text-primary"
-                />
-                <span className="flex-1">{option}</span>
-              </label>
-            ))
-          ) : (
-            // 选择题处理
-            currentQuestion?.options?.map((option, index) => (
-              <label
-                key={index}
-                className="flex items-center space-x-3 p-4 rounded-lg border cursor-pointer hover:bg-gray-50"
-              >
-                <input
-                  type={currentQuestion?.type === 'single' ? 'radio' : 'checkbox'}
-                  name={`question-${currentQuestion?.id}`}
-                  checked={answers[currentQuestion?.id]?.includes(index) || false}
-                  onChange={() => {
-                    if (currentQuestion?.type === 'single') {
+          {currentQuestion?.type === 'true_false'
+            ? // 判断题特殊处理
+              ['正确', '错误'].map((option, index) => (
+                <label
+                  key={index}
+                  className="flex items-center space-x-3 p-4 rounded-lg border cursor-pointer hover:bg-gray-50"
+                >
+                  <input
+                    type="radio"
+                    name={`question-${currentQuestion?.id}`}
+                    checked={answers[currentQuestion?.id]?.includes(index) || false}
+                    onChange={() => {
                       handleAnswerChange(currentQuestion.id, [index])
-                    } else {
-                      const currentAnswers = answers[currentQuestion?.id] || []
-                      if (currentAnswers.includes(index)) {
-                        handleAnswerChange(
-                          currentQuestion.id,
-                          currentAnswers.filter((i) => i !== index)
-                        )
+                    }}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="flex-1">{option}</span>
+                </label>
+              ))
+            : // 选择题处理
+              currentQuestion?.options?.map((option, index) => (
+                <label
+                  key={index}
+                  className="flex items-center space-x-3 p-4 rounded-lg border cursor-pointer hover:bg-gray-50"
+                >
+                  <input
+                    type={currentQuestion?.type === 'single' ? 'radio' : 'checkbox'}
+                    name={`question-${currentQuestion?.id}`}
+                    checked={answers[currentQuestion?.id]?.includes(index) || false}
+                    onChange={() => {
+                      if (currentQuestion?.type === 'single') {
+                        handleAnswerChange(currentQuestion.id, [index])
                       } else {
-                        handleAnswerChange(currentQuestion.id, [...currentAnswers, index])
+                        const currentAnswers = answers[currentQuestion?.id] || []
+                        if (currentAnswers.includes(index)) {
+                          handleAnswerChange(
+                            currentQuestion.id,
+                            currentAnswers.filter(i => i !== index)
+                          )
+                        } else {
+                          handleAnswerChange(currentQuestion.id, [...currentAnswers, index])
+                        }
                       }
-                    }
-                  }}
-                  className="w-4 h-4 text-primary"
-                />
-                <span className="flex-1">{typeof option === 'string' ? option : (option && option.content) || ''}</span>
-              </label>
-            ))
-          )}
+                    }}
+                    className="w-4 h-4 text-primary"
+                  />
+                  <span className="flex-1">
+                    {typeof option === 'string' ? option : (option && option.content) || ''}
+                  </span>
+                </label>
+              ))}
         </div>
       </div>
 
       {/* 底部导航 */}
       <div className="flex items-center justify-between">
         <button
-          onClick={() => setCurrentQuestionIndex((prev) => prev - 1)}
+          onClick={() => setCurrentQuestionIndex(prev => prev - 1)}
           disabled={currentQuestionIndex === 0}
           className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -277,13 +277,11 @@ export default function ExamPage() {
           <span className="text-sm text-gray-500">
             {t('exam.answered')} {Object.keys(answers).length} / {exam.questions.length}
           </span>
-          {Object.keys(answers).length === exam.questions.length && (
-            <CheckCircle className="w-5 h-5 text-green-500" />
-          )}
+          {Object.keys(answers).length === exam.questions.length && <CheckCircle className="w-5 h-5 text-green-500" />}
         </div>
 
         <button
-          onClick={() => setCurrentQuestionIndex((prev) => prev + 1)}
+          onClick={() => setCurrentQuestionIndex(prev => prev + 1)}
           disabled={currentQuestionIndex === (exam?.questions?.length || 0) - 1}
           className="flex items-center space-x-2 px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
         >

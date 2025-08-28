@@ -1,0 +1,20 @@
+# Caddyfile —— 双机（VM1 只跑 proxy+web；VM2 跑 backend）
+:80 {
+  encode zstd gzip
+
+  @api path /api*
+  handle @api {
+    # 替换为 VM2 实际内网 IP 和端口
+    reverse_proxy http://192.168.182.129:3000
+  }
+
+  handle {
+    reverse_proxy http://web:80
+  }
+
+  log {
+    output stdout
+    format console
+    level INFO
+  }
+}

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
-import { Card, List, Badge, Button, Typography, Spin, App, Space } from 'antd'
+import { App, Badge, Button, Card, List, Space, Spin, Typography } from 'antd'
 import { Bell, Check, Trash2 } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import { api } from '../lib/api'
 
 const { Title, Text } = Typography
@@ -12,6 +12,10 @@ interface Notification {
   type: 'system' | 'exam' | 'grade' | 'announcement'
   is_read: boolean
   created_at: string
+}
+// 放在文件顶部（import 之后）
+function isFailure<T>(r: any): r is { success: false; error: string } {
+  return r && r.success === false && typeof r.error === 'string'
 }
 
 const NotificationsPage: React.FC = () => {
@@ -28,8 +32,14 @@ const NotificationsPage: React.FC = () => {
   const fetchNotifications = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/notifications')
-      setNotifications(response.data.data || [])
+      const res = await api.get<Notification[] | { notifications: Notification[] }>('/notifications')
+      if (isFailure(res)) {
+        message.error(res.error || '获取通知失败')
+      } else {
+        // 兼容两种返回结构：直接数组 或 包在 { notifications } 里
+        const list = Array.isArray(res.data) ? res.data : (res.data as any)?.notifications ?? []
+        setNotifications(list)
+      }
     } catch (error) {
       console.error('获取通知失败:', error)
       message.error('获取通知失败')
@@ -40,8 +50,14 @@ const NotificationsPage: React.FC = () => {
 
   const fetchUnreadCount = async () => {
     try {
-      const response = await api.get('/notifications/unread-count')
-      setUnreadCount(response.data.data?.count || 0)
+      const res = await api.get<{ count?: number; unreadCount?: number }>('/notifications/unread-count')
+      if (isFailure(res)) {
+        setUnreadCount(0)
+      } else {
+        // 兼容 { count } 或 { unreadCount }
+        const { count, unreadCount } = (res.data as any) || {}
+        setUnreadCount(typeof count === 'number' ? count : typeof unreadCount === 'number' ? unreadCount : 0)
+      }
     } catch (error) {
       console.error('获取未读通知数量失败:', error)
     }
@@ -50,11 +66,7 @@ const NotificationsPage: React.FC = () => {
   const markAsRead = async (id: number) => {
     try {
       await api.put(`/notifications/${id}/read`)
-      setNotifications(prev => 
-        prev.map(notif => 
-          notif.id === id ? { ...notif, is_read: true } : notif
-        )
-      )
+      setNotifications(prev => prev.map(notif => (notif.id === id ? { ...notif, is_read: true } : notif)))
       setUnreadCount(prev => Math.max(0, prev - 1))
       message.success('标记为已读')
     } catch (error) {
@@ -66,9 +78,7 @@ const NotificationsPage: React.FC = () => {
   const markAllAsRead = async () => {
     try {
       await api.put('/notifications/read-all')
-      setNotifications(prev => 
-        prev.map(notif => ({ ...notif, is_read: true }))
-      )
+      setNotifications(prev => prev.map(notif => ({ ...notif, is_read: true })))
       setUnreadCount(0)
       message.success('全部标记为已读')
     } catch (error) {
@@ -90,21 +100,31 @@ const NotificationsPage: React.FC = () => {
 
   const getTypeColor = (type: string) => {
     switch (type) {
-      case 'system': return 'blue'
-      case 'exam': return 'orange'
-      case 'grade': return 'green'
-      case 'announcement': return 'purple'
-      default: return 'default'
+      case 'system':
+        return 'blue'
+      case 'exam':
+        return 'orange'
+      case 'grade':
+        return 'green'
+      case 'announcement':
+        return 'purple'
+      default:
+        return 'default'
     }
   }
 
   const getTypeText = (type: string) => {
     switch (type) {
-      case 'system': return '系统通知'
-      case 'exam': return '考试通知'
-      case 'grade': return '成绩通知'
-      case 'announcement': return '公告'
-      default: return '通知'
+      case 'system':
+        return '系统通知'
+      case 'exam':
+        return '考试通知'
+      case 'grade':
+        return '成绩通知'
+      case 'announcement':
+        return '公告'
+      default:
+        return '通知'
     }
   }
 
@@ -113,17 +133,13 @@ const NotificationsPage: React.FC = () => {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <Space align="center">
           <Bell style={{ width: 24, height: 24, color: '#1890ff' }} />
-          <Title level={2} style={{ margin: 0 }}>通知中心</Title>
-          {unreadCount > 0 && (
-            <Badge count={unreadCount} />
-          )}
+          <Title level={2} style={{ margin: 0 }}>
+            通知中心
+          </Title>
+          {unreadCount > 0 && <Badge count={unreadCount} />}
         </Space>
         {unreadCount > 0 && (
-          <Button 
-            type="primary" 
-            icon={<Check style={{ width: 16, height: 16 }} />}
-            onClick={markAllAsRead}
-          >
+          <Button type="primary" icon={<Check style={{ width: 16, height: 16 }} />} onClick={markAllAsRead}>
             全部标记为已读
           </Button>
         )}
@@ -139,13 +155,13 @@ const NotificationsPage: React.FC = () => {
           ) : (
             <List
               dataSource={notifications}
-              renderItem={(notification) => (
+              renderItem={notification => (
                 <List.Item
                   style={{
                     backgroundColor: !notification.is_read ? '#f0f9ff' : undefined,
                     borderRadius: 8,
                     marginBottom: 8,
-                    padding: 16
+                    padding: 16,
                   }}
                   actions={[
                     !notification.is_read && (
@@ -166,22 +182,15 @@ const NotificationsPage: React.FC = () => {
                       onClick={() => deleteNotification(notification.id)}
                     >
                       删除
-                    </Button>
+                    </Button>,
                   ].filter(Boolean)}
                 >
                   <List.Item.Meta
                     title={
                       <Space align="center">
-                        <span style={{ fontWeight: !notification.is_read ? 600 : 'normal' }}>
-                          {notification.title}
-                        </span>
-                        <Badge 
-                          color={getTypeColor(notification.type)} 
-                          text={getTypeText(notification.type)}
-                        />
-                        {!notification.is_read && (
-                          <Badge status="processing" />
-                        )}
+                        <span style={{ fontWeight: !notification.is_read ? 600 : 'normal' }}>{notification.title}</span>
+                        <Badge color={getTypeColor(notification.type)} text={getTypeText(notification.type)} />
+                        {!notification.is_read && <Badge status="processing" />}
                       </Space>
                     }
                     description={
