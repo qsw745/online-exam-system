@@ -126,6 +126,7 @@ check-*.html
 # Documentation files (optional)
 *.docx
 *.pdf
+*.tar
 
 # SQL migration files (keep structure but exclude data)
 *.sql
