@@ -1,10 +1,10 @@
 // apps/backend/src/config/init-db.ts
+import bcrypt from 'bcryptjs'
 import 'dotenv/config'
+import mysql from 'mysql2/promise'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import mysql from 'mysql2/promise'
-import bcrypt from 'bcryptjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -95,11 +95,12 @@ async function initDatabase() {
       const hashed = await bcrypt.hash(u.password, salt)
       await pool.query(
         `INSERT INTO users (username,email,password,role,status,created_at,updated_at)
-         VALUES (?,?,?,?, 'active', NOW(), NOW())
-         ON DUPLICATE KEY UPDATE username=VALUES(username), role=VALUES(role)`,
+     VALUES (?,?,?,?, 'active', NOW(), NOW())
+     ON DUPLICATE KEY UPDATE username=VALUES(username), role=VALUES(role)`,
         [u.username, u.email, hashed, u.role]
       )
     }
+
     console.log('[init-db] demo users ready')
 
     await pool.end()

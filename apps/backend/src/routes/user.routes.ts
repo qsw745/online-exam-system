@@ -1,42 +1,40 @@
-import { Router } from 'express'
+// apps/backend/src/routes/user.routes.ts
+import { Router, type RequestHandler } from 'express'
 import { UserController } from '../controllers/user.controller.js'
-import { auth, requireRole } from '../middleware/auth.middleware.js'
-
+import { authenticateToken } from '../middleware/auth.middleware.js'
+import { requireRole } from '../middleware/roleAuth.js'
 import { avatarUpload } from '../middleware/upload.middleware.js'
+import { ROLE_IDS } from '../constants/roles.js'
+
+/** 将控制器包装为标准 RequestHandler，避免 TS2769 的重载不匹配 */
+type AnyAsyncController = (req: any, res: any) => any | Promise<any>
+const wrap = (fn: AnyAsyncController): RequestHandler => {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res)).catch(next)
+  }
+}
 
 const router = Router()
 
-// 获取当前用户信息
-router.get('/me', auth, UserController.getCurrentUser)
+// 全局鉴权
+router.use(authenticateToken)
 
-// 更新当前用户信息
-router.put('/me', auth, UserController.updateCurrentUser)
+// --- 当前用户 ---
+router.get('/me', wrap(UserController.getCurrentUser))
+router.put('/me', wrap(UserController.updateCurrentUser))
+router.post('/me/avatar', avatarUpload, wrap(UserController.uploadAvatar))
 
-// 上传当前用户头像
-router.post('/me/avatar', auth, avatarUpload, UserController.uploadAvatar)
+// --- 用户设置 ---
+router.get('/settings', wrap(UserController.getSettings))
+router.post('/settings', wrap(UserController.saveSettings))
 
-// 获取用户设置
-router.get('/settings', auth, UserController.getSettings)
+// --- 用户管理（需权限） ---
+router.get('/', requireRole([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]), wrap(UserController.list))
+router.get('/:id', requireRole([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]), wrap(UserController.getById))
 
-// 保存用户设置
-router.post('/settings', auth, UserController.saveSettings)
-
-// 获取用户列表（仅管理员和教师可访问）
-router.get('/', auth, requireRole(['admin', 'teacher']), UserController.list)
-
-// 获取指定用户详情（仅管理员和教师可访问）
-router.get('/:id', auth, requireRole(['admin', 'teacher']), UserController.getById)
-
-// 更新用户信息（仅管理员可访问）
-router.put('/:id', auth, requireRole(['admin']), UserController.update)
-
-// 更新用户状态（仅管理员可访问）
-router.put('/:id/status', auth, requireRole(['admin']), UserController.updateStatus)
-
-// 重置用户密码（仅管理员可访问）
-router.put('/:id/reset-password', auth, requireRole(['admin']), UserController.resetPassword)
-
-// 删除用户（仅管理员可访问）
-router.delete('/:id', auth, requireRole(['admin']), UserController.delete)
+router.put('/:id', requireRole([ROLE_IDS.ADMIN]), wrap(UserController.update))
+router.put('/:id/status', requireRole([ROLE_IDS.ADMIN]), wrap(UserController.updateStatus))
+router.put('/:id/reset-password', requireRole([ROLE_IDS.ADMIN]), wrap(UserController.resetPassword))
+router.delete('/:id', requireRole([ROLE_IDS.ADMIN]), wrap(UserController.delete))
 
 export { router as userRoutes }

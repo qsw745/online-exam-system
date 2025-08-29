@@ -2,8 +2,8 @@
 import type { Response } from 'express'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { pool } from '../config/database.js'
-import type { AuthRequest } from '../middleware/auth.middleware.js'
 import { LoggerService } from '../services/logger.service.js'
+import type { AuthRequest } from '../types/auth.js'
 import type { ApiResponse } from '../types/response.js'
 // 放在文件顶部其他 import 下面
 let cachedUserCols: Set<string> | null = null

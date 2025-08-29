@@ -1,5 +1,5 @@
 import { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise';
-import { pool } from '../config/database';
+import { pool } from '../config/database.js';
 
 export interface INotification extends RowDataPacket {
   id: number;

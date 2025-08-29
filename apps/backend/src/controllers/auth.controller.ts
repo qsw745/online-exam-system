@@ -1,10 +1,11 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { Response } from 'express'
-import jwt from 'jsonwebtoken'
+import jwt, { SignOptions } from 'jsonwebtoken'
 import { RowDataPacket } from 'mysql2'
 import { pool } from '../config/database.js'
-import { AuthRequest } from '../middleware/auth.middleware.js'
+import type { AuthRequest } from '../types/auth.js'
+
 import { LoggerService } from '../services/logger.service.js'
 import { ApiResponse } from '../types/response.js'
 import { emailService } from '../utils/email.service.js'
@@ -76,7 +77,8 @@ export class AuthController {
         return res.status(409).json({ success: false, error: '用户已存在' })
       }
 
-      const hashed = await bcrypt.hash(password, 10)
+      const hashed = bcrypt.hashSync(password, 10)
+
       const [ins] = await pool.query(
         `INSERT INTO users (username, email, password, status)
        VALUES (?, ?, ?, 'active')`,
@@ -88,9 +90,8 @@ export class AuthController {
       const orgId = await attachUserToDefaultOrgAndRoles(userId)
 
       const payload: JwtPayload = { id: userId, email }
-      const token = jwt.sign(payload, process.env.JWT_SECRET!, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      })
+      const expiresIn = (process.env.JWT_EXPIRES_IN ?? '2h') as SignOptions['expiresIn']
+      const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn })
 
       const [rows] = await pool.query<IUser[]>(
         `SELECT id, username, email, status, created_at, updated_at
@@ -140,7 +141,8 @@ export class AuthController {
         return res.status(403).json({ success: false, error: '账号已被禁用，请联系管理员' })
       }
 
-      const ok = await bcrypt.compare(password, user.password)
+      const ok = bcrypt.compareSync(password, user.password)
+
       if (!ok) {
         await LoggerService.logLogin({
           userId: user.id,
@@ -161,9 +163,8 @@ export class AuthController {
       const orgId = primary?.org_id || null
 
       const payload: JwtPayload = { id: user.id, email: user.email }
-      const token = jwt.sign(payload, process.env.JWT_SECRET!, {
-        expiresIn: process.env.JWT_EXPIRES_IN,
-      })
+      const expiresIn = (process.env.JWT_EXPIRES_IN ?? '2h') as SignOptions['expiresIn']
+      const token = jwt.sign(payload, process.env.JWT_SECRET!, { expiresIn })
 
       await LoggerService.logLogin({
         userId: user.id,
@@ -227,10 +228,11 @@ export class AuthController {
 
       // 发送重置邮件
       const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${resetToken}`
-      await emailService.sendPasswordResetEmail(email, resetUrl)
+      await emailService.sendPasswordResetEmail(email, resetUrl, user.username || email.split('@')[0])
 
       return res.json({
         success: true,
+        data: null,
         message: '密码重置邮件已发送，请查收邮件',
       })
     } catch (error) {
@@ -270,6 +272,7 @@ export class AuthController {
       return res.json({
         success: true,
         message: '重置令牌有效',
+        data: null,
       })
     } catch (error) {
       console.error('验证重置令牌错误:', error)
@@ -315,7 +318,7 @@ export class AuthController {
       const userId = tokens[0].user_id
 
       // 加密新密码
-      const hashedPassword = await bcrypt.hash(newPassword, 12)
+      const hashedPassword = bcrypt.hashSync(newPassword, 12)
 
       // 更新用户密码
       await pool.execute('UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?', [hashedPassword, userId])
@@ -326,6 +329,7 @@ export class AuthController {
       return res.json({
         success: true,
         message: '密码重置成功',
+        data: null,
       })
     } catch (error) {
       console.error('重置密码错误:', error)

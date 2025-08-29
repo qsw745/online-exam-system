@@ -1,16 +1,15 @@
-version: "3.9"
 services:
   proxy:
     image: caddy:2
     container_name: proxy
     ports:
       - "80:80"
-      # 有域名+公网就加上:
-      # - "443:443"
+      # - "443:443"  # 如果有证书/域名要用 HTTPS，再打开
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - web
+      - backend    # 加上这行，保证后端起来后再反代
 
   web:
     build:
@@ -18,7 +17,7 @@ services:
       dockerfile: ./apps/web/Dockerfile
     container_name: web
     expose:
-      - "80"
+      - "80"       # 仅在容器网络可见（Caddy 可访问，宿主机不可直接访问）
 
   backend:
     build:
@@ -28,6 +27,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      # 其它环境变量...
-    ports:
-      - "3000:3000"
+    expose:
+      - "3000"     # 用 expose 即可，交给 Caddy 代理
+    # 如果你想让宿主机也能直连后端，再保留：
+    # ports:
+    #   - "3000:3000"

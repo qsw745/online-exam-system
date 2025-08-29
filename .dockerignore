@@ -1,0 +1,10 @@
+.git
+**/node_modules
+**/dist
+**/.cache
+pnpm-store
+deploy_snapshot_*/
+*.zip
+.DS_Store
+.vscode
+.idea

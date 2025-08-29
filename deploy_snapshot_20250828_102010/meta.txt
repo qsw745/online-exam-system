@@ -1,7 +1,0 @@
-﻿# runtime
-
-# os
-
-Caption                     Version   
--------                     -------   
-Microsoft Windows 11 专业工作站版 10.0.26100

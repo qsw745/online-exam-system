@@ -1,37 +1,37 @@
-import { Router } from 'express';
-import { auth } from '../middleware/auth.middleware.js';
-import { TaskController } from '../controllers/task.controller.js';
+// apps/backend/src/routes/task.routes.ts
+import { Router, type RequestHandler } from 'express'
+import { TaskController } from '../controllers/task.controller.js'
+import { authenticateToken } from '../middleware/auth.middleware.js'
 
-const router = Router();
+/** 将控制器包装为标准 RequestHandler，避免 TS2769 的重载不匹配 */
+type AnyAsyncController = (req: any, res: any) => any | Promise<any>
+const wrap = (fn: AnyAsyncController): RequestHandler => {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res)).catch(next)
+  }
+}
 
-// 获取任务列表
-router.get('/', auth, TaskController.list);
+const router = Router()
 
-// 获取任务详情
-router.get('/:id', auth, TaskController.get);
+// 全局鉴权
+router.use(authenticateToken)
 
-// 创建任务
-router.post('/', auth, TaskController.create);
+// ⚠️ 先声明批量路由，避免被 `/:id/*` 吞掉
+router.post('/batch/publish', wrap(TaskController.batchPublish))
+router.post('/batch/unpublish', wrap(TaskController.batchUnpublish))
 
-// 更新任务
-router.put('/:id', auth, TaskController.update);
+// 列表 & 详情
+router.get('/', wrap(TaskController.list))
+router.get('/:id', wrap(TaskController.get))
 
-// 删除任务
-router.delete('/:id', auth, TaskController.delete);
+// CRUD
+router.post('/', wrap(TaskController.create))
+router.put('/:id', wrap(TaskController.update))
+router.delete('/:id', wrap(TaskController.delete))
 
-// 提交任务答案
-router.post('/:id/submit', auth, TaskController.submit);
+// 业务动作
+router.post('/:id/submit', wrap(TaskController.submit))
+router.post('/:id/publish', wrap(TaskController.publish))
+router.post('/:id/unpublish', wrap(TaskController.unpublish))
 
-// 发布任务
-router.post('/:id/publish', auth, TaskController.publish);
-
-// 下线任务
-router.post('/:id/unpublish', auth, TaskController.unpublish);
-
-// 批量发布任务
-router.post('/batch/publish', auth, TaskController.batchPublish);
-
-// 批量下线任务
-router.post('/batch/unpublish', auth, TaskController.batchUnpublish);
-
-export { router as taskRoutes };
+export { router as taskRoutes }

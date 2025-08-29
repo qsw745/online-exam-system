@@ -17,7 +17,7 @@ export type ApiFailure = {
 export type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 
 // baseURL：开发走相对路径/生产走 .env
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api'
+const API_URL = import.meta.env.VITE_API_URL || '/api'
 const baseURL = import.meta.env.DEV ? '/api' : API_URL
 
 /** 底层 axios 实例（只负责发请求与拦截，不直接给业务用） */

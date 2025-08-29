@@ -69,7 +69,11 @@ export default function ProfilePage() {
   }
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 800, margin: '0 auto', padding: '24px' }}>
+    <Space
+      direction="vertical"
+      size="large"
+      style={{ width: '100%', maxWidth: 800, margin: '0 auto', padding: '24px' }}
+    >
       <Title level={2}>{t('profile.title')}</Title>
 
       <Card>
@@ -79,7 +83,12 @@ export default function ProfilePage() {
             <div style={{ position: 'relative' }}>
               <Avatar
                 size={96}
-                src={avatarPreview || (user?.avatar_url ? `${import.meta.env.DEV ? '' : import.meta.env.VITE_API_URL || 'http://localhost:3000'}${user.avatar_url}` : '/default-avatar.png')}
+                src={
+                  avatarPreview ||
+                  (user?.avatar_url
+                    ? `${import.meta.env.DEV ? '' : import.meta.env.VITE_API_URL || '/api'}${user.avatar_url}`
+                    : '/default-avatar.png')
+                }
                 alt="头像"
               />
               <label
@@ -95,7 +104,7 @@ export default function ProfilePage() {
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
                 }}
               >
                 <Upload style={{ width: 16, height: 16 }} />
@@ -122,7 +131,7 @@ export default function ProfilePage() {
               </Text>
               <Input
                 value={form.nickname}
-                onChange={(e) => setForm({ ...form, nickname: e.target.value })}
+                onChange={e => setForm({ ...form, nickname: e.target.value })}
                 placeholder={`${t('app.enter')} ${t('profile.nickname')}`}
               />
             </div>
@@ -133,7 +142,7 @@ export default function ProfilePage() {
               </Text>
               <Input
                 value={form.school}
-                onChange={(e) => setForm({ ...form, school: e.target.value })}
+                onChange={e => setForm({ ...form, school: e.target.value })}
                 placeholder={`${t('app.enter')} ${t('profile.school')}`}
               />
             </div>
@@ -144,21 +153,30 @@ export default function ProfilePage() {
               </Text>
               <Input
                 value={form.class_name}
-                onChange={(e) => setForm({ ...form, class_name: e.target.value })}
+                onChange={e => setForm({ ...form, class_name: e.target.value })}
                 placeholder={`${t('app.enter')} ${t('profile.class')}`}
               />
             </div>
           </Space>
 
           {/* 统计信息 */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 16, marginBottom: 24 }}>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+              gap: 16,
+              marginBottom: 24,
+            }}
+          >
             <Card size="small">
               <Space align="center" style={{ marginBottom: 8 }}>
                 <Trophy style={{ width: 20, height: 20, color: '#1890ff' }} />
                 <Text strong>{t('profile.exam_score')}</Text>
               </Space>
               <div>
-                <Title level={2} style={{ margin: 0, fontSize: 32 }}>85.5</Title>
+                <Title level={2} style={{ margin: 0, fontSize: 32 }}>
+                  85.5
+                </Title>
                 <Text type="secondary">{t('profile.average_score')}</Text>
               </div>
             </Card>
@@ -169,7 +187,9 @@ export default function ProfilePage() {
                 <Text strong>{t('profile.exams_taken')}</Text>
               </Space>
               <div>
-                <Title level={2} style={{ margin: 0, fontSize: 32 }}>12</Title>
+                <Title level={2} style={{ margin: 0, fontSize: 32 }}>
+                  12
+                </Title>
                 <Text type="secondary">{t('profile.total_exams')}</Text>
               </div>
             </Card>
@@ -180,7 +200,9 @@ export default function ProfilePage() {
                 <Text strong>{t('profile.knowledge_points')}</Text>
               </Space>
               <div>
-                <Title level={2} style={{ margin: 0, fontSize: 32 }}>156</Title>
+                <Title level={2} style={{ margin: 0, fontSize: 32 }}>
+                  156
+                </Title>
                 <Text type="secondary">{t('profile.mastered')}</Text>
               </div>
             </Card>

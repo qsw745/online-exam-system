@@ -1,8 +1,8 @@
 import type { Response } from 'express'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { pool } from '../config/database.js'
-import type { AuthRequest } from '../middleware/auth.middleware.js'
 import { LoggerService } from '../services/logger.service.js'
+import type { AuthRequest } from '../types/auth.js'
 import type { ApiResponse } from '../types/response.js'
 
 /** 和你当前 organizations 表一致 */
@@ -36,12 +36,16 @@ function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] 
 /** 防环 */
 function createsCycle(rows: IOrg[], nodeId: number, newParentId: number | null | undefined) {
   if (newParentId == null) return false
-  let cursor = newParentId
+
+  // ✅ 用传入的 newParentId
+  let cursor: number | null = newParentId
+
   const map = new Map<number, IOrg>(rows.map(r => [r.id, r]))
   while (cursor != null) {
     if (cursor === nodeId) return true
-    const parent = map.get(cursor)
-    cursor = parent?.parent_id ?? null
+    // ✅ 避免与全局 parent 同名
+    const p = map.get(cursor)
+    cursor = p?.parent_id ?? null
   }
   return false
 }
@@ -164,7 +168,7 @@ export const OrgController = {
         username: req.user?.username,
         action: 'create_org',
         resourceType: 'organization',
-        resourceId: String(ret.insertId),
+        resourceId: ret.insertId,
         details: { name, code: finalCode, parent_id: parentId },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -239,7 +243,7 @@ export const OrgController = {
         username: req.user?.username,
         action: 'update_org',
         resourceType: 'organization',
-        resourceId: String(id),
+        resourceId: id,
         details: { updatedFields: sets },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -277,7 +281,7 @@ export const OrgController = {
         username: req.user?.username,
         action: 'delete_org',
         resourceType: 'organization',
-        resourceId: String(id),
+        resourceId: id,
         details: {},
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -321,7 +325,7 @@ export const OrgController = {
         username: req.user?.username,
         action: 'move_org',
         resourceType: 'organization',
-        resourceId: String(id),
+        resourceId: id,
         details: { parent_id: parentId },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
@@ -378,8 +382,8 @@ export const OrgController = {
         username: req.user?.username,
         action: 'batch_update_org_parent',
         resourceType: 'organization',
-        resourceId: 'batch',
-        details: { count: updates.length },
+        resourceId: 0, // ✅ number
+        details: { kind: 'batch', count: updates.length }, // ✅ 把信息放 details
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })

@@ -1,5 +1,5 @@
 import { RowDataPacket } from 'mysql2';
-import { pool } from '../config/database';
+import { pool } from '../config/database.js';
 
 export interface IResult extends RowDataPacket {
   id: number;

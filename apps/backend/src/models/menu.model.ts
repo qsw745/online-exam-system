@@ -84,6 +84,7 @@ export interface CreateRoleRequest {
   description?: string
   sort_order?: number
   is_system?: boolean
+  is_disabled?:number
 }
 
 export interface UpdateRoleRequest {

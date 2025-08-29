@@ -1,22 +1,37 @@
-# apps/web/Dockerfile
+# ---------- build ----------
 FROM node:20-alpine AS build
-RUN npm i -g pnpm
 WORKDIR /app
 
-# 同样先复制根的锁与 workspace，再复制前端清单，加快缓存命中
+# 用 npm 装 pnpm，并统一换镜像源，避免访问 npmjs
+ARG NPM_REG=https://registry.npmmirror.com
+ARG PNPM_VER=9.9.0
+RUN npm config set registry ${NPM_REG} \
+ && npm config set fetch-timeout 600000 \
+ && npm config set fetch-retries 5 \
+ && npm i -g pnpm@${PNPM_VER} --registry=${NPM_REG} \
+ && pnpm config set registry ${NPM_REG} \
+ && pnpm config set fetch-timeout 600000 \
+ && pnpm config set fetch-retries 5
+
+# 先拷贝根清单（利用缓存）
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
-COPY apps/web/package*.json ./apps/web/
+# ★ 关键：先放 web 包的 package.json，确保 fetch 能识别这个 workspace
+COPY apps/web/package.json apps/web/package.json
 
-RUN pnpm fetch
-RUN pnpm -r --filter ./apps/web... install --frozen-lockfile
+# 只为 web 预取依赖（含 dev 依赖，供构建使用）
+RUN pnpm fetch --filter ./apps/web... --prod=false
 
-# 复制源码并构建
+# 再拷贝源码并构建
 COPY . .
-RUN pnpm -C apps/web build
+RUN pnpm -C apps/web install --offline \
+ && pnpm -C apps/web build  # 产物：apps/web/dist
 
-# 运行容器：Nginx 提供静态文件
+# ---------- runtime ----------
 FROM nginx:alpine
-# 如果是 Vite：/app/apps/web/dist
+# 覆盖默认站点，开启 SPA 回退（请确保 apps/web/nginx.conf 已按我给你的 try_files 配好）
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+# 拷贝静态产物
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
-# 如果是 CRA：把上一行改成 /app/apps/web/build
+
 EXPOSE 80
+CMD ["nginx","-g","daemon off;"]
