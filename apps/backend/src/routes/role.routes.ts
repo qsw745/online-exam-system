@@ -11,12 +11,13 @@ import {
   getRoleMenus,
   getRoleUsers,
   getUserRoles,
+  removeUserFromRole,
   setRoleMenus,
   setUserRoles,
   updateRole,
 } from '../controllers/role.controller.js'
-import { requireRole } from '../middleware/roleAuth.js'
 import { authenticateToken } from '../middleware/auth.middleware.js'
+import { requireRole } from '../middleware/roleAuth.js'
 
 /** 将任意 (req, res) => Promise 的控制器包装为标准 RequestHandler，避免 TS2769 */
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>
@@ -50,5 +51,6 @@ router.put('/users/:userId/roles', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(set
 // 角色用户管理
 router.get('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleUsers))
 router.post('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(addUsersToRole))
-
+// ✨ 新增删除单个成员
+router.delete('/:roleId/users/:userId', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(removeUserFromRole))
 export default router

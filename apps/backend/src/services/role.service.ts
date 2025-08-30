@@ -3,6 +3,28 @@ import { pool } from '../config/database.js'
 import { CreateRoleRequest, Role, UpdateRoleRequest } from '../models/menu.model.js'
 
 export class RoleService {
+  /** 从角色移除一个用户 */
+  static async removeUserFromRole(roleId: number, userId: number): Promise<void> {
+    // 确认角色存在
+    const [r] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE id = ?', [roleId])
+    if (r.length === 0) throw new Error('角色不存在')
+
+    // 可选：确认用户存在
+    const [u] = await pool.execute<RowDataPacket[]>('SELECT id FROM users WHERE id = ?', [userId])
+    if (u.length === 0) throw new Error('用户不存在')
+
+    // 删除关系
+    const [ret] = await pool.execute<ResultSetHeader>('DELETE FROM user_roles WHERE role_id = ? AND user_id = ?', [
+      roleId,
+      userId,
+    ])
+
+    // 如果没有删除到任何行，说明关系原本不存在
+    if (ret.affectedRows === 0) {
+      throw new Error('该用户不在此角色中')
+    }
+  }
+
   /**
    * 获取所有角色
    */

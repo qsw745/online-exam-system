@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
-import { RoleService } from '../services/role.service.js'
 import { CreateRoleRequest, UpdateRoleRequest } from '../models/menu.model.js'
+import { RoleService } from '../services/role.service.js'
 import type { AuthRequest } from '../types/auth.js'
 
 /**
@@ -39,6 +39,34 @@ export const getAllRoles = async (req: Request, res: Response): Promise<void> =>
   } catch (error: unknown) {
     console.error('获取角色列表失败:', error)
     res.status(500).json({ success: false, message: '获取角色列表失败' })
+    return
+  }
+}
+
+/** 从角色移除单个用户 */
+export const removeUserFromRole = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { roleId, userId } = req.params
+    const rid = parseInt(roleId, 10)
+    const uid = parseInt(userId, 10)
+    if (Number.isNaN(rid) || Number.isNaN(uid)) {
+      res.status(400).json({ success: false, message: '无效的角色ID或用户ID' })
+      return
+    }
+
+    await RoleService.removeUserFromRole(rid, uid)
+    res.json({ success: true, message: '已从角色移除该用户' })
+    return
+  } catch (error: unknown) {
+    console.error('移除用户失败:', error)
+    if (error instanceof Error) {
+      // 常见业务错误直接 400 返回
+      if (['角色不存在', '用户不存在', '该用户不在此角色中'].includes(error.message)) {
+        res.status(400).json({ success: false, message: error.message })
+        return
+      }
+    }
+    res.status(500).json({ success: false, message: '移除用户失败' })
     return
   }
 }
