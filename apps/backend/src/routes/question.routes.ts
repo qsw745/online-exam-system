@@ -33,9 +33,12 @@ router.get('/knowledge-points', authenticateToken, wrap(QuestionController.getKn
 
 // CRUD
 router.get('/', authenticateToken, wrap(QuestionController.list))
-router.get('/:id', authenticateToken, wrap(QuestionController.getById))
+router.get('/:id(\\d+)', authenticateToken, wrap(QuestionController.getById))
+
 router.post('/', authenticateToken, wrap(QuestionController.create))
-router.put('/:id', authenticateToken, wrap(QuestionController.update))
-router.delete('/:id', authenticateToken, wrap(QuestionController.delete))
+router.put('/:id(\\d+)', authenticateToken, wrap(QuestionController.update))
+
+router.delete('/:id(\\d+)', authenticateToken, wrap(QuestionController.delete))
+
 
 export { router as questionRoutes }

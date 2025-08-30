@@ -76,7 +76,11 @@ export default function QuestionPracticePage() {
     const type = searchParams.get('type')
     const difficulty = searchParams.get('difficulty')
     const search = searchParams.get('search')
-
+    if (id && Number.isNaN(Number(id))) {
+      // /questions/practice 才是正确入口
+      navigate('/questions/practice' + window.location.search, { replace: true })
+      return
+    }
     if (mode === 'continuous') {
       setPracticeMode('continuous')
       setPracticeFilters({ type: type || undefined, difficulty: difficulty || undefined, search: search || undefined })

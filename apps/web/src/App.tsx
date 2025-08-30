@@ -236,7 +236,8 @@ function AppRoutes() {
         <Route path="questions/manage" element={<QuestionsPage />} />
         <Route path="questions/favorites" element={<QuestionsPage />} />
         <Route path="questions/wrong" element={<WrongQuestionsPage />} />
-        <Route path="questions/:id" element={<QuestionPracticePage />} />
+        {/* <Route path="questions/:id" element={<QuestionPracticePage />} /> */}
+        <Route path="questions/practice" element={<QuestionPracticePage />} />
         <Route path="questions/:id/practice" element={<QuestionPracticePage />} />
         <Route path="results" element={<ResultsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
@@ -258,7 +259,7 @@ function AppRoutes() {
             </Suspense>
           }
         />
-        <Route path="practice" element={<QuestionPracticePage />} />
+ 
         <Route path="orgs" element={<OrgManage />} />
         {/* 管理员路由 */}
         <Route
