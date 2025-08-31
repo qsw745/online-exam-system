@@ -17,67 +17,10 @@ import {
 } from 'antd'
 import type { DataNode, EventDataNode } from 'antd/es/tree'
 import React, { useEffect, useMemo, useState } from 'react'
-import { OrgAPI, type OrgNode } from '../../lib/orgs/api' // ⬅️ 新增：从 lib 调用
+import { OrgAPI, type OrgNode } from '../../lib/orgs/api' // ✅ 使用库里定义的 OrgNode，不再本地声明
 
 const { Sider, Content } = Layout
 const { Title, Text } = Typography
-
-// ====== 类型 ======
-export interface OrgNode {
-  id: number
-  name: string
-  code?: string | null
-  parent_id?: number | null
-  leader?: string | null
-  phone?: string | null
-  email?: string | null
-  address?: string | null
-  description?: string | null
-  is_enabled?: boolean
-  sort_order?: number // 👈 新增
-  children?: OrgNode[]
-}
-
-// ====== API 适配层（把这些 URL 改成你后端真实接口即可） ======
-const api = {
-  async tree(): Promise<OrgNode[]> {
-    // GET /api/orgs/tree
-    const res = await fetch('/api/orgs/tree')
-    if (!res.ok) throw new Error('获取组织树失败')
-    return res.json()
-  },
-  async detail(id: number): Promise<OrgNode> {
-    // GET /api/orgs/:id
-    const res = await fetch(`/api/orgs/${id}`)
-    if (!res.ok) throw new Error('获取组织详情失败')
-    return res.json()
-  },
-  async create(payload: Partial<OrgNode>): Promise<number> {
-    // POST /api/orgs
-    const res = await fetch('/api/orgs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) throw new Error('创建组织失败')
-    const data = await res.json()
-    return data.id ?? data.insertId ?? 0
-  },
-  async update(id: number, payload: Partial<OrgNode>): Promise<void> {
-    // PUT /api/orgs/:id
-    const res = await fetch(`/api/orgs/${id}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) throw new Error('更新组织失败')
-  },
-  async remove(id: number): Promise<void> {
-    // DELETE /api/orgs/:id
-    const res = await fetch(`/api/orgs/${id}`, { method: 'DELETE' })
-    if (!res.ok) throw new Error('删除组织失败')
-  },
-}
 
 // ====== 辅助：把后端树转 antd TreeData ======
 const sortByOrder = (nodes: OrgNode[]) => [...nodes].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
@@ -85,7 +28,7 @@ const sortByOrder = (nodes: OrgNode[]) => [...nodes].sort((a, b) => (a.sort_orde
 const toTreeData = (nodes: OrgNode[]): DataNode[] =>
   sortByOrder(nodes).map(n => ({
     key: n.id,
-    title: `${n.sort_order ?? 0}. ${n.name}`, // 可以调试时带上顺序
+    title: n.name, // ✅ 只显示名称，不再带“0.”
     children: n.children ? toTreeData(n.children) : undefined,
   }))
 
@@ -104,31 +47,25 @@ const OrgManage: React.FC = () => {
   const [addModalOpen, setAddModalOpen] = useState(false)
   const [addForm] = Form.useForm<{ name: string; code?: string }>()
 
-  // ⬇️ 用 OrgAPI 替换你之前的 fetch
+  // 加载组织树
   const loadTree = async (keepSelection = true) => {
     setTreeLoading(true)
     try {
       const res = await OrgAPI.tree()
-      setTree(res.data) // 返回结构已被拦截器包装：{ success, data }
-      // ... 其余不变
+      setTree(res.data)
+      // 如果当前选中不存在于新树，清空选择
+      if (keepSelection && selectedId != null) {
+        const exists = (nodes: OrgNode[], id: number): boolean =>
+          nodes.some(n => n.id === id || (n.children?.length ? exists(n.children, id) : false))
+        if (!exists(res.data, selectedId)) {
+          setSelectedId(null)
+        }
+      }
     } catch (e: any) {
       message.error(e.message || '加载组织树失败')
     } finally {
       setTreeLoading(false)
     }
-  }
-
-  const findFirstNode = (nodes: OrgNode[] | undefined): OrgNode | undefined => {
-    if (!nodes || nodes.length === 0) return undefined
-    return nodes[0]
-  }
-
-  const existsInTree = (nodes: OrgNode[], id: number): boolean => {
-    for (const n of nodes) {
-      if (n.id === id) return true
-      if (n.children?.length && existsInTree(n.children, id)) return true
-    }
-    return false
   }
 
   useEffect(() => {
@@ -140,7 +77,7 @@ const OrgManage: React.FC = () => {
   useEffect(() => {
     if (!selectedId) {
       setDetail(null)
-      form.resetFields() // 现在安全了：Form 始终挂载
+      form.resetFields()
       return
     }
     ;(async () => {
@@ -159,31 +96,27 @@ const OrgManage: React.FC = () => {
     })()
   }, [selectedId])
 
+  // 本地过滤树
   const filterTree = (nodes: OrgNode[], kw: string): OrgNode[] => {
     const keep: OrgNode[] = []
     for (const n of nodes) {
       const hit = n.name.toLowerCase().includes(kw.toLowerCase())
       const children = n.children ? filterTree(n.children, kw) : []
-      if (hit || children.length) {
-        keep.push({ ...n, children })
-      }
+      if (hit || children.length) keep.push({ ...n, children })
     }
     return keep
   }
-  // ------ 过滤树（本地简单包含匹配） ------
+
   const filteredTreeData = useMemo(() => {
     if (!search.trim()) return toTreeData(tree)
-    const filtered = filterTree(tree, search.trim())
-    return toTreeData(filtered)
+    return toTreeData(filterTree(tree, search.trim()))
   }, [tree, search])
 
-  // ------ Tree 交互 ------
-  const onSelect = (_: React.Key[], info: { node: EventDataNode }) => {
+  // ✅ 指定 EventDataNode<DataNode>
+  const onSelect = (_: React.Key[], info: { node: EventDataNode<DataNode> }) => {
     const id = Number(info.node.key)
     if (Number.isFinite(id)) setSelectedId(id)
   }
-
-  const treeData = filteredTreeData
 
   // 保存
   const onSave = async () => {
@@ -199,7 +132,7 @@ const OrgManage: React.FC = () => {
         address: values.address?.trim() || null,
         description: values.description?.trim() || null,
         is_enabled: !!values.is_enabled,
-        sort_order: values.sort_order ?? 0, // 👈 新增
+        sort_order: values.sort_order ?? 0,
       })
       message.success('保存成功')
       setEditing(false)
@@ -220,18 +153,20 @@ const OrgManage: React.FC = () => {
       await OrgAPI.remove(detail.id)
       message.success('删除成功')
       await loadTree(false)
+      setSelectedId(null)
+      setDetail(null)
+      form.resetFields()
     } catch (e: any) {
       message.error(e.message || '删除失败')
     }
   }
 
-  // ------ 新增（根或子级） ------
+  // 新增
   const openAddModal = () => {
     addForm.resetFields()
     setAddModalOpen(true)
   }
 
-  // 新增
   const handleAdd = async () => {
     try {
       const values = await addForm.validateFields()
@@ -250,8 +185,6 @@ const OrgManage: React.FC = () => {
     }
   }
 
-  // ------ UI ------
-  // ------ UI ------
   return (
     <Layout style={{ height: '100%', background: 'transparent' }}>
       <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
@@ -282,7 +215,7 @@ const OrgManage: React.FC = () => {
                   showLine
                   selectedKeys={selectedId ? [String(selectedId)] : []}
                   onSelect={onSelect}
-                  treeData={treeData}
+                  treeData={filteredTreeData}
                   height={700}
                 />
               </Spin>

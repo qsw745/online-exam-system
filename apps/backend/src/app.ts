@@ -25,6 +25,8 @@ import { taskRoutes } from './routes/task.routes.js'
 import { userRoutes } from './routes/user.routes.js'
 import wrongQuestionRoutes from './routes/wrong-question.routes.js'
 import { ApiResponse } from './types/response.js'
+import { syncMenus } from './bootstrap/syncMenus.js'
+
 const app = express()
 
 // 中间件
@@ -93,7 +95,20 @@ process.on('unhandledRejection', (reason, promise) => {
 
 const port = Number(process.env.PORT) || 3000
 
-app.listen(port, '0.0.0.0', () => {
-  console.log(`服务器运行在 http://localhost:${port}`)
-  console.log(`网络访问地址: http://0.0.0.0:${port}`)
-})
+async function start() {
+  try {
+    // 1) 启动期同步菜单（建议首次 removeOrphans: false；稳定后可开 true）
+    await syncMenus({ removeOrphans: false })
+
+    // 2) 再启动服务
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`服务器运行在 http://localhost:${port}`)
+      console.log(`网络访问地址: http://0.0.0.0:${port}`)
+    })
+  } catch (err) {
+    console.error('[menu-sync] 启动期同步失败：', err)
+    process.exit(1) // 同步失败不启动服务，避免脏状态
+  }
+}
+
+start()

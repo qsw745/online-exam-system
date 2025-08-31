@@ -34,6 +34,9 @@ import SettingsPage from './pages/SettingsPage'
 import TasksPage from './pages/TasksPage'
 import WrongQuestionsPage from './pages/WrongQuestionsPage'
 import { antdTheme, darkAntdTheme } from './theme/antd-theme'
+import NotFound404 from './pages/errors/NotFound404'
+import DynamicRoutes from './routes/dynamicRoutes'   // ✅ 新增
+import { ErrorBoundary } from './components/ErrorBoundary'
 
 // 创建 Query Client
 const queryClient = new QueryClient({
@@ -259,7 +262,7 @@ function AppRoutes() {
             </Suspense>
           }
         />
- 
+
         <Route path="orgs" element={<OrgManage />} />
         {/* 管理员路由 */}
         <Route
@@ -291,7 +294,10 @@ function AppRoutes() {
       />
 
       {/* 默认重定向 */}
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      {/* <Route path="*" element={<Navigate to="/dashboard" replace />} /> */}
+      <Route path="*" element={<NotFound404 />} />
+      {/* ✅ 在这里挂“动态菜单路由” */}
+      <Route path="*" element={<DynamicRoutes />} />
     </Routes>
   )
 }
@@ -308,9 +314,11 @@ function App() {
             <ConfigProvider locale={zhCN} theme={mode === 'dark' ? darkAntdTheme : antdTheme} componentSize="middle">
               <AntdApp>
                 <Router>
-                  <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-                    <AppRoutes />
-                  </div>
+                  <ErrorBoundary>
+                    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+                      <AppRoutes />
+                    </div>
+                  </ErrorBoundary>
                 </Router>
               </AntdApp>
             </ConfigProvider>
