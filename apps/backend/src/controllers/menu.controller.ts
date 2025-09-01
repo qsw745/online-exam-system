@@ -8,6 +8,70 @@ function pickOrgId(req: Request): number | undefined {
 }
 
 export class MenuController {
+  // ✅ 前端动态路由所需的极简路由树
+  static async getRouteTreeForFrontend(req: Request, res: Response): Promise<void> {
+    try {
+      // 你已有的取全量菜单方法
+      const menus = await MenuService.getAllMenus()
+
+      type Node = {
+        id: number
+        path?: string
+        component?: string
+        redirect?: string
+        is_disabled?: boolean
+        is_hidden?: boolean
+        parent_id?: number | null
+        sort_order?: number | null
+        children?: Node[]
+      }
+
+      const nodes: Node[] = menus.map(m => ({
+        id: m.id,
+        path: m.path || undefined,
+        component: m.component || undefined,
+        redirect: m.redirect || undefined,
+        is_disabled: !!m.is_disabled,
+        is_hidden: !!m.is_hidden,
+        parent_id: m.parent_id ?? null,
+        sort_order: m.sort_order ?? null,
+        children: [],
+      }))
+
+      // 建映射，组树
+      const id2node = new Map<number, Node>()
+      nodes.forEach(n => id2node.set(n.id, n))
+
+      const roots: Node[] = []
+      nodes.forEach(n => {
+        const pid = n.parent_id
+        if (pid) {
+          const p = id2node.get(pid)
+          if (p) {
+            p.children = p.children || []
+            p.children.push(n)
+          } else {
+            roots.push(n) // 容错：父不存在时作为根节点
+          }
+        } else {
+          roots.push(n)
+        }
+      })
+
+      // 同层按照 sort_order 再做一次排序，便于前端直接使用
+      const sortTree = (list: Node[]) => {
+        list.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
+        list.forEach(c => c.children && sortTree(c.children))
+      }
+      sortTree(roots)
+
+      res.json({ success: true, data: roots })
+    } catch (e) {
+      console.error('[menu] getRouteTreeForFrontend error:', e)
+      res.status(500).json({ success: false, message: '获取菜单路由失败' })
+    }
+  }
+
   // 获取所有菜单
   static async getAllMenus(req: Request, res: Response): Promise<void> {
     try {

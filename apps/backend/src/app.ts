@@ -98,7 +98,8 @@ const port = Number(process.env.PORT) || 3000
 async function start() {
   try {
     // 1) 启动期同步菜单（建议首次 removeOrphans: false；稳定后可开 true）
-    await syncMenus({ removeOrphans: false })
+   await syncMenus({ removeOrphans: false, mode: 'patch' })
+
 
     // 2) 再启动服务
     app.listen(port, '0.0.0.0', () => {

@@ -1,3 +1,4 @@
+// apps/web/src/pages/admin/UserManagementPage.tsx
 import {
   ApartmentOutlined,
   DeleteOutlined,
@@ -15,7 +16,7 @@ import {
   UserDeleteOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import type { TreeProps } from 'antd'
+import type { InputRef, TreeProps } from 'antd'
 import {
   App,
   Avatar,
@@ -41,15 +42,36 @@ import {
 } from 'antd'
 import { Users as EmptyIcon } from 'lucide-react'
 import React, { useEffect, useRef, useState } from 'react'
-import { createPaginationConfig } from '../../constants/pagination'
 import { useAuth } from '../../contexts/AuthContext'
 import { api, users } from '../../lib/api'
-import { orgs } from '../../lib/orgs' // 新增的组织 API 封装（见下节）
+import { orgs } from '../../lib/orgs/orgs'
+
 const { Title, Paragraph, Text } = Typography
 const { Search } = Input
 const { Option } = Select
 const { Sider, Content } = Layout
 const confirm = Modal.confirm
+
+// ---- API 收窄工具 ----
+type ApiSuccess<T> = { success: true; data: T }
+type ApiFailure = { success: false; error?: string }
+type ApiResult<T> = ApiSuccess<T> | ApiFailure
+const assertSuccess = <T,>(r: ApiResult<T>): r is ApiSuccess<T> => !!r && (r as any).success === true
+
+// 角色优先级（来自组织绑定）：admin > teacher > student
+const pickDisplayRole = (codes?: string[]): 'admin' | 'teacher' | 'student' => {
+  const arr = (codes || []).map(c => String(c).toLowerCase())
+  if (arr.includes('admin')) return 'admin'
+  if (arr.includes('teacher')) return 'teacher'
+  return 'student'
+}
+
+// —— 规范状态（兼容 status / is_active） —— //
+const normalizeStatus = (x: any): 'active' | 'disabled' => {
+  if (typeof x.status === 'string') return x.status === 'disabled' ? 'disabled' : 'active'
+  if (typeof x.is_active !== 'undefined') return Number(x.is_active) === 1 ? 'active' : 'disabled'
+  return 'active'
+}
 
 interface User {
   id: number
@@ -64,15 +86,30 @@ interface User {
   created_at: string
   updated_at: string
 }
-
 interface UserStatistics {
   totalSubmissions: number
   completedSubmissions: number
   averageScore: number
 }
-
 interface UserDetail extends User {
   statistics: UserStatistics
+}
+
+// —— 列表的 UI 类型（来自 /orgs/:id/users）—— //
+type UIUser = {
+  id: number
+  email?: string
+  role: 'admin' | 'teacher' | 'student'
+  nickname?: string
+  school?: string
+  class_name?: string
+  experience_points: number
+  level: number
+  status: 'active' | 'disabled'
+  created_at?: string
+  updated_at?: string
+  org_id?: number | null
+  org_name?: string | null
 }
 
 type OrgTreeData = {
@@ -83,7 +120,7 @@ type OrgTreeData = {
 }
 
 const UserManagementPage: React.FC = () => {
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const { user } = useAuth()
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
@@ -94,8 +131,8 @@ const UserManagementPage: React.FC = () => {
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
   const [includeChildren, setIncludeChildren] = useState(true)
 
-  // 右侧用户列表
-  const [userList, setUserList] = useState<User[]>([])
+  // 右侧用户列表 —— 关键：改成 UIUser[]，修复 TS 报错
+  const [userList, setUserList] = useState<UIUser[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
@@ -107,7 +144,7 @@ const UserManagementPage: React.FC = () => {
   const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
   const [showDetailModal, setShowDetailModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [editingUser, setEditingUser] = useState<UIUser | null>(null)
 
   // 绑定用户到机构
   const [bindOpen, setBindOpen] = useState(false)
@@ -115,23 +152,48 @@ const UserManagementPage: React.FC = () => {
   const [bindSearching, setBindSearching] = useState(false)
   const [bindOptions, setBindOptions] = useState<User[]>([])
 
-  const searchInputRef = useRef<HTMLInputElement>(null)
+  const searchInputRef = useRef<InputRef>(null)
   const isComposing = useRef(false)
-  // 状态
+
+  // UI：树的展开
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
-  type UIUser = User & { org_id?: number | null; org_name?: string | null }
   const [orgPickerOpen, setOrgPickerOpen] = useState(false)
   const [orgPickerSelected, setOrgPickerSelected] = useState<number | null>(null)
+  const [linkOrgOpen, setLinkOrgOpen] = useState(false)
+  const [linkOrgIds, setLinkOrgIds] = useState<number[]>([])
 
-  // 辅助：一次性展开全部（或只展开根也行）
+  // —— 统一映射：仅针对 /orgs/:id/users —— //
+  const mapOrgItemsToUI = (items: any[]): UIUser[] =>
+    (items || []).map((x: any) => ({
+      id: x.id,
+      email: x.email ?? '',
+      role: pickDisplayRole(x.role_codes),
+      nickname: x.nickname ?? x.username ?? '',
+      school: x.school ?? '',
+      class_name: x.class_name ?? '',
+      experience_points: x.experience_points ?? 0,
+      level: x.level ?? 1,
+      status: normalizeStatus(x),
+      created_at: x.created_at,
+      updated_at: x.updated_at,
+      org_id: x.org_id ?? null,
+      org_name: x.org_name ?? null,
+    }))
+
+  // 辅助：一次性展开全部
   const collectAllKeys = (nodes: any[] = []): React.Key[] =>
     nodes.flatMap(n => [n.id, ...(n.children ? collectAllKeys(n.children) : [])])
-  /** ========== 机构树 ========== */
-  // 加载机构树
+
+  /** 机构树（首次默认选中根组织） */
   const fetchOrgTree = async () => {
     try {
       setTreeLoading(true)
-      const res = await orgs.getTree(false)
+      const res: ApiResult<any[]> = await orgs.getTree(false as any)
+      if (!assertSuccess(res)) {
+        message.error(res.error || '加载组织树失败')
+        setTreeData([])
+        return
+      }
       const toTree = (nodes: any[]): OrgTreeData[] =>
         (nodes || []).map((n: any) => ({
           key: n.id,
@@ -142,8 +204,7 @@ const UserManagementPage: React.FC = () => {
       const t = toTree(res.data || [])
       setTreeData(t)
 
-      // 首次加载选中根，且默认展开全部；后续刷新不改动用户已展开的分支
-      if (!selectedOrgId && res.data?.length) setSelectedOrgId(res.data[0].id)
+      if (!selectedOrgId && (res.data?.length ?? 0) > 0) setSelectedOrgId(res.data![0].id)
       setExpandedKeys(prev => (prev.length ? prev : collectAllKeys(res.data || [])))
     } catch (e: any) {
       message.error(e?.message || '加载组织树失败')
@@ -162,80 +223,72 @@ const UserManagementPage: React.FC = () => {
     setSelectedOrgId(id)
     setCurrentPage(1)
   }
-  // 放在 UserManagementPage 里你已有的位置，覆盖原来的 mapItemsToUI
-  const normalizeStatus = (x: any): User['status'] => {
-    // 优先用后端直接给的 status 字段
-    if (typeof x.status === 'string') {
-      return x.status === 'disabled' ? 'disabled' : 'active'
-    }
-    // 其次用 is_active（0/1 或 true/false）
-    if (typeof x.is_active !== 'undefined') {
-      return Number(x.is_active) === 1 || x.is_active === true ? 'active' : 'disabled'
-    }
-    // 兜底
-    return 'active'
-  }
-  const mapItemsToUI = (items: any[]): UIUser[] =>
-    (items || []).map((x: any) => ({
-      id: x.id,
-      email: x.email ?? '',
-      role: (x.role_codes?.[0] ?? 'student') as User['role'],
-      nickname: x.nickname ?? x.username ?? '',
-      school: x.school ?? '',
-      class_name: x.class_name ?? '',
-      experience_points: x.experience_points ?? 0,
-      level: x.level ?? 1,
-      status: normalizeStatus(x),
-      created_at: x.created_at,
-      updated_at: x.updated_at,
-      org_id: x.org_id ?? null,
-      org_name: x.org_name ?? null,
-    }))
-  /** ========== 用户加载 ========== */
+
+  /** ========== 用户加载：只调用 /orgs/:orgId/users ========== */
   useEffect(() => {
     loadUsers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, roleFilter, limit, selectedOrgId, includeChildren])
 
   const loadUsers = async () => {
+    if (!selectedOrgId) {
+      setUserList([])
+      setTotalUsers(0)
+      return
+    }
     try {
       setLoading(true)
-      if (selectedOrgId) {
-        const { data } = await orgs.listUsers(selectedOrgId, {
-          page: currentPage,
-          limit,
-          search: searchTerm || undefined,
-          role: (roleFilter || undefined) as any,
-          include_children: includeChildren ? 1 : 0, // ← 关键：把“含子部门”传给后端
-        })
-        setUserList(mapItemsToUI(data.items))
-        setTotalUsers(data.total || 0)
-      } else {
-        const { data } = await users.getAll({ page: currentPage, limit, search: searchTerm, role: roleFilter })
-        setUserList(mapItemsToUI(data.items || data.users))
-        setTotalUsers(data.total || 0)
+      const res: ApiResult<{
+        items: any[]
+        total: number
+        page: number
+        limit: number
+      }> = await orgs.listUsers(selectedOrgId, {
+        page: currentPage,
+        limit,
+        search: searchTerm || undefined,
+        role: roleFilter || undefined,
+        include_children: includeChildren ? 1 : 0,
+      } as any)
+
+      if (!assertSuccess(res)) {
+        message.error(res.error || '加载用户失败')
+        setUserList([])
+        setTotalUsers(0)
+        return
       }
+
+      setUserList(mapOrgItemsToUI(res.data.items || []))
+      setTotalUsers(res.data.total || 0)
     } catch (error: any) {
       console.error('加载用户列表错误:', error)
-      message.error(error.response?.data?.error || error.message || '加载用户失败')
+      message.error(error?.response?.data?.error || error.message || '加载用户失败')
+      setUserList([])
+      setTotalUsers(0)
     } finally {
       setLoading(false)
-      setTimeout(() => searchInputRef.current?.focus(), 0)
+      setTimeout(() => searchInputRef.current?.focus?.(), 0)
     }
   }
 
   /** ========== 详情 & 编辑 ========== */
-  const loadUserDetail = async (userId: number) => {
+  // 这里从「列表行」打开详情：为了保证“跨页面一致”，用列表中的 role/org 覆盖详情返回
+  const openDetailFromRow = async (row: UIUser) => {
     try {
-      const { data } = await users.getById(userId)
-      setSelectedUser(data)
+      const res: ApiResult<UserDetail> = await users.getById(row.id)
+      if (!assertSuccess(res)) {
+        message.error(res.error || '加载用户详情失败')
+        return
+      }
+      const merged: UserDetail = { ...res.data, role: row.role } // 关键：覆盖显示角色
+      setSelectedUser(merged)
       setShowDetailModal(true)
     } catch (error: any) {
-      message.error(error.response?.data?.message || '加载用户详情失败')
+      message.error(error?.response?.data?.message || '加载用户详情失败')
     }
   }
 
-  const openEditModal = (u: User) => {
+  const openEditModal = (u: UIUser) => {
     setEditingUser(u)
     editForm.setFieldsValue({
       role: u.role,
@@ -249,10 +302,10 @@ const UserManagementPage: React.FC = () => {
   const handleEditUser = async (values: any) => {
     if (!editingUser) return
     try {
-      const res = await api.put(`/users/${editingUser.id}`, values)
-      if (!res.success) throw new Error(res.error || '更新失败')
-      // 列表本地更新
-      setUserList(prev => prev.map(u => (u.id === editingUser.id ? { ...u, ...values } : u)))
+      const res: ApiResult<any> = await api.put(`/users/${editingUser.id}`, values)
+      if (!assertSuccess(res)) throw new Error(res.error || '更新失败')
+
+      setUserList(prev => prev.map(u => (u.id === editingUser.id ? ({ ...u, ...values } as UIUser) : u)))
       message.success('用户信息更新成功')
       setShowEditModal(false)
       setEditingUser(null)
@@ -264,7 +317,7 @@ const UserManagementPage: React.FC = () => {
   }
 
   /** ========== 删除 / 状态 ========== */
-  const handleDeleteUser = (u: User) => {
+  const handleDeleteUser = (u: UIUser) => {
     if (u.role === 'admin') {
       message.warning('管理员账号不允许删除')
       return
@@ -278,7 +331,8 @@ const UserManagementPage: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await users.delete(u.id.toString())
+          const res: ApiResult<any> = await users.delete(u.id.toString())
+          if (!assertSuccess(res)) throw new Error(res.error || '删除失败')
           message.success('用户删除成功')
           loadUsers()
         } catch (e: any) {
@@ -288,7 +342,7 @@ const UserManagementPage: React.FC = () => {
     })
   }
 
-  const handleToggleUserStatus = async (u: User) => {
+  const handleToggleUserStatus = async (u: UIUser) => {
     if (u.role === 'admin' && u.status === 'active') {
       message.warning('管理员账号不允许禁用')
       return
@@ -304,7 +358,8 @@ const UserManagementPage: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await users.updateStatus(u.id.toString(), newStatus as any)
+          const res: ApiResult<any> = await users.updateStatus(u.id.toString(), newStatus as any)
+          if (!assertSuccess(res)) throw new Error(res.error || `${action}失败`)
           message.success(`用户${action}成功`)
           loadUsers()
         } catch (e: any) {
@@ -314,7 +369,7 @@ const UserManagementPage: React.FC = () => {
     })
   }
 
-  const handleResetPassword = (u: User) => {
+  const handleResetPassword = (u: UIUser) => {
     confirm({
       title: '确认重置密码',
       icon: <ExclamationCircleOutlined />,
@@ -322,7 +377,8 @@ const UserManagementPage: React.FC = () => {
       okText: '确认重置',
       onOk: async () => {
         try {
-          await users.resetPassword(u.id.toString())
+          const res: ApiResult<any> = await users.resetPassword(u.id.toString())
+          if (!assertSuccess(res)) throw new Error(res.error || '重置密码失败')
           message.success('密码重置成功')
         } catch (e: any) {
           message.error(e?.message || '重置密码失败')
@@ -342,8 +398,16 @@ const UserManagementPage: React.FC = () => {
   const searchBindOptions = async (keyword: string) => {
     setBindSearching(true)
     try {
-      const res = await users.getAll({ page: 1, limit: 30, search: keyword })
-      setBindOptions(res.data?.users || [])
+      const res: ApiResult<{ users?: User[]; items?: User[] }> = await users.getAll({
+        page: 1,
+        limit: 30,
+        search: keyword,
+      } as any)
+      if (!assertSuccess(res)) {
+        setBindOptions([])
+        return
+      }
+      setBindOptions((res.data?.users ?? res.data?.items ?? []) as User[])
     } finally {
       setBindSearching(false)
     }
@@ -353,7 +417,8 @@ const UserManagementPage: React.FC = () => {
     if (!selectedOrgId) return
     if (bindUserIds.length === 0) return message.warning('请选择要新增到该机构的用户')
     try {
-      await orgs.addUsers(selectedOrgId, bindUserIds)
+      const res: ApiResult<any> = await orgs.addUsers(selectedOrgId, bindUserIds as any)
+      if (!assertSuccess(res)) throw new Error(res.error || '新增失败')
       message.success('已新增到该机构')
       setBindOpen(false)
       loadUsers()
@@ -362,14 +427,15 @@ const UserManagementPage: React.FC = () => {
     }
   }
 
-  const unbindFromOrg = async (u: User) => {
+  const unbindFromOrg = async (u: UIUser) => {
     if (!selectedOrgId) return
     confirm({
       title: `从机构移除 ${u.nickname || u.email}`,
       icon: <ExclamationCircleOutlined />,
       onOk: async () => {
         try {
-          await orgs.removeUser(selectedOrgId, u.id)
+          const res: ApiResult<any> = await orgs.removeUser(selectedOrgId, u.id as any)
+          if (!assertSuccess(res)) throw new Error(res.error || '移除失败')
           message.success('已从机构移除')
           loadUsers()
         } catch (e: any) {
@@ -386,12 +452,12 @@ const UserManagementPage: React.FC = () => {
     return <Tag color={map[role] || 'default'}>{label[role] || role}</Tag>
   }
 
-  const columns = [
+  const columns: any[] = [
     {
       title: '用户信息',
       dataIndex: 'email',
       key: 'user',
-      render: (email: string, record: User) => (
+      render: (email: string, record: UIUser) => (
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <Avatar size={40} style={{ backgroundColor: '#1890ff', marginRight: 12 }} icon={<UserOutlined />}>
             {(record.nickname || email || '?').charAt(0).toUpperCase()}
@@ -415,7 +481,6 @@ const UserManagementPage: React.FC = () => {
       key: 'org_name',
       render: (_: any, r: UIUser) => (r.org_name ? <Tag>{r.org_name}</Tag> : <Text type="secondary">未分配</Text>),
     },
-
     {
       title: '状态',
       dataIndex: 'status',
@@ -425,7 +490,7 @@ const UserManagementPage: React.FC = () => {
     {
       title: '学校/班级',
       key: 'school',
-      render: (r: User) => (
+      render: (r: UIUser) => (
         <div>
           <div>{r.school || '未设置'}</div>
           <div style={{ color: '#8c8c8c', fontSize: 12 }}>{r.class_name || '未设置'}</div>
@@ -435,7 +500,7 @@ const UserManagementPage: React.FC = () => {
     {
       title: '等级',
       key: 'level',
-      render: (r: User) => (
+      render: (r: UIUser) => (
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <Tag color="gold" icon={<StarOutlined />}>
             Lv.{r.level}
@@ -450,24 +515,27 @@ const UserManagementPage: React.FC = () => {
       title: '注册时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (d: string) => (
-        <Text style={{ fontSize: 12 }}>
-          {new Date(d).toLocaleDateString('zh-CN', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            hour: '2-digit',
-            minute: '2-digit',
-          })}
-        </Text>
-      ),
+      render: (d?: string) =>
+        d ? (
+          <Text style={{ fontSize: 12 }}>
+            {new Date(d).toLocaleDateString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit',
+            })}
+          </Text>
+        ) : (
+          <Text type="secondary">—</Text>
+        ),
     },
     {
       title: '操作',
       key: 'actions',
-      render: (record: User) => {
+      render: (record: UIUser) => {
         const menuItems: any[] = [
-          { key: 'view', icon: <EyeOutlined />, label: '查看详情', onClick: () => loadUserDetail(record.id) },
+          { key: 'view', icon: <EyeOutlined />, label: '查看详情', onClick: () => openDetailFromRow(record) },
           { key: 'edit', icon: <EditOutlined />, label: '编辑信息', onClick: () => openEditModal(record) },
           {
             key: 'reset-password',
@@ -512,7 +580,7 @@ const UserManagementPage: React.FC = () => {
 
         return (
           <Space>
-            <Button type="primary" ghost size="small" icon={<EyeOutlined />} onClick={() => loadUserDetail(record.id)}>
+            <Button type="primary" ghost size="small" icon={<EyeOutlined />} onClick={() => openDetailFromRow(record)}>
               查看
             </Button>
             <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
@@ -525,10 +593,6 @@ const UserManagementPage: React.FC = () => {
       },
     },
   ]
-
-  //   if (loading && userList.length === 0 && currentPage === 1) {
-  //     return <LoadingSpinner text="加载用户管理..." />
-  //   }
 
   return (
     <Layout style={{ padding: 16 }}>
@@ -549,33 +613,34 @@ const UserManagementPage: React.FC = () => {
           </Space>
           <Space size="small">
             <Button size="small" icon={<ReloadOutlined />} onClick={fetchOrgTree} />
-            {/* 如需新建机构，可在此打开组织弹窗 */}
           </Space>
         </div>
         <div style={{ padding: 12 }}>
-          <Tree
-            blockNode
-            showIcon
-            icon={<ApartmentOutlined />}
-            selectedKeys={selectedOrgId ? [selectedOrgId] : []}
-            onSelect={onTreeSelect}
-            expandedKeys={expandedKeys}
-            onExpand={keys => setExpandedKeys(keys as React.Key[])} // ← 新增
-            treeData={treeData as any}
-            loading={treeLoading as any}
-          />
+          {treeLoading ? (
+            <Text type="secondary">加载中...</Text>
+          ) : (
+            <Tree
+              blockNode
+              showIcon
+              icon={<ApartmentOutlined />}
+              selectedKeys={selectedOrgId ? [selectedOrgId] : []}
+              onSelect={onTreeSelect}
+              expandedKeys={expandedKeys}
+              onExpand={keys => setExpandedKeys(keys as React.Key[])}
+              treeData={treeData as any}
+            />
+          )}
         </div>
       </Sider>
 
       {/* 右侧内容 */}
       <Content>
-        {/* 页面标题 */}
         <div style={{ marginBottom: 16 }}>
           <Title level={3} style={{ margin: 0 }}>
             用户管理
           </Title>
           <Paragraph type="secondary" style={{ margin: '6px 0 0 0' }}>
-            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '未选择机构（显示全量用户）'}
+            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '加载机构中…'}
           </Paragraph>
         </div>
 
@@ -646,7 +711,8 @@ const UserManagementPage: React.FC = () => {
 
         {/* 列表 */}
         <Card>
-          <Table
+          {/* 指定 Table 泛型，进一步避免隐式 any */}
+          <Table<UIUser>
             columns={columns as any}
             dataSource={userList}
             rowKey="id"
@@ -681,16 +747,18 @@ const UserManagementPage: React.FC = () => {
           {/* 分页 */}
           <div style={{ textAlign: 'right', marginTop: 16 }}>
             <Pagination
-              {...createPaginationConfig({
-                current: currentPage,
-                total: totalUsers,
-                pageSize: limit,
-                onChange: setCurrentPage,
-                onShowSizeChange: (cur, size) => {
-                  setLimit(size)
-                  setCurrentPage(1)
-                },
-              })}
+              current={currentPage}
+              total={totalUsers}
+              pageSize={limit}
+              showSizeChanger
+              showQuickJumper
+              showTotal={(total, range) => `${range[0]}-${range[1]} / 共 ${total} 条`}
+              pageSizeOptions={['10', '20', '50', '100']}
+              onChange={page => setCurrentPage(page)}
+              onShowSizeChange={(_cur, size) => {
+                setLimit(size)
+                setCurrentPage(1)
+              }}
             />
           </div>
         </Card>
@@ -706,7 +774,7 @@ const UserManagementPage: React.FC = () => {
             key="edit"
             onClick={() => {
               setShowDetailModal(false)
-              if (selectedUser) openEditModal(selectedUser)
+              if (selectedUser) openEditModal(selectedUser as unknown as UIUser)
             }}
           >
             编辑用户
@@ -717,6 +785,7 @@ const UserManagementPage: React.FC = () => {
         ]}
         width={800}
         style={{ top: 20 }}
+        destroyOnHidden
       >
         {selectedUser && (
           <div>
@@ -818,6 +887,7 @@ const UserManagementPage: React.FC = () => {
         }}
         footer={null}
         width={600}
+        destroyOnHidden
       >
         {editingUser && (
           <Form
@@ -840,10 +910,9 @@ const UserManagementPage: React.FC = () => {
             </Form.Item>
             <Form.Item label="所属机构">
               <Space>
-                <Input value={editingUser?.['org_name' as any] || '未分配'} readOnly style={{ width: 240 }} />
+                <Input value={(editingUser as any)?.org_name || '未分配'} readOnly style={{ width: 240 }} />
                 <Button
                   onClick={() => {
-                    // 默认选中当前部门
                     setOrgPickerSelected((editingUser as any)?.org_id ?? selectedOrgId ?? null)
                     setOrgPickerOpen(true)
                   }}
@@ -851,6 +920,19 @@ const UserManagementPage: React.FC = () => {
                   修改
                 </Button>
               </Space>
+            </Form.Item>
+            <Form.Item label="更多部门">
+              <Button
+                onClick={() => {
+                  setLinkOrgIds([])
+                  setLinkOrgOpen(true)
+                }}
+              >
+                关联多个部门
+              </Button>
+              <Text type="secondary" style={{ marginLeft: 8 }}>
+                不会移除现有关联，可选主部门。
+              </Text>
             </Form.Item>
 
             <Form.Item
@@ -920,6 +1002,8 @@ const UserManagementPage: React.FC = () => {
           <Text type="secondary">提示：支持多选。若需创建新账号，请到“用户新增”入口后再关联。</Text>
         </Space>
       </Modal>
+
+      {/* 选择所属机构 */}
       <Modal
         title="选择所属机构"
         open={orgPickerOpen}
@@ -930,17 +1014,26 @@ const UserManagementPage: React.FC = () => {
             return
           }
           try {
-            // 调后端“设为主组织”接口（见上文）
-            await orgs.setPrimary(editingUser.id, orgPickerSelected)
+            let res: ApiResult<any>
+            if (editingUser.org_id) {
+              // 有来源机构：移动（从 editingUser.org_id → orgPickerSelected）
+              res = await orgs.moveUser(
+                editingUser.org_id as number,
+                editingUser.id as number,
+                orgPickerSelected as number
+              )
+            } else {
+              // 没有来源机构：直接设为主组织（等价“加入 + 设主”）
+              res = await orgs.setPrimary(editingUser.id as number, orgPickerSelected as number)
+            }
+            if (!assertSuccess(res)) throw new Error(res.error || '更新失败')
+
             message.success('已更新所属机构')
             setOrgPickerOpen(false)
-            // 刷新列表和详情
             await loadUsers()
             if (selectedUser?.id === editingUser.id) {
-              // 如果详情弹窗也开着，可以顺便刷新一下详情（可选）
-              loadUserDetail(editingUser.id)
+              await openDetailFromRow({ ...editingUser, org_id: orgPickerSelected } as UIUser)
             }
-            // 同步编辑表单显示（可选）
             const targetName = (function findName(nodes: any[]): string | null {
               for (const n of nodes) {
                 if (n.id === orgPickerSelected) return n.name
@@ -958,18 +1051,67 @@ const UserManagementPage: React.FC = () => {
           }
         }}
         okText="确定"
+        destroyOnHidden
       >
         <div style={{ maxHeight: 480, overflow: 'auto', padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
-          <Tree
-            blockNode
-            showIcon
-            defaultExpandAll
-            icon={<ApartmentOutlined />}
-            selectedKeys={orgPickerSelected ? [orgPickerSelected] : []}
-            onSelect={keys => setOrgPickerSelected(Number(keys?.[0]) || null)}
-            treeData={treeData as any}
-            loading={treeLoading as any}
-          />
+          {treeLoading ? (
+            <Text type="secondary">加载中...</Text>
+          ) : (
+            <Tree
+              blockNode
+              showIcon
+              defaultExpandAll
+              icon={<ApartmentOutlined />}
+              selectedKeys={orgPickerSelected ? [orgPickerSelected] : []}
+              onSelect={keys => setOrgPickerSelected(Number(keys?.[0]) || null)}
+              treeData={treeData as any}
+            />
+          )}
+        </div>
+      </Modal>
+      {/* 关联多个部门 */}
+      <Modal
+        title="关联多个部门"
+        open={linkOrgOpen}
+        onCancel={() => setLinkOrgOpen(false)}
+        onOk={async () => {
+          if (!editingUser) {
+            setLinkOrgOpen(false)
+            return
+          }
+          if (linkOrgIds.length === 0) {
+            message.warning('请至少选择一个部门')
+            return
+          }
+          try {
+            // 这里不指定主组织，如需指定可以再加一个 Radio/Select 选择 primary
+            const res = await orgs.linkUserOrgs(editingUser.id as number, linkOrgIds)
+            if (!assertSuccess(res)) throw new Error(res.error || '关联失败')
+            message.success('关联成功')
+            setLinkOrgOpen(false)
+            await loadUsers()
+            if (selectedUser?.id === editingUser.id) await openDetailFromRow(editingUser)
+          } catch (e: any) {
+            message.error(e?.message || '关联失败')
+          }
+        }}
+        okText="确定"
+        destroyOnHidden
+      >
+        <div style={{ maxHeight: 480, overflow: 'auto', padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
+          {treeLoading ? (
+            <Text type="secondary">加载中...</Text>
+          ) : (
+            <Tree
+              checkable
+              defaultExpandAll
+              blockNode
+              showIcon
+              icon={<ApartmentOutlined />}
+              onCheck={keys => setLinkOrgIds((keys as React.Key[]).map(k => Number(k)).filter(Boolean))}
+              treeData={treeData as any}
+            />
+          )}
         </div>
       </Modal>
     </Layout>

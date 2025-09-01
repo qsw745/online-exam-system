@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
-import { useAuth } from './AuthContext'
+import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
 import { api } from '../lib/api'
+import { useAuth } from './AuthContext'
 
 export interface MenuItem {
   id: number
@@ -15,7 +15,7 @@ export interface MenuItem {
   is_hidden: boolean
   is_disabled: boolean
   is_system: boolean
-  menu_type: 'menu' | 'button' | 'link'
+  menu_type: 'menu' | 'button' | 'link' | 'page' // 你的表里有 page，补上更稳
   permission_code?: string
   redirect?: string
   meta?: any
@@ -52,35 +52,32 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
       setPermissions([])
       return
     }
-    
+
     setLoading(true)
     setError(null)
-    
+
     try {
-      console.log(`正在获取用户 ${user.id} 的菜单权限...`)
-      const response = await api.get(`/menu/users/${user.id}/menus`)
-      
-      // 检查响应数据格式
-      let menuData: MenuItem[] = []
-      if (Array.isArray(response.data)) {
-        // 直接返回菜单数组的格式
-        menuData = response.data
-      } else if (response.data.success) {
-        // 包含success字段的格式
-        menuData = response.data.data || []
-      } else {
-        throw new Error('获取菜单权限失败：数据格式不正确')
+      const res = await api.get<MenuItem[]>(`/menu/users/${user.id}/menus`)
+      if (!res.success) {
+        const msg = 'error' in res ? res.error : '获取菜单权限失败'
+        throw new Error(msg)
       }
-      
+
+      // res.data 可能就是数组，也可能是 { data:[] } / { items:[] } / { list:[] }
+      const payload: any = res.data
+      const menuData: MenuItem[] = Array.isArray(payload)
+        ? payload
+        : payload?.data ?? payload?.items ?? payload?.list ?? []
+
       setMenus(menuData)
+
       // 提取权限代码
       const permissionCodes = extractPermissions(menuData)
       setPermissions(permissionCodes)
-      
-      console.log(`成功获取 ${menuData.length} 个菜单，${permissionCodes.length} 个权限`)
+      // console.log(`成功获取 ${menuData.length} 个菜单，${permissionCodes.length} 个权限`)
     } catch (err: any) {
       console.error('获取用户菜单失败:', err)
-      const errorMessage = err.response?.data?.message || err.message || '获取菜单权限失败'
+      const errorMessage = err?.message || '获取菜单权限失败'
       setError(errorMessage)
       setMenus([])
       setPermissions([])
@@ -90,60 +87,38 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
   }
 
   const extractPermissions = (menuTree: MenuItem[]): string[] => {
-    const permissions: string[] = []
-    
-    const traverse = (items: MenuItem[]) => {
-      items.forEach(item => {
-        if (item.permission_code) {
-          permissions.push(item.permission_code)
-        }
-        if (item.children) {
-          traverse(item.children)
-        }
+    const list: string[] = []
+    const walk = (items: MenuItem[]) => {
+      items.forEach(it => {
+        if (it.permission_code) list.push(it.permission_code)
+        if (it.children?.length) walk(it.children)
       })
     }
-    
-    traverse(menuTree)
-    return permissions
+    walk(menuTree)
+    return list
   }
 
   const hasMenuPermission = (path: string): boolean => {
     if (!path) return true
-    
-    const findMenuByPath = (items: MenuItem[], targetPath: string): boolean => {
-      return items.some(item => {
-        if (item.path === targetPath) return true
-        if (item.children) {
-          return findMenuByPath(item.children, targetPath)
-        }
-        return false
-      })
-    }
-    
-    return findMenuByPath(menus, path)
+    const find = (items: MenuItem[], target: string): boolean =>
+      items.some(it => it.path === target || (it.children?.length ? find(it.children, target) : false))
+    return find(menus, path)
   }
 
-  const hasOperationPermission = (operation: string): boolean => {
-    return permissions.includes(operation)
-  }
-  
+  const hasOperationPermission = (operation: string): boolean => permissions.includes(operation)
+
   const flattenMenus = (menuTree: MenuItem[]): MenuItem[] => {
     const result: MenuItem[] = []
-    
-    const traverse = (items: MenuItem[]) => {
-      items.forEach(item => {
-        result.push(item)
-        if (item.children) {
-          traverse(item.children)
-        }
+    const walk = (items: MenuItem[]) => {
+      items.forEach(it => {
+        result.push(it)
+        if (it.children?.length) walk(it.children)
       })
     }
-    
-    traverse(menuTree)
+    walk(menuTree)
     return result
   }
 
-  // 当用户变化时重新获取菜单
   useEffect(() => {
     fetchUserMenus()
   }, [user?.id])
@@ -158,14 +133,10 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     hasMenuPermission,
     hasOperationPermission,
     flatMenus,
-    refetch: fetchUserMenus
+    refetch: fetchUserMenus,
   }
 
-  return (
-    <MenuPermissionContext.Provider value={value}>
-      {children}
-    </MenuPermissionContext.Provider>
-  )
+  return <MenuPermissionContext.Provider value={value}>{children}</MenuPermissionContext.Provider>
 }
 
 export function useMenuPermissions(): MenuPermissionContextType {
@@ -176,10 +147,7 @@ export function useMenuPermissions(): MenuPermissionContextType {
   return context
 }
 
-export function withMenuPermission<T extends object>(
-  Component: React.ComponentType<T>,
-  requiredPath: string
-) {
+export function withMenuPermission<T extends object>(Component: React.ComponentType<T>, _requiredPath: string) {
   return function PermissionWrappedComponent(props: T) {
     return React.createElement(Component, props)
   }

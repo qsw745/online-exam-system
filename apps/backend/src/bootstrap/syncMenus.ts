@@ -1,34 +1,45 @@
-import { RowDataPacket, ResultSetHeader } from 'mysql2'
+// apps/backend/src/bootstrap/syncMenus.ts
+import type { RowDataPacket, ResultSetHeader } from 'mysql2'
+
 import { pool } from '../config/database.js'
 import { MENU_TREE, type MenuSeed } from './menu.config.js'
 
-type DbMenu = RowDataPacket & {
+// 用“普通行类型”，不要继承 RowDataPacket
+type DbMenuRow = {
   id: number
   name: string
   path: string | null
   parent_id: number | null
+  sort_order: number | null
+  level: number | null
+  is_system?: number
 }
+// 仅用于 query 的返回类型：满足 mysql2 的约束
+type DbMenuRowFromDB = DbMenuRow & RowDataPacket
+type SyncMode = 'force' | 'patch' | 'insertOnly'
 
 const ALLOWED_MENU_TYPES = new Set(['menu', 'page', 'button', 'link', 'iframe', 'dir'])
 const normalizeMenuType = (t?: string) => {
   const v = (t ?? 'menu').toLowerCase()
-  // 如果你的表的枚举还不包含 'page'，这里可按需把 page 映射为 menu
   return ALLOWED_MENU_TYPES.has(v) ? v : 'menu'
 }
 
-/** 把树同步到 DB：无则插入，有则更新；保持层级与 sort_order */
-export async function syncMenus(options?: { removeOrphans?: boolean }) {
+export async function syncMenus(options?: { removeOrphans?: boolean; mode?: SyncMode }) {
+  const mode: SyncMode = options?.mode ?? 'patch'
   const conn = await pool.getConnection()
   try {
     await conn.beginTransaction()
 
-    // 读出全部菜单，建立 name 和 path 两个 map
-    const [rows] = await conn.query<DbMenu[]>('SELECT id, name, path, parent_id FROM menus')
-    const name2id = new Map<string, number>()
-    const path2id = new Map<string, number>()
+    // 用 DbMenuRow 做泛型即可
+  const [rows] = await conn.query<DbMenuRowFromDB[]>(
+    'SELECT id, name, path, parent_id, sort_order, level, is_system FROM menus'
+  )
+
+    const name2row = new Map<string, DbMenuRow>()
+    const path2row = new Map<string, DbMenuRow>()
     rows.forEach(r => {
-      name2id.set(r.name, r.id)
-      if (r.path) path2id.set(r.path, r.id)
+      name2row.set(r.name, r)
+      if (r.path) path2row.set(r.path, r)
     })
 
     const seenNames = new Set<string>()
@@ -36,21 +47,18 @@ export async function syncMenus(options?: { removeOrphans?: boolean }) {
 
     async function upsertNode(node: MenuSeed, parentId: number | null, level: number) {
       seenNames.add(node.name)
-
       const metaJson = node.meta ? JSON.stringify(node.meta) : null
       const path = node.path ?? null
 
-      // 先按 name 匹配；没有再按 path 匹配（path 不为空时）
-      let existsId: number | null = name2id.get(node.name) ?? (path ? path2id.get(path) ?? null : null)
+      // 先按 name 找，找不到再按 path 找
+      let exists: DbMenuRow | undefined = name2row.get(node.name) ?? (path ? path2row.get(path) : undefined)
 
-      const payload = {
+      // 软字段
+      const soft = {
         title: node.title,
         path,
         component: node.component ?? null,
         icon: node.icon ?? null,
-        parent_id: parentId,
-        sort_order: node.sort_order ?? autoSort++,
-        level,
         is_hidden: !!node.is_hidden,
         is_disabled: !!node.is_disabled,
         is_system: node.is_system ?? false,
@@ -60,92 +68,123 @@ export async function syncMenus(options?: { removeOrphans?: boolean }) {
         meta: metaJson,
       }
 
-      if (existsId) {
+      // 结构字段
+      let parent_id = parentId
+      let sort_order = node.sort_order ?? autoSort++
+      let levelVal = level
+
+      if (exists && (mode === 'patch' || mode === 'insertOnly')) {
+        // 保留人工结构
+        parent_id = exists.parent_id
+        sort_order = exists.sort_order ?? sort_order
+        levelVal = exists.level ?? levelVal
+      }
+
+      if (exists) {
+        if (mode === 'insertOnly') return exists.id
+
         await conn.query(
           `UPDATE menus SET
-             name=?,
-             title=?, path=?, component=?, icon=?, parent_id=?, sort_order=?, level=?,
-             is_hidden=?, is_disabled=?, is_system=?, menu_type=?, permission_code=?, redirect=?, meta=CAST(? AS JSON),
+             name=?, title=?, path=?, component=?, icon=?,
+             parent_id=?, sort_order=?, level=?,
+             is_hidden=?, is_disabled=?, is_system=?, menu_type=?,
+             permission_code=?, redirect=?, meta=CAST(? AS JSON),
              updated_at=CURRENT_TIMESTAMP
            WHERE id=?`,
           [
-            node.name, // 用配置的 name 接管这条记录
-            payload.title,
-            payload.path,
-            payload.component,
-            payload.icon,
-            payload.parent_id,
-            payload.sort_order,
-            payload.level,
-            payload.is_hidden,
-            payload.is_disabled,
-            payload.is_system,
-            payload.menu_type,
-            payload.permission_code,
-            payload.redirect,
-            payload.meta,
-            existsId,
+            node.name,
+            soft.title,
+            soft.path,
+            soft.component,
+            soft.icon,
+            parent_id,
+            sort_order,
+            levelVal,
+            soft.is_hidden,
+            soft.is_disabled,
+            soft.is_system,
+            soft.menu_type,
+            soft.permission_code,
+            soft.redirect,
+            soft.meta,
+            exists.id,
           ]
         )
-        // 更新内存索引（path 或 name 可能变化）
-        name2id.set(node.name, existsId)
-        if (payload.path) path2id.set(payload.path, existsId)
-        return existsId
+
+        // 用普通对象更新到 map（现在类型是 DbMenuRow，安全）
+        const nextRow: DbMenuRow = {
+          ...exists,
+          name: node.name,
+          path: soft.path,
+          parent_id,
+          sort_order,
+          level: levelVal,
+        }
+        name2row.set(node.name, nextRow)
+        if (soft.path) path2row.set(soft.path, nextRow)
+        return exists.id
       } else {
         const [res] = await conn.query<ResultSetHeader>(
           `INSERT INTO menus
              (name, title, path, component, icon, parent_id, sort_order, level,
-              is_hidden, is_disabled, is_system, menu_type, permission_code, redirect, meta, created_at, updated_at)
+              is_hidden, is_disabled, is_system, menu_type, permission_code, redirect, meta,
+              created_at, updated_at)
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,CAST(? AS JSON),NOW(),NOW())`,
           [
             node.name,
-            payload.title,
-            payload.path,
-            payload.component,
-            payload.icon,
-            payload.parent_id,
-            payload.sort_order,
-            payload.level,
-            payload.is_hidden,
-            payload.is_disabled,
-            payload.is_system,
-            payload.menu_type,
-            payload.permission_code,
-            payload.redirect,
-            payload.meta,
+            soft.title,
+            soft.path,
+            soft.component,
+            soft.icon,
+            parent_id,
+            sort_order,
+            levelVal,
+            soft.is_hidden,
+            soft.is_disabled,
+            soft.is_system,
+            soft.menu_type,
+            soft.permission_code,
+            soft.redirect,
+            soft.meta,
           ]
         )
         const newId = res.insertId
-        name2id.set(node.name, newId)
-        if (payload.path) path2id.set(payload.path, newId)
+        const newRow: DbMenuRow = {
+          id: newId,
+          name: node.name,
+          path: soft.path,
+          parent_id,
+          sort_order,
+          level: levelVal,
+        }
+        name2row.set(node.name, newRow)
+        if (soft.path) path2row.set(soft.path, newRow)
         return newId
       }
     }
 
     async function walk(nodes: MenuSeed[], parentId: number | null, level: number) {
-      // 兄弟节点按 sort_order 排
       const ordered = [...nodes].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
       for (const n of ordered) {
         const id = await upsertNode(n, parentId, level)
-        if (n.children?.length) {
-          await walk(n.children, id, level + 1)
-        }
+        if (n.children?.length) await walk(n.children, id, level + 1)
       }
     }
 
     await walk(MENU_TREE, null, 1)
 
-    // 可选：删除“孤儿”（配置里已删除、库里还存在的）
     if (options?.removeOrphans) {
       const extra = rows.filter(r => !seenNames.has(r.name))
       if (extra.length) {
-        const ids = extra.map(e => e.id)
-        await conn.query(`DELETE FROM menus WHERE id IN (${ids.map(() => '?').join(',')})`, ids)
+        await conn.query(
+          `DELETE FROM menus WHERE id IN (${extra.map(() => '?').join(',')})`,
+          extra.map(e => e.id)
+        )
       }
     }
 
     await conn.commit()
-    console.log(`[menu-sync] 完成：共同步 ${seenNames.size} 个菜单`)
+    console.log(`[menu-sync] 完成：共同步 ${seenNames.size} 个菜单（mode=${options?.mode ?? 'patch'}）`)
   } catch (e) {
     await conn.rollback()
     console.error('[menu-sync] 失败：', e)

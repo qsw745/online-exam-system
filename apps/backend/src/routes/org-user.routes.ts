@@ -40,4 +40,10 @@ router.delete('/:orgId/users/:userId', requireRole(['admin']), wrap(OrgUserContr
  */
 router.put('/:orgId/users/:userId/primary', requireRole(['admin']), wrap(OrgUserController.setPrimary))
 
+
+/** ⭐ 新增：从 A 机构移动到 B 机构（移动后不在 A） */
+router.put('/:fromOrgId/users/:userId/move/:toOrgId', requireRole(['admin']), wrap(OrgUserController.moveUser))
+
+/** ⭐ 新增：给某用户一次性关联多个机构（可选设定主组织） */
+router.post('/users/:userId/orgs', requireRole(['admin']), wrap(OrgUserController.linkUserOrgs))
 export { router as orgUserRoutes }

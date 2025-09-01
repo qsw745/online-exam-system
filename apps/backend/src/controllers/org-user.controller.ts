@@ -55,6 +55,168 @@ type OrgUsersList = {
 
 export const OrgUserController = {
   /**
+   * PUT /orgs/:fromOrgId/users/:userId/move/:toOrgId
+   * 语义：把 user 从 fromOrgId 移动到 toOrgId
+   * 行为：确保 toOrgId 关联存在 -> 清空该用户所有 is_primary -> 把 toOrgId 置为主 -> 删除 fromOrgId 关联
+   */
+  async moveUser(req: AuthRequest, res: Response) {
+    const fromOrgId = Number(req.params.fromOrgId)
+    const toOrgId = Number(req.params.toOrgId)
+    const userId = Number(req.params.userId)
+
+    if (![fromOrgId, toOrgId, userId].every(Number.isFinite)) {
+      return res.status(400).json({ success: false, error: '无效的参数' })
+    }
+    if (fromOrgId === toOrgId) {
+      return res.status(400).json({ success: false, error: '源与目标机构相同' })
+    }
+
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      // 校验组织与用户存在
+      const [[fo]] = await conn.query<RowDataPacket[]>('SELECT id FROM organizations WHERE id=? LIMIT 1', [fromOrgId])
+      const [[to]] = await conn.query<RowDataPacket[]>('SELECT id FROM organizations WHERE id=? LIMIT 1', [toOrgId])
+      const [[u]] = await conn.query<RowDataPacket[]>('SELECT id FROM users WHERE id=? LIMIT 1', [userId])
+      if (!fo || !to || !u) {
+        await conn.rollback()
+        return res.status(404).json({ success: false, error: '组织或用户不存在' })
+      }
+
+      // 确保目标关联存在（没有则插入）
+      await conn.query(
+        `INSERT IGNORE INTO user_organizations (user_id, org_id, is_primary, created_at, updated_at)
+         VALUES (?, ?, 0, NOW(), NOW())`,
+        [userId, toOrgId]
+      )
+
+      // 清空该用户全部主组织标记
+      await conn.query(`UPDATE user_organizations SET is_primary=0, updated_at=NOW() WHERE user_id=?`, [userId])
+
+      // 目标设为主组织
+      const [ret1] = await conn.query<ResultSetHeader>(
+        `UPDATE user_organizations SET is_primary=1, updated_at=NOW() WHERE user_id=? AND org_id=?`,
+        [userId, toOrgId]
+      )
+      if (ret1.affectedRows === 0) {
+        await conn.rollback()
+        return res.status(500).json({ success: false, error: '设置目标主组织失败' })
+      }
+
+      // 删除源组织关联
+      await conn.query(`DELETE FROM user_organizations WHERE user_id=? AND org_id=?`, [userId, fromOrgId])
+
+      await conn.commit()
+
+      await LoggerService.logUserAction({
+        userId: req.user?.id || 0,
+        username: req.user?.username,
+        action: 'move_user_org',
+        resourceType: 'organization',
+        resourceId: toOrgId,
+        details: { user_id: userId, from_org_id: fromOrgId, to_org_id: toOrgId },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      })
+
+      return res.json({ success: true, data: { user_id: userId, from_org_id: fromOrgId, to_org_id: toOrgId } })
+    } catch (e) {
+      try {
+        await conn.rollback()
+      } catch {}
+      console.error('移动用户部门错误:', e)
+      return res.status(500).json({ success: false, error: '移动用户部门失败' })
+    } finally {
+      conn.release()
+    }
+  },
+
+  /**
+   * POST /orgs/users/:userId/orgs
+   * body: { org_ids: number[], primary_org_id?: number }
+   * 语义：给用户关联多个机构（不移除旧的）。若提供 primary_org_id，则设其为主组织。
+   */
+  async linkUserOrgs(req: AuthRequest, res: Response) {
+    const userId = Number(req.params.userId)
+    const orgIds: number[] = Array.isArray(req.body?.org_ids) ? req.body.org_ids.map(Number).filter(Boolean) : []
+    const primaryOrgId = req.body?.primary_org_id ? Number(req.body.primary_org_id) : null
+
+    if (!Number.isFinite(userId) || orgIds.length === 0) {
+      return res.status(400).json({ success: false, error: '参数错误：userId 或 org_ids' })
+    }
+
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      // 校验用户存在
+      const [[u]] = await conn.query<RowDataPacket[]>('SELECT id FROM users WHERE id=? LIMIT 1', [userId])
+      if (!u) {
+        await conn.rollback()
+        return res.status(404).json({ success: false, error: '用户不存在' })
+      }
+
+      // 只保留存在的组织
+      const [orgRows] = await conn.query<RowDataPacket[]>(
+        `SELECT id FROM organizations WHERE id IN (${orgIds.map(() => '?').join(',')})`,
+        orgIds
+      )
+      const validOrgIds = (orgRows as any[]).map(r => Number(r.id))
+      if (validOrgIds.length === 0) {
+        await conn.rollback()
+        return res.status(400).json({ success: false, error: '提供的组织不存在' })
+      }
+
+      // 批量插入关联
+      const values = validOrgIds.map(() => '(?,?,0,NOW(),NOW())').join(',')
+      const params: any[] = []
+      validOrgIds.forEach(oid => {
+        params.push(userId, oid)
+      })
+      await conn.query(
+        `INSERT IGNORE INTO user_organizations (user_id, org_id, is_primary, created_at, updated_at)
+         VALUES ${values}`,
+        params
+      )
+
+      // 可选：设置主组织
+      if (primaryOrgId && validOrgIds.includes(primaryOrgId)) {
+        await conn.query(`UPDATE user_organizations SET is_primary=0, updated_at=NOW() WHERE user_id=?`, [userId])
+        await conn.query(`UPDATE user_organizations SET is_primary=1, updated_at=NOW() WHERE user_id=? AND org_id=?`, [
+          userId,
+          primaryOrgId,
+        ])
+      }
+
+      await conn.commit()
+
+      await LoggerService.logUserAction({
+        userId: req.user?.id || 0,
+        username: req.user?.username,
+        action: 'link_user_orgs',
+        resourceType: 'organization',
+        resourceId: primaryOrgId || 0,
+        details: { user_id: userId, org_ids: validOrgIds, primary_org_id: primaryOrgId },
+        ipAddress: req.ip,
+        userAgent: req.get('User-Agent'),
+      })
+
+      return res
+        .status(201)
+        .json({ success: true, data: { user_id: userId, org_ids: validOrgIds, primary_org_id: primaryOrgId } })
+    } catch (e) {
+      try {
+        await conn.rollback()
+      } catch {}
+      console.error('关联多个部门错误:', e)
+      return res.status(500).json({ success: false, error: '关联多个部门失败' })
+    } finally {
+      conn.release()
+    }
+  },
+
+  /**
    * PUT /orgs/:orgId/users/:userId/primary
    * 把 userId 在 orgId 上标记为主组织：
    *  - 若 user_organizations 中不存在该关系，先插入（is_primary=0）
@@ -309,6 +471,9 @@ export const OrgUserController = {
           is_active: hasIsActive ? r.is_active : 1,
           status: st, // ← 新增，前端就可以直接用 status
           role_codes: (String(r.role_codes || '').trim() ? String(r.role_codes).split(',') : []) as string[],
+          // 🟢 补上部门信息（关键修复）
+          org_id: r.org_id ?? null,
+          org_name: r.org_name ?? null,
         }
         if (hasEmail) base.email = r.email
         if (hasRealName) base.real_name = r.real_name

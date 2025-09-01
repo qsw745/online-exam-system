@@ -19,6 +19,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import DashboardPage from './pages/DashboardPage'
 import DiscussionPage from './pages/DiscussionPage'
+import NotFound404 from './pages/errors/NotFound404'
 import ExamListPage from './pages/ExamListPage'
 import ExamPage from './pages/ExamPage'
 import FavoritesPage from './pages/FavoritesPage'
@@ -33,9 +34,9 @@ import ResultsPage from './pages/ResultsPage'
 import SettingsPage from './pages/SettingsPage'
 import TasksPage from './pages/TasksPage'
 import WrongQuestionsPage from './pages/WrongQuestionsPage'
+import { useDynamicMenuRoutes } from './routes/dynamicRoutes'
 import { antdTheme, darkAntdTheme } from './theme/antd-theme'
-import NotFound404 from './pages/errors/NotFound404'
-import DynamicRoutes from './routes/dynamicRoutes'   // ✅ 新增
+
 import { ErrorBoundary } from './components/ErrorBoundary'
 
 // 创建 Query Client
@@ -185,6 +186,8 @@ function MenuPermissionRoute({ children, requiredPath }: { children: React.React
 
 // 路由配置
 function AppRoutes() {
+  const dynamicRouteElements = useDynamicMenuRoutes() // ✅ 拿到一组 <Route/>
+
   return (
     <Routes>
       {/* 公开路由 */}
@@ -221,7 +224,7 @@ function AppRoutes() {
         }
       />
 
-      {/* 受保护的路由 */}
+      {/* 受保护 + 布局 */}
       <Route
         path="/"
         element={
@@ -230,6 +233,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
+        {/* 你现有的静态子路由 */}
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="tasks" element={<TasksPage />} />
@@ -239,7 +243,6 @@ function AppRoutes() {
         <Route path="questions/manage" element={<QuestionsPage />} />
         <Route path="questions/favorites" element={<QuestionsPage />} />
         <Route path="questions/wrong" element={<WrongQuestionsPage />} />
-        {/* <Route path="questions/:id" element={<QuestionPracticePage />} /> */}
         <Route path="questions/practice" element={<QuestionPracticePage />} />
         <Route path="questions/:id/practice" element={<QuestionPracticePage />} />
         <Route path="results" element={<ResultsPage />} />
@@ -262,9 +265,9 @@ function AppRoutes() {
             </Suspense>
           }
         />
-
         <Route path="orgs" element={<OrgManage />} />
-        {/* 管理员路由 */}
+
+        {/* 管理员静态入口 */}
         <Route
           path="admin/*"
           element={
@@ -281,9 +284,15 @@ function AppRoutes() {
             </AdminRoute>
           }
         />
+
+        {/* ✅ 动态菜单路由：放在这里，作为同层的 Route 列表注入 */}
+        {dynamicRouteElements}
+
+        {/* ⛳️ 最后再兜底 404（一定要在 DynamicRoutes 之后） */}
+        <Route path="*" element={<NotFound404 />} />
       </Route>
 
-      {/* 考试页面（单独布局） */}
+      {/* 独立布局的页面 */}
       <Route
         path="/exam/:taskId"
         element={
@@ -293,11 +302,7 @@ function AppRoutes() {
         }
       />
 
-      {/* 默认重定向 */}
-      {/* <Route path="*" element={<Navigate to="/dashboard" replace />} /> */}
-      <Route path="*" element={<NotFound404 />} />
-      {/* ✅ 在这里挂“动态菜单路由” */}
-      <Route path="*" element={<DynamicRoutes />} />
+      {/* 顶层不再放任何 "*" 了，避免盖住子树 */}
     </Routes>
   )
 }
