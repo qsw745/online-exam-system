@@ -1,5 +1,6 @@
 // apps/web/src/pages/admin/RoleManagementPage.tsx
 import {
+  ApartmentOutlined,
   DeleteOutlined,
   EditOutlined,
   MoreOutlined,
@@ -32,7 +33,12 @@ import type { ColumnsType } from 'antd/es/table'
 import type { DataNode } from 'antd/es/tree'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
+
+// 统一从 lib 调用接口
 import { api } from '../../lib/api'
+import { roles as rolesApi } from '../../lib/roles'
+import { menus as menusApi } from '../../lib/menus'
+import { orgs } from '../../lib/orgs/orgs'
 
 // ========= 统一的 ApiResult 类型守卫 =========
 type ApiSuccess<T = any> = {
@@ -47,7 +53,9 @@ type ApiFailure = { success: false; message?: string; error?: string }
 type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 
 const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
-const isFailure = (r: any): r is ApiFailure => r && typeof r === 'object' && r.success === false
+// 把 error / message 统一取出来
+const getMsg = (r: any, fallback = '请求失败') =>
+  r && typeof r === 'object' ? (r as any).message ?? (r as any).error ?? fallback : fallback
 // ============================================
 
 interface Role {
@@ -71,7 +79,7 @@ interface MenuItem {
   children?: MenuItem[]
 }
 
-// 关键修复：用于构建树的节点类型（children 必选）
+// 用于构建树的节点类型（children 必选）
 type MenuNode = Omit<MenuItem, 'children'> & { children: MenuNode[] }
 
 interface RoleUser {
@@ -89,11 +97,19 @@ interface User {
   created_at: string
 }
 
+// 机构树节点
+type OrgTreeNode = {
+  key: number
+  title: string
+  children?: OrgTreeNode[]
+}
+
 const RoleManagementPage: React.FC = () => {
   const { message, modal } = App.useApp()
   const { user } = useAuth()
 
-  const [roles, setRoles] = useState<Role[]>([])
+  // ✅ 避免与 rolesApi 重名
+  const [roleList, setRoleList] = useState<Role[]>([])
   const [menus, setMenus] = useState<MenuItem[]>([])
 
   const [loading, setLoading] = useState(false)
@@ -108,7 +124,7 @@ const RoleManagementPage: React.FC = () => {
 
   const [form] = Form.useForm()
 
-  // 成员管理
+  // 添加用户（原“成员管理”）
   const [memberModalVisible, setMemberModalVisible] = useState(false)
   const [roleUsers, setRoleUsers] = useState<RoleUser[]>([])
   const [memberLoading, setMemberLoading] = useState(false)
@@ -119,37 +135,39 @@ const RoleManagementPage: React.FC = () => {
   const [userSelectLoading, setUserSelectLoading] = useState(false)
   const [selectedUserIds, setSelectedUserIds] = useState<number[]>([])
 
+  // 选择机构
+  const [orgSelectModalVisible, setOrgSelectModalVisible] = useState(false)
+  const [orgTree, setOrgTree] = useState<OrgTreeNode[]>([])
+  const [orgTreeLoading, setOrgTreeLoading] = useState(false)
+  const [checkedOrgIds, setCheckedOrgIds] = useState<number[]>([])
+
   // 分页 & 搜索
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
   const [searchKeyword, setSearchKeyword] = useState('')
 
-  // ====== 数据加载 ======
+  // ====== 加载角色 ======
   const loadRoles = async (page = currentPage, size = pageSize, keyword = searchKeyword) => {
     try {
       setLoading(true)
       const params = { page, pageSize: size, ...(keyword && { keyword }) }
-      const resp: ApiResult<any> = await api.get('/roles', { params })
-
+      const resp: ApiResult<any> = await rolesApi.list(params)
       if (isSuccess(resp)) {
         const d = resp.data as any
         if (Array.isArray(d)) {
-          setRoles(d)
+          setRoleList(d)
           setTotal(d.length)
         } else if (d?.roles) {
-          setRoles(d.roles)
+          setRoleList(d.roles)
           setTotal(d.total ?? d.roles.length ?? 0)
         } else {
-          setRoles(d ?? [])
+          setRoleList(d ?? [])
           setTotal(d?.length ?? 0)
         }
         setCurrentPage(page)
-        setPageSize(size)
-      } else if (isFailure(resp)) {
-        message.error(resp.message || '加载角色列表失败')
       } else {
-        message.error('加载角色列表失败')
+        message.error(getMsg(resp, '加载角色列表失败'))
       }
     } catch (err) {
       console.error('加载角色列表失败:', err)
@@ -159,16 +177,17 @@ const RoleManagementPage: React.FC = () => {
     }
   }
 
+  // ====== 加载菜单 ======
   const loadMenus = async () => {
     try {
-      const resp: ApiResult<any> = await api.get('/menu/menus')
+      const resp = await menusApi.list()
       if (isSuccess<any>(resp)) {
         const d = resp.data
         setMenus(Array.isArray(d) ? d : d?.menus ?? d ?? [])
       } else if (Array.isArray(resp as any)) {
         setMenus(resp as any)
       } else {
-        message.error((resp as any)?.message || '加载菜单失败')
+        message.error(getMsg(resp, '加载菜单失败'))
       }
     } catch (e) {
       console.error('加载菜单失败:', e)
@@ -176,13 +195,15 @@ const RoleManagementPage: React.FC = () => {
     }
   }
 
+  // ====== 加载某角色的菜单勾选 ======
   const loadRoleMenus = async (roleId: number) => {
     try {
-      const resp: ApiResult<MenuItem[]> = await api.get(`/roles/${roleId}/menus`)
+      const resp: ApiResult<any> = await rolesApi.listMenus(roleId)
       if (isSuccess(resp)) {
-        setSelectedMenuIds((resp.data || []).map(m => m.id))
+        const arr = (resp.data || []) as Array<{ id: number }>
+        setSelectedMenuIds(arr.map(m => m.id))
       } else {
-        message.error(resp.message || '加载角色权限失败')
+        message.error(getMsg(resp, '加载角色权限失败'))
       }
     } catch (e) {
       console.error('加载角色权限失败:', e)
@@ -193,6 +214,7 @@ const RoleManagementPage: React.FC = () => {
   useEffect(() => {
     loadRoles()
     loadMenus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // ====== 搜索 / 分页 ======
@@ -208,7 +230,7 @@ const RoleManagementPage: React.FC = () => {
     loadRoles(page, size ?? pageSize, searchKeyword)
   }
 
-  // ====== 菜单树（关键修复：使用 MenuNode） ======
+  // ====== 菜单树（构建 children 必选的树） ======
   const treeData: DataNode[] = useMemo(() => {
     const map = new Map<number, MenuNode>()
     const roots: MenuNode[] = []
@@ -233,24 +255,24 @@ const RoleManagementPage: React.FC = () => {
     return toTree(roots)
   }, [menus])
 
-  // ====== 表单提交 ======
+  // ====== 提交（新增/更新） ======
   const handleSubmit = async (values: any) => {
     try {
       if (editingRole) {
-        const resp: ApiResult<any> = await api.put(`/roles/${editingRole.id}`, values)
+        const resp = await rolesApi.update(editingRole.id, values)
         if (isSuccess(resp)) {
           message.success('角色更新成功')
           loadRoles()
         } else {
-          message.error(resp.message || '角色更新失败')
+          message.error(getMsg(resp, '角色更新失败'))
         }
       } else {
-        const resp: ApiResult<any> = await api.post('/roles', values)
+        const resp = await rolesApi.create(values)
         if (isSuccess(resp)) {
           message.success('角色创建成功')
           loadRoles()
         } else {
-          message.error(resp.message || '角色创建失败')
+          message.error(getMsg(resp, '角色创建失败'))
         }
       }
       setModalVisible(false)
@@ -262,29 +284,31 @@ const RoleManagementPage: React.FC = () => {
     }
   }
 
+  // ====== 删除 ======
   const handleDelete = async (role: Role) => {
     try {
-      const resp: ApiResult<any> = await api.delete(`/roles/${role.id}`)
+      const resp = await rolesApi.remove(role.id)
       if (isSuccess(resp)) {
         message.success('角色删除成功')
         loadRoles()
       } else {
-        message.error(resp.message || '删除失败')
+        message.error(getMsg(resp, '删除失败'))
       }
     } catch (e: any) {
       message.error(e?.response?.data?.message || '删除失败')
     }
   }
 
+  // ====== 保存权限 ======
   const handleSavePermissions = async () => {
     if (!selectedRole) return
     try {
-      const resp: ApiResult<any> = await api.put(`/roles/${selectedRole.id}/menus`, { menuIds: selectedMenuIds })
+      const resp = await rolesApi.saveMenus(selectedRole.id, selectedMenuIds)
       if (isSuccess(resp)) {
         message.success('权限设置成功')
         setPermissionModalVisible(false)
       } else {
-        message.error(resp.message || '权限设置失败')
+        message.error(getMsg(resp, '权限设置失败'))
       }
     } catch (e: any) {
       message.error(e?.response?.data?.message || '权限设置失败')
@@ -301,11 +325,11 @@ const RoleManagementPage: React.FC = () => {
   const loadRoleUsers = async (roleId: number) => {
     try {
       setMemberLoading(true)
-      const resp: ApiResult<RoleUser[]> = await api.get(`/roles/${roleId}/users`)
+      const resp: ApiResult<any> = await rolesApi.listUsers(roleId)
       if (isSuccess(resp)) {
-        setRoleUsers(resp.data || [])
+        setRoleUsers((resp.data as RoleUser[]) || [])
       } else {
-        message.error(resp.message || '加载角色用户列表失败')
+        message.error(getMsg(resp, '加载角色用户列表失败'))
       }
     } catch (e: any) {
       console.error('加载角色用户列表失败:', e)
@@ -321,20 +345,18 @@ const RoleManagementPage: React.FC = () => {
     setMemberModalVisible(true)
   }
 
-  // 关键修复：不要直接 allUsers.data.users（data 是 unknown）
   const loadAvailableUsers = async (roleId: number) => {
     try {
       setUserSelectLoading(true)
       const allUsers: ApiResult<any> = await api.get('/users')
       if (!isSuccess(allUsers)) {
-        message.error(allUsers.message || '加载用户列表失败')
+        message.error(getMsg(allUsers, '加载用户列表失败'))
         return
       }
-      // 先把 data 存到局部变量，统一判型
       const allUsersData: any = allUsers.data
 
-      const roleUsersResp: ApiResult<RoleUser[]> = await api.get(`/roles/${roleId}/users`)
-      const currentRoleUserIds = isSuccess(roleUsersResp) ? (roleUsersResp.data || []).map(u => u.id) : []
+      const roleUsersResp: ApiResult<RoleUser[]> = await rolesApi.listUsers(roleId)
+      const currentRoleUserIds = isSuccess(roleUsersResp) ? (roleUsersResp.data || []).map(u => (u as any).id) : []
 
       let usersArray: User[] = []
       if (Array.isArray(allUsersData?.users)) {
@@ -369,14 +391,14 @@ const RoleManagementPage: React.FC = () => {
     }
     try {
       setUserSelectLoading(true)
-      const resp: ApiResult<any> = await api.post(`/roles/${selectedRole.id}/users`, { userIds: selectedUserIds })
+      const resp = await rolesApi.addUsers(selectedRole.id, selectedUserIds)
       if (isSuccess(resp)) {
         message.success(`成功添加 ${selectedUserIds.length} 个用户到角色`)
         setUserSelectModalVisible(false)
         setSelectedUserIds([])
         await loadRoleUsers(selectedRole.id)
       } else {
-        message.error(resp.message || '添加用户失败')
+        message.error(getMsg(resp, '添加用户失败'))
       }
     } catch (e: any) {
       console.error('添加用户到角色失败:', e)
@@ -386,26 +408,80 @@ const RoleManagementPage: React.FC = () => {
     }
   }
 
-  // —— 修复：移除后红色提示、列表不更新 —— //
   const removeUserFromRole = async (roleId: number, userId: number) => {
     try {
       setMemberLoading(true)
-      const resp: ApiResult<any> = await api.delete(`/roles/${roleId}/users/${userId}`)
+      const resp = await rolesApi.removeUser(roleId, userId)
       if (isSuccess(resp)) {
-        // 先本地乐观更新
         setRoleUsers(prev => prev.filter(u => u.id !== userId))
         message.success('已从角色中移除该用户')
-        // 再拉取一次，保证一致
         await loadRoleUsers(roleId)
         await loadAvailableUsers(roleId)
       } else {
-        message.error(resp.message || '移除用户失败')
+        message.error(getMsg(resp, '移除用户失败'))
       }
     } catch (e: any) {
       console.error('移除用户失败:', e)
       message.error(e?.response?.data?.message || '移除用户失败')
     } finally {
       setMemberLoading(false)
+    }
+  }
+
+  // ====== 机构相关 ======
+  const buildOrgTree = (nodes: any[] = []): OrgTreeNode[] =>
+    nodes.map(n => ({
+      key: n.id,
+      title: n.name,
+      children: n.children ? buildOrgTree(n.children) : undefined,
+    }))
+
+  const loadOrgTree = async () => {
+    try {
+      setOrgTreeLoading(true)
+      const res: ApiResult<any[]> = await orgs.getTree(false as any)
+      if (isSuccess(res)) {
+        const t = buildOrgTree(res.data || [])
+        setOrgTree(t)
+      } else {
+        setOrgTree([])
+        message.error(getMsg(res, '加载机构树失败'))
+      }
+    } catch (e: any) {
+      console.error('加载机构树失败:', e)
+      message.error(e?.message || '加载机构树失败')
+    } finally {
+      setOrgTreeLoading(false)
+    }
+  }
+
+  const openOrgSelectModal = async () => {
+    if (!selectedRole) return
+    setCheckedOrgIds([])
+    await loadOrgTree()
+    setOrgSelectModalVisible(true)
+  }
+
+  const addOrgsToRole = async () => {
+    if (!selectedRole) return
+    if (checkedOrgIds.length === 0) {
+      message.warning('请选择要关联的机构')
+      return
+    }
+    try {
+      const resp: ApiResult<any> = await rolesApi.addOrgs(selectedRole.id, checkedOrgIds)
+      if (isSuccess(resp)) {
+        message.success('机构关联成功')
+        setOrgSelectModalVisible(false)
+        setCheckedOrgIds([])
+        await loadRoleUsers(selectedRole.id)
+        await loadAvailableUsers(selectedRole.id)
+      } else {
+        message.error(getMsg(resp, '机构关联失败'))
+      }
+    } catch (e: any) {
+      console.error('机构关联失败:', e)
+      message.error(e?.response?.data?.message || '机构关联失败（请确认后端已实现 /roles/:id/orgs）')
     }
   }
 
@@ -459,7 +535,7 @@ const RoleManagementPage: React.FC = () => {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 140,
       render: (_, record) => {
         const menuItems: MenuProps['items'] = [
           {
@@ -478,7 +554,7 @@ const RoleManagementPage: React.FC = () => {
             label: '权限设置',
             onClick: () => openPermissionModal(record),
           },
-          { key: 'members', icon: <TeamOutlined />, label: '成员管理', onClick: () => openMemberModal(record) },
+          { key: 'members', icon: <TeamOutlined />, label: '添加用户', onClick: () => openMemberModal(record) },
         ]
         if (!record.is_system) {
           menuItems.push({
@@ -545,7 +621,7 @@ const RoleManagementPage: React.FC = () => {
                     form.setFieldsValue({ sort_order: 1 })
                     return
                   }
-                  const resp: ApiResult<number> = await api.get('/roles/next-sort-order')
+                  const resp = await rolesApi.nextSortOrder()
                   if (isSuccess(resp)) {
                     setNextSortOrder(resp.data as number)
                     form.setFieldsValue({ sort_order: resp.data })
@@ -565,7 +641,7 @@ const RoleManagementPage: React.FC = () => {
           </div>
         </div>
 
-        <Table columns={columns} dataSource={roles} rowKey="id" loading={loading} pagination={false} />
+        <Table columns={columns} dataSource={roleList} rowKey="id" loading={loading} pagination={false} />
 
         <div className="mt-4">
           <Pagination
@@ -708,12 +784,12 @@ const RoleManagementPage: React.FC = () => {
         )}
       </Modal>
 
-      {/* 成员管理 */}
+      {/* 添加用户（原“成员管理”） */}
       <Modal
-        title={`成员管理 - ${selectedRole?.name ?? ''}`}
+        title={`添加用户 - ${selectedRole?.name ?? ''}`}
         open={memberModalVisible}
         onCancel={() => setMemberModalVisible(false)}
-        width={800}
+        width={900}
         footer={[
           <Button key="close" onClick={() => setMemberModalVisible(false)}>
             关闭
@@ -732,16 +808,24 @@ const RoleManagementPage: React.FC = () => {
 
             <div className="border-t pt-4">
               <div className="flex justify-between items-center mb-3">
-                <h3 className="text-lg font-medium">角色成员</h3>
-                <Button type="primary" icon={<PlusOutlined />} onClick={openUserSelectModal}>
-                  添加成员
+                <Space size="middle">
+                  <h3 className="text-lg font-medium">当前用户</h3>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openUserSelectModal}>
+                    添加用户
+                  </Button>
+                  <Button icon={<ApartmentOutlined />} onClick={openOrgSelectModal}>
+                    添加机构
+                  </Button>
+                </Space>
+                <Button size="small" onClick={() => loadRoleUsers(selectedRole.id)}>
+                  刷新
                 </Button>
               </div>
 
               {memberLoading ? (
                 <div className="text-center py-8">加载中...</div>
               ) : roleUsers.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">该角色暂无成员</div>
+                <div className="text-center py-8 text-gray-500">该角色暂无用户</div>
               ) : (
                 <Table
                   dataSource={roleUsers}
@@ -800,7 +884,7 @@ const RoleManagementPage: React.FC = () => {
 
       {/* 选择用户 */}
       <Modal
-        title={`添加成员到角色 - ${selectedRole?.name ?? ''}`}
+        title={`添加用户到角色 - ${selectedRole?.name ?? ''}`}
         open={userSelectModalVisible}
         onCancel={() => {
           setUserSelectModalVisible(false)
@@ -861,6 +945,41 @@ const RoleManagementPage: React.FC = () => {
             ]}
           />
         )}
+      </Modal>
+
+      {/* 选择机构 */}
+      <Modal
+        title={`添加机构到角色 - ${selectedRole?.name ?? ''}`}
+        open={orgSelectModalVisible}
+        onCancel={() => {
+          setOrgSelectModalVisible(false)
+          setCheckedOrgIds([])
+        }}
+        width={600}
+        okText="关联所选机构"
+        cancelText="取消"
+        onOk={addOrgsToRole}
+      >
+        {orgTreeLoading ? (
+          <div className="text-center py-8">机构加载中...</div>
+        ) : orgTree.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">暂无机构数据</div>
+        ) : (
+          <div style={{ maxHeight: 480, overflow: 'auto', border: '1px solid #f0f0f0', borderRadius: 8, padding: 8 }}>
+            <Tree
+              showIcon
+              icon={<ApartmentOutlined />}
+              checkable
+              defaultExpandAll
+              treeData={orgTree as any}
+              checkedKeys={checkedOrgIds}
+              onCheck={(keys: any) => setCheckedOrgIds((Array.isArray(keys) ? keys : keys?.checked) as number[])}
+            />
+          </div>
+        )}
+        <div style={{ marginTop: 8, color: '#8c8c8c' }}>
+          说明：提交后会调用 <code>POST /roles/:roleId/orgs</code> 进行角色与机构的关联。
+        </div>
       </Modal>
     </div>
   )

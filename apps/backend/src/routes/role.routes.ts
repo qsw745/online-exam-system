@@ -1,8 +1,8 @@
-// apps/backend/src/routes/role.routes.ts
 import { Router, type RequestHandler } from 'express'
 import { ROLE_IDS } from '../constants/roles.js'
 import {
   addUsersToRole,
+  checkCode,
   createRole,
   deleteRole,
   getAllRoles,
@@ -14,7 +14,11 @@ import {
   removeUserFromRole,
   setRoleMenus,
   setUserRoles,
+  suggestCode,
   updateRole,
+  getRoleOrgs,
+  addRoleOrgs,
+  removeRoleOrg,
 } from '../controllers/role.controller.js'
 import { authenticateToken } from '../middleware/auth.middleware.js'
 import { requireRole } from '../middleware/roleAuth.js'
@@ -31,6 +35,10 @@ const router = Router()
 
 // 所有路由都需要认证
 router.use(authenticateToken)
+
+// 便捷校验/推荐编码
+router.get('/check-code', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(checkCode))
+router.get('/suggest-code', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(suggestCode))
 
 // 角色管理路由
 router.get('/', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getAllRoles))
@@ -51,6 +59,11 @@ router.put('/users/:userId/roles', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(set
 // 角色用户管理
 router.get('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleUsers))
 router.post('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(addUsersToRole))
-// ✨ 新增删除单个成员
 router.delete('/:roleId/users/:userId', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(removeUserFromRole))
+
+
+// 角色⇄机构
+router.get('/:id/orgs', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleOrgs))
+router.post('/:id/orgs', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(addRoleOrgs))
+router.delete('/:id/orgs/:orgId', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(removeRoleOrg))
 export default router

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express'
 import { CreateRoleRequest, UpdateRoleRequest } from '../models/menu.model.js'
-import { RoleService } from '../services/role.service.js'
+import { DuplicateCodeError, RoleService, slugifyCode } from '../services/role.service.js'
 import type { AuthRequest } from '../types/auth.js'
 
 /**
@@ -100,7 +100,7 @@ export const getRoleById = async (req: Request, res: Response): Promise<void> =>
 }
 
 /**
- * 创建角色
+ * 创建角色（409 语义化错误）
  */
 export const createRole = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -118,15 +118,24 @@ export const createRole = async (req: Request, res: Response): Promise<void> => 
       message: '角色创建成功',
     })
     return
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('创建角色失败:', error)
+    if (error instanceof DuplicateCodeError) {
+      res.status(error.status).json({ success: false, message: error.message })
+      return
+    }
+    // 兜底：数据库唯一键也映射为 409
+    if (error?.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({ success: false, message: '角色编码已存在，请使用其他编码' })
+      return
+    }
     res.status(500).json({ success: false, message: '创建角色失败' })
     return
   }
 }
 
 /**
- * 更新角色
+ * 更新角色（409 语义化错误）
  */
 export const updateRole = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -147,8 +156,16 @@ export const updateRole = async (req: Request, res: Response): Promise<void> => 
 
     res.json({ success: true, data: role, message: '角色更新成功' })
     return
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('更新角色失败:', error)
+    if (error instanceof DuplicateCodeError) {
+      res.status(error.status).json({ success: false, message: error.message })
+      return
+    }
+    if (error?.code === 'ER_DUP_ENTRY') {
+      res.status(409).json({ success: false, message: '角色编码已存在，请使用其他编码' })
+      return
+    }
     res.status(500).json({ success: false, message: '更新角色失败' })
     return
   }
@@ -321,12 +338,11 @@ export const getNextSortOrder = async (req: Request, res: Response): Promise<voi
   try {
     const nextSortOrder = await RoleService.getNextSortOrder()
     res.json({ success: true, data: nextSortOrder })
-    return
   } catch (error: unknown) {
     console.error('获取下一个排序号失败:', error)
     res.status(500).json({ success: false, message: '获取下一个排序号失败' })
-    return
   }
+  return
 }
 
 /**
@@ -356,5 +372,98 @@ export const addUsersToRole = async (req: AuthRequest, res: Response): Promise<v
     const message = error instanceof Error ? error.message : '添加用户到角色失败'
     res.status(500).json({ success: false, message })
     return
+  }
+}
+
+/** 新增：校验编码唯一性 */
+export const checkCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const raw = String(req.query.code ?? '').trim()
+    const code = slugifyCode(raw)
+    if (!code) {
+      res.status(400).json({ success: false, message: 'code 不能为空' })
+      return
+    }
+    const exists = await RoleService.codeExists(code)
+    res.json({ success: true, data: { exists, code } })
+  } catch (e) {
+    console.error('check-code 失败:', e)
+    res.status(500).json({ success: false, message: '校验编码失败' })
+  }
+}
+
+/** 新增：给定名称返回一个可用的编码 */
+export const suggestCode = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const name = String(req.query.name ?? '').trim()
+    if (!name) {
+      res.status(400).json({ success: false, message: 'name 不能为空' })
+      return
+    }
+    const code = await RoleService.suggestUniqueCode(name)
+    res.json({ success: true, data: code })
+  } catch (e) {
+    console.error('suggest-code 失败:', e)
+    res.status(500).json({ success: false, message: '生成编码失败' })
+  }
+}
+// ===== 角色 ⇄ 机构 =====
+export const getRoleOrgs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rid = Number(req.params.id)
+    if (!Number.isFinite(rid)) {
+      res.status(400).json({ success: false, message: '无效的角色ID' })
+      return
+    }
+    const data = await RoleService.getRoleOrgs(rid)
+    res.json({ success: true, data })
+  } catch (e: any) {
+    console.error('获取角色机构失败:', e)
+    res.status(500).json({ success: false, message: e?.message || '获取角色机构失败' })
+  }
+}
+
+export const addRoleOrgs = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rid = Number(req.params.id)
+    const { orgIds } = req.body as { orgIds: number[] }
+    if (!Number.isFinite(rid)) {
+      res.status(400).json({ success: false, message: '无效的角色ID' })
+      return
+    }
+    if (!Array.isArray(orgIds) || orgIds.length === 0) {
+      res.status(400).json({ success: false, message: '请选择要关联的机构' })
+      return
+    }
+    const added = await RoleService.addOrgsToRole(rid, orgIds)
+    res.json({ success: true, message: `成功关联 ${added} 个机构` })
+  } catch (e: any) {
+    console.error('关联机构失败:', e)
+    // 常见业务错误直接 400
+    if (e?.message && ['角色不存在', '没有可添加的机构'].includes(e.message)) {
+      res.status(400).json({ success: false, message: e.message })
+      return
+    }
+    res.status(500).json({ success: false, message: e?.message || '关联机构失败' })
+  }
+}
+
+export const removeRoleOrg = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const rid = Number(req.params.id)
+    const oid = Number(req.params.orgId)
+    if (!Number.isFinite(rid) || !Number.isFinite(oid)) {
+      res.status(400).json({ success: false, message: '无效的角色或机构ID' })
+      return
+    }
+    await RoleService.removeOrgFromRole(rid, oid)
+    res.json({ success: true, message: '已移除该机构' })
+  } catch (e: any) {
+    console.error('移除机构失败:', e)
+    if (e?.message && ['角色不存在', '机构不存在', '该角色未关联该机构'].includes(e.message)) {
+      res.status(400).json({ success: false, message: e.message })
+      return
+    }
+    res.status(500).json({ success: false, message: e?.message || '移除机构失败' })
   }
 }

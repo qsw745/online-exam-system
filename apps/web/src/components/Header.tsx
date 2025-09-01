@@ -141,9 +141,10 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
           maxWidth: 1200,
           margin: '0 auto',
           display: 'flex',
-          height: 56,
+          height: 69,
           alignItems: 'center',
           padding: '0 16px',
+          overflow: 'hidden',
         }}
       >
         <div style={{ marginRight: 16, display: 'flex' }}>

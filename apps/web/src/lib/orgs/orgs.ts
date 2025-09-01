@@ -30,4 +30,6 @@ export const orgs = {
       org_ids: orgIds,
       ...(primaryOrgId ? { primary_org_id: primaryOrgId } : {}),
     }),
+  // 如果后端支持：获取角色已关联的机构
+  roleOrgs: (roleId: number) => api.get(`/roles/${roleId}/orgs`),
 }

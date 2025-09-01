@@ -17,7 +17,94 @@ function toIntOrDefault(v: any, dflt: number): number {
   return Number.isFinite(n) ? n : dflt
 }
 
+/** 规范化 code：小写、空格/中文→下划线、仅保留 a-z0-9_、去重下划线与首尾下划线 */
+export function slugifyCode(input: string): string {
+  return (
+    (input || '')
+      .toLowerCase()
+      .trim()
+      .replace(/[\s\u4e00-\u9fa5]+/g, '_')
+      .replace(/[^a-z0-9_]/g, '')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '') || 'role'
+  )
+}
+
+/** 409 业务错误 */
+export class DuplicateCodeError extends Error {
+  status = 409 as const
+  constructor(msg = '角色编码已存在') {
+    super(msg)
+  }
+}
+
 export class RoleService {
+  // ===== 在 RoleService 类里新增：缓存与工具 =====
+  private static __ORG_TABLE_CACHE: string | null = null
+  private static __ORG_NAME_COL_CACHE: string | null = null
+  /** 解析机构表名：优先用环境变量 ORG_TABLE；否则在当前库内按候选表名自动探测一次并缓存 */
+  private static async resolveOrgTableName(): Promise<string> {
+    if (this.__ORG_TABLE_CACHE) return this.__ORG_TABLE_CACHE
+    const envName = (process.env.ORG_TABLE || '').trim()
+    if (envName) {
+      this.__ORG_TABLE_CACHE = envName
+      return envName
+    }
+    const candidates = ['orgs', 'organizations', 'organization', 'dept', 'depts', 'departments', 'sys_org', 'sys_orgs']
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT TABLE_NAME 
+       FROM information_schema.tables 
+      WHERE table_schema = DATABASE() 
+        AND TABLE_NAME IN (${candidates.map(() => '?').join(',')}) 
+      LIMIT 1`,
+      candidates
+    )
+    if (rows.length === 0) {
+      throw new Error('未找到机构表，请设置环境变量 ORG_TABLE 指向实际的机构表名')
+    }
+    const found = String(rows[0].TABLE_NAME)
+    this.__ORG_TABLE_CACHE = found
+    return found
+  }
+  /** 解析机构名称列名：在机构表中寻找最合适的名称字段，找不到则为 null（届时只返回 id） */
+  private static async resolveOrgNameColumn(table: string): Promise<string | null> {
+    if (this.__ORG_NAME_COL_CACHE) return this.__ORG_NAME_COL_CACHE
+    const prefer = ['name', 'title', 'org_name', 'label', 'orgTitle', 'orgLabel']
+    const [cols] = await pool.execute<RowDataPacket[]>(
+      `SELECT COLUMN_NAME 
+       FROM information_schema.columns 
+      WHERE table_schema = DATABASE() 
+        AND table_name = ?`,
+      [table]
+    )
+    const set = new Set((cols as any[]).map(c => String(c.COLUMN_NAME)))
+    const hit = prefer.find(c => set.has(c)) || null
+    this.__ORG_NAME_COL_CACHE = hit
+    return hit
+  }
+  /** code 是否已存在（忽略大小写） */
+  static async codeExists(code: string): Promise<boolean> {
+    const norm = slugifyCode(code)
+    const [rows] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE LOWER(code) = LOWER(?) LIMIT 1', [
+      norm,
+    ])
+    return (rows as any[]).length > 0
+  }
+
+  /** 基于名称/初始 code 生成一个不冲突的编码（base, base_1, base_2...） */
+  static async suggestUniqueCode(nameOrCode: string): Promise<string> {
+    const base = slugifyCode(nameOrCode)
+    let candidate = base
+    let i = 0
+    // 保险：防止极端并发，最多尝试 100 次
+    while (await RoleService.codeExists(candidate)) {
+      i += 1
+      candidate = `${base}_${i}`
+      if (i > 100) break
+    }
+    return candidate
+  }
+
   /** 从角色移除一个用户 */
   static async removeUserFromRole(roleId: number, userId: number): Promise<void> {
     const [r] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE id = ?', [roleId])
@@ -51,9 +138,9 @@ export class RoleService {
     let searchParams: any[] = []
 
     if (keyword && keyword.trim()) {
-      whereClause = 'WHERE name LIKE ? OR description LIKE ?'
+      whereClause = 'WHERE name LIKE ? OR description LIKE ? OR code LIKE ?'
       const s = `%${keyword.trim()}%`
-      searchParams = [s, s]
+      searchParams = [s, s, s]
     }
 
     const [countRows] = await pool.execute<RowDataPacket[]>(
@@ -86,26 +173,30 @@ export class RoleService {
     return rows.length > 0 ? (rows[0] as Role) : null
   }
 
-  /** 创建角色（修复 undefined 传参问题） */
+  /** 创建角色：规范化 code + 唯一校验 + 409 语义化错误 */
   static async createRole(roleData: CreateRoleRequest): Promise<Role> {
     // 1) 取值并规范化
     const rawName = String(roleData?.name ?? '').trim()
     if (!rawName) throw new Error('角色名称不能为空')
 
-    let code = typeof roleData?.code === 'string' ? roleData.code.trim() : ''
+    const rawCode = typeof roleData?.code === 'string' ? roleData.code.trim() : ''
     const description = u2n(roleData?.description) // undefined -> null
     const is_disabled = toTinyint(roleData?.is_disabled) // -> 0/1
 
-    // 2) 名称唯一
+    // 2) 名称是否已存在（可选，如果你希望允许重复名称可移除此段）
     const [existingRoles] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE name = ?', [rawName])
     if (existingRoles.length > 0) throw new Error('角色名称已存在，请使用其他名称')
 
-    // 3) 生成/校验编码
-    if (!code) {
-      code = await this.generateRoleCode(rawName)
+    // 3) 生成/校验编码（避免与库中冲突）
+    let code: string
+    if (!rawCode) {
+      code = await this.suggestUniqueCode(rawName)
     } else {
-      const [existingCodes] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE code = ?', [code])
-      if (existingCodes.length > 0) throw new Error('角色编码已存在，请使用其他编码')
+      code = slugifyCode(rawCode)
+      const [existingCodes] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE LOWER(code) = LOWER(?)', [
+        code,
+      ])
+      if (existingCodes.length > 0) throw new DuplicateCodeError('角色编码已存在，请使用其他编码')
     }
 
     // 4) 排序号
@@ -118,17 +209,25 @@ export class RoleService {
     finalSortOrder = toIntOrDefault(finalSortOrder, 1)
 
     // 5) 插入（确保所有参数都不是 undefined）
-    const [result] = await pool.execute<ResultSetHeader>(
-      'INSERT INTO roles (name, code, description, sort_order, is_disabled) VALUES (?, ?, ?, ?, ?)',
-      [rawName, code, description, finalSortOrder, is_disabled]
-    )
+    try {
+      const [result] = await pool.execute<ResultSetHeader>(
+        'INSERT INTO roles (name, code, description, sort_order, is_disabled, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())',
+        [rawName, code, description, finalSortOrder, is_disabled]
+      )
 
-    const role = await this.getRoleById(result.insertId)
-    if (!role) throw new Error('创建角色失败')
-    return role
+      const role = await this.getRoleById(result.insertId)
+      if (!role) throw new Error('创建角色失败')
+      return role
+    } catch (e: any) {
+      // DB 唯一键错误（建议在 DB 有 UNIQUE(code)）
+      if (e?.code === 'ER_DUP_ENTRY') {
+        throw new DuplicateCodeError('角色编码已存在，请使用其他编码')
+      }
+      throw e
+    }
   }
 
-  /** 更新角色（同样规避 undefined） */
+  /** 更新角色（同样规避 undefined；若允许改编码，同步唯一校验） */
   static async updateRole(id: number, roleData: UpdateRoleRequest): Promise<Role | null> {
     const role = await this.getRoleById(id)
     if (!role) return null
@@ -144,13 +243,14 @@ export class RoleService {
     }
 
     if (roleData.code !== undefined && !role.is_system) {
-      const newCode = String(roleData.code).trim()
-      if (!newCode) throw new Error('角色编码不能为空')
-      const [existingCodes] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE code = ? AND id != ?', [
-        newCode,
-        id,
-      ])
-      if (existingCodes.length > 0) throw new Error('角色编码已存在，请使用其他编码')
+      const newCodeRaw = String(roleData.code).trim()
+      if (!newCodeRaw) throw new Error('角色编码不能为空')
+      const newCode = slugifyCode(newCodeRaw)
+      const [existingCodes] = await pool.execute<RowDataPacket[]>(
+        'SELECT id FROM roles WHERE LOWER(code) = LOWER(?) AND id != ?',
+        [newCode, id]
+      )
+      if (existingCodes.length > 0) throw new DuplicateCodeError('角色编码已存在，请使用其他编码')
       updateFields.push('code = ?')
       updateValues.push(newCode)
     }
@@ -173,10 +273,17 @@ export class RoleService {
     if (updateFields.length === 0) return role
 
     updateValues.push(id)
-    await pool.execute(
-      `UPDATE roles SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-      updateValues
-    )
+    try {
+      await pool.execute(
+        `UPDATE roles SET ${updateFields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+        updateValues
+      )
+    } catch (e: any) {
+      if (e?.code === 'ER_DUP_ENTRY') {
+        throw new DuplicateCodeError('角色编码已存在，请使用其他编码')
+      }
+      throw e
+    }
 
     return await this.getRoleById(id)
   }
@@ -310,25 +417,9 @@ export class RoleService {
     return maxSort + 1
   }
 
-  /** 自动生成角色编码 */
+  /** 自动生成角色编码（兼容旧调用） */
   static async generateRoleCode(name: string): Promise<string> {
-    let baseCode = name
-      .toLowerCase()
-      .replace(/[\s\u4e00-\u9fa5]+/g, '_')
-      .replace(/[^a-z0-9_]/g, '')
-      .replace(/_+/g, '_')
-      .replace(/^_|_$/g, '')
-    if (!baseCode) baseCode = 'role'
-
-    let code = baseCode
-    let counter = 1
-    // 防重复
-    while (true) {
-      const [existingCodes] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE code = ?', [code])
-      if (existingCodes.length === 0) break
-      code = `${baseCode}_${counter++}`
-    }
-    return code
+    return this.suggestUniqueCode(name)
   }
 
   /** 批量把用户加入角色 */
@@ -363,5 +454,88 @@ export class RoleService {
     } finally {
       connection.release()
     }
+  }
+
+  // ===== 角色 ⇄ 机构（替换你现有的三个方法） =====
+  /** 获取角色已关联的机构列表（id 与可用的 name） */
+  static async getRoleOrgs(roleId: number): Promise<Array<{ id: number; name?: string }>> {
+    const [roleRows] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE id = ?', [roleId])
+    if (roleRows.length === 0) throw new Error('角色不存在')
+
+    const orgTable = await this.resolveOrgTableName()
+    const nameCol = await this.resolveOrgNameColumn(orgTable)
+
+    let sql = `SELECT o.id`
+    if (nameCol) sql += `, o.\`${nameCol}\` AS name`
+    sql += ` FROM role_orgs ro JOIN \`${orgTable}\` o ON o.id = ro.org_id WHERE ro.role_id = ? ORDER BY o.id`
+
+    const [rows] = await pool.execute<RowDataPacket[]>(sql, [roleId])
+    return rows as any
+  }
+
+  /** 批量添加机构到角色（去重，只添加未存在的） */
+  static async addOrgsToRole(roleId: number, orgIds: number[]): Promise<number> {
+    if (!Array.isArray(orgIds) || orgIds.length === 0) return 0
+
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+
+      const [roleRows] = await conn.execute<RowDataPacket[]>('SELECT id FROM roles WHERE id = ?', [roleId])
+      if (roleRows.length === 0) throw new Error('角色不存在')
+
+      const orgTable = await this.resolveOrgTableName()
+
+      // 过滤不存在的 orgId（仅校验 id 是否存在）
+      const placeholders = orgIds.map(() => '?').join(',')
+      const [orgRows] = await conn.execute<RowDataPacket[]>(
+        `SELECT id FROM \`${orgTable}\` WHERE id IN (${placeholders})`,
+        orgIds
+      )
+      const existingOrgIds = new Set((orgRows as any[]).map(r => Number(r.id)))
+      const validOrgIds = orgIds.filter(id => existingOrgIds.has(Number(id)))
+      if (validOrgIds.length === 0) throw new Error('没有可添加的机构')
+
+      // 已存在的关联
+      const [existsRows] = await conn.execute<RowDataPacket[]>(
+        `SELECT org_id FROM role_orgs WHERE role_id = ? AND org_id IN (${validOrgIds.map(() => '?').join(',')})`,
+        [roleId, ...validOrgIds]
+      )
+      const existed = new Set((existsRows as any[]).map(r => Number(r.org_id)))
+      const toInsert = validOrgIds.filter(id => !existed.has(Number(id)))
+      if (toInsert.length === 0) {
+        await conn.commit()
+        return 0
+      }
+
+      await conn.execute(
+        `INSERT INTO role_orgs (role_id, org_id) VALUES ${toInsert.map(() => '(?, ?)').join(', ')}`,
+        toInsert.flatMap(oid => [roleId, oid])
+      )
+
+      await conn.commit()
+      return toInsert.length
+    } catch (e) {
+      await conn.rollback()
+      throw e
+    } finally {
+      conn.release()
+    }
+  }
+
+  /** 从角色移除单个机构 */
+  static async removeOrgFromRole(roleId: number, orgId: number): Promise<void> {
+    const [r] = await pool.execute<RowDataPacket[]>('SELECT id FROM roles WHERE id = ?', [roleId])
+    if (r.length === 0) throw new Error('角色不存在')
+
+    const orgTable = await this.resolveOrgTableName()
+    const [o] = await pool.execute<RowDataPacket[]>(`SELECT id FROM \`${orgTable}\` WHERE id = ?`, [orgId])
+    if (o.length === 0) throw new Error('机构不存在')
+
+    const [ret] = await pool.execute<ResultSetHeader>('DELETE FROM role_orgs WHERE role_id = ? AND org_id = ?', [
+      roleId,
+      orgId,
+    ])
+    if (ret.affectedRows === 0) throw new Error('该角色未关联该机构')
   }
 }
