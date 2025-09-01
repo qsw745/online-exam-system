@@ -26,13 +26,64 @@ import { userRoutes } from './routes/user.routes.js'
 import wrongQuestionRoutes from './routes/wrong-question.routes.js'
 import { ApiResponse } from './types/response.js'
 import { syncMenus } from './bootstrap/syncMenus.js'
+;(function patchConsoleWithTimestamp() {
+  if ((global as any).__console_ts_patched) return
+  ;(global as any).__console_ts_patched = true
 
+  function formatDate() {
+    const d = new Date()
+    const pad = (n: number) => n.toString().padStart(2, '0')
+    return (
+      d.getFullYear() +
+      '-' +
+      pad(d.getMonth() + 1) +
+      '-' +
+      pad(d.getDate()) +
+      ' ' +
+      pad(d.getHours()) +
+      ':' +
+      pad(d.getMinutes()) +
+      ':' +
+      pad(d.getSeconds())
+    )
+  }
+
+  const withTs = <T extends (...args: any[]) => any>(fn: T): T =>
+    ((...args: any[]) => fn.apply(console, [`[${formatDate()}]`, ...args])) as T
+
+  console.log = withTs(console.log.bind(console))
+  console.info = withTs(console.info?.bind(console) ?? console.log.bind(console))
+  console.warn = withTs(console.warn.bind(console))
+  console.error = withTs(console.error.bind(console))
+  console.debug = withTs(console.debug?.bind(console) ?? console.log.bind(console))
+})()
+// 注册一个自定义 token
+morgan.token('local-date', () => {
+  const d = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return (
+    d.getFullYear() +
+    '-' +
+    pad(d.getMonth() + 1) +
+    '-' +
+    pad(d.getDate()) +
+    ' ' +
+    pad(d.getHours()) +
+    ':' +
+    pad(d.getMinutes()) +
+    ':' +
+    pad(d.getSeconds())
+  );
+});
 const app = express()
 
 // 中间件
 app.use(cors())
 app.use(express.json())
-app.use(morgan('dev'))
+// 使用自定义格式
+app.use(
+  morgan(':local-date :method :url :status :response-time ms - :res[content-length]')
+);
 // 静态文件服务中间件，用于访问上传的头像文件
 app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 

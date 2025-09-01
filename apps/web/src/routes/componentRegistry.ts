@@ -1,4 +1,3 @@
-// src/routes/componentRegistry.ts
 import React, { lazy } from 'react'
 
 import DashboardPage from '../pages/DashboardPage'
@@ -7,14 +6,14 @@ import OrgManage from '../pages/admin/OrgManage'
 import RoleManagementPage from '../pages/admin/RoleManagementPage'
 import NotFound404 from '../pages/errors/NotFound404'
 
-// 其余常规页
+// 常规页
 import QuestionsPage from '../pages/QuestionsPage'
 import ResultsPage from '../pages/ResultsPage'
 import QuestionPracticePage from '../pages/QuestionPracticePage'
 import SettingsPage from '../pages/SettingsPage'
 import LogsPage from '../pages/LogsPage'
 import NotificationsPage from '../pages/NotificationsPage'
-import TasksPage from '../pages/TasksPage'
+import TasksPage from '../pages/TasksPage' // 原有的“任务管理”总页
 import FavoritesPage from '../pages/FavoritesPage'
 import LearningProgressPage from '../pages/LearningProgressPage'
 import WrongQuestionsPage from '../pages/WrongQuestionsPage'
@@ -25,14 +24,18 @@ import ProfilePage from '../pages/ProfilePage'
 // 懒加载示例
 const ExamListPage = lazy(() => import('../pages/ExamListPage'))
 
-// 错误页（如果你有独立文件，按需引入；没有就让前端统一到 NotFound/内置）
-const Error403 = lazy(() => import('../pages/errors/Forbidden403')) // 若文件名不同请改成真实路径
+// 错误页
+const Error403 = lazy(() => import('../pages/errors/Forbidden403'))
 const Error404 = lazy(() => import('../pages/errors/NotFound404'))
 const Error500 = lazy(() => import('../pages/errors/ServerError500'))
 
-// 菜单管理页面（按你的文件路径）
+// 菜单管理 / 用户管理
 const MenuManagePage = lazy(() => import('../pages/admin/MenuManagementPage'))
 const UserManagementPage = lazy(() => import('../pages/admin/UserManagementPage'))
+
+// ⬇️ 新增：我的任务 / 发布任务页面
+const MyTasksPage = lazy(() => import('../pages/tasks/MyTasksPage'))
+const PublishTaskPage = lazy(() => import('../pages/tasks/PublishTaskPage'))
 
 export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   // 基础
@@ -55,7 +58,7 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   settings: SettingsPage,
   logs: LogsPage,
   notifications: NotificationsPage,
-  tasks: TasksPage,
+  tasks: TasksPage, // 原“任务管理”
   'menu-manage': MenuManagePage,
 
   // 学习中心
@@ -65,8 +68,12 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   discussion: DiscussionPage,
   leaderboard: LeaderboardPage,
 
+  // 新增映射
+  'task-my': MyTasksPage, // 我的任务
+  'task-publish': PublishTaskPage, // 发布任务
+
   // 错误页管理
-  errors: NotFound404, // 如果你有一个“错误页汇总页面”，改成那个组件
+  errors: NotFound404,
   'errors-403': Error403,
   'errors-404': Error404,
   'errors-500': Error500,

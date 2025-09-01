@@ -45,7 +45,7 @@ export const MENU_TREE: MenuSeed[] = [
         name: 'exam-list',
         title: '考试列表',
         path: '/exam/list',
-        component: 'exam-list', // 前端映射到 ExamListPage
+        component: 'exam-list',
         menu_type: 'page',
         sort_order: 2,
         meta: { requireAuth: true },
@@ -55,7 +55,7 @@ export const MENU_TREE: MenuSeed[] = [
         name: 'exam-results',
         title: '考试结果',
         path: '/results',
-        component: 'results', // 前端映射到 ResultsPage
+        component: 'results',
         menu_type: 'page',
         sort_order: 5,
         meta: { requireAuth: true },
@@ -65,7 +65,7 @@ export const MENU_TREE: MenuSeed[] = [
         name: 'exam-practice',
         title: '题目练习',
         path: '/questions/practice',
-        component: 'question-practice', // 前端映射到 QuestionPracticePage
+        component: 'question-practice',
         menu_type: 'page',
         sort_order: 20,
         meta: { requireAuth: true },
@@ -79,7 +79,7 @@ export const MENU_TREE: MenuSeed[] = [
     name: 'question',
     title: '题库管理',
     path: '/questions',
-    component: 'questions', // 映射 QuestionsPage
+    component: 'questions',
     icon: 'question-circle',
     menu_type: 'menu',
     sort_order: 30,
@@ -90,11 +90,10 @@ export const MENU_TREE: MenuSeed[] = [
         name: 'question-maintain',
         title: '题库维护',
         path: '/admin/questions',
-        component: 'questions', // 仍复用 QuestionsPage
+        component: 'questions',
         menu_type: 'page',
         sort_order: 1,
         meta: { requireAuth: true },
-        // permission_code: 'question:view'
       },
     ],
   },
@@ -104,7 +103,7 @@ export const MENU_TREE: MenuSeed[] = [
     name: 'user',
     title: '用户管理',
     path: '/admin/users',
-    component: 'user-manage', // 前端映射到 UserManagementPage
+    component: 'user-manage',
     icon: 'user',
     menu_type: 'menu',
     sort_order: 40,
@@ -215,7 +214,7 @@ export const MENU_TREE: MenuSeed[] = [
       {
         name: 'admin-org',
         title: '组织管理',
-        path: '/orgs', // 你的实际页面是 /orgs
+        path: '/orgs',
         component: 'admin-org',
         menu_type: 'page',
         sort_order: 1,
@@ -250,28 +249,41 @@ export const MENU_TREE: MenuSeed[] = [
         meta: { requireAuth: true },
         permission_code: 'system:logs',
       },
-      {
-        name: 'system-notifications',
-        title: '通知管理',
-        path: '/notifications',
-        component: 'notifications',
-        icon: 'bell',
-        menu_type: 'page',
-        sort_order: 60,
-        meta: { requireAuth: true },
-        permission_code: 'system:notifications',
-      },
+
+      // ✅ 任务管理 → 改为“菜单”，并新增两个子菜单
       {
         name: 'system-tasks',
         title: '任务管理',
         path: '/tasks',
-        component: 'tasks',
         icon: 'calendar',
-        menu_type: 'page',
+        menu_type: 'menu',
         sort_order: 70,
         meta: { requireAuth: true },
         permission_code: 'system:tasks',
+        children: [
+          {
+            name: 'task-my',
+            title: '我的任务',
+            path: '/tasks/my',
+            component: 'task-my', // 前端注册表里映射到“我的任务”页面
+            menu_type: 'page',
+            sort_order: 1,
+            meta: { requireAuth: true },
+            permission_code: 'system:tasks:my',
+          },
+          {
+            name: 'task-publish',
+            title: '发布任务',
+            path: '/tasks/publish',
+            component: 'task-publish', // 前端注册表里映射到“发布任务”页面
+            menu_type: 'page',
+            sort_order: 2,
+            meta: { requireAuth: true },
+            permission_code: 'system:tasks:publish',
+          },
+        ],
       },
+
       {
         name: 'system-menus',
         title: '菜单管理',
@@ -291,7 +303,7 @@ export const MENU_TREE: MenuSeed[] = [
     name: 'error-management',
     title: '错误页面管理',
     path: '/errors',
-    component: 'errors', // 可做占位/列表
+    component: 'errors',
     icon: 'warning',
     menu_type: 'menu',
     sort_order: 50,
