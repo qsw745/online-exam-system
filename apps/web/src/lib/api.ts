@@ -247,7 +247,17 @@ export const dashboard = {
 }
 
 export const favorites = {
-  list: () => api.get('/favorites').then(r => (r.success ? r : { success: true, data: { favorites: [] } })),
+  // 永远返回成功结构，出错时给空列表
+  list: async (): Promise<ApiSuccess<{ favorites: any[] }>> => {
+    const r = await api.get<{ favorites: any[] }>('/favorites')
+    if (r.success) {
+      // 后端可能直接给数组或 { favorites: [] }，都兜底
+      const data = Array.isArray(r.data) ? { favorites: r.data } : r.data || { favorites: [] }
+      return { success: true as const, data }
+    }
+    return { success: true as const, data: { favorites: [] } }
+  },
+
   add: (qid: string) => api.post('/favorites', { question_id: qid }),
   remove: (qid: string) => api.delete(`/favorites/${qid}`),
 }
@@ -278,7 +288,8 @@ export const wrongQuestions = {
   removeFromWrongQuestions: (id: number) => api.delete(`/questions/wrong-questions/${id}`),
   getPracticeStats: () => api.get('/questions/practice-stats'),
 }
-
+// ✅ 新增：类型守卫，用于在页面里安全访问 res.data
+export const isSuccess = <T>(r: ApiResult<T>): r is ApiSuccess<T> => (r as any)?.success === true
 export const settings = {
   async get() {
     const token = localStorage.getItem('token')

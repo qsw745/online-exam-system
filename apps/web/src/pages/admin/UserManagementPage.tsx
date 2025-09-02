@@ -41,7 +41,7 @@ import {
   Typography,
 } from 'antd'
 import { Users as EmptyIcon } from 'lucide-react'
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react' // ♻️ useMemo
 import { useAuth } from '../../contexts/AuthContext'
 import { api, users } from '../../lib/api'
 import { orgs } from '../../lib/orgs/orgs'
@@ -93,6 +93,9 @@ interface UserStatistics {
 }
 interface UserDetail extends User {
   statistics: UserStatistics
+  // ✅ 新增：详情中也承载机构信息（用于展示路径）
+  org_id?: number | null
+  org_name?: string | null
 }
 
 // —— 列表的 UI 类型（来自 /orgs/:id/users）—— //
@@ -110,12 +113,15 @@ type UIUser = {
   updated_at?: string
   org_id?: number | null
   org_name?: string | null
+  // ✅ 新增：直接缓存路径文字（可选）
+  org_path_label?: string | null
 }
 
+type RawOrgNode = { id: number; name: string; children?: RawOrgNode[] }
 type OrgTreeData = {
   key: number
   title: React.ReactNode
-  raw: any
+  raw: RawOrgNode
   children?: OrgTreeData[]
 }
 
@@ -131,7 +137,7 @@ const UserManagementPage: React.FC = () => {
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
   const [includeChildren, setIncludeChildren] = useState(true)
 
-  // 右侧用户列表 —— 关键：改成 UIUser[]，修复 TS 报错
+  // 右侧用户列表
   const [userList, setUserList] = useState<UIUser[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -162,27 +168,52 @@ const UserManagementPage: React.FC = () => {
   const [linkOrgOpen, setLinkOrgOpen] = useState(false)
   const [linkOrgIds, setLinkOrgIds] = useState<number[]>([])
 
+  // ✅ 计算：基于 treeData.raw 构建 “id → 路径文字” 的快速映射
+  const orgPathMap = useMemo(() => {
+    const map = new Map<number, string>()
+
+    const dfs = (node: RawOrgNode, trail: string[]) => {
+      const nextTrail = [...trail, node.name]
+      map.set(node.id, nextTrail.join(' - '))
+      ;(node.children || []).forEach(ch => dfs(ch, nextTrail))
+    }
+
+    treeData.forEach(t => dfs(t.raw, []))
+    return map
+  }, [treeData])
+
+  // ✅ 工具：拿路径文字
+  const getOrgPathLabel = (id?: number | null, fallback?: string | null) => {
+    if (!id) return fallback || null
+    return orgPathMap.get(id) || fallback || null
+  }
+
   // —— 统一映射：仅针对 /orgs/:id/users —— //
   const mapOrgItemsToUI = (items: any[]): UIUser[] =>
-    (items || []).map((x: any) => ({
-      id: x.id,
-      email: x.email ?? '',
-      role: pickDisplayRole(x.role_codes),
-      nickname: x.nickname ?? x.username ?? '',
-      school: x.school ?? '',
-      class_name: x.class_name ?? '',
-      experience_points: x.experience_points ?? 0,
-      level: x.level ?? 1,
-      status: normalizeStatus(x),
-      created_at: x.created_at,
-      updated_at: x.updated_at,
-      org_id: x.org_id ?? null,
-      org_name: x.org_name ?? null,
-    }))
+    (items || []).map((x: any) => {
+      const org_id = x.org_id ?? null
+      const org_name = x.org_name ?? null
+      return {
+        id: x.id,
+        email: x.email ?? '',
+        role: pickDisplayRole(x.role_codes),
+        nickname: x.nickname ?? x.username ?? '',
+        school: x.school ?? '',
+        class_name: x.class_name ?? '',
+        experience_points: x.experience_points ?? 0,
+        level: x.level ?? 1,
+        status: normalizeStatus(x),
+        created_at: x.created_at,
+        updated_at: x.updated_at,
+        org_id,
+        org_name,
+        org_path_label: getOrgPathLabel(org_id, org_name), // ✅ 直接缓存
+      }
+    })
 
   // 辅助：一次性展开全部
   const collectAllKeys = (nodes: any[] = []): React.Key[] =>
-    nodes.flatMap(n => [n.id, ...(n.children ? collectAllKeys(n.children) : [])])
+    nodes.flatMap((n: any) => [n.id, ...(n.children ? collectAllKeys(n.children) : [])])
 
   /** 机构树（首次默认选中根组织） */
   const fetchOrgTree = async () => {
@@ -198,7 +229,7 @@ const UserManagementPage: React.FC = () => {
         (nodes || []).map((n: any) => ({
           key: n.id,
           title: n.name,
-          raw: n,
+          raw: n as RawOrgNode,
           children: n.children ? toTree(n.children) : undefined,
         }))
       const t = toTree(res.data || [])
@@ -230,6 +261,18 @@ const UserManagementPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, roleFilter, limit, selectedOrgId, includeChildren])
 
+  // ♻️ 注意：当 treeData 变化（从而 orgPathMap 变化）时，给现有 userList 回填路径
+  useEffect(() => {
+    if (!userList.length) return
+    setUserList(prev =>
+      prev.map(u => ({
+        ...u,
+        org_path_label: getOrgPathLabel(u.org_id, u.org_name),
+      }))
+    )
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [orgPathMap])
+
   const loadUsers = async () => {
     if (!selectedOrgId) {
       setUserList([])
@@ -258,7 +301,8 @@ const UserManagementPage: React.FC = () => {
         return
       }
 
-      setUserList(mapOrgItemsToUI(res.data.items || []))
+      const mapped = mapOrgItemsToUI(res.data.items || [])
+      setUserList(mapped)
       setTotalUsers(res.data.total || 0)
     } catch (error: any) {
       console.error('加载用户列表错误:', error)
@@ -272,7 +316,7 @@ const UserManagementPage: React.FC = () => {
   }
 
   /** ========== 详情 & 编辑 ========== */
-  // 这里从「列表行」打开详情：为了保证“跨页面一致”，用列表中的 role/org 覆盖详情返回
+  // ♻️ 关键修改：把列表行的 org 信息也并入详情（用于展示路径）
   const openDetailFromRow = async (row: UIUser) => {
     try {
       const res: ApiResult<UserDetail> = await users.getById(row.id)
@@ -280,7 +324,12 @@ const UserManagementPage: React.FC = () => {
         message.error(res.error || '加载用户详情失败')
         return
       }
-      const merged: UserDetail = { ...res.data, role: row.role } // 关键：覆盖显示角色
+      const merged: UserDetail = {
+        ...res.data,
+        role: row.role,
+        org_id: row.org_id ?? res.data.org_id,
+        org_name: row.org_name ?? res.data.org_name,
+      }
       setSelectedUser(merged)
       setShowDetailModal(true)
     } catch (error: any) {
@@ -478,8 +527,11 @@ const UserManagementPage: React.FC = () => {
     {
       title: '部门',
       dataIndex: 'org_name',
-      key: 'org_name',
-      render: (_: any, r: UIUser) => (r.org_name ? <Tag>{r.org_name}</Tag> : <Text type="secondary">未分配</Text>),
+      key: 'org_path', // ✅
+      render: (_: any, r: UIUser) => {
+        const label = r.org_path_label || getOrgPathLabel(r.org_id, r.org_name)
+        return label ? <Tag>{label}</Tag> : <Text type="secondary">未分配</Text>
+      },
     },
     {
       title: '状态',
@@ -711,7 +763,6 @@ const UserManagementPage: React.FC = () => {
 
         {/* 列表 */}
         <Card>
-          {/* 指定 Table 泛型，进一步避免隐式 any */}
           <Table<UIUser>
             columns={columns as any}
             dataSource={userList}
@@ -774,7 +825,23 @@ const UserManagementPage: React.FC = () => {
             key="edit"
             onClick={() => {
               setShowDetailModal(false)
-              if (selectedUser) openEditModal(selectedUser as unknown as UIUser)
+              if (selectedUser)
+                openEditModal({
+                  id: selectedUser.id,
+                  email: selectedUser.email,
+                  role: selectedUser.role,
+                  nickname: selectedUser.nickname,
+                  school: selectedUser.school,
+                  class_name: selectedUser.class_name,
+                  experience_points: selectedUser.experience_points,
+                  level: selectedUser.level,
+                  status: selectedUser.status,
+                  created_at: selectedUser.created_at,
+                  updated_at: selectedUser.updated_at,
+                  org_id: selectedUser.org_id,
+                  org_name: selectedUser.org_name ?? undefined,
+                  org_path_label: getOrgPathLabel(selectedUser.org_id, selectedUser.org_name ?? undefined) ?? undefined,
+                })
             }}
           >
             编辑用户
@@ -825,6 +892,20 @@ const UserManagementPage: React.FC = () => {
                   <div>{new Date(selectedUser.created_at).toLocaleString()}</div>
                 </Card>
               </Col>
+
+              {/* ✅ 新增：所属部门（路径） */}
+              <Col span={12}>
+                <Card size="small">
+                  <Text type="secondary">所属部门</Text>
+                  <div>
+                    {(() => {
+                      const label = getOrgPathLabel(selectedUser.org_id, selectedUser.org_name ?? undefined)
+                      return label ? <Tag>{label}</Tag> : <Text type="secondary">未分配</Text>
+                    })()}
+                  </div>
+                </Card>
+              </Col>
+
               <Col span={12}>
                 <Card size="small">
                   <Text type="secondary">学校</Text>
@@ -908,12 +989,18 @@ const UserManagementPage: React.FC = () => {
                 <Option value="admin">管理员</Option>
               </Select>
             </Form.Item>
+
+            {/* ✅ 显示当前完整路径 */}
             <Form.Item label="所属机构">
               <Space>
-                <Input value={(editingUser as any)?.org_name || '未分配'} readOnly style={{ width: 240 }} />
+                <Input
+                  value={getOrgPathLabel(editingUser.org_id, editingUser.org_name ?? undefined) || '未分配'}
+                  readOnly
+                  style={{ width: 320 }}
+                />
                 <Button
                   onClick={() => {
-                    setOrgPickerSelected((editingUser as any)?.org_id ?? selectedOrgId ?? null)
+                    setOrgPickerSelected(editingUser?.org_id ?? selectedOrgId ?? null)
                     setOrgPickerOpen(true)
                   }}
                 >
@@ -921,6 +1008,7 @@ const UserManagementPage: React.FC = () => {
                 </Button>
               </Space>
             </Form.Item>
+
             <Form.Item label="更多部门">
               <Button
                 onClick={() => {
@@ -1031,21 +1119,24 @@ const UserManagementPage: React.FC = () => {
             message.success('已更新所属机构')
             setOrgPickerOpen(false)
             await loadUsers()
-            if (selectedUser?.id === editingUser.id) {
-              await openDetailFromRow({ ...editingUser, org_id: orgPickerSelected } as UIUser)
-            }
-            const targetName = (function findName(nodes: any[]): string | null {
-              for (const n of nodes) {
-                if (n.id === orgPickerSelected) return n.name
-                const x = n.children && findName(n.children)
-                if (x) return x
-              }
-              return null
-            })(treeData.map(t => t.raw))
-            editForm.setFieldValue('org_name', targetName || '')
+
+            // 同步编辑状态与详情
+            const newLabel = getOrgPathLabel(orgPickerSelected) || ''
+            editForm.setFieldValue('org_name', newLabel)
             setEditingUser(prev =>
-              prev ? { ...prev, ['org_id' as any]: orgPickerSelected, ['org_name' as any]: targetName } : prev
+              prev
+                ? {
+                    ...prev,
+                    org_id: orgPickerSelected,
+                    org_name: undefined, // 用路径替代普通名字
+                    org_path_label: newLabel,
+                  }
+                : prev
             )
+
+            if (selectedUser?.id === editingUser.id) {
+              setSelectedUser(prev => (prev ? { ...prev, org_id: orgPickerSelected, org_name: undefined } : prev))
+            }
           } catch (e: any) {
             message.error(e?.message || '更新失败')
           }
@@ -1069,6 +1160,7 @@ const UserManagementPage: React.FC = () => {
           )}
         </div>
       </Modal>
+
       {/* 关联多个部门 */}
       <Modal
         title="关联多个部门"

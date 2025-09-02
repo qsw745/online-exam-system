@@ -1,177 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import {
-  Table,
-  Button,
-  Modal,
-  Form,
-  Select,
-  App,
-  Space,
-  Tag,
-  Card,
-  Input,
-  Avatar
-} from 'antd';
-import { Pagination } from 'antd';
-import { createPaginationConfig } from '../../constants/pagination';
-import {
-  UserOutlined,
-  SettingOutlined,
-  SearchOutlined
-} from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import { api } from '../../lib/api';
+// apps/web/src/pages/admin/UserRoleManagementPage.tsx
+import React, { useState, useEffect } from 'react'
+import { Table, Button, Modal, Form, Select, App, Space, Tag, Card, Input, Avatar, Pagination } from 'antd'
+import { createPaginationConfig } from '../../constants/pagination'
+import { UserOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
+import type { ColumnsType } from 'antd/es/table'
+import { api, ApiResult } from '../../lib/api'
 
+// ==== 类型 ====
 interface User {
-  id: number;
-  username: string;
-  email: string;
-  role: string; // 旧的角色字段
-  created_at: string;
+  id: number
+  username: string
+  email: string
+  role: string // 旧的角色字段（兼容）
+  created_at: string
 }
-
 interface Role {
-  id: number;
-  name: string;
-  code: string;
-  description: string;
-  is_system: boolean;
-  is_disabled: boolean;
+  id: number
+  name: string
+  code: string
+  description: string
+  is_system: boolean
+  is_disabled: boolean
+}
+interface UserWithRoles extends User {
+  roles: Role[]
 }
 
-interface UserWithRoles extends User {
-  roles: Role[];
-}
+// ==== 结果守卫与错误文本工具 ====
+// 只保留 “成功” 的类型守卫；失败用布尔判断，避免与项目里 ApiFailure 的定义冲突
+const isSuccess = <T,>(r: ApiResult<T>): r is { success: true; data: T } =>
+  !!r && typeof r === 'object' && (r as any).success === true
+
+const getErrText = (r: ApiResult<any>, fallback = '操作失败') =>
+  ((r as any)?.message || (r as any)?.error || fallback) as string
+// =================================
 
 const UserRoleManagementPage: React.FC = () => {
-  const { message } = App.useApp();
-  const [users, setUsers] = useState<UserWithRoles[]>([]);
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null);
-  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([]);
-  const [searchText, setSearchText] = useState('');
-  const [currentPage, setCurrentPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
-  const [form] = Form.useForm();
+  const { message } = App.useApp()
+  const [users, setUsers] = useState<UserWithRoles[]>([])
+  const [roles, setRoles] = useState<Role[]>([])
+  const [loading, setLoading] = useState(false)
+  const [modalVisible, setModalVisible] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserWithRoles | null>(null)
+  const [selectedRoleIds, setSelectedRoleIds] = useState<number[]>([])
+  const [searchText, setSearchText] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const [form] = Form.useForm()
 
-  // 加载用户列表
-  const loadUsers = async () => {
-    try {
-      setLoading(true);
-      const response = await api.get('/users');
-      if (response.data.success) {
-        const usersData = response.data.data;
-        
-        // 为每个用户加载角色信息
-        const usersWithRoles = await Promise.all(
-          usersData.map(async (user: User) => {
-            try {
-              const roleResponse = await api.get(`/roles/users/${user.id}/roles`);
-              return {
-                ...user,
-                roles: roleResponse.data.success ? roleResponse.data : []
-              };
-            } catch (error) {
-              return {
-                ...user,
-                roles: []
-              };
-            }
-          })
-        );
-        
-        setUsers(usersWithRoles);
-      }
-    } catch (error) {
-      message.error('加载用户列表失败');
-    } finally {
-      setLoading(false);
+  const getRoleTagColor = (roleCode: string) => {
+    const colorMap: Record<string, string> = {
+      super_admin: 'red',
+      admin: 'orange',
+      teacher: 'blue',
+      student: 'green',
     }
-  };
+    return colorMap[roleCode] || 'default'
+  }
 
   // 加载角色列表
   const loadRoles = async () => {
     try {
-      const response = await api.get('/roles');
-      if (response.data) {
-        setRoles(response.data.filter((role: Role) => !role.is_disabled));
+      const res: ApiResult<any> = await api.get('/roles')
+      if (!isSuccess(res)) {
+        message.error(getErrText(res, '加载角色列表失败'))
+        return
       }
-    } catch (error) {
-      message.error('加载角色列表失败');
+      const payload = res.data
+      const list: Role[] = Array.isArray(payload)
+        ? payload
+        : payload?.roles ?? payload?.items ?? payload?.list ?? payload ?? []
+      setRoles(list.filter((r: Role) => !r.is_disabled))
+    } catch {
+      message.error('加载角色列表失败')
     }
-  };
+  }
+
+  // 加载用户 + 每个用户的角色
+  const loadUsers = async () => {
+    try {
+      setLoading(true)
+      const res: ApiResult<any> = await api.get('/users')
+      if (!isSuccess(res)) {
+        message.error(getErrText(res, '加载用户列表失败'))
+        setUsers([])
+        return
+      }
+
+      const payload = res.data
+      const usersData: User[] = Array.isArray(payload)
+        ? payload
+        : payload?.users ?? payload?.items ?? payload?.list ?? payload ?? []
+
+      const usersWithRoles: UserWithRoles[] = await Promise.all(
+        usersData.map(async user => {
+          try {
+            const roleRes: ApiResult<any> = await api.get(`/roles/users/${user.id}/roles`)
+            const roleList: Role[] = isSuccess(roleRes)
+              ? Array.isArray(roleRes.data)
+                ? (roleRes.data as Role[])
+                : (roleRes.data as any)?.roles ?? []
+              : []
+            return { ...user, roles: roleList }
+          } catch {
+            return { ...user, roles: [] }
+          }
+        })
+      )
+      setUsers(usersWithRoles)
+    } catch {
+      message.error('加载用户列表失败')
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    loadUsers();
-    loadRoles();
-  }, []);
+    loadRoles()
+    loadUsers()
+  }, [])
 
-  // 打开角色分配弹窗
   const openRoleModal = (user: UserWithRoles) => {
-    setSelectedUser(user);
-    setSelectedRoleIds(user.roles.map(role => role.id));
-    setModalVisible(true);
-  };
+    setSelectedUser(user)
+    setSelectedRoleIds(user.roles.map(r => r.id))
+    setModalVisible(true)
+  }
 
-  // 保存用户角色
   const handleSaveRoles = async () => {
-    if (!selectedUser) return;
-
+    if (!selectedUser) return
     try {
-      const response = await api.put(`/roles/users/${selectedUser.id}/roles`, {
-        roleIds: selectedRoleIds
-      });
-      if (response.data.success) {
-        message.success('用户角色设置成功');
-        setModalVisible(false);
-        loadUsers(); // 重新加载用户列表
+      const res: ApiResult<any> = await api.put(`/roles/users/${selectedUser.id}/roles`, {
+        roleIds: selectedRoleIds,
+      })
+      if (!isSuccess(res)) {
+        message.error(getErrText(res, '角色设置失败'))
+        return
       }
-    } catch (error: any) {
-      message.error(error.response?.data?.message || '角色设置失败');
+      message.success('用户角色设置成功')
+      setModalVisible(false)
+      loadUsers()
+    } catch (e: any) {
+      message.error(e?.response?.data?.message || '角色设置失败')
     }
-  };
+  }
 
-  // 获取角色标签颜色
-  const getRoleTagColor = (roleCode: string) => {
-    const colorMap: { [key: string]: string } = {
-      'super_admin': 'red',
-      'admin': 'orange',
-      'teacher': 'blue',
-      'student': 'green'
-    };
-    return colorMap[roleCode] || 'default';
-  };
+  // 搜索 & 分页
+  const filteredUsers = users.filter(
+    u =>
+      u.username.toLowerCase().includes(searchText.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchText.toLowerCase())
+  )
 
-  // 过滤用户
-  const filteredUsers = users.filter(user => 
-    user.username.toLowerCase().includes(searchText.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchText.toLowerCase())
-  );
-
-  // 分页处理函数
   const handlePageChange = (page: number, size?: number) => {
-    setCurrentPage(page);
+    setCurrentPage(page)
     if (size && size !== pageSize) {
-      setPageSize(size);
-      setCurrentPage(1);
+      setPageSize(size)
+      setCurrentPage(1)
     }
-  };
-
-  const handlePageSizeChange = (current: number, size: number) => {
-    setPageSize(size);
-    setCurrentPage(1);
-  };
-
-  // 获取当前页数据
+  }
+  const handlePageSizeChange = (_current: number, size: number) => {
+    setPageSize(size)
+    setCurrentPage(1)
+  }
   const getCurrentPageUsers = () => {
-    const startIndex = (currentPage - 1) * pageSize;
-    const endIndex = startIndex + pageSize;
-    return filteredUsers.slice(startIndex, endIndex);
-  };
+    const start = (currentPage - 1) * pageSize
+    return filteredUsers.slice(start, start + pageSize)
+  }
 
-  // 表格列定义
+  // 表格列
   const columns: ColumnsType<UserWithRoles> = [
     {
       title: '用户',
@@ -184,53 +181,47 @@ const UserRoleManagementPage: React.FC = () => {
             <div className="text-gray-500 text-sm">{record.email}</div>
           </div>
         </Space>
-      )
+      ),
     },
     {
       title: '当前角色',
       key: 'roles',
       render: (_, record) => (
         <Space wrap>
-          {record.roles.length > 0 ? (
+          {record.roles.length ? (
             record.roles.map(role => (
               <Tag key={role.id} color={getRoleTagColor(role.code)}>
                 {role.name}
               </Tag>
             ))
           ) : (
-            <Tag color="default">未分配角色</Tag>
+            <Tag>未分配角色</Tag>
           )}
         </Space>
-      )
+      ),
     },
     {
       title: '旧角色字段',
       dataIndex: 'role',
       key: 'old_role',
-      render: (text) => (
-        <Tag color="gray">{text}</Tag>
-      )
+      render: text => <Tag>{text}</Tag>,
     },
     {
       title: '注册时间',
       dataIndex: 'created_at',
       key: 'created_at',
-      render: (text) => new Date(text).toLocaleString()
+      render: t => new Date(t).toLocaleString(),
     },
     {
       title: '操作',
       key: 'action',
       render: (_, record) => (
-        <Button
-          type="link"
-          icon={<SettingOutlined />}
-          onClick={() => openRoleModal(record)}
-        >
+        <Button type="link" icon={<SettingOutlined />} onClick={() => openRoleModal(record)}>
           分配角色
         </Button>
-      )
-    }
-  ];
+      ),
+    },
+  ]
 
   return (
     <div className="p-6">
@@ -242,19 +233,15 @@ const UserRoleManagementPage: React.FC = () => {
               placeholder="搜索用户名或邮箱"
               prefix={<SearchOutlined />}
               value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+              onChange={e => setSearchText(e.target.value)}
               style={{ width: 300 }}
+              allowClear
             />
           </div>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={getCurrentPageUsers()}
-          rowKey="id"
-          loading={loading}
-          pagination={false}
-        />
+        <Table columns={columns} dataSource={getCurrentPageUsers()} rowKey="id" loading={loading} pagination={false} />
+
         <Pagination
           current={currentPage}
           total={filteredUsers.length}
@@ -265,16 +252,16 @@ const UserRoleManagementPage: React.FC = () => {
         />
       </Card>
 
-      {/* 角色分配弹窗 */}
+      {/* 分配角色弹窗 */}
       <Modal
-        title={`分配角色 - ${selectedUser?.username}`}
+        title={`分配角色 - ${selectedUser?.username ?? ''}`}
         open={modalVisible}
         onOk={handleSaveRoles}
         onCancel={() => setModalVisible(false)}
         width={600}
         okText="保存"
         cancelText="取消"
-        destroyOnHidden={true}
+        destroyOnClose
       >
         {selectedUser && (
           <div>
@@ -287,7 +274,7 @@ const UserRoleManagementPage: React.FC = () => {
                 </div>
               </Space>
             </div>
-            
+
             <Form form={form} layout="vertical">
               <Form.Item label="选择角色">
                 <Select
@@ -295,30 +282,29 @@ const UserRoleManagementPage: React.FC = () => {
                   placeholder="请选择角色"
                   value={selectedRoleIds}
                   onChange={setSelectedRoleIds}
-                  style={{ width: '100%' }}
-                >
-                  {roles.map(role => (
-                    <Select.Option key={role.id} value={role.id}>
+                  options={roles.map(role => ({
+                    value: role.id,
+                    label: (
                       <Space>
                         <Tag color={getRoleTagColor(role.code)}>{role.name}</Tag>
-                        <span className="text-gray-500">({role.code})</span>
+                        <span style={{ color: '#999' }}>({role.code})</span>
                       </Space>
-                    </Select.Option>
-                  ))}
-                </Select>
+                    ),
+                  }))}
+                />
               </Form.Item>
-              
+
               <div className="text-sm text-gray-500">
                 <p>当前角色：</p>
                 <Space wrap className="mt-1">
-                  {selectedUser.roles.length > 0 ? (
+                  {selectedUser.roles.length ? (
                     selectedUser.roles.map(role => (
                       <Tag key={role.id} color={getRoleTagColor(role.code)}>
                         {role.name}
                       </Tag>
                     ))
                   ) : (
-                    <Tag color="default">未分配角色</Tag>
+                    <Tag>未分配角色</Tag>
                   )}
                 </Space>
               </div>
@@ -327,7 +313,7 @@ const UserRoleManagementPage: React.FC = () => {
         )}
       </Modal>
     </div>
-  );
-};
+  )
+}
 
-export default UserRoleManagementPage;
+export default UserRoleManagementPage

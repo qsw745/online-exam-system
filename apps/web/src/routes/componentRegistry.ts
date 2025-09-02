@@ -7,7 +7,8 @@ import RoleManagementPage from '../pages/admin/RoleManagementPage'
 import NotFound404 from '../pages/errors/NotFound404'
 
 // 常规页
-import QuestionsPage from '../pages/QuestionsPage'
+// import QuestionsPage from '../pages/QuestionsPage'
+import QuestionManagementPage from '../pages/admin/QuestionManagementPage'
 import ResultsPage from '../pages/ResultsPage'
 import QuestionPracticePage from '../pages/QuestionPracticePage'
 import SettingsPage from '../pages/SettingsPage'
@@ -49,7 +50,7 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   'question-practice': QuestionPracticePage,
 
   // 题库
-  questions: QuestionsPage,
+  questions: QuestionManagementPage,
 
   // 用户/系统
   'user-manage': UserManagementPage,

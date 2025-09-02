@@ -1,17 +1,44 @@
-import React, { useState, useEffect } from 'react'
+import {
+  Button,
+  Card,
+  Col,
+  Divider,
+  Empty,
+  Form,
+  Input,
+  message,
+  Modal,
+  Pagination,
+  Progress,
+  Radio,
+  Row,
+  Select,
+  Space,
+  Spin,
+  Tag,
+  Typography,
+} from 'antd'
+import { BookmarkPlus, Clock, Eye, Filter, Heart, Play, Plus, Search, Upload } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { Link, useLocation } from 'react-router-dom'
+import * as XLSX from 'xlsx'
+import { createPaginationConfig } from '../constants/pagination'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import { Search, Filter, Heart, Eye, Clock, BookmarkPlus, Play, Plus, Upload } from 'lucide-react'
-import { Spin, Card, Input, Select, Button, Space, Row, Col, Tag, Empty, Typography, Pagination, Modal, Form, Radio, Progress, Divider } from 'antd'
-import { Link, useLocation } from 'react-router-dom'
-import { message } from 'antd'
 import * as apiModule from '../lib/api'
-import { createPaginationConfig } from '../constants/pagination'
-import * as XLSX from 'xlsx'
 
 const { questions, favorites: favoritesApi } = apiModule
 const { Title, Text } = Typography
 
+// ---- ApiResult 工具 ----
+type ApiSuccess<T = any> = { success: true; data: T }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: ApiResult<T>): r is ApiSuccess<T> => !!r && (r as any).success === true
+const getErr = (r: ApiResult<any>, fallback = '请求失败') =>
+  (!isSuccess(r) && ((r as any).error || (r as any).message)) || fallback
+
+// ---- 类型 ----
 interface Question {
   id: string
   content: string
@@ -41,35 +68,38 @@ const QuestionsPage: React.FC = () => {
   const { user, loading: authLoading } = useAuth()
   const { t, language } = useLanguage()
   const location = useLocation()
+
   const [state, setState] = useState<State>({
     questions: [],
     loading: true,
     searchTerm: '',
     filterType: 'all',
-    filterDifficulty: 'all'
+    filterDifficulty: 'all',
   })
   const [pagination, setPagination] = useState<PaginationState>({
     currentPage: 1,
     totalPages: 1,
     totalQuestions: 0,
-    pageSize: 12
+    pageSize: 12,
   })
   const [favorites, setFavorites] = useState<Set<string>>(new Set())
 
-  // 新增题目相关状态
+  // 新增题目
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm] = Form.useForm()
   const [addLoading, setAddLoading] = useState(false)
-  const [questionType, setQuestionType] = useState('single_choice')
+  const [questionType, setQuestionType] = useState<'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'>(
+    'single_choice'
+  )
   const [optionCount, setOptionCount] = useState(4)
 
-  // 批量导入相关状态
+  // 批量导入
   const [showImportModal, setShowImportModal] = useState(false)
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importLoading, setImportLoading] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
 
-  // 根据路由确定当前视图类型
+  // 路由视图类型
   const getViewType = () => {
     const path = location.pathname
     if (path.includes('/favorites')) return 'favorites'
@@ -78,133 +108,124 @@ const QuestionsPage: React.FC = () => {
     if (path.includes('/manage')) return 'manage'
     return 'all'
   }
-
   const viewType = getViewType()
 
   useEffect(() => {
-    // 调试信息
-    console.log('QuestionsPage useEffect - 认证状态:', {
-      authLoading,
-      user: user ? { id: user.id, email: user.email, role: user.role } : null,
-      localStorage_token: localStorage.getItem('token') ? 'exists' : 'missing',
-      sessionStorage_token: sessionStorage.getItem('token') ? 'exists' : 'missing'
-    });
-    
     // 只有在认证状态确定且用户已登录时才加载数据
     if (!authLoading && user) {
       loadQuestions()
       loadFavorites()
     } else if (!authLoading && !user) {
-      // 认证状态确定但用户未登录，清除加载状态
       setState(prev => ({ ...prev, loading: false }))
     }
-  }, [viewType, pagination.currentPage, pagination.pageSize, state.filterType, state.filterDifficulty, state.searchTerm, user, authLoading])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    viewType,
+    pagination.currentPage,
+    pagination.pageSize,
+    state.filterType,
+    state.filterDifficulty,
+    state.searchTerm,
+    user,
+    authLoading,
+  ])
 
   const loadQuestions = async () => {
-    // 检查认证状态是否还在加载中
-    if (authLoading) {
-      return
-    }
-    
-    // 检查用户是否已登录
+    if (authLoading) return
+
     if (!user) {
       setState(prev => ({ ...prev, loading: false }))
-      // 不显示错误提示，因为页面会显示登录提示
       return
     }
-    
+
     try {
       setState(prev => ({ ...prev, loading: true }))
-      let response
-      
+
       if (viewType === 'favorites') {
-        // 加载收藏的题目
-        response = await favoritesApi.list()
-        const favoriteQuestions = response.data.favorites?.map(f => f.question).filter(q => q && q.id) || []
+        const resFav: ApiResult<any> = await favoritesApi.list()
+        if (!isSuccess(resFav)) {
+          message.error(getErr(resFav, '获取收藏失败'))
+          setState(prev => ({ ...prev, loading: false }))
+          return
+        }
+        const favoriteQuestions: Question[] =
+          resFav.data?.favorites?.map((f: any) => f.question).filter((q: any) => q && q.id) ?? []
+
         setState(prev => ({
           ...prev,
           questions: favoriteQuestions,
-          loading: false
+          loading: false,
         }))
-        // 收藏题目暂时不支持分页
         setPagination(prev => ({
           ...prev,
           totalQuestions: favoriteQuestions.length,
-          totalPages: 1
+          totalPages: 1,
         }))
       } else if (viewType === 'wrong') {
-        // 加载错题（暂时显示空列表，后续可以添加错题API）
-        setState(prev => ({
-          ...prev,
-          questions: [],
-          loading: false
-        }))
-        setPagination(prev => ({
-          ...prev,
-          totalQuestions: 0,
-          totalPages: 1
-        }))
+        setState(prev => ({ ...prev, questions: [], loading: false }))
+        setPagination(prev => ({ ...prev, totalQuestions: 0, totalPages: 1 }))
         message.info('错题本功能正在开发中')
       } else {
-        // 加载全部题目
-        response = await questions.list({
+        const res: ApiResult<any> = await questions.list({
           type: state.filterType === 'all' ? undefined : state.filterType,
           difficulty: state.filterDifficulty === 'all' ? undefined : state.filterDifficulty,
           search: state.searchTerm || undefined,
           page: pagination.currentPage,
-          limit: pagination.pageSize
+          limit: pagination.pageSize,
         })
-        
-        setState(prev => ({
-          ...prev,
-          questions: response.data.questions || [],
-          loading: false
-        }))
-        
-        // 更新分页信息
-        if (response.data.pagination) {
+        if (!isSuccess(res)) {
+          message.error(getErr(res, '获取题目列表失败'))
+          setState(prev => ({ ...prev, loading: false }))
+          return
+        }
+
+        const payload = res.data
+        const list: Question[] = Array.isArray(payload) ? payload : payload?.questions ?? []
+        setState(prev => ({ ...prev, questions: list, loading: false }))
+
+        const p = (payload && payload.pagination) || null
+        if (p) {
           setPagination(prev => ({
             ...prev,
-            totalPages: response.data.pagination.totalPages,
-            totalQuestions: response.data.pagination.total
+            totalPages: p.totalPages,
+            totalQuestions: p.total,
           }))
         }
       }
     } catch (error: any) {
       console.error('加载题目错误:', error)
-      
-      // 检查是否是认证错误
+
       if (error.message === 'AUTHENTICATION_REQUIRED' || error.response?.status === 401) {
         message.error('登录已过期，请重新登录')
-        // 清除本地认证状态
         localStorage.removeItem('token')
         sessionStorage.removeItem('token')
         localStorage.removeItem('userRole')
         sessionStorage.removeItem('userRole')
-        // 刷新页面以触发AuthContext重新检查认证状态
-        setTimeout(() => {
-          window.location.reload()
-        }, 1500)
+        setTimeout(() => window.location.reload(), 1500)
       } else {
-        const errorMessage = error.response?.data?.error || error.response?.data?.message || error.message || '获取题目列表失败'
+        const errorMessage =
+          error.response?.data?.error || error.response?.data?.message || error.message || '获取题目列表失败'
         message.error(errorMessage)
       }
-      
       setState(prev => ({ ...prev, loading: false }))
     }
   }
 
   const loadFavorites = async () => {
     if (!user) return
-    
     try {
-      const response = await favoritesApi.list()
-      const favoriteIds = new Set(response.data.favorites?.map(f => f.question_id) || [])
+      const resFav: ApiResult<any> = await favoritesApi.list()
+      if (!isSuccess(resFav)) {
+        setFavorites(new Set<string>())
+        return
+      }
+      const favoriteIds = new Set<string>(
+        (resFav.data?.favorites?.map((f: any) => String(f.question_id)) ?? []) as string[]
+      )
       setFavorites(favoriteIds)
-    } catch (error: any) {
+    } catch (error) {
       console.error('加载收藏错误:', error)
-      // 如果收藏表不存在，使用空集合
-      setFavorites(new Set())
+      setFavorites(new Set<string>())
     }
   }
 
@@ -213,50 +234,46 @@ const QuestionsPage: React.FC = () => {
     setPagination(prev => ({ ...prev, currentPage: 1 }))
   }
 
-  const handleFilterChange = (type: string, value: string) => {
+  const handleFilterChange = (type: 'type' | 'difficulty', value: string) => {
     setState(prev => ({
       ...prev,
-      [type === 'type' ? 'filterType' : 'filterDifficulty']: value
+      [type === 'type' ? 'filterType' : 'filterDifficulty']: value,
     }))
     setPagination(prev => ({ ...prev, currentPage: 1 }))
   }
 
-  // 分页处理函数
-  const handlePageChange = (page: number) => {
-    setPagination(prev => ({ ...prev, currentPage: page }))
-  }
-
-  const handlePageSizeChange = (pageSize: number) => {
-    setPagination(prev => ({ ...prev, pageSize, currentPage: 1 }))
-  }
+  const handlePageChange = (page: number) => setPagination(prev => ({ ...prev, currentPage: page }))
+  const handlePageSizeChange = (_: number, size: number) =>
+    setPagination(prev => ({ ...prev, pageSize: size, currentPage: 1 }))
 
   const handleFavorite = async (questionId: string) => {
-    if (!user) {
-      message.error(t('app.login_required'))
-      return
-    }
+    if (!user) return message.error(t('app.login_required'))
 
     try {
       if (favorites.has(questionId)) {
-        await favoritesApi.remove(questionId)
-        favorites.delete(questionId)
+        const res: ApiResult<any> = await favoritesApi.remove(questionId)
+        if (!isSuccess(res)) throw new Error(getErr(res, '取消收藏失败'))
+        const next = new Set(favorites)
+        next.delete(questionId)
+        setFavorites(next)
       } else {
-        await favoritesApi.add(questionId)
-        favorites.add(questionId)
+        const res: ApiResult<any> = await favoritesApi.add(questionId)
+        if (!isSuccess(res)) throw new Error(getErr(res, '收藏失败'))
+        const next = new Set(favorites)
+        next.add(questionId)
+        setFavorites(next)
       }
-      setFavorites(new Set(favorites))
     } catch (error: any) {
       console.error('收藏操作错误:', error)
       message.error(error.response?.data?.message || t('app.operation_failed'))
     }
   }
 
-  // 新增题目处理函数
+  // 新增题目
   const handleAddQuestion = async (values: any) => {
     try {
       setAddLoading(true)
-      
-      // 构建题目数据
+
       const questionData: any = {
         title: values.title || '',
         content: values.content,
@@ -264,17 +281,14 @@ const QuestionsPage: React.FC = () => {
         difficulty: values.difficulty,
         knowledge_point: values.knowledge_point || '',
         score: values.score || 10,
-        explanation: values.explanation || ''
+        explanation: values.explanation || '',
       }
 
-      // 根据题目类型处理选项和答案
       if (questionType === 'single_choice' || questionType === 'multiple_choice') {
-        const options = []
+        const options: string[] = []
         for (let i = 0; i < optionCount; i++) {
-          const optionValue = values[`option_${String.fromCharCode(65 + i)}`]
-          if (optionValue) {
-            options.push(optionValue)
-          }
+          const v = values[`option_${String.fromCharCode(65 + i)}`]
+          if (v) options.push(v)
         }
         questionData.options = options
         questionData.correct_answer = values.correct_answer
@@ -285,151 +299,123 @@ const QuestionsPage: React.FC = () => {
         questionData.correct_answer = values.correct_answer
       }
 
-      await questions.create(questionData)
+      const res: ApiResult<any> = await questions.create(questionData)
+      if (!isSuccess(res)) throw new Error(getErr(res, '创建题目失败'))
       message.success('题目创建成功')
+
       setShowAddModal(false)
       addForm.resetFields()
       setQuestionType('single_choice')
       setOptionCount(4)
-      loadQuestions() // 刷新题目列表
+      loadQuestions()
     } catch (error: any) {
       console.error('创建题目失败:', error)
-      message.error(error.response?.data?.message || '创建题目失败')
+      message.error(error.response?.data?.message || error.message || '创建题目失败')
     } finally {
       setAddLoading(false)
     }
   }
 
-  // 题目类型变化处理
-  const handleQuestionTypeChange = (type: string) => {
+  const handleQuestionTypeChange = (type: any) => {
     setQuestionType(type)
-    if (type === 'true_false') {
-      setOptionCount(2)
-    } else if (type === 'single_choice' || type === 'multiple_choice') {
-      setOptionCount(4)
-    }
+    if (type === 'true_false') setOptionCount(2)
+    else if (type === 'single_choice' || type === 'multiple_choice') setOptionCount(4)
   }
+  const handleOptionCountChange = (count: number) => setOptionCount(count)
 
-  // 选项数量变化处理
-  const handleOptionCountChange = (count: number) => {
-    setOptionCount(count)
-  }
-
-  // 文件选择处理
+  // 导入
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
 
-    // 检查文件类型
     const allowedTypes = [
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
       'application/vnd.ms-excel',
-      'text/csv'
+      'text/csv',
     ]
-    
     if (!allowedTypes.includes(file.type)) {
       message.error('请选择Excel文件(.xlsx, .xls)或CSV文件')
       return
     }
-
-    // 检查文件大小 (10MB)
     if (file.size > 10 * 1024 * 1024) {
       message.error('文件大小不能超过10MB')
       return
     }
-
     setImportFile(file)
   }
 
-  // 批量导入处理
   const handleImport = async () => {
-    if (!importFile) {
-      message.error('请先选择文件')
-      return
-    }
+    if (!importFile) return message.error('请先选择文件')
 
     try {
       setImportLoading(true)
       setImportProgress(0)
 
-      // 解析文件
       const data = await new Promise<any[]>((resolve, reject) => {
         const reader = new FileReader()
-        reader.onload = (e) => {
+        reader.onload = e => {
           try {
-            const data = e.target?.result
+            const buf = e.target?.result as ArrayBuffer
             let workbook: XLSX.WorkBook
-            
             if (importFile.type === 'text/csv') {
-              workbook = XLSX.read(data, { type: 'binary' })
+              workbook = XLSX.read(buf as any, { type: 'binary' })
             } else {
-              workbook = XLSX.read(data, { type: 'array' })
+              workbook = XLSX.read(buf, { type: 'array' })
             }
-            
             const sheetName = workbook.SheetNames[0]
             const worksheet = workbook.Sheets[sheetName]
             const jsonData = XLSX.utils.sheet_to_json(worksheet)
             resolve(jsonData)
-          } catch (error) {
-            reject(error)
+          } catch (err) {
+            reject(err)
           }
         }
         reader.onerror = reject
-        
-        if (importFile.type === 'text/csv') {
-          reader.readAsBinaryString(importFile)
-        } else {
-          reader.readAsArrayBuffer(importFile)
-        }
+        if (importFile.type === 'text/csv') reader.readAsBinaryString(importFile)
+        else reader.readAsArrayBuffer(importFile)
       })
 
       setImportProgress(30)
 
-      // 处理解析结果
       if (!data || data.length === 0) {
         message.error('文件中没有找到有效数据')
         return
       }
 
-      // 转换数据格式
       const questionsData = data.map((row: any) => ({
         title: row['题目标题'] || row['title'] || '',
         content: row['题目内容'] || row['content'] || '',
         type: row['题目类型'] || row['type'] || 'single_choice',
-        options: row['选项'] ? row['选项'].split('|') : [],
+        options: row['选项'] ? String(row['选项']).split('|') : [],
         correct_answer: row['正确答案'] || row['correct_answer'] || '',
         difficulty: row['难度等级'] || row['difficulty'] || 'medium',
         knowledge_point: row['知识点'] || row['knowledge_point'] || '',
         score: parseInt(row['分值'] || row['score']) || 10,
-        explanation: row['解析'] || row['explanation'] || ''
+        explanation: row['解析'] || row['explanation'] || '',
       }))
 
       setImportProgress(60)
 
-      // 调用批量导入API
-      const response = await questions.bulkImport(questionsData)
-      
+      const resImport: ApiResult<any> = await questions.bulkImport(questionsData)
+      if (!isSuccess(resImport)) throw new Error(getErr(resImport, '批量导入失败'))
+
       setImportProgress(100)
-      
-      // 处理导入结果
-      const { success_count, failed_count, errors } = response.data
-      
+
+      const { success_count = 0, failed_count = 0, errors = [] } = resImport.data || {}
       if (failed_count > 0) {
         message.warning(`导入完成：成功 ${success_count} 条，失败 ${failed_count} 条`)
-        if (errors && errors.length > 0) {
-          console.error('导入错误详情:', errors)
-        }
+        if (errors.length) console.error('导入错误详情:', errors)
       } else {
         message.success(`成功导入 ${success_count} 道题目`)
       }
-      
+
       setShowImportModal(false)
       setImportFile(null)
       setImportProgress(0)
-      loadQuestions() // 刷新题目列表
+      loadQuestions()
     } catch (error: any) {
       console.error('批量导入失败:', error)
-      message.error(error.response?.data?.message || '批量导入失败')
+      message.error(error.response?.data?.message || error.message || '批量导入失败')
     } finally {
       setImportLoading(false)
     }
@@ -439,49 +425,49 @@ const QuestionsPage: React.FC = () => {
   const downloadTemplate = () => {
     const templateData = [
       {
-        '题目标题': '示例单选题',
-        '题目内容': '以下哪个是正确的？',
-        '题目类型': 'single_choice',
-        '选项': 'A选项|B选项|C选项|D选项',
-        '正确答案': 'A',
-        '难度等级': 'easy',
-        '知识点': '基础知识',
-        '分值': 10,
-        '解析': '这是解析内容'
+        题目标题: '示例单选题',
+        题目内容: '以下哪个是正确的？',
+        题目类型: 'single_choice',
+        选项: 'A选项|B选项|C选项|D选项',
+        正确答案: 'A',
+        难度等级: 'easy',
+        知识点: '基础知识',
+        分值: 10,
+        解析: '这是解析内容',
       },
       {
-        '题目标题': '示例多选题',
-        '题目内容': '以下哪些是正确的？（多选）',
-        '题目类型': 'multiple_choice',
-        '选项': 'A选项|B选项|C选项|D选项',
-        '正确答案': 'A,C',
-        '难度等级': 'medium',
-        '知识点': '综合知识',
-        '分值': 15,
-        '解析': '多选题解析'
+        题目标题: '示例多选题',
+        题目内容: '以下哪些是正确的？（多选）',
+        题目类型: 'multiple_choice',
+        选项: 'A选项|B选项|C选项|D选项',
+        正确答案: 'A,C',
+        难度等级: 'medium',
+        知识点: '综合知识',
+        分值: 15,
+        解析: '多选题解析',
       },
       {
-        '题目标题': '示例判断题',
-        '题目内容': '这个说法是正确的。',
-        '题目类型': 'true_false',
-        '选项': '正确|错误',
-        '正确答案': '正确',
-        '难度等级': 'easy',
-        '知识点': '基础概念',
-        '分值': 5,
-        '解析': '判断题解析'
+        题目标题: '示例判断题',
+        题目内容: '这个说法是正确的。',
+        题目类型: 'true_false',
+        选项: '正确|错误',
+        正确答案: '正确',
+        难度等级: 'easy',
+        知识点: '基础概念',
+        分值: 5,
+        解析: '判断题解析',
       },
       {
-        '题目标题': '示例简答题',
-        '题目内容': '请简述相关概念。',
-        '题目类型': 'short_answer',
-        '选项': '',
-        '正确答案': '参考答案内容',
-        '难度等级': 'hard',
-        '知识点': '高级概念',
-        '分值': 20,
-        '解析': '简答题解析'
-      }
+        题目标题: '示例简答题',
+        题目内容: '请简述相关概念。',
+        题目类型: 'short_answer',
+        选项: '',
+        正确答案: '参考答案内容',
+        难度等级: 'hard',
+        知识点: '高级概念',
+        分值: 20,
+        解析: '简答题解析',
+      },
     ]
 
     const worksheet = XLSX.utils.json_to_sheet(templateData)
@@ -490,7 +476,7 @@ const QuestionsPage: React.FC = () => {
     XLSX.writeFile(workbook, '题目导入模板.xlsx')
   }
 
-  // 如果认证状态还在加载中，显示加载状态
+  // ---- Loading / 未登录 ----
   if (authLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
@@ -501,10 +487,17 @@ const QuestionsPage: React.FC = () => {
     )
   }
 
-  // 如果用户未登录，显示登录提示
   if (!user) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          minHeight: '400px',
+        }}
+      >
         <Space direction="vertical" align="center" size="large">
           <Title level={2}>请先登录</Title>
           <Text type="secondary">您需要登录后才能查看题目列表</Text>
@@ -518,12 +511,11 @@ const QuestionsPage: React.FC = () => {
     )
   }
 
-  // 如果题目数据还在加载中，显示加载状态
   if (state.loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
         <Spin size="large" tip={t('app.loading_questions')}>
-          <div style={{ minHeight: '200px',minWidth:"200px" }} />
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
         </Spin>
       </div>
     )
@@ -531,7 +523,7 @@ const QuestionsPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      {/* 页面标题 */}
+      {/* 顶部 */}
       <Card>
         <Space style={{ width: '100%' }} align="start">
           <div style={{ flex: 1 }}>
@@ -558,6 +550,7 @@ const QuestionsPage: React.FC = () => {
                 : t('questions.description')}
             </Text>
           </div>
+
           <Space>
             {/* 管理员功能按钮 */}
             {user?.role === 'admin' && viewType === 'manage' && (
@@ -565,17 +558,17 @@ const QuestionsPage: React.FC = () => {
                 <Button
                   type="primary"
                   icon={<Plus style={{ width: 16, height: 16 }} />}
-                  onClick={() => setAddModalVisible(true)}
+                  onClick={() => setShowAddModal(true)}
                 >
                   新增题目
                 </Button>
-                <Button icon={<Upload style={{ width: 16, height: 16 }} />} onClick={() => setImportModalVisible(true)}>
+                <Button icon={<Upload style={{ width: 16, height: 16 }} />} onClick={() => setShowImportModal(true)}>
                   批量导入
                 </Button>
               </>
             )}
 
-            {/* 新增题目对话框 */}
+            {/* 新增题目 Modal */}
             <Modal
               title="新增题目"
               open={showAddModal}
@@ -594,10 +587,7 @@ const QuestionsPage: React.FC = () => {
                 form={addForm}
                 layout="vertical"
                 onFinish={handleAddQuestion}
-                initialValues={{
-                  difficulty: 'medium',
-                  score: 10,
-                }}
+                initialValues={{ difficulty: 'medium', score: 10 }}
               >
                 <Form.Item label="题目标题" name="title" rules={[{ required: true, message: '请输入题目标题' }]}>
                   <Input placeholder="请输入题目标题" />
@@ -616,7 +606,6 @@ const QuestionsPage: React.FC = () => {
                   </Radio.Group>
                 </Form.Item>
 
-                {/* 选择题和判断题的选项设置 */}
                 {(questionType === 'single_choice' || questionType === 'multiple_choice') && (
                   <>
                     <Form.Item label="选项数量">
@@ -629,14 +618,14 @@ const QuestionsPage: React.FC = () => {
                       </Radio.Group>
                     </Form.Item>
 
-                    {Array.from({ length: optionCount }, (_, index) => (
+                    {Array.from({ length: optionCount }, (_, i) => (
                       <Form.Item
-                        key={index}
-                        label={`选项${String.fromCharCode(65 + index)}`}
-                        name={`option_${String.fromCharCode(65 + index)}`}
-                        rules={[{ required: true, message: `请输入选项${String.fromCharCode(65 + index)}` }]}
+                        key={i}
+                        label={`选项${String.fromCharCode(65 + i)}`}
+                        name={`option_${String.fromCharCode(65 + i)}`}
+                        rules={[{ required: true, message: `请输入选项${String.fromCharCode(65 + i)}` }]}
                       >
-                        <Input placeholder={`请输入选项${String.fromCharCode(65 + index)}内容`} />
+                        <Input placeholder={`请输入选项${String.fromCharCode(65 + i)}内容`} />
                       </Form.Item>
                     ))}
 
@@ -647,17 +636,17 @@ const QuestionsPage: React.FC = () => {
                     >
                       {questionType === 'single_choice' ? (
                         <Radio.Group>
-                          {Array.from({ length: optionCount }, (_, index) => (
-                            <Radio key={index} value={String.fromCharCode(65 + index)}>
-                              选项{String.fromCharCode(65 + index)}
+                          {Array.from({ length: optionCount }, (_, i) => (
+                            <Radio key={i} value={String.fromCharCode(65 + i)}>
+                              选项{String.fromCharCode(65 + i)}
                             </Radio>
                           ))}
                         </Radio.Group>
                       ) : (
                         <Select mode="multiple" placeholder="请选择正确答案（可多选）" style={{ width: '100%' }}>
-                          {Array.from({ length: optionCount }, (_, index) => (
-                            <Select.Option key={index} value={String.fromCharCode(65 + index)}>
-                              选项{String.fromCharCode(65 + index)}
+                          {Array.from({ length: optionCount }, (_, i) => (
+                            <Select.Option key={i} value={String.fromCharCode(65 + i)}>
+                              选项{String.fromCharCode(65 + i)}
                             </Select.Option>
                           ))}
                         </Select>
@@ -666,7 +655,6 @@ const QuestionsPage: React.FC = () => {
                   </>
                 )}
 
-                {/* 判断题的答案设置 */}
                 {questionType === 'true_false' && (
                   <Form.Item
                     label="正确答案"
@@ -680,7 +668,6 @@ const QuestionsPage: React.FC = () => {
                   </Form.Item>
                 )}
 
-                {/* 简答题的答案设置 */}
                 {questionType === 'short_answer' && (
                   <Form.Item
                     label="参考答案"
@@ -723,7 +710,7 @@ const QuestionsPage: React.FC = () => {
               </Form>
             </Modal>
 
-            {/* 批量导入对话框 */}
+            {/* 批量导入 Modal */}
             <Modal
               title="批量导入题目"
               open={showImportModal}
@@ -766,7 +753,7 @@ const QuestionsPage: React.FC = () => {
                     <input type="file" accept=".xlsx,.xls,.csv" onChange={handleFileSelect} style={{ width: '100%' }} />
                   </div>
                   {importFile && (
-                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
                       已选择文件：{importFile.name} ({(importFile.size / 1024 / 1024).toFixed(2)} MB)
                     </Text>
                   )}
@@ -790,13 +777,14 @@ const QuestionsPage: React.FC = () => {
                     <li>必填字段：题目标题、题目内容、题目类型、难度等级</li>
                     <li>题目类型：single_choice(单选)、multiple_choice(多选)、true_false(判断)、short_answer(简答)</li>
                     <li>难度等级：easy(简单)、medium(中等)、hard(困难)</li>
-                    <li>选择题选项用"|"分隔，如：A选项|B选项|C选项|D选项</li>
-                    <li>多选题正确答案用","分隔，如：A,C</li>
+                    <li>选择题选项用“|”分隔，如：A选项|B选项|C选项|D选项</li>
+                    <li>多选题正确答案用“,”分隔，如：A,C</li>
                   </ul>
                 </div>
               </Space>
             </Modal>
-            {/* 连续练习按钮 */}
+
+            {/* 连续练习入口 */}
             {viewType === 'all' && state.questions.length > 0 && state.questions[0]?.id && (
               <Link
                 to={`/questions/${state.questions[0].id}/practice?mode=continuous&${new URLSearchParams({
@@ -814,7 +802,7 @@ const QuestionsPage: React.FC = () => {
         </Space>
       </Card>
 
-      {/* 搜索和筛选 - 只在全部题目视图中显示 */}
+      {/* 搜索和筛选（仅全部题目） */}
       {viewType === 'all' && (
         <Card>
           <Row gutter={[16, 16]} align="middle">
@@ -833,11 +821,7 @@ const QuestionsPage: React.FC = () => {
               <Space>
                 <Space>
                   <Filter style={{ width: 16, height: 16, color: '#999' }} />
-                  <Select
-                    value={state.filterType}
-                    onChange={value => handleFilterChange('type', value)}
-                    style={{ width: 150 }}
-                  >
+                  <Select value={state.filterType} onChange={v => handleFilterChange('type', v)} style={{ width: 150 }}>
                     <Select.Option value="all">{t('questions.all_types')}</Select.Option>
                     <Select.Option value="single_choice">{t('questions.single_choice')}</Select.Option>
                     <Select.Option value="multiple_choice">{t('questions.multiple_choice')}</Select.Option>
@@ -847,7 +831,7 @@ const QuestionsPage: React.FC = () => {
                 </Space>
                 <Select
                   value={state.filterDifficulty}
-                  onChange={value => handleFilterChange('difficulty', value)}
+                  onChange={v => handleFilterChange('difficulty', v)}
                   style={{ width: 120 }}
                 >
                   <Select.Option value="all">{t('questions.all_difficulties')}</Select.Option>
@@ -861,16 +845,17 @@ const QuestionsPage: React.FC = () => {
         </Card>
       )}
 
-      {/* 题目列表 */}
+      {/* 列表 */}
       <Row gutter={[16, 16]}>
         {state.questions
-          .filter(question => question && question.id)
-          .map(question => (
-            <Col key={question.id} xs={24} md={12} lg={8}>
+          .filter(q => q && q.id)
+          .map(q => (
+            <Col key={q.id} xs={24} md={12} lg={8}>
               <Card
                 hoverable
+                style={{ height: '100%' }} // 让卡片充满列高
                 actions={[
-                  <Link to={`/questions/${question.id}`} key="view">
+                  <Link to={`/questions/${q.id}/practice`} key="view">
                     <Space>
                       <Eye style={{ width: 16, height: 16 }} />
                       <span>查看</span>
@@ -880,20 +865,25 @@ const QuestionsPage: React.FC = () => {
               >
                 <Space style={{ width: '100%' }} align="start">
                   <div style={{ flex: 1 }}>
-                    <Title level={4} style={{ margin: 0, marginBottom: 8 }}>
-                      <Link to={`/questions/${question.id}`} style={{ color: 'inherit' }}>
-                        {question.content}
-                      </Link>
-                    </Title>
+                    <div style={{ minHeight: 48, marginBottom: 8 }}>
+                      <Typography.Paragraph
+                        style={{ margin: 0, fontSize: 16, fontWeight: 600, lineHeight: 1.4 }}
+                        ellipsis={{ rows: 2 }}
+                      >
+                        <Link to={`/questions/${q.id}/practice`} style={{ color: 'inherit' }}>
+                          {q.content}
+                        </Link>
+                      </Typography.Paragraph>
+                    </div>
                     <Space direction="vertical" size="small" style={{ width: '100%' }}>
                       <Space>
                         <BookmarkPlus style={{ width: 16, height: 16 }} />
-                        <Text type="secondary">{question.knowledge_point}</Text>
+                        <Text type="secondary">{q.knowledge_point}</Text>
                       </Space>
                       <Space>
                         <Clock style={{ width: 16, height: 16 }} />
                         <Text type="secondary">
-                          {new Date(question.created_at).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
+                          {new Date(q.created_at).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
                         </Text>
                       </Space>
                     </Space>
@@ -902,19 +892,17 @@ const QuestionsPage: React.FC = () => {
                     type="text"
                     icon={
                       <Heart
-                        style={{
-                          width: 20,
-                          height: 20,
-                          color: favorites.has(question.id) ? '#ff4d4f' : '#d9d9d9',
-                        }}
-                        fill={favorites.has(question.id) ? 'currentColor' : 'none'}
+                        style={{ width: 20, height: 20, color: favorites.has(q.id) ? '#ff4d4f' : '#d9d9d9' }}
+                        fill={favorites.has(q.id) ? 'currentColor' : 'none'}
                       />
                     }
-                    onClick={() => handleFavorite(question.id)}
+                    onClick={() => handleFavorite(q.id)}
                   />
                 </Space>
+
                 <div style={{ marginTop: 16 }}>
                   <Space>
+                    {/* 如果你的后端返回 single_choice 等，可按需调整这里的映射 */}
                     <Tag
                       color={
                         {
@@ -923,7 +911,11 @@ const QuestionsPage: React.FC = () => {
                           judge: 'green',
                           fill: 'orange',
                           essay: 'red',
-                        }[question.type] || 'default'
+                          single_choice: 'blue',
+                          multiple_choice: 'purple',
+                          true_false: 'green',
+                          short_answer: 'orange',
+                        }[q.type] || 'default'
                       }
                     >
                       {{
@@ -932,22 +924,27 @@ const QuestionsPage: React.FC = () => {
                         judge: '判断题',
                         fill: '填空题',
                         essay: '问答题',
-                      }[question.type] || question.type}
+                        single_choice: '单选题',
+                        multiple_choice: '多选题',
+                        true_false: '判断题',
+                        short_answer: '简答题',
+                      }[q.type] || q.type}
                     </Tag>
+
                     <Tag
                       color={
                         {
                           easy: 'success',
                           medium: 'warning',
                           hard: 'error',
-                        }[question.difficulty] || 'default'
+                        }[q.difficulty] || 'default'
                       }
                     >
                       {{
                         easy: '简单',
                         medium: '中等',
                         hard: '困难',
-                      }[question.difficulty] || question.difficulty}
+                      }[q.difficulty] || q.difficulty}
                     </Tag>
                   </Space>
                 </div>
@@ -969,7 +966,7 @@ const QuestionsPage: React.FC = () => {
         />
       )}
 
-      {/* 分页组件 - 只在全部题目视图且有题目时显示 */}
+      {/* 分页（仅全部视图） */}
       {viewType === 'all' && state.questions.length > 0 && (
         <Card>
           <Pagination
@@ -978,9 +975,7 @@ const QuestionsPage: React.FC = () => {
             pageSize={pagination.pageSize}
             onChange={handlePageChange}
             onShowSizeChange={handlePageSizeChange}
-            {...createPaginationConfig({
-              pageSizeOptions: ['10', '15', '20', '30', '40', '50'],
-            })}
+            {...createPaginationConfig({ pageSizeOptions: ['10', '15', '20', '30', '40', '50'] })}
           />
         </Card>
       )}
