@@ -13,20 +13,19 @@ import {
   Space,
   Table,
   Tag,
-  message,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+import dayjs, { Dayjs } from 'dayjs'
 import React, { useEffect, useState } from 'react'
-import * as apiModule from '../../lib/api'
+import { users as usersApi, tasks as tasksApi, type ApiResult, type ApiSuccess } from '../../lib/api'
 
 interface PublishForm {
   title: string
   description?: string
   type?: 'exam' | 'practice'
-  start_time?: any
-  end_time?: any
-  assignees?: number[]
+  start_time?: Dayjs
+  end_time?: Dayjs
+  assignees?: number[] // 可选：也可以用下方表格勾选
 }
 
 interface User {
@@ -37,12 +36,15 @@ interface User {
   created_at: string
 }
 
+/** 类型守卫：判断 ApiResult 是否失败结构 */
+const isFailure = <T,>(r: ApiResult<T>): r is { success: false; error: string } => r.success === false
+
 const PublishTaskPage: React.FC = () => {
-  const { message: antdMsg } = App.useApp()
+  const { message } = App.useApp()
   const [form] = Form.useForm<PublishForm>()
   const [submitting, setSubmitting] = useState(false)
 
-  // 选择用户弹层的简单实现：直接在页面下方列表选择
+  // 选择用户（用下方列表作为选择器）
   const [userLoading, setUserLoading] = useState(false)
   const [users, setUsers] = useState<User[]>([])
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([])
@@ -58,33 +60,35 @@ const PublishTaskPage: React.FC = () => {
   const loadUsers = async () => {
     try {
       setUserLoading(true)
-      const resp = await apiModule.users.getAll({ page, limit: pageSize })
-      if (resp.success) {
-        const payload: any = resp.data
-        let rows: User[] = []
-        let totalCount = 0
-
-        if (Array.isArray(payload?.users)) {
-          rows = payload.users
-          totalCount = payload?.total ?? payload.users.length
-        } else if (Array.isArray(payload)) {
-          rows = payload
-          totalCount = payload.length
-        } else if (Array.isArray(payload?.data)) {
-          rows = payload.data
-          totalCount = payload?.total ?? payload.data.length
-        }
-
-        setUsers(rows)
-        setTotal(totalCount)
-      } else {
-        antdMsg.error(resp.error || '加载用户失败')
+      const resp = await usersApi.getAll({ page, limit: pageSize })
+      if (isFailure(resp)) {
+        message.error(resp.error || '加载用户失败')
         setUsers([])
         setTotal(0)
+        return
       }
+
+      // resp 是成功结构
+      const payload: any = resp.data
+      let rows: User[] = []
+      let totalCount = 0
+
+      if (Array.isArray(payload?.users)) {
+        rows = payload.users
+        totalCount = payload?.total ?? payload.users.length
+      } else if (Array.isArray(payload)) {
+        rows = payload
+        totalCount = payload.length
+      } else if (Array.isArray(payload?.data)) {
+        rows = payload.data
+        totalCount = payload?.total ?? payload.data.length
+      }
+
+      setUsers(rows)
+      setTotal(totalCount)
     } catch (e: any) {
       console.error(e)
-      antdMsg.error(e?.response?.data?.message || '加载用户失败')
+      message.error(e?.response?.data?.message || '加载用户失败')
       setUsers([])
       setTotal(0)
     } finally {
@@ -94,20 +98,39 @@ const PublishTaskPage: React.FC = () => {
 
   const publishTask = async (values: PublishForm) => {
     try {
-      setSubmitting(true)
-      // 整理参数
-      const payload = {
-        title: values.title,
-        description: values.description ?? '',
-        type: values.type ?? 'exam',
-        start_time: values.start_time ? values.start_time.toISOString() : undefined,
-        end_time: values.end_time ? values.end_time.toISOString() : undefined,
-        assignee_ids: (values.assignees ?? []).length ? values.assignees : (selectedRowKeys as number[]),
+      // 基本校验：开始/结束时间
+      if (!values.start_time || !values.end_time) {
+        message.error('请填写开始时间与结束时间')
+        return
+      }
+      if (values.end_time.isBefore(values.start_time)) {
+        message.error('结束时间必须晚于开始时间')
+        return
       }
 
-      // 实际应调用后端发布接口
-      // await apiModule.tasks.create(payload)
-      antdMsg.success('发布成功（示例）')
+      setSubmitting(true)
+
+      // 统一整理 payload
+      const payload = {
+        title: values.title.trim(),
+        description: (values.description || '').trim(),
+        type: values.type ?? 'exam',
+        start_time: values.start_time.toISOString(),
+        end_time: values.end_time.toISOString(),
+        // assignees 取表单或表格勾选（优先表单）
+        assignee_ids:
+          (values.assignees && values.assignees.length > 0 ? values.assignees : (selectedRowKeys as number[])) || [],
+      }
+
+      // ✅ 真正调用发布接口（POST /tasks）
+      const resp = await tasksApi.create(payload)
+      if (isFailure(resp)) {
+        message.error(resp.error || '发布失败')
+        return
+      }
+
+      // 成功
+      message.success('发布成功')
       form.resetFields()
       setSelectedRowKeys([])
     } catch (e: any) {
