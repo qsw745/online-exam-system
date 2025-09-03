@@ -1,0 +1,137 @@
+﻿backend
+|-- database
+|   -- migrate_discussions.js
+|-- src
+|   |-- @types
+|   |   -- bcryptjs
+|   |-- bootstrap
+|   |   |-- menu.config.ts
+|   |   -- syncMenus.ts
+|   |-- config
+|   |   |-- migrations
+|   |   |-- database.sql
+|   |   |-- database.ts
+|   |   |-- init.sql
+|   |   |-- init-db.ts
+|   |   |-- password-reset.sql
+|   |   |-- practice_records.sql
+|   |   -- wrong_questions.sql
+|   |-- constants
+|   |   -- roles.ts
+|   |-- controllers
+|   |   |-- analytics.controller.ts
+|   |   |-- auth.controller.ts
+|   |   |-- dashboard.controller.ts
+|   |   |-- discussions.controller.ts
+|   |   |-- exam.controller.ts
+|   |   |-- favorite.controller.ts
+|   |   |-- favorites.controller.ts
+|   |   |-- leaderboard.controller.ts
+|   |   |-- learning-progress.controller.ts
+|   |   |-- log.controller.ts
+|   |   |-- menu.controller.ts
+|   |   |-- notification.controller.ts
+|   |   |-- org.controller.ts
+|   |   |-- org-user.controller.ts
+|   |   |-- paper.controller.ts
+|   |   |-- password-reset.controller.ts
+|   |   |-- question.controller.ts
+|   |   |-- result.controller.ts
+|   |   |-- role.controller.ts
+|   |   |-- task.controller.ts
+|   |   |-- user.controller.ts
+|   |   -- wrong-question.controller.ts
+|   |-- database
+|   |   -- migrate_leaderboard.js
+|   |-- middleware
+|   |   |-- auth.middleware.ts
+|   |   |-- roleAuth.ts
+|   |   -- validation.ts
+|   |-- migrations
+|   |   |-- 002_create_papers_and_tasks.sql
+|   |   |-- 003_create_questions.sql
+|   |   |-- 004_add_title_to_questions.sql
+|   |   |-- 005_add_knowledge_points_to_questions.sql
+|   |   |-- 006_add_user_profile_fields.sql
+|   |   |-- 007_create_task_assignments.sql
+|   |   |-- 008_add_user_status.sql
+|   |   -- 009_add_role_code.sql
+|   |-- models
+|   |   |-- menu.model.ts
+|   |   |-- notification.model.ts
+|   |   |-- result.model.ts
+|   |   -- task.model.ts
+|   |-- routes
+|   |   |-- analytics.routes.ts
+|   |   |-- auth.routes.ts
+|   |   |-- dashboard.routes.ts
+|   |   |-- discussions.routes.ts
+|   |   |-- exam.routes.ts
+|   |   |-- exam_result.routes.ts
+|   |   |-- favorite.routes.ts
+|   |   |-- favorites.routes.ts
+|   |   |-- leaderboard.routes.ts
+|   |   |-- learning-progress.routes.ts
+|   |   |-- log.routes.ts
+|   |   |-- menu.routes.ts
+|   |   |-- notification.routes.ts
+|   |   |-- org.routes.ts
+|   |   |-- org-user.routes.ts
+|   |   |-- paper.routes.ts
+|   |   |-- password-reset.routes.ts
+|   |   |-- question.routes.ts
+|   |   |-- result.routes.ts
+|   |   |-- role.routes.ts
+|   |   |-- task.routes.ts
+|   |   |-- user.routes.ts
+|   |   -- wrong-question.routes.ts
+|   |-- services
+|   |   |-- discussions.service.ts
+|   |   |-- favorites.service.ts
+|   |   |-- leaderboard.service.ts
+|   |   |-- learning-progress.service.ts
+|   |   |-- logger.service.ts
+|   |   |-- menu.service.ts
+|   |   |-- org-user.service.ts
+|   |   |-- role.service.ts
+|   |   -- wrong-question.service.ts
+|   |-- types
+|   |   |-- auth.ts
+|   |   |-- express.d.ts
+|   |   |-- password-reset.ts
+|   |   -- response.ts
+|   |-- utils
+|   |   -- email.service.ts
+|   -- app.ts
+|-- .env
+|-- add_more_paper_questions.sql
+|-- assign_default_permissions.cjs
+|-- assign_parent_menu_3_to_admin.cjs
+|-- check_menu_hierarchy.cjs
+|-- check_role_data.cjs
+|-- check_user_2_roles.cjs
+|-- create_paper_questions.sql
+|-- debug_menu_tree_api.cjs
+|-- debug_user2_permissions.cjs
+|-- Dockerfile
+|-- EMAIL_SETUP.md
+|-- fix_user_2_admin_role.cjs
+|-- insert_paper_questions.sql
+|-- latest_menu_response.json
+|-- learning_progress.sql
+|-- migrate_favorites.js
+|-- migrate_learning_progress.js
+|-- migrate_menu_management.cjs
+|-- migrate_wrong_questions.js
+|-- package.json
+|-- pnpm-lock.yaml
+|-- test_admin_permissions.cjs
+|-- test_get_role_users.cjs
+|-- test_menu_comparison.cjs
+|-- test_role_4_users.cjs
+|-- test_role_5_menus.cjs
+|-- test_role_menus_api.cjs
+|-- test_user_2_permissions.cjs
+|-- test_user_menu_tree.cjs
+|-- test_user_permissions.cjs
+-- tsconfig.json

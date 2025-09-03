@@ -283,8 +283,10 @@ export class TaskController {
 
       // 创建任务
       const [result] = await pool.query<ResultSetHeader>(
-        'INSERT INTO tasks (title, description, status, start_time, end_time, exam_id, type) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [title, description, dbStatus, formattedStartTime, formattedEndTime, taskExamId, type]
+        // ✅ 增加 user_id 列
+        'INSERT INTO tasks (user_id, title, description, status, start_time, end_time, exam_id, type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        // ✅ 把 creatorId 作为 user_id 写入
+        [creatorId, title, description, dbStatus, formattedStartTime, formattedEndTime, taskExamId, type]
       )
       const taskId = result.insertId
 
@@ -588,11 +590,10 @@ export class TaskController {
         return res.json({ success: true, data: null })
       } catch (error) {
         // 事务回滚
-       
+
         await connection.rollback()
         throw error
       } finally {
-        
         connection.release()
       }
     } catch (error) {
