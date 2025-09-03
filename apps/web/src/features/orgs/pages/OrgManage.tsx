@@ -17,8 +17,7 @@ import {
 } from 'antd'
 import type { DataNode, EventDataNode } from 'antd/es/tree'
 import React, { useEffect, useMemo, useState } from 'react'
-import { OrgAPI, type OrgNode } from '../../lib/orgs/api' // ✅ 使用库里定义的 OrgNode，不再本地声明
-
+import { OrgAPI, type OrgNode } from '@features/orgs/api'
 const { Sider, Content } = Layout
 const { Title, Text } = Typography
 

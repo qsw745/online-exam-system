@@ -1,5 +1,5 @@
 // src/pages/LogsPage.tsx
-import React, { useEffect, useMemo, useState } from 'react'
+import { api } from '@shared/api/http'
 import {
   App,
   Button,
@@ -17,9 +17,10 @@ import {
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
-import { FileText, Search, Download, Filter } from 'lucide-react'
-import { api } from '../lib/api'
-import { createPaginationConfig } from '../constants/pagination'
+import { Download, FileText, Filter, Search } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+
+import { createPaginationConfig } from '@shared/constants/pagination'
 
 const { RangePicker } = DatePicker
 const { Option } = Select

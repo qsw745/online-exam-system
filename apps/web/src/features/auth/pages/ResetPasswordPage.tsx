@@ -3,7 +3,7 @@ import { Card, Form, Input, Button, Alert, Typography, Space, Spin } from 'antd'
 import { LockOutlined, EyeInvisibleOutlined, EyeTwoTone, CheckCircleOutlined } from '@ant-design/icons';
 import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 // import { useTranslation } from 'react-i18next';
-import { validateResetToken, resetPassword } from '../../lib/api';
+import { validateResetToken, resetPassword } from '@shared/api/http';
 
 const { Title, Text } = Typography;
 

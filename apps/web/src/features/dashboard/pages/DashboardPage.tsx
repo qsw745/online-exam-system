@@ -1,11 +1,11 @@
+import { api } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
 import { Card, Col, Empty, List, message, Row, Space, Statistic, Tag, Typography } from 'antd'
 import { BookmarkPlus, Calendar, Clock, FileText, TrendingUp, Trophy } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import LoadingSpinner from '../components/LoadingSpinner'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import { api } from '../lib/api'
 
 const { Title, Text } = Typography
 

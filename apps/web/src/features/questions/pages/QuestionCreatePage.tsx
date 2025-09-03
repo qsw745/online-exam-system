@@ -1,3 +1,4 @@
+import LoadingSpinner from '@shared/components/LoadingSpinner'
 import {
   Button,
   Card,
@@ -17,12 +18,19 @@ import {
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import LoadingSpinner from '../../components/LoadingSpinner'
-import { questions as questionsApi } from '../../lib/api'
-
+import { questionsApi } from '../api'
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
+
+// ======= 通用 ApiResult 守卫，避免在 {} 上取 .data =======
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+const getMsg = (r: any, fallback = '请求失败') =>
+  r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
+// =======================================================
 
 interface Option {
   content: string
@@ -35,14 +43,14 @@ const QuestionCreatePage: React.FC = () => {
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(false)
   const [content, setContent] = useState('')
-  const [type, setType] = useState('single_choice')
+  const [type, setType] = useState<'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'>('single_choice')
   const [options, setOptions] = useState<Option[]>([
     { content: '', is_correct: false },
     { content: '', is_correct: false },
     { content: '', is_correct: false },
     { content: '', is_correct: false },
   ])
-  const [answer, setAnswer] = useState('')
+  const [answer, setAnswer] = useState('') // true_false: 'true'/'false'; short_answer: 文本
   const [explanation, setExplanation] = useState('')
   const [knowledgePoints, setKnowledgePoints] = useState<string[]>([])
   const [knowledgePointInput, setKnowledgePointInput] = useState('')
@@ -53,48 +61,113 @@ const QuestionCreatePage: React.FC = () => {
   useEffect(() => {
     if (id) {
       const path = window.location.pathname
-      if (path.includes('question-detail')) {
-        setIsViewMode(true)
-      } else if (path.includes('question-edit')) {
-        setIsEditMode(true)
-      }
+      if (path.includes('question-detail')) setIsViewMode(true)
+      else if (path.includes('question-edit')) setIsEditMode(true)
 
       // 获取题目详情
       fetchQuestionDetail(id)
     }
   }, [id])
 
+  // 安全解析 options：可能是数组或 JSON 字符串
+  const parseOptions = (raw: unknown): Option[] => {
+    try {
+      if (!raw) return []
+      const v = typeof raw === 'string' ? JSON.parse(raw) : raw
+      if (Array.isArray(v)) {
+        return v
+          .filter(it => it && typeof it === 'object')
+          .map(it => ({
+            content: String((it as any).content ?? ''),
+            is_correct: Boolean((it as any).is_correct),
+          }))
+      }
+      return []
+    } catch {
+      return []
+    }
+  }
+
+  // 把正确答案映射到 options.is_correct（当后端用“索引数组/字母串”返回时）
+  const applyCorrectToOptions = (opts: Option[], correct: unknown): Option[] => {
+    if (!Array.isArray(opts) || opts.length === 0) return opts
+    // 支持 [0,2] / "A,C" / "1,3" / "B" 等
+    let indices: number[] = []
+    if (Array.isArray(correct)) {
+      indices = (correct as any[]).map(n => Number(n)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+    } else if (typeof correct === 'string') {
+      const parts = correct
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+      // 如果是字母 A/B/C... -> 转为索引
+      const tryLetters = parts.every(p => /^[A-Za-z]$/.test(p))
+      if (tryLetters) {
+        indices = parts
+          .map(p => p.toUpperCase().charCodeAt(0) - 65)
+          .filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+      } else {
+        // 尝试按数字索引
+        indices = parts.map(p => Number(p)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+      }
+    }
+    return opts.map((o, i) => ({ ...o, is_correct: indices.includes(i) }))
+  }
+
   // 获取题目详情
   const fetchQuestionDetail = async (questionId: string) => {
     try {
       setInitialLoading(true)
-      const response = await questionsApi.getById(questionId)
-      const question = response.data.question
+      const res: ApiResult<any> = await questionsApi.getById(questionId)
+      if (!isSuccess(res)) {
+        message.error(getMsg(res, '获取题目详情失败'))
+        return
+      }
+      const d = res.data
+      // 兼容 d.question 或直接返回题目对象
+      const q = d && typeof d === 'object' && (d as any).question ? (d as any).question : d
 
-      if (question) {
-        setContent(question.content || '')
-        setType(question.question_type || 'single_choice')
-        setExplanation(question.explanation || '')
-        setKnowledgePoints(question.knowledge_points || [])
+      if (!q || typeof q !== 'object') return
 
-        // 处理选项和答案
-        if (question.options && Array.isArray(question.options)) {
-          setOptions(question.options)
+      setContent(q.content || '')
+      setType(q.question_type || 'single_choice')
+      setExplanation(q.explanation || '')
+      setKnowledgePoints(Array.isArray(q.knowledge_points) ? q.knowledge_points : [])
+
+      // 处理选项
+      let opts = parseOptions(q.options)
+      // 某些后端 correct_answer 不是和 options 同步的，这里做一次同步
+      if (opts.length) {
+        const ca = q.correct_answer
+        if (ca != null) {
+          opts = applyCorrectToOptions(opts, typeof ca === 'string' ? ca : Array.isArray(ca) ? ca : undefined)
         }
+        setOptions(opts)
+      } else {
+        // 没有选项也不报错
+        setOptions([])
+      }
 
-        if (question.question_type === 'true_false') {
-          // 判断题答案处理
-          if (question.correct_answer && Array.isArray(question.correct_answer)) {
-            setAnswer(question.correct_answer[0] === 0 ? 'true' : 'false')
-          }
-        } else if (question.question_type === 'short_answer') {
-          // 简答题答案处理
-          setAnswer(question.answer || '')
+      // 处理答案
+      if (q.question_type === 'true_false') {
+        // 可能是 'true'/'false' 或 [0]/[1]
+        if (typeof q.correct_answer === 'string') {
+          const v = q.correct_answer.toLowerCase()
+          setAnswer(v === 'true' ? 'true' : 'false')
+        } else if (Array.isArray(q.correct_answer)) {
+          setAnswer(q.correct_answer[0] === 0 ? 'true' : 'false')
+        } else {
+          setAnswer('')
         }
+      } else if (q.question_type === 'short_answer') {
+        setAnswer(q.answer || '')
+      } else {
+        // 选择题不直接写 answer，保持空
+        setAnswer('')
       }
     } catch (error: any) {
       console.error('获取题目详情错误:', error)
-      message.error(error.message || '获取题目详情失败')
+      message.error(error?.message || '获取题目详情失败')
     } finally {
       setInitialLoading(false)
     }
@@ -104,12 +177,10 @@ const QuestionCreatePage: React.FC = () => {
     const newOptions = [...options]
     newOptions[index] = { ...newOptions[index], [field]: value }
 
-    // 如果是单选题，确保只有一个选项被标记为正确
+    // 单选题确保只有一个正确
     if (type === 'single_choice' && field === 'is_correct' && value === true) {
       newOptions.forEach((option, i) => {
-        if (i !== index) {
-          newOptions[i] = { ...option, is_correct: false }
-        }
+        if (i !== index) newOptions[i] = { ...option, is_correct: false }
       })
     }
 
@@ -148,105 +219,82 @@ const QuestionCreatePage: React.FC = () => {
 
   // 表单提交处理
   const handleSubmit = async () => {
-    if (!content.trim()) {
-      message.error('请输入题目内容')
-      return
-    }
+    if (!content.trim()) return message.error('请输入题目内容')
 
     // 选择题验证
     if (type === 'single_choice' || type === 'multiple_choice') {
-      // 检查是否有空选项
       const hasEmptyOption = options.some(option => !option.content.trim())
-      if (hasEmptyOption) {
-        message.error('选项内容不能为空')
-        return
-      }
+      if (hasEmptyOption) return message.error('选项内容不能为空')
 
-      // 检查是否有正确选项
       const hasCorrectOption = options.some(option => option.is_correct)
-      if (!hasCorrectOption) {
-        message.error('请至少选择一个正确选项')
-        return
-      }
+      if (!hasCorrectOption) return message.error('请至少选择一个正确选项')
     }
 
     // 判断题验证
-    if (type === 'true_false' && !answer) {
-      message.error('请选择正确答案')
-      return
-    }
+    if (type === 'true_false' && !answer) return message.error('请选择正确答案')
 
     // 简答题验证
-    if (type === 'short_answer' && !answer.trim()) {
-      message.error('请输入参考答案')
-      return
-    }
+    if (type === 'short_answer' && !answer.trim()) return message.error('请输入参考答案')
 
     try {
       setLoading(true)
 
-      // 准备提交数据
+      // 准备提交数据（这里保持与你后端的字段一致）
       const questionData: any = {
         content,
-        question_type: type, // 映射为后端字段名
+        question_type: type,
         knowledge_points: knowledgePoints,
         explanation,
-        exam_id: 1, // 默认使用ID为1的考试
-        score: 10, // 默认分值
+        exam_id: 1, // 示例：默认考试 ID
+        score: 10, // 示例：默认分值
       }
 
-      // 根据题目类型设置答案
       if (type === 'single_choice' || type === 'multiple_choice') {
-        questionData.options = JSON.stringify(options)
-        questionData.correct_answer = JSON.stringify(
-          options.map((option, index) => (option.is_correct ? index : null)).filter(index => index !== null)
-        )
+        // 后端若接受数组就直接传；若要求字符串可改：JSON.stringify(options)
+        questionData.options = options
+        // 正确答案用“索引数组”，与详情读取逻辑匹配
+        const correctIdx = options
+          .map((opt, idx) => (opt.is_correct ? idx : null))
+          .filter((v): v is number => v !== null)
+        questionData.correct_answer = correctIdx
       } else if (type === 'true_false') {
-        questionData.options = JSON.stringify([{ content: '正确' }, { content: '错误' }])
-        questionData.correct_answer = JSON.stringify([answer === 'true' ? 0 : 1])
+        questionData.options = [{ content: '正确' }, { content: '错误' }]
+        questionData.correct_answer = [answer === 'true' ? 0 : 1]
       } else if (type === 'short_answer') {
-        questionData.options = JSON.stringify([])
-        questionData.correct_answer = JSON.stringify(answer)
+        questionData.options = []
+        questionData.correct_answer = answer
+        questionData.answer = answer
       }
 
       if (isEditMode && id) {
-        // 提交更新请求
-        await questionsApi.update(id, questionData)
+        const res: ApiResult<any> = await questionsApi.update(id, questionData)
+        if (!isSuccess(res)) return message.error(getMsg(res, '题目更新失败'))
         message.success('题目更新成功')
       } else {
-        // 提交创建请求
-        await questionsApi.create(questionData)
+        const res: ApiResult<any> = await questionsApi.create(questionData)
+        if (!isSuccess(res)) return message.error(getMsg(res, '题目创建失败'))
         message.success('题目创建成功')
       }
 
       navigate('/admin/questions')
     } catch (error: any) {
       console.error(isEditMode ? '更新题目错误:' : '创建题目错误:', error)
-      message.error(error.message || (isEditMode ? '更新题目失败' : '创建题目失败'))
+      message.error(error?.message || (isEditMode ? '更新题目失败' : '创建题目失败'))
     } finally {
       setLoading(false)
     }
   }
 
-  // 获取页面标题
-  const getPageTitle = () => {
-    if (isViewMode) return '查看题目'
-    if (isEditMode) return '编辑题目'
-    return '创建新题目'
-  }
-
-  // 获取页面描述
-  const getPageDescription = () => {
-    if (isViewMode) return '查看题目详细信息'
-    if (isEditMode) return '修改现有题目信息'
-    return '添加新的考试题目到题库'
-  }
+  // 获取页面标题/描述
+  const getPageTitle = () => (isViewMode ? '查看题目' : isEditMode ? '编辑题目' : '创建新题目')
+  const getPageDescription = () =>
+    isViewMode ? '查看题目详细信息' : isEditMode ? '修改现有题目信息' : '添加新的考试题目到题库'
 
   if (initialLoading) {
     return (
       <div className="container mx-auto py-8 px-4 max-w-4xl">
         <div className="flex justify-center items-center min-h-[300px]">
-          <LoadingSpinner size={40} />
+          <LoadingSpinner size="md" />
         </div>
       </div>
     )
@@ -280,7 +328,7 @@ const QuestionCreatePage: React.FC = () => {
           <Row gutter={[24, 16]}>
             <Col xs={24} md={12}>
               <Form.Item label="题目类型" required>
-                <Select value={type} onChange={value => setType(value)} disabled={isViewMode}>
+                <Select value={type} onChange={value => setType(value as any)} disabled={isViewMode}>
                   <Option value="single_choice">单选题</Option>
                   <Option value="multiple_choice">多选题</Option>
                   <Option value="true_false">判断题</Option>

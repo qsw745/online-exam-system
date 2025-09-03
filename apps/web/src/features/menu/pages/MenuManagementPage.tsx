@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tag, Tree } from 'antd'
 import type { EventDataNode, TreeDataNode } from 'antd/es/tree'
 import React, { useEffect, useState } from 'react'
-import { api } from '../../lib/api'
+import { api } from '@shared/api/http'
 
 interface Menu {
   id: number

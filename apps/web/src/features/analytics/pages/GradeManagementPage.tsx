@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import { Search, Filter, Eye, Download, Users, Trophy, TrendingUp, Calendar } from 'lucide-react'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { api } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { useAuth } from '@shared/contexts/AuthContext'
 import { message } from 'antd'
-import { api } from '../../lib/api'
+import { Calendar, Download, Eye, Search, TrendingUp, Trophy, Users } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 
 interface StudentResult {
   id: string
@@ -56,7 +56,7 @@ const GradeManagementPage: React.FC = () => {
     totalPages: 1,
     totalResults: 0,
     pageSize: 15,
-    papers: []
+    papers: [],
   })
 
   useEffect(() => {
@@ -71,24 +71,30 @@ const GradeManagementPage: React.FC = () => {
   const loadData = async () => {
     try {
       setState(prev => ({ ...prev, loading: true }))
-      const { data } = await api.get('/exam_results', {
+      const res = await api.get('/exam_results', {
         params: {
           page: state.currentPage,
           limit: state.pageSize,
           paper_id: state.filterPaper === 'all' ? undefined : state.filterPaper,
           status: state.filterStatus === 'all' ? undefined : state.filterStatus,
           search: state.searchTerm || undefined,
-          include_student_info: true
-        }
+          include_student_info: true,
+        },
       })
-      
-      setState(prev => ({
-        ...prev,
-        results: data.results || [],
-        totalPages: data.pagination?.totalPages || 1,
-        totalResults: data.pagination?.total || 0,
-        loading: false
-      }))
+
+      if (res.success) {
+        const data = (res as any).data || {}
+        setState(prev => ({
+          ...prev,
+          results: data.results || [],
+          totalPages: data.pagination?.totalPages || 1,
+          totalResults: data.pagination?.total || 0,
+          loading: false,
+        }))
+      } else {
+        message.error((res as any).error || '加载成绩数据失败')
+        setState(prev => ({ ...prev, loading: false }))
+      }
     } catch (error: any) {
       console.error('加载成绩数据错误:', error)
       message.error(error.response?.data?.message || '加载成绩数据失败')
@@ -98,8 +104,11 @@ const GradeManagementPage: React.FC = () => {
 
   const loadPapers = async () => {
     try {
-      const { data } = await api.get('/papers')
-      setState(prev => ({ ...prev, papers: data.papers || [] }))
+      const res = await api.get('/papers')
+      if (res.success) {
+        const data = (res as any).data || {}
+        setState(prev => ({ ...prev, papers: data.papers || [] }))
+      }
     } catch (error: any) {
       console.error('加载试卷列表错误:', error)
     }
@@ -107,8 +116,10 @@ const GradeManagementPage: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const { data } = await api.get('/analytics/grade-stats')
-      setState(prev => ({ ...prev, stats: data }))
+      const res = await api.get('/analytics/grade-stats')
+      if (res.success) {
+        setState(prev => ({ ...prev, stats: (res as any).data }))
+      }
     } catch (error: any) {
       console.error('加载统计数据错误:', error)
     }
@@ -120,10 +131,10 @@ const GradeManagementPage: React.FC = () => {
   }
 
   const handleFilterChange = (type: 'paper' | 'status', value: string) => {
-    setState(prev => ({ 
-      ...prev, 
+    setState(prev => ({
+      ...prev,
       [type === 'paper' ? 'filterPaper' : 'filterStatus']: value,
-      currentPage: 1 
+      currentPage: 1,
     }))
   }
 
@@ -133,25 +144,29 @@ const GradeManagementPage: React.FC = () => {
 
   const exportResults = async () => {
     try {
-      const { data } = await api.get('/exam_results/export', {
+      const res = await api.get('/exam_results/export', {
         params: {
           paper_id: state.filterPaper === 'all' ? undefined : state.filterPaper,
           status: state.filterStatus === 'all' ? undefined : state.filterStatus,
-          search: state.searchTerm || undefined
+          search: state.searchTerm || undefined,
         },
-        responseType: 'blob'
+        responseType: 'blob',
       })
-      
-      const url = window.URL.createObjectURL(new Blob([data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.setAttribute('download', `成绩报告_${new Date().toISOString().split('T')[0]}.xlsx`)
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-      
-      message.success('成绩报告导出成功')
+
+      if (res.success) {
+        const blob: Blob = (res as any).data
+        const url = window.URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.setAttribute('download', `成绩报告_${new Date().toISOString().split('T')[0]}.xlsx`)
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        window.URL.revokeObjectURL(url)
+        message.success('成绩报告导出成功')
+      } else {
+        message.error((res as any).error || '导出成绩报告失败')
+      }
     } catch (error: any) {
       console.error('导出成绩报告错误:', error)
       message.error('导出成绩报告失败')
@@ -160,19 +175,27 @@ const GradeManagementPage: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'completed': return 'text-green-600 bg-green-50'
-      case 'in_progress': return 'text-blue-600 bg-blue-50'
-      case 'not_started': return 'text-gray-600 bg-gray-50'
-      default: return 'text-gray-600 bg-gray-50'
+      case 'completed':
+        return 'text-green-600 bg-green-50'
+      case 'in_progress':
+        return 'text-blue-600 bg-blue-50'
+      case 'not_started':
+        return 'text-gray-600 bg-gray-50'
+      default:
+        return 'text-gray-600 bg-gray-50'
     }
   }
 
   const getStatusText = (status: string) => {
     switch (status) {
-      case 'completed': return '已完成'
-      case 'in_progress': return '进行中'
-      case 'not_started': return '未开始'
-      default: return '未知'
+      case 'completed':
+        return '已完成'
+      case 'in_progress':
+        return '进行中'
+      case 'not_started':
+        return '未开始'
+      default:
+        return '未知'
     }
   }
 
@@ -213,7 +236,7 @@ const GradeManagementPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-green-50 mr-4">
@@ -225,7 +248,7 @@ const GradeManagementPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-yellow-50 mr-4">
@@ -237,7 +260,7 @@ const GradeManagementPage: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-lg shadow-sm border p-6">
             <div className="flex items-center">
               <div className="p-3 rounded-full bg-purple-50 mr-4">
@@ -262,27 +285,29 @@ const GradeManagementPage: React.FC = () => {
                 type="text"
                 placeholder="搜索学生姓名或邮箱..."
                 value={state.searchTerm}
-                onChange={(e) => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
+                onChange={e => setState(prev => ({ ...prev, searchTerm: e.target.value }))}
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               />
             </div>
           </form>
-          
+
           <div className="flex gap-4">
             <select
               value={state.filterPaper}
-              onChange={(e) => handleFilterChange('paper', e.target.value)}
+              onChange={e => handleFilterChange('paper', e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">所有试卷</option>
               {state.papers.map(paper => (
-                <option key={paper.id} value={paper.id}>{paper.title}</option>
+                <option key={paper.id} value={paper.id}>
+                  {paper.title}
+                </option>
               ))}
             </select>
-            
+
             <select
               value={state.filterStatus}
-              onChange={(e) => handleFilterChange('status', e.target.value)}
+              onChange={e => handleFilterChange('status', e.target.value)}
               className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option value="all">所有状态</option>
@@ -290,7 +315,7 @@ const GradeManagementPage: React.FC = () => {
               <option value="in_progress">进行中</option>
               <option value="not_started">未开始</option>
             </select>
-            
+
             <button
               onClick={exportResults}
               className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -311,59 +336,45 @@ const GradeManagementPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   学生信息
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  试卷
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  成绩
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  用时
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  状态
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">试卷</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">成绩</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">用时</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   提交时间
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  操作
-                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {state.results.map((result) => (
+              {state.results.map(result => (
                 <tr key={result.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">
-                        {result.student_name || '未知学生'}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {result.student_email}
-                      </div>
+                      <div className="text-sm font-medium text-gray-900">{result.student_name || '未知学生'}</div>
+                      <div className="text-sm text-gray-500">{result.student_email}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 max-w-xs truncate">
-                      {result.paper_title}
-                    </div>
+                    <div className="text-sm text-gray-900 max-w-xs truncate">{result.paper_title}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="text-sm">
                       <span className={`font-medium ${getScoreColor(result.percentage)}`}>
                         {result.score}/{result.total_score}
                       </span>
-                      <div className="text-xs text-gray-500">
-                        {result.percentage.toFixed(1)}%
-                      </div>
+                      <div className="text-xs text-gray-500">{result.percentage.toFixed(1)}%</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     {result.duration ? `${Math.floor(result.duration / 60)}分${result.duration % 60}秒` : '-'}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(result.status)}`}>
+                    <span
+                      className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(
+                        result.status
+                      )}`}
+                    >
                       {getStatusText(result.status)}
                     </span>
                   </td>
@@ -381,7 +392,7 @@ const GradeManagementPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
+
         {state.results.length === 0 && !state.loading && (
           <div className="text-center py-12">
             <Trophy className="mx-auto h-12 w-12 text-gray-400" />
@@ -395,8 +406,8 @@ const GradeManagementPage: React.FC = () => {
       {state.totalPages > 1 && (
         <div className="mt-6 flex items-center justify-between">
           <div className="text-sm text-gray-700">
-            显示第 {(state.currentPage - 1) * state.pageSize + 1} - {Math.min(state.currentPage * state.pageSize, state.totalResults)} 条，
-            共 {state.totalResults} 条记录
+            显示第 {(state.currentPage - 1) * state.pageSize + 1} -{' '}
+            {Math.min(state.currentPage * state.pageSize, state.totalResults)} 条， 共 {state.totalResults} 条记录
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -406,7 +417,7 @@ const GradeManagementPage: React.FC = () => {
             >
               上一页
             </button>
-            
+
             {Array.from({ length: Math.min(5, state.totalPages) }, (_, i) => {
               const page = i + Math.max(1, state.currentPage - 2)
               if (page > state.totalPages) return null
@@ -424,7 +435,7 @@ const GradeManagementPage: React.FC = () => {
                 </button>
               )
             })}
-            
+
             <button
               onClick={() => handlePageChange(state.currentPage + 1)}
               disabled={state.currentPage === state.totalPages}

@@ -1,26 +1,20 @@
-import React, { useState, useEffect } from 'react'
+import { api } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { createPaginationConfig } from '@shared/constants/pagination'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { message, Pagination } from 'antd'
+import { BookOpen, Edit, Eye, FileText, Plus, Search, Trash2, X } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  BookOpen,
-  AlertCircle,
-  CheckCircle,
-  X,
-  FileText
-} from 'lucide-react'
-import { Pagination } from 'antd'
-import { useAuth } from '../../contexts/AuthContext'
-import LoadingSpinner from '../../components/LoadingSpinner'
-import { message } from 'antd'
-import { api } from '../../lib/api'
-import { createPaginationConfig } from '../../constants/pagination'
 
-// 使用 api.ts 中导出的 papers 对象
+// ===== 统一 ApiResult 类型与守卫（兼容你项目其它页面的写法）=====
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+const getMsg = (r: any, fallback = '请求失败') =>
+  r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
+// ============================================================
 
 interface Paper {
   id: string
@@ -49,6 +43,7 @@ const PaperManagementPage: React.FC = () => {
 
   useEffect(() => {
     loadPapers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm, filterDifficulty, pageSize])
 
   const loadPapers = async () => {
@@ -58,32 +53,61 @@ const PaperManagementPage: React.FC = () => {
         page: currentPage,
         limit: pageSize,
         search: searchTerm || undefined,
-        difficulty: filterDifficulty === 'all' ? undefined : filterDifficulty
+        difficulty: filterDifficulty === 'all' ? undefined : filterDifficulty,
       }
-      const response = await api.get('/papers', { params })
-      
-      // 处理响应数据
-      if (response.data && response.data.papers) {
-        setPapers(response.data.papers)
-        // 处理分页信息
-        if (response.data.pagination) {
-          setTotalPages(response.data.pagination.totalPages)
-          setTotalPapers(response.data.pagination.total)
+
+      // 可能返回 ApiResult，也可能是 axios 风格的 { data: ... }
+      const resp: any = await api.get('/papers', { params })
+
+      // 情形 A：标准 ApiResult
+      if (isSuccess<any>(resp)) {
+        const d = resp.data
+        if (Array.isArray(d)) {
+          setPapers(d)
+          setTotalPapers(d.length)
+          setTotalPages(Math.ceil(d.length / pageSize) || 1)
+        } else if (d?.papers) {
+          setPapers(d.papers as Paper[])
+          const pg = (d as any).pagination
+          setTotalPapers(pg?.total ?? d.total ?? d.papers.length ?? 0)
+          setTotalPages(pg?.totalPages ?? (Math.ceil(((d.total as number) ?? 0) / pageSize) || 1))
+        } else {
+          // 兜底：如果 d 直接就是列表对象
+          setPapers(d ?? [])
+          setTotalPapers((d?.total as number) ?? (d?.length as number) ?? 0)
+          setTotalPages(Math.ceil(((d?.total as number) ?? 0) / pageSize || 1))
         }
-      } else if (response.data && response.data.data && response.data.data.papers) {
-        setPapers(response.data.data.papers)
-        // 处理分页信息
-        if (response.data.data.pagination) {
-          setTotalPages(response.data.data.pagination.totalPages)
-          setTotalPapers(response.data.data.pagination.total)
-        }
+        return
+      }
+
+      // 情形 B：axios 风格 { data: {...} }
+      const axData = resp?.data
+      if (Array.isArray(axData)) {
+        setPapers(axData)
+        setTotalPapers(axData.length)
+        setTotalPages(Math.ceil(axData.length / pageSize) || 1)
+      } else if (axData?.papers) {
+        setPapers(axData.papers as Paper[])
+        const pg = axData.pagination
+        setTotalPapers(pg?.total ?? axData.total ?? axData.papers.length ?? 0)
+        setTotalPages(pg?.totalPages ?? (Math.ceil(((axData.total as number) ?? 0) / pageSize) || 1))
+      } else if (axData?.data?.papers) {
+        // 情形 C：再包一层 data
+        setPapers(axData.data.papers as Paper[])
+        const pg = axData.data.pagination
+        setTotalPapers(pg?.total ?? axData.data.total ?? axData.data.papers.length ?? 0)
+        setTotalPages(pg?.totalPages ?? (Math.ceil(((axData.data.total as number) ?? 0) / pageSize) || 1))
       } else {
         setPapers([])
+        setTotalPapers(0)
+        setTotalPages(1)
       }
     } catch (error: any) {
       console.error('加载试卷错误:', error)
-      message.error(error.response?.data?.message || '加载试卷失败')
+      message.error(error?.response?.data?.message || error?.message || '加载试卷失败')
       setPapers([]) // 出错时设置为空数组
+      setTotalPapers(0)
+      setTotalPages(1)
     } finally {
       setLoading(false)
     }
@@ -91,7 +115,11 @@ const PaperManagementPage: React.FC = () => {
 
   const handleDelete = async (paperId: string) => {
     try {
-      await api.delete(`/papers/${paperId}`)
+      const resp: ApiResult<any> = await api.delete(`/papers/${paperId}`)
+      if (!isSuccess(resp)) {
+        message.error(getMsg(resp, '删除试卷失败'))
+        return
+      }
       message.success('试卷删除成功')
       loadPapers()
       setShowDeleteModal(false)
@@ -119,7 +147,7 @@ const PaperManagementPage: React.FC = () => {
     }
   }
 
-  // 搜索和筛选的防抖处理
+  // 搜索和筛选
   const handleSearch = (value: string) => {
     setSearchTerm(value)
     setCurrentPage(1) // 重置到第一页
@@ -130,22 +158,20 @@ const PaperManagementPage: React.FC = () => {
     setCurrentPage(1) // 重置到第一页
   }
 
-  // 移除客户端过滤逻辑，现在使用服务端分页
-
   const getDifficultyLabel = (difficulty: string) => {
     const difficultyMap = {
-      'easy': '简单',
-      'medium': '中等',
-      'hard': '困难'
+      easy: '简单',
+      medium: '中等',
+      hard: '困难',
     }
     return difficultyMap[difficulty as keyof typeof difficultyMap] || difficulty
   }
 
   const getDifficultyColor = (difficulty: string) => {
     const colorMap = {
-      'easy': 'bg-green-100 text-green-800',
-      'medium': 'bg-yellow-100 text-yellow-800',
-      'hard': 'bg-red-100 text-red-800'
+      easy: 'bg-green-100 text-green-800',
+      medium: 'bg-yellow-100 text-yellow-800',
+      hard: 'bg-red-100 text-red-800',
     }
     return colorMap[difficulty as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
   }
@@ -172,7 +198,7 @@ const PaperManagementPage: React.FC = () => {
               type="text"
               placeholder="搜索试卷..."
               value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -180,7 +206,7 @@ const PaperManagementPage: React.FC = () => {
           {/* 筛选器 */}
           <select
             value={filterDifficulty}
-                onChange={(e) => handleFilterChange(e.target.value)}
+            onChange={e => handleFilterChange(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">所有难度</option>
@@ -218,25 +244,29 @@ const PaperManagementPage: React.FC = () => {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">试卷</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">难度</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总分</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  创建时间
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {papers.map((paper) => (
+              {papers.map(paper => (
                 <tr key={paper.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 font-medium">{paper.title}</div>
                     <div className="text-sm text-gray-500">{paper.description}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(paper.difficulty)}`}>
+                    <span
+                      className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(paper.difficulty)}`}
+                    >
                       {getDifficultyLabel(paper.difficulty)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {paper.total_score} 分
-                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paper.total_score} 分</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(paper.created_at).toLocaleString('zh-CN')}
                   </td>
@@ -277,7 +307,7 @@ const PaperManagementPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
+
         {/* 增强版分页组件 */}
         <Pagination
           {...createPaginationConfig({
@@ -285,10 +315,10 @@ const PaperManagementPage: React.FC = () => {
             total: totalPapers,
             pageSize: pageSize,
             onChange: setCurrentPage,
-            onShowSizeChange: (current, newPageSize) => {
+            onShowSizeChange: (_current: number, newPageSize: number) => {
               setPageSize(newPageSize)
               setCurrentPage(1) // 重置到第一页
-            }
+            },
           })}
         />
       </div>
@@ -299,16 +329,11 @@ const PaperManagementPage: React.FC = () => {
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">确认删除</h3>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
+              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-500">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-gray-600 mb-4">
-              确定要删除试卷 {selectedPaper.title}？此操作无法撤销。
-            </p>
+            <p className="text-gray-600 mb-4">确定要删除试卷 {selectedPaper.title}？此操作无法撤销。</p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowDeleteModal(false)}

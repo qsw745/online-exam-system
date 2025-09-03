@@ -1,11 +1,43 @@
 import React, { useState, useEffect } from 'react'
-import { Card, List, Button, Modal, Form, Input, Select, Tag, Tooltip, Spin, App, Empty, Space, Typography, Row, Col } from 'antd'
+import {
+  Card,
+  List,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Tag,
+  Tooltip,
+  Spin,
+  App,
+  Empty,
+  Space,
+  Typography,
+  Row,
+  Col,
+} from 'antd'
 import { Heart, Plus, Edit, Trash2, Share2, Eye, BookOpen, Star } from 'lucide-react'
-import { api } from '../lib/api'
+import { api } from '@shared/api/http'
 
 const { Option } = Select
 const { TextArea } = Input
 const { Title, Text } = Typography
+
+// ===== 统一 ApiResult 类型与守卫（适配你的 http 封装/拦截器）=====
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+
+// 从各种返回形态里“捞”出数据
+function pickData<T>(resp: any, fallback: T): T {
+  if (isSuccess<T>(resp)) return (resp.data as T) ?? fallback
+  const d = resp?.data
+  if (d?.data !== undefined) return (d.data as T) ?? fallback
+  return (d as T) ?? fallback
+}
+// ============================================================
 
 interface Favorite {
   id: number
@@ -55,21 +87,25 @@ export default function FavoritesPage() {
   useEffect(() => {
     fetchFavorites()
     fetchCategories()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useEffect(() => {
     if (selectedFavorite) {
       fetchFavoriteItems(selectedFavorite.id)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedFavorite])
 
   const fetchFavorites = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/favorites')
-      setFavorites(response.data.data || [])
-      if (response.data.data?.length > 0 && !selectedFavorite) {
-        setSelectedFavorite(response.data.data[0])
+      const resp: ApiResult<Favorite[]> | any = await api.get('/favorites')
+      const list = pickData<Favorite[] | { favorites?: Favorite[] }>(resp, []) as any
+      const arr: Favorite[] = Array.isArray(list) ? list : Array.isArray(list?.favorites) ? list.favorites : []
+      setFavorites(arr)
+      if (arr.length > 0 && !selectedFavorite) {
+        setSelectedFavorite(arr[0])
       }
     } catch (error) {
       console.error('获取收藏夹失败:', error)
@@ -82,8 +118,9 @@ export default function FavoritesPage() {
   const fetchFavoriteItems = async (favoriteId: number) => {
     try {
       setItemsLoading(true)
-      const response = await api.get(`/favorites/${favoriteId}/items`)
-      setFavoriteItems(response.data.data || [])
+      const resp: ApiResult<FavoriteItem[]> | any = await api.get(`/favorites/${favoriteId}/items`)
+      const items = pickData<FavoriteItem[] | { items?: FavoriteItem[] }>(resp, []) as any
+      setFavoriteItems(Array.isArray(items) ? items : items?.items ?? [])
     } catch (error) {
       console.error('获取收藏夹内容失败:', error)
       message.error('获取收藏夹内容失败')
@@ -94,8 +131,9 @@ export default function FavoritesPage() {
 
   const fetchCategories = async () => {
     try {
-      const response = await api.get('/favorites/categories/list')
-      setCategories(response.data.data || [])
+      const resp: ApiResult<FavoriteCategory[]> | any = await api.get('/favorites/categories/list')
+      const list = pickData<FavoriteCategory[] | { categories?: FavoriteCategory[] }>(resp, []) as any
+      setCategories(Array.isArray(list) ? list : list?.categories ?? [])
     } catch (error) {
       console.error('获取分类失败:', error)
     }
@@ -103,8 +141,10 @@ export default function FavoritesPage() {
 
   const createFavorite = async (values: any) => {
     try {
-      const response = await api.post('/favorites', values)
-      setFavorites(prev => [response.data.data, ...prev])
+      const resp: ApiResult<Favorite> | any = await api.post('/favorites', values)
+      const created = pickData<Favorite>(resp, null as any)
+      if (!created) throw new Error('无返回数据')
+      setFavorites(prev => [created, ...prev])
       setCreateModalVisible(false)
       form.resetFields()
       message.success('创建收藏夹成功')
@@ -116,15 +156,12 @@ export default function FavoritesPage() {
 
   const updateFavorite = async (values: any) => {
     if (!selectedFavorite) return
-    
     try {
-      const response = await api.put(`/favorites/${selectedFavorite.id}`, values)
-      setFavorites(prev => 
-        prev.map(fav => 
-          fav.id === selectedFavorite.id ? response.data.data : fav
-        )
-      )
-      setSelectedFavorite(response.data.data)
+      const resp: ApiResult<Favorite> | any = await api.put(`/favorites/${selectedFavorite.id}`, values)
+      const updated = pickData<Favorite>(resp, null as any)
+      if (!updated) throw new Error('无返回数据')
+      setFavorites(prev => prev.map(fav => (fav.id === selectedFavorite.id ? updated : fav)))
+      setSelectedFavorite(updated)
       setEditModalVisible(false)
       editForm.resetFields()
       message.success('更新收藏夹成功')
@@ -151,17 +188,17 @@ export default function FavoritesPage() {
           console.error('删除收藏夹失败:', error)
           message.error('删除收藏夹失败')
         }
-      }
+      },
     })
   }
 
   const removeFromFavorite = async (itemId: number) => {
     if (!selectedFavorite) return
-    
+
     try {
       await api.delete(`/favorites/${selectedFavorite.id}/items/${itemId}`)
       setFavoriteItems(prev => prev.filter(item => item.id !== itemId))
-      setSelectedFavorite(prev => prev ? { ...prev, items_count: prev.items_count - 1 } : null)
+      setSelectedFavorite(prev => (prev ? { ...prev, items_count: Math.max(0, (prev.items_count || 0) - 1) } : null))
       message.success('移除成功')
     } catch (error) {
       console.error('移除失败:', error)
@@ -171,11 +208,14 @@ export default function FavoritesPage() {
 
   const shareFavorite = async (favoriteId: number) => {
     try {
-      const response = await api.post(`/favorites/${favoriteId}/share`)
-      const shareLink = response.data.data?.share_link
+      const resp: ApiResult<{ share_link: string }> | any = await api.post(`/favorites/${favoriteId}/share`)
+      const data = pickData<{ share_link?: string }>(resp, {})
+      const shareLink = data?.share_link
       if (shareLink) {
-        navigator.clipboard.writeText(shareLink)
+        await navigator.clipboard.writeText(shareLink)
         message.success('分享链接已复制到剪贴板')
+      } else {
+        throw new Error('无分享链接')
       }
     } catch (error) {
       console.error('生成分享链接失败:', error)
@@ -184,20 +224,28 @@ export default function FavoritesPage() {
   }
 
   const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty.toLowerCase()) {
-      case 'easy': return 'green'
-      case 'medium': return 'orange'
-      case 'hard': return 'red'
-      default: return 'default'
+    switch ((difficulty || '').toLowerCase()) {
+      case 'easy':
+        return 'green'
+      case 'medium':
+        return 'orange'
+      case 'hard':
+        return 'red'
+      default:
+        return 'default'
     }
   }
 
   const getDifficultyText = (difficulty: string) => {
-    switch (difficulty.toLowerCase()) {
-      case 'easy': return '简单'
-      case 'medium': return '中等'
-      case 'hard': return '困难'
-      default: return difficulty
+    switch ((difficulty || '').toLowerCase()) {
+      case 'easy':
+        return '简单'
+      case 'medium':
+        return '中等'
+      case 'hard':
+        return '困难'
+      default:
+        return difficulty
     }
   }
 
@@ -207,10 +255,12 @@ export default function FavoritesPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space align="center">
             <Heart style={{ width: 24, height: 24, color: '#f5222d' }} />
-            <Title level={2} style={{ margin: 0 }}>我的收藏夹</Title>
+            <Title level={2} style={{ margin: 0 }}>
+              我的收藏夹
+            </Title>
           </Space>
-          <Button 
-            type="primary" 
+          <Button
+            type="primary"
             icon={<Plus style={{ width: 16, height: 16 }} />}
             onClick={() => setCreateModalVisible(true)}
           >
@@ -222,159 +272,101 @@ export default function FavoritesPage() {
           {/* 收藏夹列表 */}
           <Col xs={24} lg={10}>
             <Card title="收藏夹列表" style={{ height: '100%' }}>
-            <Spin spinning={loading}>
-              {favorites.length === 0 ? (
-                <Empty description="暂无收藏夹" />
-              ) : (
-                <List
-                  dataSource={favorites}
-                  renderItem={(favorite) => (
-                    <List.Item
-                      style={{
-                        cursor: 'pointer',
-                        borderRadius: 8,
-                        padding: 12,
-                        marginBottom: 8,
-                        backgroundColor: selectedFavorite?.id === favorite.id ? '#f0f9ff' : undefined,
-                        border: selectedFavorite?.id === favorite.id ? '1px solid #bae6fd' : '1px solid transparent',
-                        transition: 'all 0.2s'
-                      }}
-                      onClick={() => setSelectedFavorite(favorite)}
-                      actions={[
-                        <Tooltip title="编辑">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<Edit style={{ width: 16, height: 16 }} />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              setSelectedFavorite(favorite)
-                              editForm.setFieldsValue({
-                                ...favorite,
-                                category_id: favorite.category_id
-                              })
-                              setEditModalVisible(true)
-                            }}
-                          />
-                        </Tooltip>,
-                        <Tooltip title="分享">
-                          <Button
-                            type="text"
-                            size="small"
-                            icon={<Share2 style={{ width: 16, height: 16 }} />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              shareFavorite(favorite.id)
-                            }}
-                          />
-                        </Tooltip>,
-                        <Tooltip title="删除">
-                          <Button
-                            type="text"
-                            size="small"
-                            danger
-                            icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              deleteFavorite(favorite.id)
-                            }}
-                          />
-                        </Tooltip>
-                      ]}
-                    >
-                      <List.Item.Meta
-                        title={
-                          <div className="flex items-center space-x-2">
-                            <span>{favorite.name}</span>
-                            {favorite.is_public && (
-                              <Tag color="blue" size="small">
-                                <Eye style={{ width: 12, height: 12, marginRight: 4 }} />
-                                公开
-                              </Tag>
-                            )}
-                          </div>
-                        }
-                        description={
-                          <div>
-                            <Text type="secondary" style={{ fontSize: 14, marginBottom: 4, display: 'block' }}>
-                              {favorite.description || '暂无描述'}
-                            </Text>
-                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                              <Tag color={favorite.category_color || 'purple'}>{favorite.category_name || '未分类'}</Tag>
-                              <Text type="secondary" style={{ fontSize: 12 }}>{favorite.items_count} 题</Text>
-                            </div>
-                          </div>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
-              )}
-            </Spin>
-          </Card>
-        </Col>
-
-          {/* 收藏夹内容 */}
-          <Col xs={24} lg={14}>
-            <Card 
-              title={
-                selectedFavorite ? (
-                  <Space align="center">
-                    <BookOpen style={{ width: 20, height: 20 }} />
-                    <span>{selectedFavorite.name}</span>
-                    <Tag color={selectedFavorite.category_color || 'purple'}>{selectedFavorite.category_name || '未分类'}</Tag>
-                    {selectedFavorite.is_public && (
-                      <Tag color="blue">
-                        <Eye style={{ width: 12, height: 12, marginRight: 4 }} />
-                        公开
-                      </Tag>
-                    )}
-                  </Space>
-                ) : '选择收藏夹查看内容'
-              }
-              style={{ height: '100%' }}
-          >
-            {selectedFavorite ? (
-              <Spin spinning={itemsLoading}>
-                {favoriteItems.length === 0 ? (
-                  <Empty description="收藏夹为空" />
+              <Spin spinning={loading}>
+                {favorites.length === 0 ? (
+                  <Empty description="暂无收藏夹" />
                 ) : (
                   <List
-                    dataSource={favoriteItems}
-                    renderItem={(item) => (
+                    dataSource={favorites}
+                    renderItem={favorite => (
                       <List.Item
+                        style={{
+                          cursor: 'pointer',
+                          borderRadius: 8,
+                          padding: 12,
+                          marginBottom: 8,
+                          backgroundColor: selectedFavorite?.id === favorite.id ? '#f0f9ff' : undefined,
+                          border: selectedFavorite?.id === favorite.id ? '1px solid #bae6fd' : '1px solid transparent',
+                          transition: 'all 0.2s',
+                        }}
+                        onClick={() => setSelectedFavorite(favorite)}
                         actions={[
-                          <Button
-                            type="link"
-                            onClick={() => window.open(`/questions/${item.question_id}`, '_blank')}
-                          >
-                            查看题目
-                          </Button>,
-                          <Button
-                            type="text"
-                            danger
-                            icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                            onClick={() => removeFromFavorite(item.id)}
-                          >
-                            移除
-                          </Button>
+                          <Tooltip title="编辑" key="edit">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<Edit style={{ width: 16, height: 16 }} />}
+                              onClick={e => {
+                                e.stopPropagation()
+                                setSelectedFavorite(favorite)
+                                editForm.setFieldsValue({
+                                  ...favorite,
+                                  category_id: favorite.category_id,
+                                })
+                                setEditModalVisible(true)
+                              }}
+                            />
+                          </Tooltip>,
+                          <Tooltip title="分享" key="share">
+                            <Button
+                              type="text"
+                              size="small"
+                              icon={<Share2 style={{ width: 16, height: 16 }} />}
+                              onClick={e => {
+                                e.stopPropagation()
+                                shareFavorite(favorite.id)
+                              }}
+                            />
+                          </Tooltip>,
+                          <Tooltip title="删除" key="delete">
+                            <Button
+                              type="text"
+                              size="small"
+                              danger
+                              icon={<Trash2 style={{ width: 16, height: 16 }} />}
+                              onClick={e => {
+                                e.stopPropagation()
+                                deleteFavorite(favorite.id)
+                              }}
+                            />
+                          </Tooltip>,
                         ]}
                       >
                         <List.Item.Meta
                           title={
                             <div className="flex items-center space-x-2">
-                              <span>{item.question_title}</span>
-                              <Tag color={getDifficultyColor(item.difficulty)}>
-                                {getDifficultyText(item.difficulty)}
-                              </Tag>
+                              <span>{favorite.name}</span>
+                              {favorite.is_public && (
+                                <Tag
+                                  color="blue"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: 4,
+                                    paddingInline: 8,
+                                    height: 22,
+                                  }}
+                                >
+                                  <Eye style={{ width: 12, height: 12 }} />
+                                  公开
+                                </Tag>
+                              )}
                             </div>
                           }
                           description={
-                            <Space size="large">
-                              <Text type="secondary" style={{ fontSize: 14 }}>科目: {item.subject}</Text>
-                              <Text type="secondary" style={{ fontSize: 14 }}>类型: {item.question_type}</Text>
-                              <Text type="secondary" style={{ fontSize: 14 }}>收藏时间: {new Date(item.added_at).toLocaleDateString()}</Text>
-                            </Space>
+                            <div>
+                              <Text type="secondary" style={{ fontSize: 14, marginBottom: 4, display: 'block' }}>
+                                {favorite.description || '暂无描述'}
+                              </Text>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                <Tag color={favorite.category_color || 'purple'}>
+                                  {favorite.category_name || '未分类'}
+                                </Tag>
+                                <Text type="secondary" style={{ fontSize: 12 }}>
+                                  {favorite.items_count} 题
+                                </Text>
+                              </div>
+                            </div>
                           }
                         />
                       </List.Item>
@@ -382,119 +374,172 @@ export default function FavoritesPage() {
                   />
                 )}
               </Spin>
+            </Card>
+          </Col>
+
+          {/* 收藏夹内容 */}
+          <Col xs={24} lg={14}>
+            <Card
+              title={
+                selectedFavorite ? (
+                  <Space align="center">
+                    <BookOpen style={{ width: 20, height: 20 }} />
+                    <span>{selectedFavorite.name}</span>
+                    <Tag color={selectedFavorite.category_color || 'purple'}>
+                      {selectedFavorite.category_name || '未分类'}
+                    </Tag>
+                    {selectedFavorite.is_public && (
+                      <Tag
+                        color="blue"
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingInline: 8, height: 22 }}
+                      >
+                        <Eye style={{ width: 12, height: 12 }} />
+                        公开
+                      </Tag>
+                    )}
+                  </Space>
+                ) : (
+                  '选择收藏夹查看内容'
+                )
+              }
+              style={{ height: '100%' }}
+            >
+              {selectedFavorite ? (
+                <Spin spinning={itemsLoading}>
+                  {favoriteItems.length === 0 ? (
+                    <Empty description="收藏夹为空" />
+                  ) : (
+                    <List
+                      dataSource={favoriteItems}
+                      renderItem={item => (
+                        <List.Item
+                          actions={[
+                            <Button
+                              key="view"
+                              type="link"
+                              onClick={() => window.open(`/questions/${item.question_id}`, '_blank')}
+                            >
+                              查看题目
+                            </Button>,
+                            <Button
+                              key="remove"
+                              type="text"
+                              danger
+                              icon={<Trash2 style={{ width: 16, height: 16 }} />}
+                              onClick={() => removeFromFavorite(item.id)}
+                            >
+                              移除
+                            </Button>,
+                          ]}
+                        >
+                          <List.Item.Meta
+                            title={
+                              <div className="flex items-center space-x-2">
+                                <span>{item.question_title}</span>
+                                <Tag color={getDifficultyColor(item.difficulty)}>
+                                  {getDifficultyText(item.difficulty)}
+                                </Tag>
+                              </div>
+                            }
+                            description={
+                              <Space size="large">
+                                <Text type="secondary" style={{ fontSize: 14 }}>
+                                  科目: {item.subject}
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: 14 }}>
+                                  类型: {item.question_type}
+                                </Text>
+                                <Text type="secondary" style={{ fontSize: 14 }}>
+                                  收藏时间: {new Date(item.added_at).toLocaleDateString()}
+                                </Text>
+                              </Space>
+                            }
+                          />
+                        </List.Item>
+                      )}
+                    />
+                  )}
+                </Spin>
               ) : (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
                   <Star style={{ width: 64, height: 64, color: '#d9d9d9', margin: '0 auto 16px' }} />
                   <Text type="secondary">请选择一个收藏夹查看内容</Text>
                 </div>
               )}
-          </Card>
-           </Col>
-         </Row>
+            </Card>
+          </Col>
+        </Row>
 
-      {/* 创建收藏夹模态框 */}
-      <Modal
-        title="创建收藏夹"
-        open={createModalVisible}
-        onCancel={() => setCreateModalVisible(false)}
-        onOk={() => form.submit()}
-        okText="创建"
-        cancelText="取消"
-        destroyOnHidden={true}
-      >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={createFavorite}
+        {/* 创建收藏夹模态框 */}
+        <Modal
+          title="创建收藏夹"
+          open={createModalVisible}
+          onCancel={() => setCreateModalVisible(false)}
+          onOk={() => form.submit()}
+          okText="创建"
+          cancelText="取消"
+          destroyOnClose
         >
-          <Form.Item
-            name="name"
-            label="收藏夹名称"
-            rules={[{ required: true, message: '请输入收藏夹名称' }]}
-          >
-            <Input placeholder="请输入收藏夹名称" />
-          </Form.Item>
-          <Form.Item
-            name="description"
-            label="描述"
-          >
-            <TextArea rows={3} placeholder="请输入收藏夹描述" />
-          </Form.Item>
-          <Form.Item
-            name="category_id"
-            label="分类"
-            rules={[{ required: true, message: '请选择分类' }]}
-          >
-            <Select placeholder="请选择分类">
-              {categories.map(category => (
-                <Option key={category.id} value={category.id}>{category.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="is_public"
-            label="是否公开"
-            initialValue={false}
-          >
-            <Select>
-              <Option value={false}>私有</Option>
-              <Option value={true}>公开</Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
+          <Form form={form} layout="vertical" onFinish={createFavorite}>
+            <Form.Item name="name" label="收藏夹名称" rules={[{ required: true, message: '请输入收藏夹名称' }]}>
+              <Input placeholder="请输入收藏夹名称" />
+            </Form.Item>
+            <Form.Item name="description" label="描述">
+              <TextArea rows={3} placeholder="请输入收藏夹描述" />
+            </Form.Item>
+            <Form.Item name="category_id" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
+              <Select placeholder="请选择分类">
+                {categories.map(category => (
+                  <Option key={category.id} value={category.id}>
+                    {category.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="is_public" label="是否公开" initialValue={false}>
+              <Select>
+                <Option value={false}>私有</Option>
+                <Option value={true}>公开</Option>
+              </Select>
+            </Form.Item>
+          </Form>
+        </Modal>
 
-      {/* 编辑收藏夹模态框 */}
-      <Modal
-        title="编辑收藏夹"
-        open={editModalVisible}
-        onCancel={() => setEditModalVisible(false)}
-        onOk={() => editForm.submit()}
-        okText="保存"
-        cancelText="取消"
-        destroyOnHidden={true}
-      >
-        <Form
-          form={editForm}
-          layout="vertical"
-          onFinish={updateFavorite}
+        {/* 编辑收藏夹模态框 */}
+        <Modal
+          title="编辑收藏夹"
+          open={editModalVisible}
+          onCancel={() => setEditModalVisible(false)}
+          onOk={() => editForm.submit()}
+          okText="保存"
+          cancelText="取消"
+          destroyOnClose
         >
-          <Form.Item
-            name="name"
-            label="收藏夹名称"
-            rules={[{ required: true, message: '请输入收藏夹名称' }]}
-          >
-            <Input placeholder="请输入收藏夹名称" />
-          </Form.Item>
-          <Form.Item
-            name="description"
-            label="描述"
-          >
-            <TextArea rows={3} placeholder="请输入收藏夹描述" />
-          </Form.Item>
-          <Form.Item
-            name="category_id"
-            label="分类"
-            rules={[{ required: true, message: '请选择分类' }]}
-          >
-            <Select placeholder="请选择分类">
-              {categories.map(category => (
-                <Option key={category.id} value={category.id}>{category.name}</Option>
-              ))}
-            </Select>
-          </Form.Item>
-          <Form.Item
-            name="is_public"
-            label="是否公开"
-          >
-            <Select>
-              <Option value={false}>私有</Option>
-              <Option value={true}>公开</Option>
-            </Select>
-          </Form.Item>
-        </Form>
-      </Modal>
-    </Space>
+          <Form form={editForm} layout="vertical" onFinish={updateFavorite}>
+            <Form.Item name="name" label="收藏夹名称" rules={[{ required: true, message: '请输入收藏夹名称' }]}>
+              <Input placeholder="请输入收藏夹名称" />
+            </Form.Item>
+            <Form.Item name="description" label="描述">
+              <TextArea rows={3} placeholder="请输入收藏夹描述" />
+            </Form.Item>
+            <Form.Item name="category_id" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
+              <Select placeholder="请选择分类">
+                {categories.map(category => (
+                  <Option key={category.id} value={category.id}>
+                    {category.name}
+                  </Option>
+                ))}
+              </Select>
+            </Form.Item>
+            <Form.Item name="is_public" label="是否公开">
+              <Select>
+                <Option value={false}>私有</Option>
+                <Option value={true}>公开</Option>
+              </Select>
+            </Form.Item>
+          </Form>
+        </Modal>
+      </Space>
     </div>
   )
 }

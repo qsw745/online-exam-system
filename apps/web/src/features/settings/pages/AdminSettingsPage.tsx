@@ -18,7 +18,7 @@ import {
   KeyOutlined,
   EditOutlined
 } from '@ant-design/icons'
-import { api } from '../../lib/api'
+import { api } from '@shared/api/http'
 
 const { Title, Text } = Typography
 const { Password } = Input

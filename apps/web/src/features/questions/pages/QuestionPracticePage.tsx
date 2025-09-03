@@ -14,15 +14,16 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
+
 import {
   favorites as favoritesApi,
   isSuccess,
   questions as questionsApi,
   wrongQuestions,
   type ApiResult,
-} from '../lib/api'
+} from '@shared/api/http'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
 
 const { TextArea } = Input
 const { Title, Text } = Typography

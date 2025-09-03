@@ -1,14 +1,9 @@
-// src/providers/AntdThemeProvider.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd'
+import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 
 type Mode = 'light' | 'dark'
-type ThemeCtx = {
-  mode: Mode
-  toggle: () => void
-  setMode: (m: Mode) => void
-}
+type ThemeCtx = { mode: Mode; toggle: () => void; setMode: (m: Mode) => void }
 
 const ThemeContext = createContext<ThemeCtx | null>(null)
 const STORAGE_KEY = 'app-theme-mode'
@@ -35,9 +30,7 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
     try {
       localStorage.setItem(STORAGE_KEY, mode)
     } catch {}
-    if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-theme', mode)
-    }
+    if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', mode)
   }, [mode])
 
   const toggle = () => setMode(p => (p === 'dark' ? 'light' : 'dark'))
@@ -46,12 +39,7 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
     () => ({
       algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       cssVar: { key: 'app' },
-      token: {
-        colorPrimary: '#3b82f6',
-        borderRadius: 8,
-        fontSize: 14,
-        controlHeight: 36,
-      },
+      token: { colorPrimary: '#3b82f6', borderRadius: 8, fontSize: 14, controlHeight: 36 },
       components: {
         Layout: {
           headerBg: mode === 'dark' ? '#0f172a' : '#0B1220',
@@ -73,38 +61,18 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
           colorPrimaryActive: '#1d4ed8',
           borderRadius: 8,
         },
-        Card: {
-          borderRadiusLG: 12,
-          paddingLG: 20,
-          colorBgContainer: mode === 'dark' ? '#111827' : undefined,
-        },
-        Input: {
-          borderRadius: 8,
-          activeShadow: '0 0 0 2px rgba(59,130,246,.2)',
-        },
-        Select: {
-          borderRadius: 8,
-        },
+        Card: { borderRadiusLG: 12, paddingLG: 20, colorBgContainer: mode === 'dark' ? '#111827' : undefined },
+        Input: { borderRadius: 8, activeShadow: '0 0 0 2px rgba(59,130,246,.2)' },
+        Select: { borderRadius: 8 },
         Table: {
           rowHoverBg: mode === 'dark' ? 'rgba(59,130,246,.06)' : 'rgba(59,130,246,.04)',
           headerBg: mode === 'dark' ? '#0f172a' : undefined,
           headerColor: mode === 'dark' ? '#cbd5e1' : undefined,
         },
-        Modal: {
-          borderRadiusLG: 12,
-          padding: 16,
-          colorBgMask: 'rgba(2,6,23,.55)',
-        },
-        Tag: {
-          defaultBg: mode === 'dark' ? '#0f172a' : undefined,
-        },
-        Tooltip: {
-          colorBgSpotlight: mode === 'dark' ? '#111827' : undefined,
-        },
-        Tabs: {
-          itemActiveColor: mode === 'dark' ? '#e2e8f0' : undefined,
-          inkBarColor: '#3b82f6',
-        },
+        Modal: { borderRadiusLG: 12, padding: 16, colorBgMask: 'rgba(2,6,23,.55)' },
+        Tag: { defaultBg: mode === 'dark' ? '#0f172a' : undefined },
+        Tooltip: { colorBgSpotlight: mode === 'dark' ? '#111827' : undefined },
+        Tabs: { itemActiveColor: mode === 'dark' ? '#e2e8f0' : undefined, inkBarColor: '#3b82f6' },
       },
     }),
     [mode]
@@ -113,7 +81,7 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
   return (
     <ThemeContext.Provider value={{ mode, toggle, setMode }}>
       <ConfigProvider locale={zhCN} theme={themeConfig}>
-        {children}
+        <AntdApp>{children}</AntdApp>
       </ConfigProvider>
     </ThemeContext.Provider>
   )

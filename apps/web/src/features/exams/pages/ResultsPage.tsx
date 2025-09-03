@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import { Search, Filter, Eye, Clock, BookmarkPlus } from 'lucide-react'
-import LoadingSpinner from '../components/LoadingSpinner'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
+import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Spin, Tag, Typography, message } from 'antd'
+import { BookmarkPlus, Clock, Eye, Filter, Search } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Card, Input, Select, Pagination, Empty, Tag, Space, Typography, Row, Col, Spin, message } from 'antd'
-import { api } from '../lib/api'
-import { createPaginationConfig } from '../constants/pagination'
+// import LoadingSpinner from '@shared/components/LoadingSpinner' // 本页未使用，删掉即可
+import { api } from '@shared/api/http'
+import { createPaginationConfig } from '@shared/constants/pagination'
+
+// import LoadingSpinner from '@shared/components/LoadingSpinner' // 本页未使用，删掉即可
 
 const { Title, Text } = Typography
 const { Option } = Select
@@ -48,7 +50,7 @@ const ResultsPage: React.FC = () => {
     currentPage: 1,
     totalPages: 1,
     totalResults: 0,
-    pageSize: 12
+    pageSize: 12,
   })
 
   useEffect(() => {
@@ -63,8 +65,8 @@ const ResultsPage: React.FC = () => {
           page: state.currentPage,
           limit: state.pageSize,
           status: state.filterStatus === 'all' ? undefined : state.filterStatus,
-          search: state.searchTerm || undefined
-        }
+          search: state.searchTerm || undefined,
+        },
       })
 
       setState(prev => ({
@@ -72,7 +74,7 @@ const ResultsPage: React.FC = () => {
         results: data.results || [],
         totalPages: data.pagination?.totalPages || 1,
         totalResults: data.pagination?.total || 0,
-        loading: false
+        loading: false,
       }))
     } catch (error: any) {
       console.error('加载考试结果错误:', error)
@@ -114,40 +116,37 @@ const ResultsPage: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const statusMap = {
-      'completed': t('results.status_completed'),
-      'in_progress': t('results.status_in_progress'),
-      'not_started': t('results.status_not_started')
+      completed: t('results.status_completed'),
+      in_progress: t('results.status_in_progress'),
+      not_started: t('results.status_not_started'),
     }
     return statusMap[status as keyof typeof statusMap] || status
   }
 
   const getStatusColor = (status: string) => {
     const colorMap = {
-      'completed': 'bg-green-100 text-green-800',
-      'in_progress': 'bg-yellow-100 text-yellow-800',
-      'not_started': 'bg-gray-100 text-gray-800'
+      completed: 'bg-green-100 text-green-800',
+      in_progress: 'bg-yellow-100 text-yellow-800',
+      not_started: 'bg-gray-100 text-gray-800',
     }
     return colorMap[status as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
   }
 
   const getStatusTagColor = (status: string) => {
     const colorMap = {
-      'completed': 'success',
-      'in_progress': 'warning',
-      'not_started': 'default'
+      completed: 'success',
+      in_progress: 'warning',
+      not_started: 'default',
     }
     return colorMap[status as keyof typeof colorMap] || 'default'
   }
 
-
-
   if (state.loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <Spin size="large" tip={t('results.loading')} >
-          <div style={{ minHeight: '200px',minWidth:"200px" }} />
+        <Spin size="large" tip={t('results.loading')}>
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
         </Spin>
-
       </div>
     )
   }
@@ -167,7 +166,7 @@ const ResultsPage: React.FC = () => {
             <Input
               prefix={<Search style={{ width: 16, height: 16, color: '#999' }} />}
               value={state.searchTerm}
-              onChange={(e) => handleSearchChange(e.target.value)}
+              onChange={e => handleSearchChange(e.target.value)}
               placeholder={t('results.search_placeholder')}
               allowClear
             />
@@ -175,11 +174,7 @@ const ResultsPage: React.FC = () => {
           <Col xs={24} md={8}>
             <Space>
               <Filter style={{ width: 16, height: 16, color: '#999' }} />
-              <Select
-                value={state.filterStatus}
-                onChange={handleFilterChange}
-                style={{ width: 200 }}
-              >
+              <Select value={state.filterStatus} onChange={handleFilterChange} style={{ width: 200 }}>
                 <Option value="all">{t('results.all_status')}</Option>
                 <Option value="completed">{t('results.status_completed')}</Option>
                 <Option value="in_progress">{t('results.status_in_progress')}</Option>
@@ -192,7 +187,7 @@ const ResultsPage: React.FC = () => {
 
       {/* 结果列表 */}
       <Row gutter={[16, 16]}>
-        {state.results.map((result) => (
+        {state.results.map(result => (
           <Col key={result.id} xs={24} md={12} lg={8}>
             <Card
               hoverable
@@ -202,7 +197,7 @@ const ResultsPage: React.FC = () => {
                     <Eye style={{ width: 16, height: 16 }} />
                     <span>{t('results.view_details')}</span>
                   </Space>
-                </Link>
+                </Link>,
               ]}
             >
               <Card.Meta
@@ -222,13 +217,12 @@ const ResultsPage: React.FC = () => {
                     <Space>
                       <Clock style={{ width: 16, height: 16 }} />
                       <Text type="secondary">
-                        {t('results.start_time')}: {new Date(result.start_time).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
+                        {t('results.start_time')}:{' '}
+                        {new Date(result.start_time).toLocaleString(language === 'zh-CN' ? 'zh-CN' : 'en-US')}
                       </Text>
                     </Space>
                     <div style={{ marginTop: '8px' }}>
-                      <Tag color={getStatusTagColor(result.status)}>
-                        {getStatusLabel(result.status)}
-                      </Tag>
+                      <Tag color={getStatusTagColor(result.status)}>{getStatusLabel(result.status)}</Tag>
                     </div>
                   </Space>
                 }
@@ -260,7 +254,7 @@ const ResultsPage: React.FC = () => {
             pageSize={state.pageSize}
             onChange={handlePageChange}
             {...createPaginationConfig({
-              showSizeChanger: false
+              showSizeChanger: false,
             })}
           />
         </Card>

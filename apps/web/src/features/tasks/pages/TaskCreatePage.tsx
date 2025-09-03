@@ -1,12 +1,15 @@
-import React, { useState, useEffect } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Save, Users } from 'lucide-react'
-import { message } from 'antd'
-import { tasks, users } from '../../lib/api'
-import LoadingSpinner from '../../components/LoadingSpinner'
-
+import { tasks, users } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { DatePicker, message, TreeSelect } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { DatePicker, TreeSelect } from 'antd'
+import { ArrowLeft, Save, Users as UsersIcon } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+
+type ApiFailure = { success: false; error?: string }
+function isFailure(r: any): r is ApiFailure {
+  return r && r.success === false
+}
 
 const TaskCreatePage: React.FC = () => {
   const navigate = useNavigate()
@@ -30,16 +33,21 @@ const TaskCreatePage: React.FC = () => {
   useEffect(() => {
     if (id) loadTask(id)
     loadUsers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   const loadUsers = async () => {
     try {
       setLoadingUsers(true)
-      const response = await users.getAll({ page: 1, limit: 1000 }) // 获取所有用户
-      setUsersList(response.data.users || [])
+      const res = await users.getAll({ page: 1, limit: 1000 })
+      if (isFailure(res)) throw new Error(res.error || '加载用户列表失败')
+      const payload: any = (res as any).data ?? res
+      const list = Array.isArray(payload) ? payload : payload?.users ?? payload?.items ?? payload?.list ?? []
+      setUsersList(Array.isArray(list) ? list : [])
     } catch (error: any) {
       console.error('加载用户列表错误:', error)
-      message.error('加载用户列表失败')
+      message.error(error?.message || '加载用户列表失败')
+      setUsersList([])
     } finally {
       setLoadingUsers(false)
     }
@@ -48,24 +56,33 @@ const TaskCreatePage: React.FC = () => {
   const loadTask = async (taskId: string) => {
     try {
       setLoading(true)
-      const response = await tasks.getById(taskId)
-      const taskData = response.data.task
-      setTitle(taskData.title)
-      setDescription(taskData.description)
-      setStartDate(new Date(taskData.start_time))
-      setEndDate(new Date(taskData.end_time))
-      setStatus(taskData.status)
-      setType(taskData.type || 'practice')
-      setExamId(taskData.exam_id || '')
-      // 获取任务分配的用户列表
-      if (taskData.assigned_users && Array.isArray(taskData.assigned_users)) {
-        setAssignedUserIds(taskData.assigned_users.map((user: any) => user.id.toString()))
+      const res = await tasks.getById(taskId)
+      if (isFailure(res)) throw new Error(res.error || '加载任务失败')
+
+      const payload: any = (res as any).data ?? res
+      const taskData = payload?.task ?? payload?.data ?? payload // 兜底
+
+      if (!taskData) throw new Error('任务数据为空')
+
+      setTitle(taskData.title ?? '')
+      setDescription(taskData.description ?? '')
+      if (taskData.start_time) setStartDate(new Date(taskData.start_time))
+      if (taskData.end_time) setEndDate(new Date(taskData.end_time))
+      setStatus(taskData.status ?? 'not_started')
+      setType(taskData.type ?? 'practice')
+      setExamId(taskData.exam_id ?? '')
+
+      // 分配用户
+      if (Array.isArray(taskData.assigned_users)) {
+        setAssignedUserIds(taskData.assigned_users.map((u: any) => String(u.id)))
       } else if (taskData.user_id) {
-        setAssignedUserIds([taskData.user_id.toString()])
+        setAssignedUserIds([String(taskData.user_id)])
+      } else {
+        setAssignedUserIds([])
       }
     } catch (error: any) {
       console.error('加载任务错误:', error)
-      message.error(error.response?.data?.message || '加载任务失败')
+      message.error(error?.message || error?.response?.data?.message || '加载任务失败')
       navigate('/admin/tasks')
     } finally {
       setLoading(false)
@@ -89,20 +106,23 @@ const TaskCreatePage: React.FC = () => {
         end_time: endDate.toISOString(),
         status,
         type,
-        exam_id: examId,
-        assigned_user_ids: assignedUserIds.length > 0 ? assignedUserIds.map(id => parseInt(id)) : undefined
+        exam_id: examId || undefined,
+        assigned_user_ids: assignedUserIds.length > 0 ? assignedUserIds.map(id => parseInt(id, 10)) : undefined,
       }
+
       if (isEditMode && id) {
-        await tasks.update(id, taskData)
+        const res = await tasks.update(id, taskData)
+        if (isFailure(res)) throw new Error(res.error || '任务更新失败')
         message.success('任务更新成功')
       } else {
-        await tasks.create(taskData)
+        const res = await tasks.create(taskData)
+        if (isFailure(res)) throw new Error(res.error || '任务创建失败')
         message.success('任务创建成功')
       }
       navigate('/admin/tasks')
     } catch (error: any) {
       console.error('保存任务错误:', error)
-      message.error(error.response?.data?.message || '保存任务失败')
+      message.error(error?.message || error?.response?.data?.message || '保存任务失败')
     } finally {
       setSubmitting(false)
     }
@@ -130,18 +150,20 @@ const TaskCreatePage: React.FC = () => {
         </button>
       </div>
 
-      {/* 创建表单 */}
+      {/* 创建/编辑表单 */}
       <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="space-y-6">
           {/* 基本信息 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
-              <label htmlFor="title" className="block text-sm font-medium text-gray-700">任务标题 *</label>
+              <label htmlFor="title" className="block text-sm font-medium text-gray-700">
+                任务标题 *
+              </label>
               <input
                 id="title"
                 type="text"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={e => setTitle(e.target.value)}
                 disabled={isViewMode}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="输入任务标题"
@@ -149,12 +171,14 @@ const TaskCreatePage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="examId" className="block text-sm font-medium text-gray-700">考试ID</label>
+              <label htmlFor="examId" className="block text-sm font-medium text-gray-700">
+                考试ID
+              </label>
               <input
                 id="examId"
                 type="text"
                 value={examId}
-                onChange={(e) => setExamId(e.target.value)}
+                onChange={e => setExamId(e.target.value)}
                 disabled={isViewMode || type !== 'exam'}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
                 placeholder="仅考试类型需要填写"
@@ -162,11 +186,13 @@ const TaskCreatePage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="status" className="block text-sm font-medium text-gray-700">任务状态 *</label>
+              <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                任务状态 *
+              </label>
               <select
                 id="status"
                 value={status}
-                onChange={(e) => setStatus(e.target.value)}
+                onChange={e => setStatus(e.target.value)}
                 disabled={isViewMode}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
               >
@@ -178,11 +204,13 @@ const TaskCreatePage: React.FC = () => {
             </div>
 
             <div className="space-y-2">
-              <label htmlFor="type" className="block text-sm font-medium text-gray-700">任务类型 *</label>
+              <label htmlFor="type" className="block text-sm font-medium text-gray-700">
+                任务类型 *
+              </label>
               <select
                 id="type"
                 value={type}
-                onChange={(e) => setType(e.target.value)}
+                onChange={e => setType(e.target.value)}
                 disabled={isViewMode}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500"
               >
@@ -195,13 +223,13 @@ const TaskCreatePage: React.FC = () => {
           {/* 用户分配 */}
           <div className="space-y-2">
             <label htmlFor="assignedUsers" className="block text-sm font-medium text-gray-700 flex items-center gap-2">
-              <Users className="w-4 h-4" />
+              <UsersIcon className="w-4 h-4" />
               分配给用户（多选）
             </label>
             <TreeSelect
               id="assignedUsers"
               value={assignedUserIds}
-              onChange={(value) => setAssignedUserIds(Array.isArray(value) ? value : [])}
+              onChange={value => setAssignedUserIds(Array.isArray(value) ? value : [])}
               disabled={isViewMode || loadingUsers}
               placeholder="选择用户（留空则分配给自己）"
               multiple
@@ -217,11 +245,11 @@ const TaskCreatePage: React.FC = () => {
                   selectable: false,
                   children: usersList
                     .filter(user => user.role === 'admin')
-                    .map(user => ({
+                    .map((user: any) => ({
                       title: `${user.username} (${user.email})`,
                       value: user.id.toString(),
-                      key: user.id.toString()
-                    }))
+                      key: user.id.toString(),
+                    })),
                 },
                 {
                   title: '教师',
@@ -230,11 +258,11 @@ const TaskCreatePage: React.FC = () => {
                   selectable: false,
                   children: usersList
                     .filter(user => user.role === 'teacher')
-                    .map(user => ({
+                    .map((user: any) => ({
                       title: `${user.username} (${user.email})`,
                       value: user.id.toString(),
-                      key: user.id.toString()
-                    }))
+                      key: user.id.toString(),
+                    })),
                 },
                 {
                   title: '学生',
@@ -243,35 +271,35 @@ const TaskCreatePage: React.FC = () => {
                   selectable: false,
                   children: usersList
                     .filter(user => user.role === 'student')
-                    .map(user => ({
+                    .map((user: any) => ({
                       title: `${user.username} (${user.email})`,
                       value: user.id.toString(),
-                      key: user.id.toString()
-                    }))
-                }
+                      key: user.id.toString(),
+                    })),
+                },
               ]}
               treeNodeFilterProp="title"
               showSearch
-              filterTreeNode={(search, item) => {
-                return item.title?.toLowerCase().includes(search.toLowerCase()) || false
+              // 将 title 安全转换为字符串，避免 toLowerCase 类型报错
+              filterTreeNode={(searchValue, treeNode: any) => {
+                const titleStr = String(treeNode?.title ?? '')
+                return titleStr.toLowerCase().includes(String(searchValue ?? '').toLowerCase())
               }}
             />
-            {loadingUsers && (
-              <p className="text-sm text-gray-500">正在加载用户列表...</p>
-            )}
+            {loadingUsers && <p className="text-sm text-gray-500">正在加载用户列表...</p>}
             {assignedUserIds.length > 0 && (
-              <p className="text-sm text-blue-600">
-                已选择 {assignedUserIds.length} 个用户
-              </p>
+              <p className="text-sm text-blue-600">已选择 {assignedUserIds.length} 个用户</p>
             )}
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700">任务描述 *</label>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700">
+              任务描述 *
+            </label>
             <textarea
               id="description"
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={e => setDescription(e.target.value)}
               disabled={isViewMode}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 disabled:bg-gray-100 disabled:text-gray-500 min-h-[120px]"
               placeholder="输入任务描述"
@@ -283,7 +311,7 @@ const TaskCreatePage: React.FC = () => {
             <div className="space-y-2">
               <label className="block text-sm font-medium text-gray-700">开始时间 *</label>
               <DatePicker
-                value={dayjs(startDate)}                         // 传 Dayjs
+                value={dayjs(startDate)}
                 onChange={(v: Dayjs | null) => v && setStartDate(v.toDate())}
                 disabled={isViewMode}
                 placeholder="选择开始日期"
@@ -306,7 +334,7 @@ const TaskCreatePage: React.FC = () => {
           </div>
 
           {/* 提交按钮 */}
-          <div className="flex justify-end pt-4 border-t border-gray-200">
+          <div className="flex justify-end pt-4 border-top border-gray-200">
             <button
               type="button"
               onClick={() => navigate('/admin/tasks')}

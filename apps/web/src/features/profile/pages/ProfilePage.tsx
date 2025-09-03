@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { User, Mail, School, Trophy, Calendar, Save, Upload } from 'lucide-react'
-import { api, profile } from '../lib/api'
-import { message, Card, Input, Button, Space, Typography, Avatar, Upload as AntUpload, Form } from 'antd'
-import { useLanguage } from '../contexts/LanguageContext'
+import React, { useEffect, useState } from 'react'
+
+import { Calendar, Save, School, Trophy, Upload } from 'lucide-react'
+
+import { Avatar, Button, Card, Input, message, Space, Typography } from 'antd'
+
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
 
 const { Title, Text } = Typography
 
@@ -20,16 +22,16 @@ export default function ProfilePage() {
   const [form, setForm] = useState<ProfileForm>({
     nickname: user?.username || '',
     school: user?.school || '',
-    class_name: user?.class_name || ''
+    class_name: user?.class_name || '',
   })
-  
+
   // 当用户信息加载完成后，更新表单
   useEffect(() => {
     if (user) {
       setForm({
         nickname: user.username || '',
         school: user.school || '',
-        class_name: user.class_name || ''
+        class_name: user.class_name || '',
       })
     }
   }, [user])

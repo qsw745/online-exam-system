@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Mail, Lock, User, BookOpen } from 'lucide-react';
-import { useAuth } from '../../contexts/AuthContext';
+import { useAuth } from '@shared/contexts/AuthContext';
 
 import { Button, App, Card, Input, Checkbox, Space, Typography } from 'antd';
 import { UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone, MailOutlined } from '@ant-design/icons';
-import { useLanguage } from '../../contexts/LanguageContext';
+import { useLanguage } from '@shared/contexts/LanguageContext';
 
 const { Title, Text } = Typography;
 

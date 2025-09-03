@@ -1,7 +1,23 @@
 import React, { useState, useEffect } from 'react'
-import { Card, List, Button, Modal, Form, Input, Select, Tag, Avatar, Space, Spin, Empty, App, Tooltip, Divider } from 'antd'
-import { MessageSquare, Plus, ThumbsUp, MessageCircle, Eye, Clock, User } from 'lucide-react'
-import { api } from '../lib/api'
+import {
+  Card,
+  List,
+  Button,
+  Modal,
+  Form,
+  Input,
+  Select,
+  Tag,
+  Avatar,
+  Space,
+  Spin,
+  Empty,
+  App,
+  Tooltip,
+  Divider,
+} from 'antd'
+import { MessageSquare, Plus, ThumbsUp, MessageCircle, Eye, Clock } from 'lucide-react'
+import { api } from '@shared/api/http'
 import dayjs from 'dayjs'
 import relativeTime from 'dayjs/plugin/relativeTime'
 
@@ -86,10 +102,11 @@ export default function DiscussionPage() {
       const params = {
         category_id: selectedCategory !== 'all' ? selectedCategory : undefined,
         sort: sortBy,
-        limit: 50
+        limit: 50,
       }
       const response = await api.get('/discussions', { params })
-      setDiscussions(response.data.data || [])
+      // 按你的 ApiResult 适配：如果你的拦截器统一放在 data 下，请按需调整
+      setDiscussions((response as any)?.data?.data || [])
     } catch (error) {
       console.error('获取讨论列表失败:', error)
       message.error('获取讨论列表失败')
@@ -102,7 +119,7 @@ export default function DiscussionPage() {
     try {
       setRepliesLoading(true)
       const response = await api.get(`/discussions/${discussionId}/replies`)
-      setReplies(response.data.data || [])
+      setReplies((response as any)?.data?.data || [])
     } catch (error) {
       console.error('获取回复失败:', error)
       message.error('获取回复失败')
@@ -114,7 +131,7 @@ export default function DiscussionPage() {
   const fetchCategories = async () => {
     try {
       const response = await api.get('/discussions/categories/list')
-      setCategories(response.data.data || [])
+      setCategories((response as any)?.data?.data || [])
     } catch (error) {
       console.error('获取分类失败:', error)
     }
@@ -123,22 +140,21 @@ export default function DiscussionPage() {
   const incrementViews = async (discussionId: number) => {
     try {
       await api.post(`/discussions/${discussionId}/view`)
-      setDiscussions(prev => 
-        prev.map(disc => 
-          disc.id === discussionId 
-            ? { ...disc, views_count: disc.views_count + 1 }
-            : disc
-        )
+      setDiscussions(prev =>
+        prev.map(disc => (disc.id === discussionId ? { ...disc, views_count: disc.views_count + 1 } : disc))
       )
-    } catch (error) {
-      // 静默处理浏览量更新失败
+    } catch {
+      // 静默处理
     }
   }
 
   const createDiscussion = async (values: any) => {
     try {
       const response = await api.post('/discussions', values)
-      setDiscussions(prev => [response.data.data, ...prev])
+      const created = (response as any)?.data?.data
+      if (created) {
+        setDiscussions(prev => [created, ...prev])
+      }
       setCreateModalVisible(false)
       form.resetFields()
       message.success('发布讨论成功')
@@ -150,11 +166,14 @@ export default function DiscussionPage() {
 
   const createReply = async (values: any) => {
     if (!selectedDiscussion) return
-    
+
     try {
       const response = await api.post(`/discussions/${selectedDiscussion.id}/replies`, values)
-      setReplies(prev => [...prev, response.data.data])
-      setSelectedDiscussion(prev => prev ? { ...prev, replies_count: prev.replies_count + 1 } : null)
+      const created = (response as any)?.data?.data
+      if (created) {
+        setReplies(prev => [...prev, created])
+        setSelectedDiscussion(prev => (prev ? { ...prev, replies_count: prev.replies_count + 1 } : null))
+      }
       setReplyModalVisible(false)
       replyForm.resetFields()
       message.success('回复成功')
@@ -167,18 +186,12 @@ export default function DiscussionPage() {
   const toggleLike = async (discussionId: number) => {
     try {
       const response = await api.post(`/discussions/${discussionId}/like`)
-      const { is_liked, likes_count } = response.data.data
-      
-      setDiscussions(prev => 
-        prev.map(disc => 
-          disc.id === discussionId 
-            ? { ...disc, is_liked, likes_count }
-            : disc
-        )
-      )
-      
+      const { is_liked, likes_count } = (response as any)?.data?.data || {}
+
+      setDiscussions(prev => prev.map(disc => (disc.id === discussionId ? { ...disc, is_liked, likes_count } : disc)))
+
       if (selectedDiscussion?.id === discussionId) {
-        setSelectedDiscussion(prev => prev ? { ...prev, is_liked, likes_count } : null)
+        setSelectedDiscussion(prev => (prev ? { ...prev, is_liked, likes_count } : null))
       }
     } catch (error) {
       console.error('点赞失败:', error)
@@ -189,15 +202,9 @@ export default function DiscussionPage() {
   const toggleReplyLike = async (replyId: number) => {
     try {
       const response = await api.post(`/discussions/replies/${replyId}/like`)
-      const { is_liked, likes_count } = response.data.data
-      
-      setReplies(prev => 
-        prev.map(reply => 
-          reply.id === replyId 
-            ? { ...reply, is_liked, likes_count }
-            : reply
-        )
-      )
+      const { is_liked, likes_count } = (response as any)?.data?.data || {}
+
+      setReplies(prev => prev.map(reply => (reply.id === replyId ? { ...reply, is_liked, likes_count } : reply)))
     } catch (error) {
       console.error('点赞回复失败:', error)
       message.error('点赞回复失败')
@@ -216,30 +223,20 @@ export default function DiscussionPage() {
           <h1 className="text-2xl font-bold">讨论区</h1>
         </div>
         <div className="flex items-center space-x-4">
-          <Select
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            style={{ width: 120 }}
-          >
+          <Select value={selectedCategory} onChange={setSelectedCategory} style={{ width: 120 }}>
             <Option value="all">全部分类</Option>
             {categories.map(category => (
-              <Option key={category.id} value={category.id.toString()}>{category.name}</Option>
+              <Option key={category.id} value={category.id.toString()}>
+                {category.name}
+              </Option>
             ))}
           </Select>
-          <Select
-            value={sortBy}
-            onChange={setSortBy}
-            style={{ width: 120 }}
-          >
+          <Select value={sortBy} onChange={setSortBy} style={{ width: 120 }}>
             <Option value="latest">最新发布</Option>
             <Option value="hot">热门讨论</Option>
             <Option value="replies">回复最多</Option>
           </Select>
-          <Button 
-            type="primary" 
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => setCreateModalVisible(true)}
-          >
+          <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setCreateModalVisible(true)}>
             发起讨论
           </Button>
         </div>
@@ -255,11 +252,11 @@ export default function DiscussionPage() {
               ) : (
                 <List
                   dataSource={discussions}
-                  renderItem={(discussion) => (
+                  renderItem={discussion => (
                     <List.Item
                       className={`cursor-pointer rounded-lg p-4 mb-3 transition-colors border ${
-                        selectedDiscussion?.id === discussion.id 
-                          ? 'bg-blue-50 border-blue-200' 
+                        selectedDiscussion?.id === discussion.id
+                          ? 'bg-blue-50 border-blue-200'
                           : 'hover:bg-gray-50 border-gray-200'
                       }`}
                       onClick={() => setSelectedDiscussion(discussion)}
@@ -268,31 +265,19 @@ export default function DiscussionPage() {
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
-                              {discussion.is_pinned && (
-                                <Tag color="red" size="small">置顶</Tag>
-                              )}
-                              <Tag color={getCategoryColor(discussion.category_color)} size="small">
-                                {discussion.category_name}
-                              </Tag>
+                              {discussion.is_pinned && <Tag color="red">置顶</Tag>}
+                              <Tag color={getCategoryColor(discussion.category_color)}>{discussion.category_name}</Tag>
                             </div>
-                            <h4 className="font-medium text-gray-900 mb-1 line-clamp-2">
-                              {discussion.title}
-                            </h4>
+                            <h4 className="font-medium text-gray-900 mb-1 line-clamp-2">{discussion.title}</h4>
                             {discussion.question_title && (
-                              <p className="text-sm text-blue-600 mb-1">
-                                关联题目: {discussion.question_title}
-                              </p>
+                              <p className="text-sm text-blue-600 mb-1">关联题目: {discussion.question_title}</p>
                             )}
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center justify-between text-sm text-gray-500">
                           <div className="flex items-center space-x-2">
-                            <Avatar 
-                              src={discussion.author_avatar} 
-                              size={20}
-                              className="bg-blue-500"
-                            >
+                            <Avatar src={discussion.author_avatar} size={20} className="bg-blue-500">
                               {discussion.author_name.charAt(0)}
                             </Avatar>
                             <span>{discussion.author_name}</span>
@@ -312,7 +297,7 @@ export default function DiscussionPage() {
                             </span>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-center justify-between mt-2 text-xs text-gray-400">
                           <span className="flex items-center space-x-1">
                             <Clock className="w-3 h-3" />
@@ -331,16 +316,15 @@ export default function DiscussionPage() {
         {/* 讨论详情和回复 */}
         <div className="col-span-12 lg:col-span-7">
           {selectedDiscussion ? (
-            <Card 
+            <Card
               title={
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
-                    <Tag color={getCategoryColor(selectedDiscussion.category)}>
-                      {selectedDiscussion.category}
+                    {/* ✅ 修复：使用 category_name 与 category_color */}
+                    <Tag color={getCategoryColor(selectedDiscussion.category_color)}>
+                      {selectedDiscussion.category_name}
                     </Tag>
-                    {selectedDiscussion.is_pinned && (
-                      <Tag color="red">置顶</Tag>
-                    )}
+                    {selectedDiscussion.is_pinned && <Tag color="red">置顶</Tag>}
                   </div>
                   <div className="flex items-center space-x-2">
                     <Button
@@ -351,7 +335,7 @@ export default function DiscussionPage() {
                     >
                       {selectedDiscussion.likes_count}
                     </Button>
-                    <Button 
+                    <Button
                       type="primary"
                       size="small"
                       icon={<MessageCircle className="w-4 h-4" />}
@@ -380,11 +364,7 @@ export default function DiscussionPage() {
                   </div>
                   <div className="flex items-center justify-between mt-4 pt-4 border-t">
                     <div className="flex items-center space-x-2">
-                      <Avatar 
-                        src={selectedDiscussion.author_avatar} 
-                        size={32}
-                        className="bg-blue-500"
-                      >
+                      <Avatar src={selectedDiscussion.author_avatar} size={32} className="bg-blue-500">
                         {selectedDiscussion.author_name.charAt(0)}
                       </Avatar>
                       <div>
@@ -418,15 +398,11 @@ export default function DiscussionPage() {
                     ) : (
                       <List
                         dataSource={replies}
-                        renderItem={(reply) => (
+                        renderItem={reply => (
                           <List.Item className="border-b border-gray-100 last:border-b-0">
                             <div className="w-full">
                               <div className="flex items-start space-x-3">
-                                <Avatar 
-                                  src={reply.author_avatar} 
-                                  size={32}
-                                  className="bg-green-500"
-                                >
+                                <Avatar src={reply.author_avatar} size={32} className="bg-green-500">
                                   {reply.author_name.charAt(0)}
                                 </Avatar>
                                 <div className="flex-1">
@@ -441,9 +417,7 @@ export default function DiscussionPage() {
                                       >
                                         {reply.likes_count}
                                       </Button>
-                                      <span className="text-xs text-gray-500">
-                                        {dayjs(reply.created_at).fromNow()}
-                                      </span>
+                                      <span className="text-xs text-gray-500">{dayjs(reply.created_at).fromNow()}</span>
                                     </div>
                                   </div>
                                   <p className="whitespace-pre-wrap text-gray-700">{reply.content}</p>
@@ -480,40 +454,23 @@ export default function DiscussionPage() {
         width={600}
         destroyOnHidden={true}
       >
-        <Form
-          form={form}
-          layout="vertical"
-          onFinish={createDiscussion}
-        >
-          <Form.Item
-            name="title"
-            label="讨论标题"
-            rules={[{ required: true, message: '请输入讨论标题' }]}
-          >
+        <Form form={form} layout="vertical" onFinish={createDiscussion}>
+          <Form.Item name="title" label="讨论标题" rules={[{ required: true, message: '请输入讨论标题' }]}>
             <Input placeholder="请输入讨论标题" />
           </Form.Item>
-          <Form.Item
-            name="category_id"
-            label="分类"
-            rules={[{ required: true, message: '请选择分类' }]}
-          >
+          <Form.Item name="category_id" label="分类" rules={[{ required: true, message: '请选择分类' }]}>
             <Select placeholder="请选择分类">
               {categories.map(category => (
-                <Option key={category.id} value={category.id}>{category.name}</Option>
+                <Option key={category.id} value={category.id}>
+                  {category.name}
+                </Option>
               ))}
             </Select>
           </Form.Item>
-          <Form.Item
-            name="question_id"
-            label="关联题目（可选）"
-          >
+          <Form.Item name="question_id" label="关联题目（可选）">
             <Input placeholder="输入题目ID（可选）" type="number" />
           </Form.Item>
-          <Form.Item
-            name="content"
-            label="讨论内容"
-            rules={[{ required: true, message: '请输入讨论内容' }]}
-          >
+          <Form.Item name="content" label="讨论内容" rules={[{ required: true, message: '请输入讨论内容' }]}>
             <TextArea rows={6} placeholder="请详细描述你的问题或想法..." />
           </Form.Item>
         </Form>
@@ -529,16 +486,8 @@ export default function DiscussionPage() {
         cancelText="取消"
         destroyOnHidden={true}
       >
-        <Form
-          form={replyForm}
-          layout="vertical"
-          onFinish={createReply}
-        >
-          <Form.Item
-            name="content"
-            label="回复内容"
-            rules={[{ required: true, message: '请输入回复内容' }]}
-          >
+        <Form form={replyForm} layout="vertical" onFinish={createReply}>
+          <Form.Item name="content" label="回复内容" rules={[{ required: true, message: '请输入回复内容' }]}>
             <TextArea rows={4} placeholder="请输入你的回复..." />
           </Form.Item>
         </Form>

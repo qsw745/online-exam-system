@@ -3,7 +3,7 @@ import { Card, Descriptions, Space, Tag, Typography } from 'antd'
 import dayjs from 'dayjs'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import * as api from '../../lib/api'
+import * as api from '@shared/api/http'
 
 const { Title } = Typography
 

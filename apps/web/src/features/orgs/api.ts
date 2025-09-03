@@ -1,5 +1,5 @@
 // src/lib/org/api.ts
-import { api } from '../api'
+import { api } from '@shared/api/http'
 
 export interface OrgNode {
   id: number

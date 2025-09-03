@@ -1,12 +1,31 @@
+import { useTheme } from '@app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
+import { api } from '@shared/api/http'
 import { message } from 'antd'
 import { Bell, LogOut, Menu, Moon, Settings, Sun, User } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
-import { api } from '../lib/api'
-import { useTheme } from '../providers/AntdThemeProvider'
+
 import LoadingSpinner from './LoadingSpinner'
+
+// ===== 统一 ApiResult 类型与守卫，避免直接 .data 取值导致 TS2339 =====
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+
+/** 从常见返回形态中“捞”出数据：
+ *  - 我方拦截器：{ success, data }
+ *  - 直出：{ data: {...} } 或 { data: { data: ... } }
+ */
+function pickData<T>(resp: any, fallback: T): T {
+  if (isSuccess<T>(resp)) return (resp.data as T) ?? fallback
+  const d = resp?.data
+  if (d?.data !== undefined) return (d.data as T) ?? fallback
+  return (d as T) ?? fallback
+}
+// ===================================================================
 
 interface Notification {
   id: string
@@ -38,6 +57,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
     if (showNotifications) {
       loadNotifications()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifications])
 
   useEffect(() => {
@@ -70,14 +90,13 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
     try {
       setNotificationsLoading(true)
       // 直接使用 api.get 替代 api.notifications.list
-      const response = await api.get('/notifications')
-      if (response.success) {
-        setNotifications(response.data?.notifications || [])
-        setUnreadCount(response.data?.unreadCount || 0)
-      } else {
-        console.error('加载通知失败:', response.error)
-        message.error(t('error.load_notifications'))
-      }
+      const resp: ApiResult<{ notifications?: Notification[]; unreadCount?: number }> | any = await api.get(
+        '/notifications'
+      )
+
+      const data = pickData<{ notifications?: Notification[]; unreadCount?: number }>(resp, {})
+      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
+      setUnreadCount(Number(data.unreadCount ?? 0))
     } catch (error: any) {
       console.error('加载通知错误:', error)
       message.error(error.message || t('error.load_notifications'))
@@ -89,9 +108,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const loadUnreadCount = async () => {
     try {
       // 直接使用 api.get 替代 api.notifications.unreadCount
-      const response = await api.get('/notifications/unread-count')
-      // 直接设置未读数量，提供默认值
-      setUnreadCount(response?.data?.unreadCount ?? 0)
+      const resp: ApiResult<{ unreadCount: number }> | any = await api.get('/notifications/unread-count')
+      const data = pickData<{ unreadCount?: number }>(resp, {})
+      setUnreadCount(Number(data.unreadCount ?? 0))
     } catch (error: any) {
       console.error('加载未读通知数量错误:', error)
       message.error(error.message || t('error.load_unread_count'))

@@ -1,5 +1,6 @@
+import { api } from '@shared/api/http'
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
-import { api } from '../lib/api'
+
 import { useAuth } from './AuthContext'
 
 export interface MenuItem {

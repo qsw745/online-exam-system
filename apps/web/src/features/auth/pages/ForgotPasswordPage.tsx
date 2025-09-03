@@ -3,7 +3,7 @@ import { Card, Form, Input, Button, Alert, Typography, Space } from 'antd';
 import { MailOutlined, ArrowLeftOutlined } from '@ant-design/icons';
 import { Link } from 'react-router-dom';
 // import { useTranslation } from 'react-i18next';
-import { forgotPassword } from '../../lib/api';
+import { forgotPassword } from '@shared/api/http';
 
 const { Title, Text } = Typography;
 

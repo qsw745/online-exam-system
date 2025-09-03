@@ -1,19 +1,10 @@
-import React, { useState, useEffect } from 'react'
-import { useAuth } from '../../contexts/AuthContext'
-import LoadingSpinner from '../../components/LoadingSpinner'
+import { useAuth } from '@shared/contexts/AuthContext'
+import React, { useEffect, useState } from 'react'
+
+import { api } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
 import { message } from 'antd'
-import { api } from '../../lib/api'
-import {
-  BarChart3,
-  TrendingUp,
-  Users,
-  BookOpen,
-  Target,
-  Calendar,
-  Filter,
-  Download,
-  RefreshCw
-} from 'lucide-react'
+import { BookOpen, Filter, Target, TrendingUp, Users } from 'lucide-react'
 
 interface Overview {
   totalUsers: number
@@ -48,7 +39,7 @@ const DataAnalyticsPage: React.FC = () => {
     totalUsers: 0,
     activeUsers: 0,
     totalSubmissions: 0,
-    averageScore: 0
+    averageScore: 0,
   })
   const [knowledgePoints, setKnowledgePoints] = useState<KnowledgePoint[]>([])
   const [difficultyData, setDifficultyData] = useState<DifficultyData[]>([])
@@ -62,12 +53,7 @@ const DataAnalyticsPage: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true)
-      await Promise.all([
-        loadOverview(),
-        loadKnowledgePoints(),
-        loadDifficultyData(),
-        loadActivityData()
-      ])
+      await Promise.all([loadOverview(), loadKnowledgePoints(), loadDifficultyData(), loadActivityData()])
     } finally {
       setLoading(false)
     }
@@ -76,12 +62,14 @@ const DataAnalyticsPage: React.FC = () => {
   const loadOverview = async () => {
     try {
       const { data } = await api.get(`/analytics/overview?period=${period}`)
-      setOverview(data || {
-        totalUsers: 0,
-        activeUsers: 0,
-        totalSubmissions: 0,
-        averageScore: 0
-      })
+      setOverview(
+        data || {
+          totalUsers: 0,
+          activeUsers: 0,
+          totalSubmissions: 0,
+          averageScore: 0,
+        }
+      )
     } catch (error: any) {
       console.error('加载概览数据错误:', error)
       message.error(error.response?.data?.error || '加载概览数据失败')
@@ -89,7 +77,7 @@ const DataAnalyticsPage: React.FC = () => {
         totalUsers: 0,
         activeUsers: 0,
         totalSubmissions: 0,
-        averageScore: 0
+        averageScore: 0,
       })
     }
   }
@@ -148,7 +136,7 @@ const DataAnalyticsPage: React.FC = () => {
           </div>
           <select
             value={period}
-            onChange={(e) => setPeriod(e.target.value)}
+            onChange={e => setPeriod(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="7d">最近7天</option>
@@ -214,21 +202,16 @@ const DataAnalyticsPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">知识点掌握情况</h2>
         <div className="space-y-4">
-          {knowledgePoints.map((point) => (
+          {knowledgePoints.map(point => (
             <div key={point.id} className="space-y-2">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-700">{point.name}</span>
                 <span className="text-gray-500">{point.questionCount} 题</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-blue-600 rounded-full"
-                  style={{ width: `${point.correctRate * 100}%` }}
-                />
+                <div className="h-full bg-blue-600 rounded-full" style={{ width: `${point.correctRate * 100}%` }} />
               </div>
-              <div className="text-sm text-gray-500 text-right">
-                正确率 {(point.correctRate * 100).toFixed(1)}%
-              </div>
+              <div className="text-sm text-gray-500 text-right">正确率 {(point.correctRate * 100).toFixed(1)}%</div>
             </div>
           ))}
         </div>
@@ -238,7 +221,7 @@ const DataAnalyticsPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">难度分布</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {difficultyData.map((item) => (
+          {difficultyData.map(item => (
             <div key={item.difficulty} className="p-4 bg-gray-50 rounded-lg">
               <div className="text-lg font-medium text-gray-900 mb-2">
                 {item.difficulty === 'easy' && '简单'}
@@ -256,7 +239,7 @@ const DataAnalyticsPage: React.FC = () => {
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <h2 className="text-lg font-semibold text-gray-900 mb-4">活跃度趋势</h2>
         <div className="space-y-4">
-          {activityData.map((item) => (
+          {activityData.map(item => (
             <div key={item.date} className="flex items-center space-x-4">
               <div className="w-24 text-sm text-gray-500">{item.date}</div>
               <div className="flex-1">
@@ -267,12 +250,8 @@ const DataAnalyticsPage: React.FC = () => {
                   />
                 </div>
               </div>
-              <div className="w-32 text-sm text-gray-500">
-                {item.activeUsers} 活跃用户
-              </div>
-              <div className="w-32 text-sm text-gray-500">
-                {item.submissions} 提交
-              </div>
+              <div className="w-32 text-sm text-gray-500">{item.activeUsers} 活跃用户</div>
+              <div className="w-32 text-sm text-gray-500">{item.submissions} 提交</div>
             </div>
           ))}
         </div>

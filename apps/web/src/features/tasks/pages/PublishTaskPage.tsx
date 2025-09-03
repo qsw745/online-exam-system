@@ -17,8 +17,8 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import React, { useEffect, useState } from 'react'
-import * as apiModule from '../../lib/api'
-import { isSuccess, type ApiFailure } from '../../lib/api'
+import * as apiModule from '@shared/api/http'
+import { isSuccess, type ApiFailure } from '@shared/api/http'
 
 interface PublishForm {
   title: string

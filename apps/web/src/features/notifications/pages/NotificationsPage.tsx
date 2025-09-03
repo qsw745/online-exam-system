@@ -1,7 +1,8 @@
 import { App, Badge, Button, Card, List, Space, Spin, Typography } from 'antd'
 import { Bell, Check, Trash2 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { api } from '../lib/api'
+import { api } from '@shared/api/http'
+
 
 const { Title, Text } = Typography
 

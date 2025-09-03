@@ -1,26 +1,17 @@
-import React, { useState, useEffect } from 'react'
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Edit, 
-  Trash2, 
-  Eye, 
-  BookOpen,
-  AlertCircle,
-  CheckCircle,
-  X,
-  ClipboardList,
-  Send,
-  Pause
-} from 'lucide-react'
-import { Pagination } from 'antd'
-import { useAuth } from '../../contexts/AuthContext'
-import { useNavigate, useLocation } from 'react-router-dom'
-import LoadingSpinner from '../../components/LoadingSpinner'
-import { message } from 'antd'
-import * as apiModule from '../../lib/api'
-import { createPaginationConfig } from '../../constants/pagination'
+import { Pagination, message } from 'antd'
+import { ClipboardList, Edit, Eye, Pause, Plus, Search, Send, Trash2, X } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+import * as apiModule from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { createPaginationConfig } from '@shared/constants/pagination'
+
+// 在文件顶部或 loadTasks 上方，放一个守卫：
+type ApiFailure = { success: false; error?: string }
+function isFailure(r: any): r is ApiFailure {
+  return r && r.success === false
+}
 
 interface Task {
   id: string
@@ -63,24 +54,28 @@ const TaskManagementPage: React.FC = () => {
         page: currentPage,
         limit: pageSize,
         search: searchTerm || undefined,
-        status: filterStatus === 'all' ? undefined : filterStatus
+        status: filterStatus === 'all' ? undefined : filterStatus,
       }
-      const response = await apiModule.tasks.list(params)
-      
+      const res = await apiModule.tasks.list(params)
+
+      // 先判断失败
+      if (isFailure(res)) {
+        throw new Error(res.error || '加载任务失败')
+      }
       // 处理响应数据
-      if (response.data && response.data.tasks) {
-        setTasks(response.data.tasks)
-        // 处理分页信息
-        if (response.data.pagination) {
-          setTotalPages(response.data.pagination.totalPages)
-          setTotalTasks(response.data.pagination.total)
+      if ((res as any).data && (res as any).data.tasks) {
+        const d = (res as any).data
+        setTasks(d.tasks)
+        if (d.pagination) {
+          setTotalPages(d.pagination.totalPages)
+          setTotalTasks(d.pagination.total)
         }
       } else {
-        setTasks(response.data || [])
+        setTasks((res as any).data || [])
       }
     } catch (error: any) {
       console.error('加载任务错误:', error)
-      message.error(error.response?.data?.message || '加载任务失败')
+      message.error(error?.response?.data?.message || '加载任务失败')
       setTasks([])
     } finally {
       setLoading(false)
@@ -96,7 +91,7 @@ const TaskManagementPage: React.FC = () => {
       setSelectedTask(null)
     } catch (error: any) {
       console.error('删除任务错误:', error)
-      message.error(error.response?.data?.message || '删除任务失败')
+      message.error(error?.response?.data?.message || '删除任务失败')
     }
   }
 
@@ -109,7 +104,7 @@ const TaskManagementPage: React.FC = () => {
       loadTasks()
     } catch (error: any) {
       console.error('发布任务错误:', error)
-      message.error(error.response?.data?.message || '发布任务失败')
+      message.error(error?.response?.data?.message || '发布任务失败')
     }
   }
 
@@ -122,7 +117,7 @@ const TaskManagementPage: React.FC = () => {
       loadTasks()
     } catch (error: any) {
       console.error('取消发布任务错误:', error)
-      message.error(error.response?.data?.message || '取消发布任务失败')
+      message.error(error?.response?.data?.message || '取消发布任务失败')
     }
   }
 
@@ -143,7 +138,7 @@ const TaskManagementPage: React.FC = () => {
     }
   }
 
-  // 搜索和筛选的防抖处理
+  // 搜索和筛选
   const handleSearch = (value: string) => {
     setSearchTerm(value)
     setCurrentPage(1) // 重置到第一页
@@ -154,28 +149,26 @@ const TaskManagementPage: React.FC = () => {
     setCurrentPage(1) // 重置到第一页
   }
 
-  // 移除客户端过滤逻辑，现在使用服务端分页
-
   const getStatusLabel = (status: string) => {
     const statusMap = {
-      'not_started': '待开始',
-      'pending': '待开始', // 兼容旧数据
-      'in_progress': '进行中',
-      'completed': '已完成',
-      'expired': '已过期'
+      not_started: '待开始',
+      pending: '待开始', // 兼容旧数据
+      in_progress: '进行中',
+      completed: '已完成',
+      expired: '已过期',
     }
-    return statusMap[status as keyof typeof statusMap] || status
+    return (statusMap as any)[status] || status
   }
 
   const getStatusColor = (status: string) => {
     const colorMap = {
-      'not_started': 'bg-yellow-100 text-yellow-800',
-      'pending': 'bg-yellow-100 text-yellow-800', // 兼容旧数据
-      'in_progress': 'bg-blue-100 text-blue-800',
-      'completed': 'bg-green-100 text-green-800',
-      'expired': 'bg-red-100 text-red-800'
+      not_started: 'bg-yellow-100 text-yellow-800',
+      pending: 'bg-yellow-100 text-yellow-800', // 兼容旧数据
+      in_progress: 'bg-blue-100 text-blue-800',
+      completed: 'bg-green-100 text-green-800',
+      expired: 'bg-red-100 text-red-800',
     }
-    return colorMap[status as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
+    return (colorMap as any)[status] || 'bg-gray-100 text-gray-800'
   }
 
   if (loading) {
@@ -187,12 +180,18 @@ const TaskManagementPage: React.FC = () => {
       {/* 页面标题 */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">
-          {location.pathname.includes('/maintenance') ? '任务维护' : 
-           location.pathname.includes('/assignments') ? '任务分配' : '任务管理'}
+          {location.pathname.includes('/maintenance')
+            ? '任务维护'
+            : location.pathname.includes('/assignments')
+            ? '任务分配'
+            : '任务管理'}
         </h1>
         <p className="text-gray-600 mt-1">
-          {location.pathname.includes('/maintenance') ? '发布和管理任务' : 
-           location.pathname.includes('/assignments') ? '查看任务分配情况' : '管理所有考试任务'}
+          {location.pathname.includes('/maintenance')
+            ? '发布和管理任务'
+            : location.pathname.includes('/assignments')
+            ? '查看任务分配情况'
+            : '管理所有考试任务'}
         </p>
       </div>
 
@@ -206,7 +205,7 @@ const TaskManagementPage: React.FC = () => {
               type="text"
               placeholder="搜索任务..."
               value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
+              onChange={e => handleSearch(e.target.value)}
               className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
@@ -214,7 +213,7 @@ const TaskManagementPage: React.FC = () => {
           {/* 筛选器 */}
           <select
             value={filterStatus}
-                onChange={(e) => handleFilterChange(e.target.value)}
+            onChange={e => handleFilterChange(e.target.value)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
           >
             <option value="all">所有状态</option>
@@ -242,16 +241,26 @@ const TaskManagementPage: React.FC = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">任务</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">分配用户</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  分配用户
+                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">开始时间</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">结束时间</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">创建时间</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  开始时间
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  结束时间
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  创建时间
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  操作
+                </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {tasks.map((task) => (
+              {tasks.map(task => (
                 <tr key={task.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4">
                     <div className="text-sm text-gray-900 font-medium">{task.title}</div>
@@ -323,7 +332,7 @@ const TaskManagementPage: React.FC = () => {
 
               {tasks.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-4 text-center text-gray-500">
                     <ClipboardList className="w-12 h-12 mx-auto mb-2 text-gray-400" />
                     暂无任务
                   </td>
@@ -332,18 +341,25 @@ const TaskManagementPage: React.FC = () => {
             </tbody>
           </table>
         </div>
-        
-        {/* 增强版分页组件 */}
+
+        {/* 分页 */}
         <Pagination
+          // 受控分页属性放在这里（不要传进 createPaginationConfig）
+          current={currentPage}
+          total={totalTasks}
+          pageSize={pageSize}
+          onChange={(page: number) => setCurrentPage(page)}
+          onShowSizeChange={(_current: number, newPageSize: number) => {
+            setPageSize(newPageSize)
+            setCurrentPage(1) // 重置到第一页
+          }}
+          // 仅把 createPaginationConfig 允许的额外展示项放进来
           {...createPaginationConfig({
-            current: currentPage,
-            total: totalTasks,
-            pageSize: pageSize,
-            onChange: setCurrentPage,
-            onShowSizeChange: (current, newPageSize) => {
-              setPageSize(newPageSize)
-              setCurrentPage(1) // 重置到第一页
-            }
+            showSizeChanger: true,
+            showQuickJumper: true,
+            showTotal: (total: number, range: [number, number]) => `第 ${range[0]}-${range[1]} 条 / 共 ${total} 条`,
+            pageSizeOptions: ['10', '20', '30', '50'],
+            size: 'default',
           })}
         />
       </div>
@@ -354,16 +370,11 @@ const TaskManagementPage: React.FC = () => {
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">确认删除</h3>
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="text-gray-400 hover:text-gray-500"
-              >
+              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-500">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <p className="text-gray-600 mb-4">
-              确定要删除任务 {selectedTask.title}？此操作无法撤销。
-            </p>
+            <p className="text-gray-600 mb-4">确定要删除任务 {selectedTask.title}？此操作无法撤销。</p>
             <div className="flex justify-end space-x-3">
               <button
                 onClick={() => setShowDeleteModal(false)}

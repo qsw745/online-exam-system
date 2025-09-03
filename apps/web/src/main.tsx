@@ -1,33 +1,21 @@
-// src/main.tsx
+import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-import { ErrorBoundary } from './components/ErrorBoundary'
-import { AntdThemeProvider } from './providers/AntdThemeProvider'
 
+// 新路径（shared 通用组件）
+import { ErrorBoundary } from '@shared/components/ErrorBoundary'
+
+// 全局样式（Ant Design 重置 + 你的 index.css）
 import 'antd/dist/reset.css'
 import './index.css'
-import './styles/theme.css'
 
-import dayjs from 'dayjs'
-import localeData from 'dayjs/plugin/localeData'
-import updateLocale from 'dayjs/plugin/updateLocale'
-import weekday from 'dayjs/plugin/weekday'
-import 'dayjs/locale/zh-cn'
-
-dayjs.locale('zh-cn')
-dayjs.extend(updateLocale)
-dayjs.extend(weekday)
-dayjs.extend(localeData)
-dayjs.updateLocale('zh-cn', {
-  weekdays: ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'],
-  weekdaysShort: ['周日', '周一', '周二', '周三', '周四', '周五', '周六'],
-  weekdaysMin: ['日', '一', '二', '三', '四', '五', '六'],
-})
+// dayjs 统一在 shared/utils/dayjs 内完成本地化与插件挂载
+import '@shared/utils/dayjs'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <AntdThemeProvider>
+  <React.StrictMode>
+    <ErrorBoundary>
       <App />
-    </AntdThemeProvider>
-  </ErrorBoundary>
+    </ErrorBoundary>
+  </React.StrictMode>
 )

@@ -1,21 +1,10 @@
-import React, { useState, useEffect } from 'react'
+import { wrongQuestions } from '@shared/api/http'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
+import { Button, Card, Empty, message, Pagination, Space, Spin, Tag, Typography } from 'antd'
+import { BookOpen, CheckCircle, Eye, Filter, RefreshCw, Trash2, TrendingUp, XCircle } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { 
-  BookOpen, 
-  CheckCircle, 
-  XCircle, 
-  TrendingUp, 
-  BarChart3,
-  Filter,
-  RefreshCw,
-  Trash2,
-  Eye
-} from 'lucide-react'
-import { wrongQuestions } from '../lib/api'
-import { useAuth } from '../contexts/AuthContext'
-import { message, Card, Button, Space, Typography, Tag, Empty, Spin, Pagination } from 'antd'
-import { useLanguage } from '../contexts/LanguageContext'
-
 const { Title, Text } = Typography
 
 interface WrongQuestion {
@@ -46,7 +35,7 @@ interface PracticeStats {
 export default function WrongQuestionsPage() {
   const navigate = useNavigate()
   const { user } = useAuth()
-  const {t,language} = useLanguage()
+  const { t, language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [wrongQuestionsList, setWrongQuestionsList] = useState<WrongQuestion[]>([])
   const [stats, setStats] = useState<PracticeStats | null>(null)
@@ -63,9 +52,9 @@ export default function WrongQuestionsPage() {
       const response = await wrongQuestions.getWrongQuestions({
         page,
         limit: 10,
-        mastered
+        mastered,
       })
-      
+
       if (response.success) {
         setWrongQuestionsList(response.data.wrongQuestions)
         setCurrentPage(response.data.pagination.currentPage)
@@ -133,10 +122,10 @@ export default function WrongQuestionsPage() {
   // 获取题目类型标签
   const getQuestionTypeLabel = (type: string) => {
     const typeMap = {
-      'single_choice': '单选题',
-      'multiple_choice': '多选题',
-      'true_false': '判断题',
-      'short_answer': '简答题'
+      single_choice: '单选题',
+      multiple_choice: '多选题',
+      true_false: '判断题',
+      short_answer: '简答题',
     }
     return typeMap[type as keyof typeof typeMap] || type
   }
@@ -150,7 +139,7 @@ export default function WrongQuestionsPage() {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
         <Spin size="large" tip={t('wrongQuestions.loading')}>
-          <div style={{ minHeight: '200px',minWidth:"200px" }} />
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
         </Spin>
       </div>
     )
@@ -161,7 +150,9 @@ export default function WrongQuestionsPage() {
       {/* 页面标题 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Space direction="vertical" size={0}>
-          <Title level={1} style={{ margin: 0 }}>错题本</Title>
+          <Title level={1} style={{ margin: 0 }}>
+            错题本
+          </Title>
           <Text type="secondary">复习错题，巩固知识点</Text>
         </Space>
         <Button
@@ -181,37 +172,45 @@ export default function WrongQuestionsPage() {
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Space direction="vertical" size={0}>
                 <Text type="secondary">总练习次数</Text>
-                <Title level={2} style={{ margin: 0, color: '#262626' }}>{stats.totalPractice}</Title>
+                <Title level={2} style={{ margin: 0, color: '#262626' }}>
+                  {stats.totalPractice}
+                </Title>
               </Space>
               <BookOpen style={{ width: 32, height: 32, color: '#1890ff' }} />
             </div>
           </Card>
-          
+
           <Card>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Space direction="vertical" size={0}>
                 <Text type="secondary">正确率</Text>
-                <Title level={2} style={{ margin: 0, color: '#52c41a' }}>{stats.correctRate}%</Title>
+                <Title level={2} style={{ margin: 0, color: '#52c41a' }}>
+                  {stats.correctRate}%
+                </Title>
               </Space>
               <TrendingUp style={{ width: 32, height: 32, color: '#52c41a' }} />
             </div>
           </Card>
-          
+
           <Card>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Space direction="vertical" size={0}>
                 <Text type="secondary">错题数量</Text>
-                <Title level={2} style={{ margin: 0, color: '#ff4d4f' }}>{stats.wrongQuestions}</Title>
+                <Title level={2} style={{ margin: 0, color: '#ff4d4f' }}>
+                  {stats.wrongQuestions}
+                </Title>
               </Space>
               <XCircle style={{ width: 32, height: 32, color: '#ff4d4f' }} />
             </div>
           </Card>
-          
+
           <Card>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Space direction="vertical" size={0}>
                 <Text type="secondary">已掌握</Text>
-                <Title level={2} style={{ margin: 0, color: '#1890ff' }}>{stats.masteredQuestions}</Title>
+                <Title level={2} style={{ margin: 0, color: '#1890ff' }}>
+                  {stats.masteredQuestions}
+                </Title>
               </Space>
               <CheckCircle style={{ width: 32, height: 32, color: '#1890ff' }} />
             </div>
@@ -239,10 +238,7 @@ export default function WrongQuestionsPage() {
             >
               已掌握
             </Button>
-            <Button
-              type={filter === 'all' ? 'primary' : 'default'}
-              onClick={() => setFilter('all')}
-            >
+            <Button type={filter === 'all' ? 'primary' : 'default'} onClick={() => setFilter('all')}>
               全部
             </Button>
           </Space>
@@ -256,49 +252,44 @@ export default function WrongQuestionsPage() {
             image={<BookOpen style={{ width: 64, height: 64, color: '#d9d9d9' }} />}
             description={
               <Space direction="vertical">
-                <Title level={3} style={{ margin: 0 }}>暂无错题</Title>
+                <Title level={3} style={{ margin: 0 }}>
+                  暂无错题
+                </Title>
                 <Text type="secondary">
-                  {filter === 'unmastered' ? '恭喜！您暂时没有未掌握的错题' : 
-                   filter === 'mastered' ? '您还没有掌握任何错题' : 
-                   '您的错题本是空的，开始练习题目吧！'}
+                  {filter === 'unmastered'
+                    ? '恭喜！您暂时没有未掌握的错题'
+                    : filter === 'mastered'
+                    ? '您还没有掌握任何错题'
+                    : '您的错题本是空的，开始练习题目吧！'}
                 </Text>
               </Space>
             }
           >
-            <Button
-              type="primary"
-              onClick={() => navigate('/questions/all')}
-            >
+            <Button type="primary" onClick={() => navigate('/questions/all')}>
               开始练习
             </Button>
           </Empty>
         </Card>
       ) : (
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-          {wrongQuestionsList.map((item) => (
+          {wrongQuestionsList.map(item => (
             <Card key={item.id}>
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
                 <div style={{ flex: 1 }}>
                   <Space style={{ marginBottom: 12 }}>
-                    <Tag color="blue">
-                      {getQuestionTypeLabel(item.question_type)}
-                    </Tag>
-                    <Tag color={item.is_mastered ? 'green' : 'red'}>
-                      {item.is_mastered ? '已掌握' : '未掌握'}
-                    </Tag>
+                    <Tag color="blue">{getQuestionTypeLabel(item.question_type)}</Tag>
+                    <Tag color={item.is_mastered ? 'green' : 'red'}>{item.is_mastered ? '已掌握' : '未掌握'}</Tag>
                   </Space>
-                  
-                  <div style={{ marginBottom: 12, color: '#262626', lineHeight: '1.5' }}>
-                    {item.content}
-                  </div>
-                  
+
+                  <div style={{ marginBottom: 12, color: '#262626', lineHeight: '1.5' }}>{item.content}</div>
+
                   <Space size="large">
                     <Text type="secondary">错误次数: {item.wrong_count}</Text>
                     <Text type="secondary">正确次数: {item.correct_count}</Text>
                     <Text type="secondary">最后练习: {new Date(item.last_practice_time).toLocaleDateString()}</Text>
                   </Space>
                 </div>
-                
+
                 <Space style={{ marginLeft: 16 }}>
                   <Button
                     type="text"
@@ -306,7 +297,7 @@ export default function WrongQuestionsPage() {
                     onClick={() => handleViewQuestion(item.question_id)}
                     title="查看题目"
                   />
-                  
+
                   {!item.is_mastered && (
                     <Button
                       type="text"
@@ -315,7 +306,7 @@ export default function WrongQuestionsPage() {
                       title="标记为已掌握"
                     />
                   )}
-                  
+
                   <Button
                     type="text"
                     danger
@@ -337,7 +328,7 @@ export default function WrongQuestionsPage() {
             current={currentPage}
             total={totalPages * 10}
             pageSize={10}
-            onChange={(page) => loadWrongQuestions(page)}
+            onChange={page => loadWrongQuestions(page)}
             showSizeChanger={false}
             showQuickJumper
             showTotal={(total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`}

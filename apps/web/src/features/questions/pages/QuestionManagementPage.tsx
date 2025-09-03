@@ -21,13 +21,24 @@ import {
 import { BookOpen, Download, Edit, Eye, FileText, Plus, Trash2, Upload } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../../contexts/AuthContext'
-import { questions as questionsApi } from '../../lib/api'
-import { parseFile } from '../../utils/fileParser'
+
+import { useAuth } from '@shared/contexts/AuthContext'
+import { parseFile } from '@shared/utils/fileParser'
+import { questionsApi } from '../api'
 
 const { Title, Paragraph } = Typography
 const { Search: AntSearch } = Input
 
+// ============ ApiResult 类型守卫 ============
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+const getMsg = (r: any, fallback = '请求失败') =>
+  r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
+// ===========================================
+
+// ============ 题目类型 ============
 interface Question {
   id: string
   content: string
@@ -41,6 +52,21 @@ interface Question {
   explanation?: string
   created_at: string
   updated_at: string
+}
+
+// 导入解析后的题目结构
+interface ParsedQuestion {
+  title?: string
+  content: string
+  question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
+  difficulty?: 'easy' | 'medium' | 'hard'
+  options?: { content: string; is_correct?: boolean }[]
+  correct_answer?: string
+  answer?: string
+  knowledge_points?: string[]
+  explanation?: string
+  score?: number
+  correct_answers?: string[] | string
 }
 
 const QuestionManagementPage: React.FC = () => {
@@ -58,20 +84,25 @@ const QuestionManagementPage: React.FC = () => {
   const [importFile, setImportFile] = useState<File | null>(null)
   const [importing, setImporting] = useState(false)
   const [importProgress, setImportProgress] = useState(0)
+
   // 分页状态
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [totalQuestions, setTotalQuestions] = useState(0)
   const [pageSize, setPageSize] = useState(10)
+
   // 选择状态
   const [selectedQuestions, setSelectedQuestions] = useState<string[]>([])
   const [selectAll, setSelectAll] = useState(false)
   const [isBatchDelete, setIsBatchDelete] = useState(false)
+
   // 新增题目状态
   const [showAddModal, setShowAddModal] = useState(false)
   const [addForm] = Form.useForm()
   const [addLoading, setAddLoading] = useState(false)
-  const [questionType, setQuestionType] = useState('single_choice')
+  const [questionType, setQuestionType] = useState<'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'>(
+    'single_choice'
+  )
   const [optionCount, setOptionCount] = useState(4)
 
   useEffect(() => {
@@ -79,11 +110,12 @@ const QuestionManagementPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, debouncedSearch, filterType, pageSize])
 
-  // 防抖：当 searchTerm 停 300ms 才更新 debouncedSearch
+  // 防抖
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(searchTerm), 300)
     return () => clearTimeout(t)
   }, [searchTerm])
+
   const loadQuestions = async () => {
     try {
       setLoading(true)
@@ -93,17 +125,49 @@ const QuestionManagementPage: React.FC = () => {
         search: debouncedSearch || undefined,
         type: filterType === 'all' ? undefined : filterType,
       }
-      const response = await questionsApi.getAll(params)
-      setQuestions(response.data.questions || [])
+      const res: ApiResult<unknown> = await questionsApi.getAll(params)
 
-      // 处理分页信息
-      if (response.data.pagination) {
-        setTotalPages(response.data.pagination.totalPages)
-        setTotalQuestions(response.data.pagination.total)
+      if (!isSuccess(res)) {
+        message.error(getMsg(res, '加载题目失败'))
+        setQuestions([])
+        setTotalPages(1)
+        setTotalQuestions(0)
+        return
+      }
+
+      const d: unknown = res.data
+      // 兼容多形态返回：数组 或 对象
+      if (Array.isArray(d)) {
+        setQuestions(d as Question[])
+        setTotalQuestions((d as Question[]).length)
+        setTotalPages(Math.ceil((d as Question[]).length / pageSize) || 1)
+      } else if (d && typeof d === 'object') {
+        const obj = d as any
+        const list: Question[] = (obj.questions as Question[]) ?? (obj.items as Question[]) ?? []
+        setQuestions(Array.isArray(list) ? list : [])
+
+        const pg = obj.pagination ?? {}
+        const totalFromObj =
+          (typeof pg.total === 'number' ? pg.total : undefined) ??
+          (typeof obj.total === 'number' ? obj.total : undefined) ??
+          (Array.isArray(obj.questions) ? obj.questions.length : 0)
+
+        setTotalQuestions(totalFromObj || 0)
+
+        const totalPagesFromObj =
+          (typeof pg.totalPages === 'number' ? pg.totalPages : undefined) ??
+          (Math.ceil(((typeof obj.total === 'number' ? obj.total : totalFromObj || 0) as number) / pageSize) || 1)
+
+        setTotalPages(totalPagesFromObj)
+      } else {
+        // 非对象/数组，兜底
+        setQuestions([])
+        setTotalQuestions(0)
+        setTotalPages(1)
       }
     } catch (error: any) {
       console.error('加载题目错误:', error)
-      message.error(error.response?.data?.message || '加载题目失败')
+      message.error(error?.response?.data?.message || '加载题目失败')
     } finally {
       setLoading(false)
     }
@@ -111,14 +175,18 @@ const QuestionManagementPage: React.FC = () => {
 
   const handleDelete = async (questionId: string) => {
     try {
-      await questionsApi.delete(questionId)
+      const res: ApiResult<unknown> = await questionsApi.delete(questionId)
+      if (!isSuccess(res)) {
+        message.error(getMsg(res, '删除题目失败'))
+        return
+      }
       message.success('题目删除成功')
       loadQuestions()
       setShowDeleteModal(false)
       setSelectedQuestion(null)
     } catch (error: any) {
       console.error('删除题目错误:', error)
-      message.error(error.response?.data?.message || '删除题目失败')
+      message.error(error?.response?.data?.message || '删除题目失败')
     }
   }
 
@@ -127,18 +195,14 @@ const QuestionManagementPage: React.FC = () => {
     if (file) {
       const allowedTypes = ['.xlsx', '.xls', '.csv']
       const fileExtension = file.name.toLowerCase().substring(file.name.lastIndexOf('.'))
-
       if (!allowedTypes.includes(fileExtension)) {
         message.error('请选择Excel文件(.xlsx, .xls)或CSV文件(.csv)')
         return
       }
-
       if (file.size > 10 * 1024 * 1024) {
-        // 10MB限制
         message.error('文件大小不能超过10MB')
         return
       }
-
       setImportFile(file)
     }
   }
@@ -153,22 +217,18 @@ const QuestionManagementPage: React.FC = () => {
     setImportProgress(10)
 
     try {
-      // 解析文件
       message.info('正在解析文件...')
       const parseResult = await parseFile(importFile)
       setImportProgress(30)
 
-      if (!parseResult.success || !parseResult.data) {
-        throw new Error(parseResult.errors?.join('; ') || '文件解析失败')
+      if (!parseResult || !parseResult.success || !parseResult.data) {
+        throw new Error(parseResult?.errors?.join('; ') || '文件解析失败')
       }
 
-      const questions = parseResult.data
-      if (questions.length === 0) {
-        throw new Error('文件中没有有效的题目数据')
-      }
+      const parsed: ParsedQuestion[] = parseResult.data as ParsedQuestion[]
+      if (!parsed.length) throw new Error('文件中没有有效的题目数据')
 
-      // 显示解析结果
-      if (parseResult.errors && parseResult.errors.length > 0) {
+      if (parseResult.errors?.length) {
         message.warning(
           `解析完成，但有 ${parseResult.errors.length} 个错误：\n${parseResult.errors.slice(0, 3).join('\n')}${
             parseResult.errors.length > 3 ? '\n...' : ''
@@ -176,44 +236,61 @@ const QuestionManagementPage: React.FC = () => {
         )
       }
 
-      message.info(`解析成功，共 ${questions.length} 道题目，开始导入...`)
+      message.info(`解析成功，共 ${parsed.length} 道题目，开始导入...`)
       setImportProgress(50)
 
-      // 准备批量导入数据
-      const questionsData = questions.map((q, index) => ({
-        title: q.title || `题目${index + 1}`,
-        content: q.content,
-        question_type: q.question_type,
-        difficulty: q.difficulty || 'medium',
-        options: q.options,
-        correct_answer: q.correct_answer,
-        answer: q.answer,
-        knowledge_points: q.knowledge_points || [],
-        explanation: q.explanation || '',
-        score: q.score || 1,
-      }))
+      // 归一化导入结构
+      const questionsData = parsed.map((q, index) => {
+        let correctAnswer = q.correct_answer
+        if (!correctAnswer && q.correct_answers) {
+          correctAnswer = Array.isArray(q.correct_answers)
+            ? q.correct_answers.join(',')
+            : String(q.correct_answers || '')
+        }
+        return {
+          title: q.title || `题目${index + 1}`,
+          content: q.content,
+          question_type: q.question_type,
+          difficulty: q.difficulty || 'medium',
+          options: q.options,
+          correct_answer: correctAnswer,
+          answer: q.answer,
+          knowledge_points: q.knowledge_points || [],
+          explanation: q.explanation || '',
+          score: q.score ?? 1,
+        }
+      })
 
       setImportProgress(70)
 
-      // 调用批量导入API
-      const importResult = await questionsApi.bulkImport(questionsData)
+      const importResult: ApiResult<unknown> = await questionsApi.bulkImport(questionsData)
       setImportProgress(90)
 
-      // 处理导入结果
-      const { success_count, fail_count, errors } = importResult.data
-
-      if (success_count > 0) {
-        message.success(`导入完成！成功导入 ${success_count} 道题目${fail_count > 0 ? `，失败 ${fail_count} 道` : ''}`)
-        loadQuestions() // 刷新题目列表
+      if (!isSuccess(importResult)) {
+        message.error(getMsg(importResult, '批量导入失败'))
+        return
       }
 
-      if (fail_count > 0 && errors && errors.length > 0) {
+      const stat = ((importResult.data as any) ?? {}) as {
+        success_count?: number
+        fail_count?: number
+        errors?: string[]
+      }
+      const successCount = Number(stat.success_count ?? 0)
+      const failCount = Number(stat.fail_count ?? 0)
+      const errors = Array.isArray(stat.errors) ? stat.errors : []
+
+      if (successCount > 0) {
+        message.success(`导入完成！成功导入 ${successCount} 道题目${failCount > 0 ? `，失败 ${failCount} 道` : ''}`)
+        loadQuestions()
+      }
+      if (failCount > 0 && errors.length > 0) {
         console.error('导入错误详情:', errors)
         message.error(`部分题目导入失败：\n${errors.slice(0, 3).join('\n')}${errors.length > 3 ? '\n...' : ''}`)
       }
     } catch (error: any) {
       console.error('批量导入错误:', error)
-      message.error(error.message || '批量导入失败')
+      message.error(error?.message || '批量导入失败')
     } finally {
       setImporting(false)
       setImportProgress(0)
@@ -222,50 +299,41 @@ const QuestionManagementPage: React.FC = () => {
     }
   }
 
-  // 新增题目处理函数
+  // 新增题目处理
   const handleAddQuestion = async (values: any) => {
     try {
       setAddLoading(true)
 
-      // 构建题目数据
       const questionData: any = {
         title: values.title,
         content: values.content,
         question_type: questionType,
         difficulty: values.difficulty,
         knowledge_points: values.knowledge_points
-          ? values.knowledge_points.split(',').map((kp: string) => kp.trim())
+          ? (values.knowledge_points as string).split(',').map(k => k.trim())
           : [],
         explanation: values.explanation,
         score: values.score || 1,
       }
 
-      // 根据题目类型处理选项和答案
       if (questionType === 'single_choice' || questionType === 'multiple_choice') {
-        const options = []
-        const correctAnswers = []
+        const options: Array<{ content: string; is_correct: boolean }> = []
+        const correctAnswers: string[] = []
 
         for (let i = 0; i < optionCount; i++) {
           const optionKey = String.fromCharCode(65 + i) // A, B, C, D...
           const optionContent = values[`option_${optionKey}`]
           if (optionContent) {
-            options.push({
-              content: optionContent,
-              is_correct:
-                questionType === 'single_choice'
-                  ? values.correct_answer === optionKey
-                  : (values.correct_answers || []).includes(optionKey),
-            })
-
-            if (questionType === 'single_choice' && values.correct_answer === optionKey) {
-              correctAnswers.push(optionKey)
-            } else if (questionType === 'multiple_choice' && (values.correct_answers || []).includes(optionKey)) {
-              correctAnswers.push(optionKey)
-            }
+            const isCorrect =
+              questionType === 'single_choice'
+                ? values.correct_answer === optionKey
+                : (values.correct_answers || []).includes(optionKey)
+            options.push({ content: optionContent, is_correct: !!isCorrect })
+            if (isCorrect) correctAnswers.push(optionKey)
           }
         }
 
-        questionData.options = JSON.stringify(options)
+        questionData.options = options
         questionData.correct_answer = correctAnswers.join(',')
       } else if (questionType === 'true_false') {
         questionData.correct_answer = values.correct_answer
@@ -273,7 +341,11 @@ const QuestionManagementPage: React.FC = () => {
         questionData.answer = values.answer
       }
 
-      await questionsApi.create(questionData)
+      const res: ApiResult<unknown> = await questionsApi.create(questionData)
+      if (!isSuccess(res)) {
+        message.error(getMsg(res, '创建题目失败'))
+        return
+      }
       message.success('题目创建成功')
       setShowAddModal(false)
       addForm.resetFields()
@@ -282,24 +354,19 @@ const QuestionManagementPage: React.FC = () => {
       loadQuestions()
     } catch (error: any) {
       console.error('创建题目错误:', error)
-      message.error(error.response?.data?.message || '创建题目失败')
+      message.error(error?.response?.data?.message || '创建题目失败')
     } finally {
       setAddLoading(false)
     }
   }
 
-  // 题目类型变化处理
-  const handleQuestionTypeChange = (type: string) => {
+  const handleQuestionTypeChange = (type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer') => {
     setQuestionType(type)
-    if (type === 'single_choice' || type === 'multiple_choice') {
-      setOptionCount(4)
-    }
+    if (type === 'single_choice' || type === 'multiple_choice') setOptionCount(4)
   }
 
-  // 选项数量变化处理
   const handleOptionCountChange = (count: number) => {
     setOptionCount(count)
-    // 清除多余的选项值
     const formValues = addForm.getFieldsValue()
     const newValues = { ...formValues }
     for (let i = count; i < 8; i++) {
@@ -311,13 +378,11 @@ const QuestionManagementPage: React.FC = () => {
 
   const downloadTemplate = () => {
     try {
-      // 创建示例CSV内容
       const csvContent = `题目标题,题目内容,题目类型,难度等级,分值,知识点,选项A,选项B,选项C,选项D,正确答案,解析
 "JavaScript数据类型题","以下哪个是JavaScript的数据类型？","single_choice","medium","1","JavaScript基础,数据类型","string","number","boolean","以上都是","D","JavaScript有多种基本数据类型"
 "变量声明题","JavaScript中var和let的区别是什么？","multiple_choice","hard","2","JavaScript基础,变量声明","var有函数作用域","let有块级作用域","var可以重复声明","let不可以重复声明","A,C","var和let在作用域和声明方面有区别"
 "判断题示例","JavaScript是一种编程语言","true_false","easy","1","JavaScript基础","","","","","true","JavaScript确实是一种编程语言"
 "简答题示例","请简述JavaScript的特点","short_answer","medium","5","JavaScript基础","","","","","JavaScript是一种动态类型的解释型编程语言","这是简答题的参考答案"`
-
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
       const link = document.createElement('a')
       const url = URL.createObjectURL(blob)
@@ -327,7 +392,6 @@ const QuestionManagementPage: React.FC = () => {
       document.body.appendChild(link)
       link.click()
       document.body.removeChild(link)
-
       message.success('模板下载成功')
     } catch (error) {
       console.error('模板下载失败:', error)
@@ -335,47 +399,28 @@ const QuestionManagementPage: React.FC = () => {
     }
   }
 
-  // 搜索和筛选处理
+  // 搜索/筛选
   const handleSearch = (value: string) => {
     setSearchTerm(value)
-    setCurrentPage(1) // 重置到第一页
+    setCurrentPage(1)
   }
-
   const handleFilterChange = (value: string) => {
     setFilterType(value)
-    setCurrentPage(1) // 重置到第一页
+    setCurrentPage(1)
   }
 
-  // 分页控制
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-  }
+  // 分页
+  const handlePageChange = (page: number) => setCurrentPage(page)
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
-  // 由于现在使用服务端分页，不需要客户端过滤
+  // 服务端分页，不再客户端过滤
   const filteredQuestions = questions
 
-  // 选择功能
+  // 选择
   const handleSelectAll = () => {
-    if (selectAll) {
-      setSelectedQuestions([])
-    } else {
-      setSelectedQuestions(questions.map(q => q.id))
-    }
+    if (selectAll) setSelectedQuestions([])
+    else setSelectedQuestions(questions.map(q => q.id))
     setSelectAll(!selectAll)
   }
-
   const handleSelectQuestion = (questionId: string) => {
     if (selectedQuestions.includes(questionId)) {
       setSelectedQuestions(selectedQuestions.filter(id => id !== questionId))
@@ -396,9 +441,15 @@ const QuestionManagementPage: React.FC = () => {
 
   const executeBatchDelete = async () => {
     try {
-      // 批量删除API调用
-      await Promise.all(selectedQuestions.map(id => questionsApi.delete(id)))
-      message.success(`成功删除 ${selectedQuestions.length} 道题目`)
+      const tasks = selectedQuestions.map(id => questionsApi.delete(id))
+      const results = await Promise.all(tasks)
+      const ok = results.filter(r => isSuccess(r)).length
+      const fail = results.length - ok
+      if (ok > 0) {
+        message.success(`成功删除 ${ok} 道题目${fail > 0 ? `，失败 ${fail} 条` : ''}`)
+      } else {
+        message.error('批量删除失败')
+      }
       setSelectedQuestions([])
       setSelectAll(false)
       setShowDeleteModal(false)
@@ -412,9 +463,7 @@ const QuestionManagementPage: React.FC = () => {
 
   // 更新全选状态
   useEffect(() => {
-    if (questions.length > 0) {
-      setSelectAll(selectedQuestions.length === questions.length)
-    }
+    if (questions.length > 0) setSelectAll(selectedQuestions.length === questions.length)
   }, [selectedQuestions, questions])
 
   const getTypeLabel = (type: string) => {
@@ -424,12 +473,12 @@ const QuestionManagementPage: React.FC = () => {
       true_false: '判断题',
       short_answer: '简答题',
     }
-    return typeMap[type as keyof typeof typeMap] || type
+    return (typeMap as any)[type] || type
   }
 
   return (
     <div style={{ padding: '24px' }}>
-      {/* 页面标题 */}
+      {/* 标题 */}
       <div style={{ marginBottom: '24px' }}>
         <Title level={2} style={{ margin: 0 }}>
           题目管理
@@ -444,16 +493,13 @@ const QuestionManagementPage: React.FC = () => {
         <Row gutter={[16, 16]} align="middle">
           <Col flex="auto">
             <Space size="middle" style={{ width: '100%' }}>
-              {/* 搜索框 */}
               <AntSearch
                 placeholder="搜索题目..."
                 value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
+                onChange={e => handleSearch(e.target.value)}
                 style={{ width: 300 }}
                 allowClear
               />
-
-              {/* 筛选器 */}
               <Select value={filterType} onChange={handleFilterChange} style={{ width: 150 }} placeholder="题目类型">
                 <Select.Option value="all">所有类型</Select.Option>
                 <Select.Option value="single_choice">单选题</Select.Option>
@@ -463,10 +509,8 @@ const QuestionManagementPage: React.FC = () => {
               </Select>
             </Space>
           </Col>
-
           <Col>
             <Space>
-              {/* 操作按钮 */}
               {selectedQuestions.length > 0 && (
                 <Button danger icon={<Trash2 size={16} />} onClick={handleBatchDelete}>
                   批量删除 ({selectedQuestions.length})
@@ -483,22 +527,17 @@ const QuestionManagementPage: React.FC = () => {
         </Row>
       </Card>
 
-      {/* 题目列表 */}
+      {/* 列表 */}
       <Card>
         <Table
           loading={loading}
           rowSelection={{
             type: 'checkbox',
             selectedRowKeys: selectedQuestions,
-            onChange: selectedRowKeys => {
-              setSelectedQuestions(selectedRowKeys as string[])
-            },
+            onChange: ks => setSelectedQuestions(ks as string[]),
             onSelectAll: selected => {
-              if (selected) {
-                setSelectedQuestions(questions.map(q => q.id))
-              } else {
-                setSelectedQuestions([])
-              }
+              if (selected) setSelectedQuestions(questions.map(q => q.id))
+              else setSelectedQuestions([])
               setSelectAll(selected)
             },
           }}
@@ -507,9 +546,7 @@ const QuestionManagementPage: React.FC = () => {
               title: '题目内容',
               dataIndex: 'content',
               key: 'content',
-              ellipsis: {
-                showTitle: false,
-              },
+              ellipsis: { showTitle: false },
               render: (content: string) => (
                 <Tooltip placement="topLeft" title={content}>
                   <span>{content}</span>
@@ -522,14 +559,14 @@ const QuestionManagementPage: React.FC = () => {
               key: 'question_type',
               width: 120,
               render: (type: string) => {
-                const typeConfig = {
+                const map = {
                   single_choice: { color: 'blue', text: '单选题' },
                   multiple_choice: { color: 'green', text: '多选题' },
                   true_false: { color: 'orange', text: '判断题' },
                   short_answer: { color: 'purple', text: '简答题' },
-                }
-                const config = typeConfig[type as keyof typeof typeConfig] || { color: 'default', text: type }
-                return <Tag color={config.color}>{config.text}</Tag>
+                } as const
+                const cfg = (map as any)[type] || { color: 'default', text: type }
+                return <Tag color={cfg.color as any}>{cfg.text}</Tag>
               },
             },
             {
@@ -539,10 +576,10 @@ const QuestionManagementPage: React.FC = () => {
               width: 200,
               render: (points: string[]) => (
                 <div>
-                  {points && points.length > 0 ? (
-                    points.slice(0, 2).map((point, index) => (
-                      <Tag key={index} style={{ marginBottom: 4 }}>
-                        {point}
+                  {points?.length ? (
+                    points.slice(0, 2).map((p, i) => (
+                      <Tag key={i} style={{ marginBottom: 4 }}>
+                        {p}
                       </Tag>
                     ))
                   ) : (
@@ -567,7 +604,7 @@ const QuestionManagementPage: React.FC = () => {
               title: '操作',
               key: 'action',
               width: 150,
-              render: (_, record: Question) => (
+              render: (_: any, record: Question) => (
                 <Space size="small">
                   <Tooltip title="查看">
                     <Button
@@ -590,6 +627,7 @@ const QuestionManagementPage: React.FC = () => {
                       icon={<Trash2 size={16} />}
                       onClick={() => {
                         setSelectedQuestion(record)
+                        setIsBatchDelete(false)
                         setShowDeleteModal(true)
                       }}
                     />
@@ -608,7 +646,7 @@ const QuestionManagementPage: React.FC = () => {
             showQuickJumper: true,
             showTotal: (total, range) => `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
             onChange: setCurrentPage,
-            onShowSizeChange: (current, newPageSize) => {
+            onShowSizeChange: (_curr, newPageSize) => {
               setPageSize(newPageSize)
               setCurrentPage(1)
             },
@@ -627,10 +665,11 @@ const QuestionManagementPage: React.FC = () => {
       {/* 删除确认对话框 */}
       <Modal
         title="确认删除"
-        open={showDeleteModal && (isBatchDelete || selectedQuestion)}
+        open={!!(showDeleteModal && (isBatchDelete || selectedQuestion))}
         onCancel={() => {
           setShowDeleteModal(false)
           setIsBatchDelete(false)
+          setSelectedQuestion(null)
         }}
         footer={[
           <Button
@@ -638,6 +677,7 @@ const QuestionManagementPage: React.FC = () => {
             onClick={() => {
               setShowDeleteModal(false)
               setIsBatchDelete(false)
+              setSelectedQuestion(null)
             }}
           >
             取消
@@ -661,7 +701,7 @@ const QuestionManagementPage: React.FC = () => {
         <p>
           {isBatchDelete
             ? `确定要删除选中的 ${selectedQuestions.length} 道题目吗？此操作无法撤销。`
-            : `确定要删除题目 ${selectedQuestion?.content}？此操作无法撤销。`}
+            : `确定要删除题目 ${selectedQuestion?.content ?? ''}？此操作无法撤销。`}
         </p>
       </Modal>
 
@@ -849,7 +889,6 @@ const QuestionManagementPage: React.FC = () => {
           </Button>,
         ]}
       >
-        {/* 导入说明 */}
         <Alert
           message="导入说明"
           description={
@@ -867,14 +906,12 @@ const QuestionManagementPage: React.FC = () => {
           style={{ marginBottom: 24 }}
         />
 
-        {/* 下载模板 */}
         <div style={{ marginBottom: 24 }}>
           <Button onClick={downloadTemplate} icon={<Download size={16} />}>
             下载导入模板
           </Button>
         </div>
 
-        {/* 文件选择 */}
         <div style={{ marginBottom: 24 }}>
           <AntUpload.Dragger
             accept=".xlsx,.xls,.csv"
@@ -907,7 +944,6 @@ const QuestionManagementPage: React.FC = () => {
           </AntUpload.Dragger>
         </div>
 
-        {/* 导入进度 */}
         {importing && (
           <Card size="small" style={{ marginBottom: 24 }}>
             <div style={{ marginBottom: 8 }}>

@@ -1,14 +1,27 @@
-import React, { useState, useEffect } from 'react'
-import { Card, Table, Avatar, Badge, Select, DatePicker, Tabs, Statistic, Row, Col, Spin, App } from 'antd'
-import { Trophy, Medal, Award, TrendingUp, Users, Target } from 'lucide-react'
-import { api } from '../lib/api'
-import dayjs from 'dayjs'
-import { Pagination } from 'antd'
-import { PAGINATION_CONFIG, createPaginationConfig } from '../constants/pagination'
+import { api } from '@shared/api/http'
+import { App, Avatar, Badge, Card, Col, DatePicker, Pagination, Row, Select, Spin, Statistic, Table, Tabs } from 'antd'
+import dayjs, { Dayjs } from 'dayjs'
+import { Award, Medal, Target, TrendingUp, Trophy, Users } from 'lucide-react'
+import { useEffect, useState } from 'react'
 
+import { createPaginationConfig } from '@shared/constants/pagination'
 const { RangePicker } = DatePicker
 const { Option } = Select
-// const { TabPane } = Tabs // 已弃用，使用 items 属性替代
+
+// ===== 统一 ApiResult 类型与守卫（适配你的 http 封装/拦截器）=====
+type ApiSuccess<T = any> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
+type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
+const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
+
+// 从各种返回形态里“捞”出数据
+function pickData<T>(resp: any, fallback: T): T {
+  if (isSuccess<T>(resp)) return (resp.data as T) ?? fallback
+  const d = resp?.data
+  if (d?.data !== undefined) return (d.data as T) ?? fallback
+  return (d as T) ?? fallback
+}
+// ============================================================
 
 interface LeaderboardEntry {
   id: number
@@ -38,9 +51,11 @@ export default function LeaderboardPage() {
   const [stats, setStats] = useState<LeaderboardStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overall')
-  const [timeRange, setTimeRange] = useState<[dayjs.Dayjs, dayjs.Dayjs] | null>([
+
+  // ✅ 与 antd RangePicker 对齐的类型
+  const [timeRange, setTimeRange] = useState<[Dayjs | null, Dayjs | null] | null>([
     dayjs().subtract(30, 'day'),
-    dayjs()
+    dayjs(),
   ])
   const [selectedSubject, setSelectedSubject] = useState<string>('all')
   const [subjects, setSubjects] = useState<string[]>([])
@@ -52,7 +67,22 @@ export default function LeaderboardPage() {
     fetchLeaderboards()
     fetchStats()
     fetchSubjects()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // activeTab 变化重新拉榜单列表
+  useEffect(() => {
+    fetchLeaderboards()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab])
+
+  // 选择了具体榜单或筛选变化时刷新数据（如需带上 subject/timeRange，可在后端支持后启用）
+  useEffect(() => {
+    if (selectedLeaderboard) {
+      fetchLeaderboardData()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedLeaderboard])
 
   // 分页处理函数
   const handlePageChange = (page: number, size?: number) => {
@@ -63,23 +93,21 @@ export default function LeaderboardPage() {
     }
   }
 
-  const handlePageSizeChange = (current: number, size: number) => {
+  const handlePageSizeChange = (_current: number, size: number) => {
     setPageSize(size)
     setCurrentPage(1)
   }
 
-  // 获取当前页数据
+  const onRangeChange = (dates: [Dayjs | null, Dayjs | null] | null) => {
+    setTimeRange(dates)
+  }
+
+  // 获取当前页数据（前端切片，若后端分页请替换为服务端分页）
   const getCurrentPageData = () => {
     const startIndex = (currentPage - 1) * pageSize
     const endIndex = startIndex + pageSize
     return leaderboardData.slice(startIndex, endIndex)
   }
-
-  useEffect(() => {
-    if (selectedLeaderboard) {
-      fetchLeaderboardData()
-    }
-  }, [selectedLeaderboard])
 
   const fetchLeaderboards = async () => {
     try {
@@ -87,17 +115,19 @@ export default function LeaderboardPage() {
       const params = {
         category: 'all',
         type: activeTab === 'overall' ? 'all' : activeTab,
-        active: true
+        active: true,
       }
-      const response = await api.get('/leaderboard', { params })
-      const leaderboardList = response.data.data?.leaderboards || []
-      setLeaderboards(leaderboardList)
-      if (leaderboardList.length > 0 && !selectedLeaderboard) {
-        setSelectedLeaderboard(leaderboardList[0].id)
+      const resp: ApiResult<any> | any = await api.get('/leaderboard', { params })
+      const data = pickData<any>(resp, {})
+      const list = Array.isArray(data?.leaderboards) ? data.leaderboards : Array.isArray(data) ? data : []
+      setLeaderboards(list)
+      if (list.length > 0 && !selectedLeaderboard) {
+        setSelectedLeaderboard(list[0].id)
       }
     } catch (error) {
       console.error('获取排行榜列表失败:', error)
       message.error('获取排行榜列表失败')
+      setLeaderboards([])
     } finally {
       setLoading(false)
     }
@@ -105,17 +135,23 @@ export default function LeaderboardPage() {
 
   const fetchLeaderboardData = async () => {
     if (!selectedLeaderboard) return
-    
     try {
       setLoading(true)
-      const response = await api.get(`/leaderboard/${selectedLeaderboard}`)
-      const data = response.data.data?.records || []
-      setLeaderboardData(data)
-      setTotalItems(data.length)
+      const resp: ApiResult<any> | any = await api.get(`/leaderboard/${selectedLeaderboard}`)
+      const data = pickData<any>(resp, {})
+      const records: LeaderboardEntry[] = Array.isArray(data?.records)
+        ? data.records
+        : Array.isArray(data?.items)
+        ? data.items
+        : Array.isArray(data)
+        ? data
+        : []
+      setLeaderboardData(records)
+      setTotalItems(records.length)
     } catch (error) {
       console.error('获取排行榜数据失败:', error)
-      // 使用模拟数据
-      setLeaderboardData([
+      // 使用模拟数据兜底
+      const fallback: LeaderboardEntry[] = [
         {
           id: 1,
           user_id: 1,
@@ -125,7 +161,7 @@ export default function LeaderboardPage() {
           total_questions: 100,
           correct_questions: 95,
           study_time: 120,
-          streak_days: 15
+          streak_days: 15,
         },
         {
           id: 2,
@@ -136,7 +172,7 @@ export default function LeaderboardPage() {
           total_questions: 100,
           correct_questions: 92,
           study_time: 110,
-          streak_days: 12
+          streak_days: 12,
         },
         {
           id: 3,
@@ -147,9 +183,11 @@ export default function LeaderboardPage() {
           total_questions: 100,
           correct_questions: 89,
           study_time: 105,
-          streak_days: 8
-        }
-      ])
+          streak_days: 8,
+        },
+      ]
+      setLeaderboardData(fallback)
+      setTotalItems(fallback.length)
     } finally {
       setLoading(false)
     }
@@ -157,12 +195,12 @@ export default function LeaderboardPage() {
 
   const fetchStats = async () => {
     try {
-      // 暂时使用模拟数据，因为后端还没有统计API
+      // 暂时使用模拟数据
       setStats({
         total_participants: 156,
         avg_score: 78.5,
         top_score: 98.5,
-        my_rank: 23
+        my_rank: 23,
       })
     } catch (error) {
       console.error('获取排行榜统计失败:', error)
@@ -171,7 +209,7 @@ export default function LeaderboardPage() {
 
   const fetchSubjects = async () => {
     try {
-      // 暂时使用模拟数据，因为后端还没有科目API
+      // 暂时使用模拟数据
       setSubjects(['数学', '语文', '英语', '物理', '化学', '生物'])
     } catch (error) {
       console.error('获取科目列表失败:', error)
@@ -200,9 +238,10 @@ export default function LeaderboardPage() {
   }
 
   const formatTime = (minutes: number) => {
-    const hours = Math.floor(minutes / 60)
-    const mins = minutes % 60
-    return hours > 0 ? `${hours}h${mins}m` : `${mins}m`
+    const mins = Number.isFinite(minutes) ? Math.max(0, Math.floor(minutes)) : 0
+    const hours = Math.floor(mins / 60)
+    const left = mins % 60
+    return hours > 0 ? `${hours}h${left}m` : `${left}m`
   }
 
   const columns = [
@@ -211,11 +250,7 @@ export default function LeaderboardPage() {
       dataIndex: 'rank',
       key: 'rank',
       width: 80,
-      render: (rank: number) => (
-        <div className="flex items-center justify-center">
-          {getRankIcon(rank)}
-        </div>
-      )
+      render: (rank: number) => <div className="flex items-center justify-center">{getRankIcon(rank)}</div>,
     },
     {
       title: '用户',
@@ -223,12 +258,8 @@ export default function LeaderboardPage() {
       key: 'username',
       render: (username: string, record: LeaderboardEntry) => (
         <div className="flex items-center space-x-3">
-          <Avatar 
-            src={record.avatar} 
-            size={40}
-            className="bg-blue-500"
-          >
-            {username.charAt(0).toUpperCase()}
+          <Avatar src={record.avatar} size={40} className="bg-blue-500">
+            {username?.charAt(0)?.toUpperCase?.() || 'U'}
           </Avatar>
           <div>
             <div className="flex items-center space-x-2">
@@ -238,41 +269,37 @@ export default function LeaderboardPage() {
             <div className="text-xs text-gray-500">ID: {record.user_id}</div>
           </div>
         </div>
-      )
+      ),
     },
     {
       title: '分数',
       dataIndex: 'score',
       key: 'score',
       sorter: (a: LeaderboardEntry, b: LeaderboardEntry) => b.score - a.score,
-      render: (score: number) => (
-        <div className="text-lg font-bold text-blue-600">{score.toFixed(1)}</div>
-      )
+      render: (score: number) => <div className="text-lg font-bold text-blue-600">{Number(score).toFixed(1)}</div>,
     },
     {
       title: '正确率',
       key: 'accuracy',
       render: (record: LeaderboardEntry) => {
-        const accuracy = record.total_questions > 0 
-          ? (record.correct_questions / record.total_questions * 100)
-          : 0
+        const total = Number(record.total_questions) || 0
+        const correct = Number(record.correct_questions) || 0
+        const accuracy = total > 0 ? (correct / total) * 100 : 0
         return (
           <div className="text-center">
             <div className="font-medium">{accuracy.toFixed(1)}%</div>
             <div className="text-xs text-gray-500">
-              {record.correct_questions}/{record.total_questions}
+              {correct}/{total}
             </div>
           </div>
         )
-      }
+      },
     },
     {
       title: '学习时长',
       dataIndex: 'study_time',
       key: 'study_time',
-      render: (time: number) => (
-        <div className="text-center font-medium">{formatTime(time)}</div>
-      )
+      render: (time: number) => <div className="text-center font-medium">{formatTime(time)}</div>,
     },
     {
       title: '连续天数',
@@ -280,10 +307,10 @@ export default function LeaderboardPage() {
       key: 'streak_days',
       render: (days: number) => (
         <div className="text-center">
-          <Badge count={days} style={{ backgroundColor: '#52c41a' }} />
+          <Badge count={Number(days) || 0} style={{ backgroundColor: '#52c41a' }} />
         </div>
-      )
-    }
+      ),
+    },
   ]
 
   return (
@@ -295,30 +322,26 @@ export default function LeaderboardPage() {
         </div>
         <div className="flex items-center space-x-4">
           <Select
-            value={selectedLeaderboard}
-            onChange={setSelectedLeaderboard}
+            value={selectedLeaderboard ?? undefined}
+            onChange={v => setSelectedLeaderboard(v)}
             style={{ width: 200 }}
             placeholder="选择排行榜"
           >
             {leaderboards.map(board => (
-              <Option key={board.id} value={board.id}>{board.name}</Option>
+              <Option key={board.id} value={board.id}>
+                {board.name ?? `榜单 #${board.id}`}
+              </Option>
             ))}
           </Select>
-          <Select
-            value={selectedSubject}
-            onChange={setSelectedSubject}
-            style={{ width: 120 }}
-          >
+          <Select value={selectedSubject} onChange={setSelectedSubject} style={{ width: 120 }}>
             <Option value="all">全部科目</Option>
             {subjects.map(subject => (
-              <Option key={subject} value={subject}>{subject}</Option>
+              <Option key={subject} value={subject}>
+                {subject}
+              </Option>
             ))}
           </Select>
-          <RangePicker
-            value={timeRange}
-            onChange={setTimeRange}
-            format="YYYY-MM-DD"
-          />
+          <RangePicker value={timeRange} onChange={onRangeChange} format="YYYY-MM-DD" />
         </div>
       </div>
 
@@ -357,7 +380,7 @@ export default function LeaderboardPage() {
           <Card>
             <Statistic
               title="我的排名"
-              value={stats?.my_rank || '-'}
+              value={stats?.my_rank ?? '-'}
               prefix={<Award className="w-4 h-4 text-purple-500" />}
             />
           </Card>
@@ -366,9 +389,13 @@ export default function LeaderboardPage() {
 
       {/* 排行榜表格 */}
       <Card>
-        <Tabs 
-          activeKey={activeTab} 
-          onChange={setActiveTab}
+        <Tabs
+          activeKey={activeTab}
+          onChange={k => {
+            setActiveTab(k)
+            // 切换标签时重置分页
+            setCurrentPage(1)
+          }}
           items={[
             {
               key: 'overall',
@@ -376,11 +403,11 @@ export default function LeaderboardPage() {
               children: (
                 <Spin spinning={loading}>
                   <Table
-                    columns={columns}
+                    columns={columns as any}
                     dataSource={getCurrentPageData()}
                     rowKey="id"
                     pagination={false}
-                    rowClassName={(record) => 
+                    rowClassName={(record: any) =>
                       record.rank <= 3 ? 'bg-gradient-to-r from-yellow-50 to-orange-50' : ''
                     }
                   />
@@ -393,7 +420,7 @@ export default function LeaderboardPage() {
                     {...createPaginationConfig()}
                   />
                 </Spin>
-              )
+              ),
             },
             {
               key: 'study_time',
@@ -401,11 +428,11 @@ export default function LeaderboardPage() {
               children: (
                 <Spin spinning={loading}>
                   <Table
-                    columns={columns}
+                    columns={columns as any}
                     dataSource={getCurrentPageData()}
                     rowKey="id"
                     pagination={false}
-                    rowClassName={(record) => 
+                    rowClassName={(record: any) =>
                       record.rank <= 3 ? 'bg-gradient-to-r from-blue-50 to-indigo-50' : ''
                     }
                   />
@@ -418,7 +445,7 @@ export default function LeaderboardPage() {
                     {...createPaginationConfig()}
                   />
                 </Spin>
-              )
+              ),
             },
             {
               key: 'accuracy',
@@ -426,11 +453,11 @@ export default function LeaderboardPage() {
               children: (
                 <Spin spinning={loading}>
                   <Table
-                    columns={columns}
+                    columns={columns as any}
                     dataSource={getCurrentPageData()}
                     rowKey="id"
                     pagination={false}
-                    rowClassName={(record) => 
+                    rowClassName={(record: any) =>
                       record.rank <= 3 ? 'bg-gradient-to-r from-green-50 to-emerald-50' : ''
                     }
                   />
@@ -443,8 +470,8 @@ export default function LeaderboardPage() {
                     {...createPaginationConfig()}
                   />
                 </Spin>
-              )
-            }
+              ),
+            },
           ]}
         />
       </Card>

@@ -1,4 +1,3 @@
-// apps/web/src/pages/admin/UserManagementPage.tsx
 import {
   ApartmentOutlined,
   DeleteOutlined,
@@ -16,6 +15,8 @@ import {
   UserDeleteOutlined,
   UserOutlined,
 } from '@ant-design/icons'
+import { api, users } from '@shared/api/http'
+import { useAuth } from '@shared/contexts/AuthContext'
 import type { InputRef, TreeProps } from 'antd'
 import {
   App,
@@ -41,10 +42,8 @@ import {
   Typography,
 } from 'antd'
 import { Users as EmptyIcon } from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react' // ♻️ useMemo
-import { useAuth } from '../../contexts/AuthContext'
-import { api, users } from '../../lib/api'
-import { orgs } from '../../lib/orgs/orgs'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { OrgAPI } from '@features/orgs/api'
 
 const { Title, Paragraph, Text } = Typography
 const { Search } = Input
@@ -53,8 +52,8 @@ const { Sider, Content } = Layout
 const confirm = Modal.confirm
 
 // ---- API 收窄工具 ----
-type ApiSuccess<T> = { success: true; data: T }
-type ApiFailure = { success: false; error?: string }
+type ApiSuccess<T> = { success: true; data: T; message?: string }
+type ApiFailure = { success: false; error?: string; message?: string }
 type ApiResult<T> = ApiSuccess<T> | ApiFailure
 const assertSuccess = <T,>(r: ApiResult<T>): r is ApiSuccess<T> => !!r && (r as any).success === true
 
@@ -93,7 +92,6 @@ interface UserStatistics {
 }
 interface UserDetail extends User {
   statistics: UserStatistics
-  // ✅ 新增：详情中也承载机构信息（用于展示路径）
   org_id?: number | null
   org_name?: string | null
 }
@@ -113,7 +111,6 @@ type UIUser = {
   updated_at?: string
   org_id?: number | null
   org_name?: string | null
-  // ✅ 新增：直接缓存路径文字（可选）
   org_path_label?: string | null
 }
 
@@ -171,13 +168,11 @@ const UserManagementPage: React.FC = () => {
   // ✅ 计算：基于 treeData.raw 构建 “id → 路径文字” 的快速映射
   const orgPathMap = useMemo(() => {
     const map = new Map<number, string>()
-
     const dfs = (node: RawOrgNode, trail: string[]) => {
       const nextTrail = [...trail, node.name]
       map.set(node.id, nextTrail.join(' - '))
       ;(node.children || []).forEach(ch => dfs(ch, nextTrail))
     }
-
     treeData.forEach(t => dfs(t.raw, []))
     return map
   }, [treeData])
@@ -207,7 +202,7 @@ const UserManagementPage: React.FC = () => {
         updated_at: x.updated_at,
         org_id,
         org_name,
-        org_path_label: getOrgPathLabel(org_id, org_name), // ✅ 直接缓存
+        org_path_label: getOrgPathLabel(org_id, org_name),
       }
     })
 
@@ -219,9 +214,10 @@ const UserManagementPage: React.FC = () => {
   const fetchOrgTree = async () => {
     try {
       setTreeLoading(true)
-      const res: ApiResult<any[]> = await orgs.getTree(false as any)
+      // ✅ 使用 OrgAPI.tree()
+      const res: ApiResult<any[]> = await OrgAPI.tree()
       if (!assertSuccess(res)) {
-        message.error(res.error || '加载组织树失败')
+        message.error(res.error || res.message || '加载组织树失败')
         setTreeData([])
         return
       }
@@ -261,7 +257,7 @@ const UserManagementPage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, roleFilter, limit, selectedOrgId, includeChildren])
 
-  // ♻️ 注意：当 treeData 变化（从而 orgPathMap 变化）时，给现有 userList 回填路径
+  // 当 treeData 变化时，回填路径
   useEffect(() => {
     if (!userList.length) return
     setUserList(prev =>
@@ -281,32 +277,41 @@ const UserManagementPage: React.FC = () => {
     }
     try {
       setLoading(true)
+      // ✅ 使用通用 http：GET /orgs/:id/users
       const res: ApiResult<{
-        items: any[]
-        total: number
-        page: number
-        limit: number
-      }> = await orgs.listUsers(selectedOrgId, {
-        page: currentPage,
-        limit,
-        search: searchTerm || undefined,
-        role: roleFilter || undefined,
-        include_children: includeChildren ? 1 : 0,
-      } as any)
+        items?: any[]
+        users?: any[] // 兼容某些返回
+        total?: number
+        page?: number
+        limit?: number
+      }> = await api.get(`/orgs/${selectedOrgId}/users`, {
+        params: {
+          page: currentPage,
+          limit,
+          search: searchTerm || undefined,
+          role: roleFilter || undefined,
+          include_children: includeChildren ? 1 : 0,
+        },
+      })
 
       if (!assertSuccess(res)) {
-        message.error(res.error || '加载用户失败')
+        message.error(res.error || res.message || '加载用户失败')
         setUserList([])
         setTotalUsers(0)
         return
       }
 
-      const mapped = mapOrgItemsToUI(res.data.items || [])
+      const rawItems = Array.isArray(res.data?.items)
+        ? res.data.items
+        : Array.isArray(res.data?.users)
+        ? res.data.users
+        : []
+      const mapped = mapOrgItemsToUI(rawItems)
       setUserList(mapped)
-      setTotalUsers(res.data.total || 0)
+      setTotalUsers(Number(res.data?.total || mapped.length || 0))
     } catch (error: any) {
       console.error('加载用户列表错误:', error)
-      message.error(error?.response?.data?.error || error.message || '加载用户失败')
+      message.error(error?.response?.data?.error || error?.message || '加载用户失败')
       setUserList([])
       setTotalUsers(0)
     } finally {
@@ -316,12 +321,11 @@ const UserManagementPage: React.FC = () => {
   }
 
   /** ========== 详情 & 编辑 ========== */
-  // ♻️ 关键修改：把列表行的 org 信息也并入详情（用于展示路径）
   const openDetailFromRow = async (row: UIUser) => {
     try {
       const res: ApiResult<UserDetail> = await users.getById(row.id)
       if (!assertSuccess(res)) {
-        message.error(res.error || '加载用户详情失败')
+        message.error(res.error || res.message || '加载用户详情失败')
         return
       }
       const merged: UserDetail = {
@@ -352,7 +356,7 @@ const UserManagementPage: React.FC = () => {
     if (!editingUser) return
     try {
       const res: ApiResult<any> = await api.put(`/users/${editingUser.id}`, values)
-      if (!assertSuccess(res)) throw new Error(res.error || '更新失败')
+      if (!assertSuccess(res)) throw new Error(res.error || res.message || '更新失败')
 
       setUserList(prev => prev.map(u => (u.id === editingUser.id ? ({ ...u, ...values } as UIUser) : u)))
       message.success('用户信息更新成功')
@@ -466,8 +470,9 @@ const UserManagementPage: React.FC = () => {
     if (!selectedOrgId) return
     if (bindUserIds.length === 0) return message.warning('请选择要新增到该机构的用户')
     try {
-      const res: ApiResult<any> = await orgs.addUsers(selectedOrgId, bindUserIds as any)
-      if (!assertSuccess(res)) throw new Error(res.error || '新增失败')
+      // ✅ 新增到机构：POST /orgs/:id/users
+      const res: ApiResult<any> = await api.post(`/orgs/${selectedOrgId}/users`, { user_ids: bindUserIds })
+      if (!assertSuccess(res)) throw new Error(res.error || res.message || '新增失败')
       message.success('已新增到该机构')
       setBindOpen(false)
       loadUsers()
@@ -483,8 +488,9 @@ const UserManagementPage: React.FC = () => {
       icon: <ExclamationCircleOutlined />,
       onOk: async () => {
         try {
-          const res: ApiResult<any> = await orgs.removeUser(selectedOrgId, u.id as any)
-          if (!assertSuccess(res)) throw new Error(res.error || '移除失败')
+          // ✅ 从机构移除：DELETE /orgs/:id/users/:userId
+          const res: ApiResult<any> = await api.delete(`/orgs/${selectedOrgId}/users/${u.id}`)
+          if (!assertSuccess(res)) throw new Error(res.error || res.message || '移除失败')
           message.success('已从机构移除')
           loadUsers()
         } catch (e: any) {
@@ -494,7 +500,7 @@ const UserManagementPage: React.FC = () => {
     })
   }
 
-  /** ========== 辅助渲染 ========== */
+  /** ========== 表格列 ========== */
   const getRoleTag = (role: string) => {
     const map: any = { admin: 'red', teacher: 'blue', student: 'green' }
     const label: any = { admin: '管理员', teacher: '教师', student: '学生' }
@@ -527,7 +533,7 @@ const UserManagementPage: React.FC = () => {
     {
       title: '部门',
       dataIndex: 'org_name',
-      key: 'org_path', // ✅
+      key: 'org_path',
       render: (_: any, r: UIUser) => {
         const label = r.org_path_label || getOrgPathLabel(r.org_id, r.org_name)
         return label ? <Tag>{label}</Tag> : <Text type="secondary">未分配</Text>
@@ -892,8 +898,6 @@ const UserManagementPage: React.FC = () => {
                   <div>{new Date(selectedUser.created_at).toLocaleString()}</div>
                 </Card>
               </Col>
-
-              {/* ✅ 新增：所属部门（路径） */}
               <Col span={12}>
                 <Card size="small">
                   <Text type="secondary">所属部门</Text>
@@ -905,7 +909,6 @@ const UserManagementPage: React.FC = () => {
                   </div>
                 </Card>
               </Col>
-
               <Col span={12}>
                 <Card size="small">
                   <Text type="secondary">学校</Text>
@@ -990,7 +993,7 @@ const UserManagementPage: React.FC = () => {
               </Select>
             </Form.Item>
 
-            {/* ✅ 显示当前完整路径 */}
+            {/* 显示当前完整路径 */}
             <Form.Item label="所属机构">
               <Space>
                 <Input
@@ -1091,7 +1094,7 @@ const UserManagementPage: React.FC = () => {
         </Space>
       </Modal>
 
-      {/* 选择所属机构 */}
+      {/* 选择所属机构（变更主机构） */}
       <Modal
         title="选择所属机构"
         open={orgPickerOpen}
@@ -1102,19 +1105,21 @@ const UserManagementPage: React.FC = () => {
             return
           }
           try {
-            let res: ApiResult<any>
-            if (editingUser.org_id) {
-              // 有来源机构：移动（从 editingUser.org_id → orgPickerSelected）
-              res = await orgs.moveUser(
-                editingUser.org_id as number,
-                editingUser.id as number,
-                orgPickerSelected as number
-              )
-            } else {
-              // 没有来源机构：直接设为主组织（等价“加入 + 设主”）
-              res = await orgs.setPrimary(editingUser.id as number, orgPickerSelected as number)
+            // ✅ 若已有来源机构：先加入目标，再从来源删除；否则直接加入目标
+            if (editingUser.org_id && editingUser.org_id !== orgPickerSelected) {
+              const addRes: ApiResult<any> = await api.post(`/orgs/${orgPickerSelected}/users`, {
+                user_ids: [editingUser.id],
+              })
+              if (!assertSuccess(addRes)) throw new Error(addRes.error || addRes.message || '加入目标机构失败')
+
+              const delRes: ApiResult<any> = await api.delete(`/orgs/${editingUser.org_id}/users/${editingUser.id}`)
+              if (!assertSuccess(delRes)) throw new Error(delRes.error || delRes.message || '从来源机构移除失败')
+            } else if (!editingUser.org_id) {
+              const addRes: ApiResult<any> = await api.post(`/orgs/${orgPickerSelected}/users`, {
+                user_ids: [editingUser.id],
+              })
+              if (!assertSuccess(addRes)) throw new Error(addRes.error || addRes.message || '加入机构失败')
             }
-            if (!assertSuccess(res)) throw new Error(res.error || '更新失败')
 
             message.success('已更新所属机构')
             setOrgPickerOpen(false)
@@ -1128,12 +1133,11 @@ const UserManagementPage: React.FC = () => {
                 ? {
                     ...prev,
                     org_id: orgPickerSelected,
-                    org_name: undefined, // 用路径替代普通名字
+                    org_name: undefined,
                     org_path_label: newLabel,
                   }
                 : prev
             )
-
             if (selectedUser?.id === editingUser.id) {
               setSelectedUser(prev => (prev ? { ...prev, org_id: orgPickerSelected, org_name: undefined } : prev))
             }
@@ -1176,9 +1180,9 @@ const UserManagementPage: React.FC = () => {
             return
           }
           try {
-            // 这里不指定主组织，如需指定可以再加一个 Radio/Select 选择 primary
-            const res = await orgs.linkUserOrgs(editingUser.id as number, linkOrgIds)
-            if (!assertSuccess(res)) throw new Error(res.error || '关联失败')
+            // ✅ 关联多个机构：POST /users/:userId/orgs
+            const res: ApiResult<any> = await api.post(`/users/${editingUser.id}/orgs`, { org_ids: linkOrgIds })
+            if (!assertSuccess(res)) throw new Error(res.error || res.message || '关联失败')
             message.success('关联成功')
             setLinkOrgOpen(false)
             await loadUsers()

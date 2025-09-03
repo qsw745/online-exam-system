@@ -1,18 +1,15 @@
-import { ConfigProvider, theme as antdTheme } from 'antd'
-import React from 'react'
-import { ThemeProvider, useTheme } from './hooks/useTheme'
-import './styles/theme.css' // 你的全局 CSS 变量
+// src/AppProviders.tsx
+import type { PropsWithChildren } from 'react'
+import { AntdThemeProvider } from '@app/providers/AntdThemeProvider'
 
-function AntdThemeBridge({ children }: { children: React.ReactNode }) {
-  const { theme } = useTheme()
-  const algorithm = theme === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm
-  return <ConfigProvider theme={{ algorithm }}>{children}</ConfigProvider>
+// 全局样式：统一从 shared 引入
+import '@shared/styles/theme.css'
+import '@shared/styles/antd-override.css'
+
+export function AppProviders({ children }: PropsWithChildren) {
+  // 以后还要加别的 Provider（SWR/Sentry/MSW 等），也放到这里包裹
+  return <AntdThemeProvider>{children}</AntdThemeProvider>
 }
 
-export default function AppProviders({ children }: { children: React.ReactNode }) {
-  return (
-    <ThemeProvider>
-      <AntdThemeBridge>{children}</AntdThemeBridge>
-    </ThemeProvider>
-  )
-}
+// 同时提供默认导出，避免其它地方误用默认导入时报错
+export default AppProviders

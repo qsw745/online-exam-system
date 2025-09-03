@@ -1,9 +1,8 @@
-import React, { useState, useEffect } from 'react'
+import { papers } from '@shared/api/http'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { Button, Card, Form, Input, message, Select } from 'antd'
+import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Input, Select, Card, Form } from 'antd'
-import { api, papers } from '../../lib/api'
-import { message } from 'antd'
-import LoadingSpinner from '../../components/LoadingSpinner'
 
 const { TextArea } = Input
 
@@ -26,24 +25,24 @@ export default function PaperCreatePage() {
   const [submitting, setSubmitting] = useState(false)
   const [isViewMode, setIsViewMode] = useState(false)
   const [isEditMode, setIsEditMode] = useState(false)
-  
+
   const [paperTitle, setPaperTitle] = useState('')
   const [paperDescription, setPaperDescription] = useState('')
   const [totalScore, setTotalScore] = useState(100)
   const [duration, setDuration] = useState(60)
   const [difficulty, setDifficulty] = useState<'easy' | 'medium' | 'hard'>('medium')
   const [questions, setQuestions] = useState<any[]>([])
-  
+
   useEffect(() => {
     // 检查是否已登录
     const token = localStorage.getItem('token')
-    
+
     if (!token) {
       message.error('请先登录')
       navigate('/login')
       return
     }
-    
+
     if (id) {
       // 如果有ID参数，判断是查看模式还是编辑模式
       const path = window.location.pathname
@@ -54,7 +53,7 @@ export default function PaperCreatePage() {
         setIsViewMode(false)
         setIsEditMode(true)
       }
-      
+
       // 加载试卷详情
       fetchPaperDetail(id)
     } else {
@@ -64,12 +63,12 @@ export default function PaperCreatePage() {
       setLoading(false)
     }
   }, [id])
-  
+
   const fetchPaperDetail = async (paperId: string) => {
     try {
       setLoading(true)
       const response = await papers.getById(paperId)
-      
+
       if (response.success && response.data) {
         // 处理接口返回的数据结构，考虑到可能有paper这一层嵌套
         const paperData = response.data.paper || response.data
@@ -78,18 +77,18 @@ export default function PaperCreatePage() {
         setTotalScore(paperData.total_score || 100)
         setDuration(paperData.duration || 60)
         setDifficulty(paperData.difficulty || 'medium')
-        
+
         // 如果有题目数据，加载题目
-          if (paperData.questions) {
-            setQuestions(paperData.questions)
-          } else {
-            // 如果没有题目数据，尝试获取题目
-            try { 
+        if (paperData.questions) {
+          setQuestions(paperData.questions)
+        } else {
+          // 如果没有题目数据，尝试获取题目
+          try {
             // 不再使用测试题目数据，直接从API获取
-            
+
             // 尝试从API获取真实题目
-              const questionsResponse = await papers.getQuestions(paperId)
-            if (questionsResponse && questionsResponse.success && questionsResponse.data) {  
+            const questionsResponse = await papers.getQuestions(paperId)
+            if (questionsResponse && questionsResponse.success && questionsResponse.data) {
               // 确保正确处理返回的数据结构
               if (Array.isArray(questionsResponse.data)) {
                 setQuestions(questionsResponse.data)
@@ -122,18 +121,18 @@ export default function PaperCreatePage() {
       setLoading(false)
     }
   }
-  
+
   const handleSubmit = async (values?: any) => {
     if (isViewMode) {
       return
     }
-    
+
     // 表单验证
     if (!paperTitle.trim()) {
       message.error('请输入试卷标题')
       return
     }
-    
+
     const paperData = {
       title: paperTitle,
       description: paperDescription,
@@ -141,10 +140,10 @@ export default function PaperCreatePage() {
       duration: duration,
       difficulty: difficulty,
     }
-    
+
     try {
       setSubmitting(true)
-      
+
       if (isEditMode) {
         // 编辑模式
         await papers.update(id!, paperData)
@@ -154,7 +153,7 @@ export default function PaperCreatePage() {
         await papers.create(paperData)
         message.success('试卷创建成功')
       }
-      
+
       // 返回试卷列表页
       navigate('/admin/papers')
     } catch (error) {
@@ -164,75 +163,75 @@ export default function PaperCreatePage() {
       setSubmitting(false)
     }
   }
-  
+
   const getPageTitle = () => {
     if (isViewMode) return '查看试卷'
     if (isEditMode) return '编辑试卷'
     return '创建试卷'
   }
-  
+
   const getPageDescription = () => {
     if (isViewMode) return '查看试卷详细信息'
     if (isEditMode) return '编辑试卷信息'
     return '创建一个新的试卷'
   }
-  
+
   if (loading) {
     return <LoadingSpinner text="加载试卷信息..." />
   }
-  
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
         <p className="text-gray-500 mt-1">{getPageDescription()}</p>
       </div>
-      
+
       <Form onFinish={handleSubmit} layout="vertical">
         <Card title="基本信息" style={{ marginBottom: 24 }}>
           <Form.Item label="试卷标题" required>
             <Input
               value={paperTitle}
-              onChange={(e) => setPaperTitle(e.target.value)}
+              onChange={e => setPaperTitle(e.target.value)}
               placeholder="输入试卷标题"
               disabled={isViewMode}
             />
           </Form.Item>
-          
+
           <Form.Item label="试卷说明">
             <TextArea
               value={paperDescription}
-              onChange={(e) => setPaperDescription(e.target.value)}
+              onChange={e => setPaperDescription(e.target.value)}
               placeholder="输入试卷说明"
               disabled={isViewMode}
               rows={4}
             />
           </Form.Item>
-          
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
             <Form.Item label="考试时长（分钟）">
               <Input
                 type="number"
                 min={1}
                 value={duration}
-                onChange={(e) => setDuration(parseInt(e.target.value))}
+                onChange={e => setDuration(parseInt(e.target.value))}
                 disabled={isViewMode}
               />
             </Form.Item>
-            
+
             <Form.Item label="总分值">
               <Input
                 type="number"
                 min={1}
                 value={totalScore}
-                onChange={(e) => setTotalScore(parseInt(e.target.value))}
+                onChange={e => setTotalScore(parseInt(e.target.value))}
                 disabled={isViewMode}
               />
             </Form.Item>
-                
+
             <Form.Item label="试卷难度">
-              <Select 
-                value={difficulty} 
+              <Select
+                value={difficulty}
                 onChange={(value: 'easy' | 'medium' | 'hard') => setDifficulty(value)}
                 disabled={isViewMode}
                 placeholder="选择难度"
@@ -240,13 +239,13 @@ export default function PaperCreatePage() {
                 options={[
                   { label: '简单', value: 'easy' },
                   { label: '中等', value: 'medium' },
-                  { label: '困难', value: 'hard' }
+                  { label: '困难', value: 'hard' },
                 ]}
               />
             </Form.Item>
           </div>
         </Card>
-        
+
         {/* 始终显示题目列表区域，无论是否有题目 */}
         <Card title="试卷题目" style={{ marginBottom: 24 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -256,7 +255,9 @@ export default function PaperCreatePage() {
                   <div style={{ marginRight: '8px', fontWeight: 500 }}>{index + 1}.</div>
                   <div style={{ flex: 1 }}>
                     <h3 style={{ fontWeight: 500, marginBottom: '8px' }}>{question.question_content}</h3>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '14px', color: '#666' }}>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: '16px', fontSize: '14px', color: '#666' }}
+                    >
                       <span>类型: {question.question_type}</span>
                       <span>分值: {question.score}分</span>
                     </div>
@@ -267,14 +268,9 @@ export default function PaperCreatePage() {
           </div>
         </Card>
 
-        
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px' }}>
-          <Button 
-            onClick={() => navigate('/admin/papers')}
-          >
-            {isViewMode ? '返回列表' : '取消'}
-          </Button>
-          
+          <Button onClick={() => navigate('/admin/papers')}>{isViewMode ? '返回列表' : '取消'}</Button>
+
           {!isViewMode && (
             <Button type="primary" htmlType="submit" loading={submitting}>
               {isEditMode ? '更新试卷' : '创建试卷'}

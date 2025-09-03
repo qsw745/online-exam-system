@@ -4,7 +4,7 @@ import { Table, Button, Modal, Form, Select, App, Space, Tag, Card, Input, Avata
 import { createPaginationConfig } from '../../constants/pagination'
 import { UserOutlined, SettingOutlined, SearchOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
-import { api, ApiResult } from '../../lib/api'
+import { api, ApiResult } from '@shared/api/http'
 
 // ==== 类型 ====
 interface User {

@@ -16,8 +16,9 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { Bell, Edit, Plus, Send, Trash2 } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { createPaginationConfig } from '../../constants/pagination'
-import { api } from '../../lib/api'
+
+import { api } from '@shared/api/http'
+import { createPaginationConfig } from '@shared/constants/pagination'
 
 const { Title, Text } = Typography
 const { TextArea } = Input

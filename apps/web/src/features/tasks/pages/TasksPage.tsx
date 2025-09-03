@@ -1,20 +1,11 @@
-import React, { useState, useEffect } from 'react'
-import { useLanguage } from '../contexts/LanguageContext'
-import { 
-  Search, 
-  Calendar,
-  Clock,
-  BookOpen,
-  Play,
-  CheckCircle,
-  XCircle,
-  AlertCircle
-} from 'lucide-react'
+import { tasks } from '@shared/api/http'
+import { createPaginationConfig } from '@shared/constants/pagination'
+import { useLanguage } from '@shared/contexts/LanguageContext'
+import { Button, Card, Empty, Input, message, Pagination, Select, Space, Spin, Tag, Typography } from 'antd'
+import { AlertCircle, BookOpen, Calendar, CheckCircle, Clock, Play, Search, XCircle } from 'lucide-react'
+import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Spin, Card, Input, Select, Button, Space, Tag, Empty, Typography, Pagination } from 'antd'
-import { message } from 'antd'
-import { tasks } from '../lib/api'
-import { createPaginationConfig } from '../constants/pagination'
+
 const { Title, Text } = Typography
 
 interface Task {
@@ -30,9 +21,16 @@ interface Task {
   updated_at: string
 }
 
+// 失败守卫（用于收敛联合类型）
+type ApiFailure = { success: false; error?: string }
+function isFailure(r: any): r is ApiFailure {
+  return r && r.success === false
+}
+
 const TasksPage: React.FC = () => {
-  const { t, language } = useLanguage()
+  const { t } = useLanguage()
   const navigate = useNavigate()
+
   const [loading, setLoading] = useState(true)
   const [taskList, setTaskList] = useState<Task[]>([])
   const [searchTerm, setSearchTerm] = useState('')
@@ -45,6 +43,7 @@ const TasksPage: React.FC = () => {
 
   useEffect(() => {
     loadTasks()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, searchTerm, filterStatus, filterType])
 
   const loadTasks = async () => {
@@ -55,23 +54,35 @@ const TasksPage: React.FC = () => {
         limit: pageSize,
         search: searchTerm || undefined,
         status: filterStatus === 'all' ? undefined : filterStatus,
-        type: filterType === 'all' ? undefined : filterType
+        type: filterType === 'all' ? undefined : filterType,
       }
-      const response = await tasks.list(params)
-      
-      if (response.data && response.data.tasks) {
-        setTaskList(response.data.tasks)
-        if (response.data.pagination) {
-          setTotalPages(response.data.pagination.totalPages)
-          setTotalTasks(response.data.pagination.total)
-        }
-      } else {
-        setTaskList(response.data || [])
+
+      const res = await tasks.list(params)
+
+      // 失败分支
+      if (isFailure(res)) {
+        throw new Error(res.error || '加载任务失败')
       }
+
+      // 成功分支：兼容 data 包裹或扁平返回
+      const payload: any = (res as any).data ?? res
+
+      // 兼容不同字段命名：tasks / items / list / 直接数组
+      const list: Task[] = Array.isArray(payload) ? payload : payload?.tasks ?? payload?.items ?? payload?.list ?? []
+
+      setTaskList(list)
+
+      // 兼容分页：pagination.totalPages / pagination.total
+      const pagination = payload?.pagination ?? {}
+      const total = pagination.total ?? list.length ?? 0
+      setTotalTasks(total)
+      setTotalPages(pagination.totalPages ?? (Math.ceil(total / pageSize) || 1))
     } catch (error: any) {
       console.error('加载任务错误:', error)
-      message.error(error.response?.data?.message || '加载任务失败')
+      message.error(error?.message || error?.response?.data?.message || '加载任务失败')
       setTaskList([])
+      setTotalTasks(0)
+      setTotalPages(1)
     } finally {
       setLoading(false)
     }
@@ -94,21 +105,6 @@ const TasksPage: React.FC = () => {
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page)
-  }
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'not_started':
-        return 'bg-yellow-100 text-yellow-800'
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800'
-      case 'completed':
-        return 'bg-green-100 text-green-800'
-      case 'expired':
-        return 'bg-red-100 text-red-800'
-      default:
-        return 'bg-gray-100 text-gray-800'
-    }
   }
 
   const getStatusLabel = (status: string) => {
@@ -145,7 +141,6 @@ const TasksPage: React.FC = () => {
     const now = new Date()
     const startTime = new Date(task.start_time)
     const endTime = new Date(task.end_time)
-    
     return task.status === 'not_started' && now >= startTime && now <= endTime
   }
 
@@ -161,7 +156,7 @@ const TasksPage: React.FC = () => {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '400px' }}>
         <Spin size="large" tip={t('tasks.loading')}>
-          <div style={{ minHeight: '200px',minWidth:"200px" }} />
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
         </Spin>
       </div>
     )
@@ -170,7 +165,9 @@ const TasksPage: React.FC = () => {
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <Card>
-        <Title level={2} style={{ margin: 0 }}>我的任务</Title>
+        <Title level={2} style={{ margin: 0 }}>
+          我的任务
+        </Title>
         <Text type="secondary">查看和管理您的考试和练习任务</Text>
       </Card>
 
@@ -180,26 +177,18 @@ const TasksPage: React.FC = () => {
             prefix={<Search style={{ width: 16, height: 16, color: '#999' }} />}
             placeholder="搜索任务..."
             value={searchTerm}
-            onChange={(e) => handleSearch(e.target.value)}
+            onChange={e => handleSearch(e.target.value)}
             style={{ width: 300 }}
             allowClear
           />
-          <Select
-            value={filterStatus}
-            onChange={handleFilterStatusChange}
-            style={{ width: 120 }}
-          >
+          <Select value={filterStatus} onChange={handleFilterStatusChange} style={{ width: 120 }}>
             <Select.Option value="all">所有状态</Select.Option>
             <Select.Option value="not_started">待开始</Select.Option>
             <Select.Option value="in_progress">进行中</Select.Option>
             <Select.Option value="completed">已完成</Select.Option>
             <Select.Option value="expired">已过期</Select.Option>
           </Select>
-          <Select
-            value={filterType}
-            onChange={handleFilterTypeChange}
-            style={{ width: 120 }}
-          >
+          <Select value={filterType} onChange={handleFilterTypeChange} style={{ width: 120 }}>
             <Select.Option value="all">所有类型</Select.Option>
             <Select.Option value="exam">考试</Select.Option>
             <Select.Option value="practice">练习</Select.Option>
@@ -208,32 +197,37 @@ const TasksPage: React.FC = () => {
       </Card>
 
       <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-        {taskList.map((task) => (
+        {taskList.map(task => (
           <Card key={task.id}>
             <Space style={{ width: '100%' }} align="start">
               <div style={{ flex: 1 }}>
                 <Space wrap style={{ marginBottom: 8 }}>
-                  <Title level={4} style={{ margin: 0 }}>{task.title}</Title>
-                  <Tag color={task.type === 'exam' ? 'red' : 'blue'}>
-                    {task.type === 'exam' ? '考试' : '练习'}
-                  </Tag>
-                  <Tag 
+                  <Title level={4} style={{ margin: 0 }}>
+                    {task.title}
+                  </Title>
+                  <Tag color={task.type === 'exam' ? 'red' : 'blue'}>{task.type === 'exam' ? '考试' : '练习'}</Tag>
+                  <Tag
                     color={
-                      task.status === 'not_started' ? 'gold' :
-                      task.status === 'in_progress' ? 'blue' :
-                      task.status === 'completed' ? 'green' :
-                      task.status === 'expired' ? 'red' : 'default'
+                      task.status === 'not_started'
+                        ? 'gold'
+                        : task.status === 'in_progress'
+                        ? 'blue'
+                        : task.status === 'completed'
+                        ? 'green'
+                        : task.status === 'expired'
+                        ? 'red'
+                        : 'default'
                     }
                     icon={getStatusIcon(task.status)}
                   >
                     {getStatusLabel(task.status)}
                   </Tag>
                 </Space>
-                
+
                 <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
                   {task.description}
                 </Text>
-                
+
                 <Space direction="vertical" size="small">
                   <Space>
                     <Calendar style={{ width: 16, height: 16 }} />
@@ -245,7 +239,7 @@ const TasksPage: React.FC = () => {
                   </Space>
                 </Space>
               </div>
-              
+
               <div>
                 {canStartTask(task) ? (
                   <Button
@@ -272,10 +266,7 @@ const TasksPage: React.FC = () => {
                     已过期
                   </Button>
                 ) : (
-                  <Button
-                    disabled
-                    icon={<Clock style={{ width: 16, height: 16 }} />}
-                  >
+                  <Button disabled icon={<Clock style={{ width: 16, height: 16 }} />}>
                     未开始
                   </Button>
                 )}
@@ -305,7 +296,7 @@ const TasksPage: React.FC = () => {
             pageSize={pageSize}
             onChange={handlePageChange}
             {...createPaginationConfig({
-              showSizeChanger: false
+              showSizeChanger: false,
             })}
           />
         </Card>

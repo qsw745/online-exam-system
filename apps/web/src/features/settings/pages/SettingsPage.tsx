@@ -1,11 +1,13 @@
 import { Bell, Eye, Globe, Mail, Moon, Palette, Save, Smartphone, Sun, Trophy, Volume2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
 
 import { Button, Card, Col, message, Row, Select, Space, Spin, Switch, Typography } from 'antd'
-import { settings } from '../lib/api'
-import { useTheme } from '../providers/AntdThemeProvider'
+
+import { settings } from '@shared/api/http'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
+import { useTheme } from '../../../app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
+
 const { Title, Text } = Typography
 const { Option } = Select
 

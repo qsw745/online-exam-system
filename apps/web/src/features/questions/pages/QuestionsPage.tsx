@@ -1,3 +1,7 @@
+import * as apiModule from '@shared/api/http'
+import { createPaginationConfig } from '@shared/constants/pagination'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
 import {
   Button,
   Card,
@@ -22,10 +26,6 @@ import { BookmarkPlus, Clock, Eye, Filter, Heart, Play, Plus, Search, Upload } f
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import * as XLSX from 'xlsx'
-import { createPaginationConfig } from '../constants/pagination'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import * as apiModule from '../lib/api'
 
 const { questions, favorites: favoritesApi } = apiModule
 const { Title, Text } = Typography

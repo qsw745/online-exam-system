@@ -21,7 +21,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import * as apiModule from '../../lib/api'
+import * as apiModule from '@shared/api/http'
 
 const { Paragraph, Text } = Typography
 

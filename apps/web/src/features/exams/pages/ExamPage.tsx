@@ -1,11 +1,12 @@
+import { exams } from '@features/exams/api'
+import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { useAuth } from '@shared/contexts/AuthContext'
+import { useLanguage } from '@shared/contexts/LanguageContext'
 import { message } from 'antd'
 import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight, Clock, Flag, Send } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import LoadingSpinner from '../components/LoadingSpinner'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import { exams } from '../lib/api'
+
 type OptionItem = string | { content: string }
 
 interface Question {
