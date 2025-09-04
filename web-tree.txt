@@ -1,133 +1,160 @@
-﻿web
-|-- docker
-|   -- kong.yml
-|-- playground
-|   -- debug_menu_issue.html
-|-- scripts
-|   -- dev-stop.sh
-|-- src
-|   |-- app
-|   |   |-- errors
-|   |   |   |-- Forbidden403.tsx
-|   |   |   |-- NotFound404.tsx
-|   |   |   -- ServerError500.tsx
-|   |   |-- i18n
-|   |   |   |-- en-US.ts
-|   |   |   |-- index.ts
-|   |   |   -- zh-CN.ts
-|   |   |-- providers
-|   |   |   -- AntdThemeProvider.tsx
-|   |   |-- routing
-|   |   |   |-- componentRegistry.ts
-|   |   |   |-- DynamicRoutes.tsx
-|   |   |   |-- DynamicSidebar.tsx
-|   |   |   -- Sidebar.tsx
-|   |   -- routes.tsx
-|   |-- constants
-|   |-- contexts
-|   |-- features
-|   |   |-- admin
-|   |   |   -- pages
-|   |   |-- analytics
-|   |   |   -- pages
-|   |   |-- auth
-|   |   |   -- pages
-|   |   |-- dashboard
-|   |   |   -- pages
-|   |   |-- discussions
-|   |   |   -- pages
-|   |   |-- exams
-|   |   |   -- pages
-|   |   |-- favorites
-|   |   |   -- pages
-|   |   |-- leaderboard
-|   |   |   -- pages
-|   |   |-- learning-progress
-|   |   |   -- pages
-|   |   |-- logs
-|   |   |   -- pages
-|   |   |-- menu
-|   |   |   |-- pages
-|   |   |   -- model.ts
-|   |   |-- notifications
-|   |   |   -- pages
-|   |   |-- orgs
-|   |   |   |-- pages
-|   |   |   |-- api.ts
-|   |   |   |-- index.ts
-|   |   |   -- model.ts
-|   |   |-- papers
-|   |   |   -- pages
-|   |   |-- profile
-|   |   |   -- pages
-|   |   |-- questions
-|   |   |   -- pages
-|   |   |-- roles
-|   |   |   |-- pages
-|   |   |   -- model.ts
-|   |   |-- settings
-|   |   |   -- pages
-|   |   |-- tasks
-|   |   |   -- pages
-|   |   |-- users
-|   |   |   -- pages
-|   |   -- wrong-questions
-|   |       -- pages
-|   |-- hooks
-|   |-- lib
-|   |   -- orgs
-|   |-- pages
-|   |   |-- admin
-|   |   |-- auth
-|   |   |-- errors
-|   |   -- tasks
-|   |       -- TaskDetailPage.tsx
-|   |-- providers
-|   |-- shared
-|   |   |-- api
-|   |   |   |-- http.ts
-|   |   |   -- types.ts
-|   |   |-- components
-|   |   |   |-- AuthDebugger.tsx
-|   |   |   |-- ErrorBoundary.tsx
-|   |   |   |-- Header.tsx
-|   |   |   |-- IconRenderer.tsx
-|   |   |   |-- Layout.tsx
-|   |   |   -- LoadingSpinner.tsx
-|   |   |-- constants
-|   |   |   -- pagination.ts
-|   |   |-- contexts
-|   |   |   |-- AuthContext.tsx
-|   |   |   |-- LanguageContext.tsx
-|   |   |   -- MenuPermissionContext.tsx
-|   |   |-- hooks
-|   |   |   |-- useMenuPermissions.ts
-|   |   |   |-- useMobile.tsx
-|   |   |   -- useTheme.tsx
-|   |   |-- styles
-|   |   |   |-- antd-override.css
-|   |   |   |-- antd-theme.ts
-|   |   |   -- theme.css
-|   |   |-- ui
-|   |   -- utils
-|   |       |-- dayjs.ts
-|   |       -- fileParser.ts
-|   |-- styles
-|   |-- theme
-|   |-- translations
-|   |-- utils
-|   |-- App.css
-|   |-- App.tsx
-|   |-- AppProviders.tsx
-|   |-- index.css
-|   |-- main.tsx
-|   -- vite-env.d.ts
-|-- .env.production
-|-- Dockerfile
-|-- index.html
-|-- nginx.conf
-|-- package.json
-|-- tsconfig.app.json
-|-- tsconfig.json
-|-- tsconfig.node.json
--- vite.config.ts
+﻿+-- docker
+|   |   kong.yml
++-- playground
+|   |   debug_menu_issue.html
++-- scripts
+|   |   dev-stop.sh
++-- src
+|   +-- app
+|   |   +-- errors
+|   |   |   |   Forbidden403.tsx
+|   |   |   |   NotFound404.tsx
+|   |   |   |   ServerError500.tsx
+|   |   +-- i18n
+|   |   |   |   en-US.ts
+|   |   |   |   index.ts
+|   |   |   |   zh-CN.ts
+|   |   +-- providers
+|   |   |   |   AntdThemeProvider.tsx
+|   |   +-- routing
+|   |   |   |   componentRegistry.ts
+|   |   |   |   DynamicRoutes.tsx
+|   |   |   |   DynamicSidebar.tsx
+|   |   |   |   Sidebar.tsx
+|   |   |   routes.tsx
+|   +-- features
+|   |   +-- admin
+|   |   |   +-- pages
+|   |   |   |   |   AdminPage.tsx
+|   |   +-- analytics
+|   |   |   +-- pages
+|   |   |   |   |   AnalyticsPage.tsx
+|   |   |   |   |   DataAnalyticsPage.tsx
+|   |   |   |   |   GradeManagementPage.tsx
+|   |   +-- auth
+|   |   |   +-- pages
+|   |   |   |   |   ForgotPasswordPage.tsx
+|   |   |   |   |   LoginPage.tsx
+|   |   |   |   |   RegisterPage.tsx
+|   |   |   |   |   ResetPasswordPage.tsx
+|   |   +-- dashboard
+|   |   |   +-- pages
+|   |   |   |   |   DashboardPage.tsx
+|   |   +-- discussions
+|   |   |   +-- pages
+|   |   |   |   |   DiscussionPage.tsx
+|   |   +-- exams
+|   |   |   +-- pages
+|   |   |   |   |   ExamListPage.tsx
+|   |   |   |   |   ExamPage.tsx
+|   |   |   |   |   ResultsPage.tsx
+|   |   |   |   api.ts
+|   |   +-- favorites
+|   |   |   +-- pages
+|   |   |   |   |   FavoritesPage.tsx
+|   |   +-- leaderboard
+|   |   |   +-- pages
+|   |   |   |   |   LeaderboardPage.tsx
+|   |   +-- learning-progress
+|   |   |   +-- pages
+|   |   |   |   |   LearningProgressPage.tsx
+|   |   +-- logs
+|   |   |   +-- pages
+|   |   |   |   |   LogsPage.tsx
+|   |   +-- menu
+|   |   |   +-- pages
+|   |   |   |   |   MenuManagementPage.tsx
+|   |   |   |   model.ts
+|   |   +-- notifications
+|   |   |   +-- pages
+|   |   |   |   |   NotificationManagementPage.tsx
+|   |   |   |   |   NotificationsPage.tsx
+|   |   +-- orgs
+|   |   |   +-- pages
+|   |   |   |   |   OrgManage.tsx
+|   |   |   |   api.ts
+|   |   |   |   index.ts
+|   |   |   |   model.ts
+|   |   +-- papers
+|   |   |   +-- pages
+|   |   |   |   |   ManualPaperCreationPage.tsx
+|   |   |   |   |   PaperCreatePage.tsx
+|   |   |   |   |   PaperManagementPage.tsx
+|   |   |   |   |   SmartPaperCreatePage.tsx
+|   |   +-- profile
+|   |   |   +-- pages
+|   |   |   |   |   ProfilePage.tsx
+|   |   +-- questions
+|   |   |   +-- pages
+|   |   |   |   |   QuestionCreatePage.tsx
+|   |   |   |   |   QuestionManagementPage.tsx
+|   |   |   |   |   QuestionPracticePage.tsx
+|   |   |   |   |   QuestionsPage.tsx
+|   |   |   |   api.ts
+|   |   +-- roles
+|   |   |   +-- pages
+|   |   |   |   |   RoleManagementPage.tsx
+|   |   |   |   model.ts
+|   |   +-- settings
+|   |   |   +-- pages
+|   |   |   |   |   AdminSettingsPage.tsx
+|   |   |   |   |   SettingsPage.tsx
+|   |   +-- tasks
+|   |   |   +-- pages
+|   |   |   |   |   MyTasksPage.tsx
+|   |   |   |   |   PublishTaskPage.tsx
+|   |   |   |   |   TaskCreatePage.tsx
+|   |   |   |   |   TaskDetailPage.tsx
+|   |   |   |   |   TaskManagementPage.tsx
+|   |   |   |   |   TasksPage.tsx
+|   |   +-- users
+|   |   |   +-- pages
+|   |   |   |   |   UserManagementPage.tsx
+|   |   |   |   |   UserRoleManagementPage.tsx
+|   |   +-- wrong-questions
+|   |   |   +-- pages
+|   |   |   |   |   WrongQuestionsPage.tsx
+|   +-- shared
+|   |   +-- api
+|   |   |   |   http.ts
+|   |   |   |   types.ts
+|   |   +-- components
+|   |   |   |   AuthDebugger.tsx
+|   |   |   |   ErrorBoundary.tsx
+|   |   |   |   Header.tsx
+|   |   |   |   IconRenderer.tsx
+|   |   |   |   Layout.tsx
+|   |   |   |   LoadingSpinner.tsx
+|   |   +-- constants
+|   |   |   |   pagination.ts
+|   |   +-- contexts
+|   |   |   |   AuthContext.tsx
+|   |   |   |   LanguageContext.tsx
+|   |   |   |   MenuPermissionContext.tsx
+|   |   +-- hooks
+|   |   |   |   useMenuPermissions.ts
+|   |   |   |   useMobile.tsx
+|   |   |   |   useTheme.tsx
+|   |   +-- styles
+|   |   |   |   antd-override.css
+|   |   |   |   antd-theme.ts
+|   |   |   |   theme.css
+|   |   +-- ui
+|   |   +-- utils
+|   |   |   |   dayjs.ts
+|   |   |   |   fileParser.ts
+|   |   App.css
+|   |   App.tsx
+|   |   AppProviders.tsx
+|   |   index.css
+|   |   main.tsx
+|   |   vite-env.d.ts
+|   .env.production
+|   Dockerfile
+|   index.html
+|   nginx.conf
+|   package.json
+|   tsconfig.app.json
+|   tsconfig.json
+|   tsconfig.node.json
+|   vite.config.ts
