@@ -1,21 +1,22 @@
 // apps/backend/src/app.ts
-import express, { NextFunction, Request, Response } from 'express'
+import express, { type NextFunction, type Request, type Response } from 'express'
 import path from 'path'
 import { fileURLToPath } from 'url'
 import { createRequire } from 'module'
 
-// 用 createRequire 以 CJS 方式加载中间件，避免 @types/* “不是模块(2306)” 报错
+// 用 createRequire 以 CJS 方式加载中间件，避免个别 @types 包的 ESM/CJS 差异
 const require = createRequire(import.meta.url)
+// 关键：这里统一用 any，避免触发 2306 / 7016
 const cors = require('cors') as any
 const morgan = require('morgan') as any
 
-// 统一 API 路由入口（你的 src/routes/index.ts 编译后对应 ./routes.js）
-import apiRouter from './routes.js'
+// 统一 API 路由入口（对应 src/routes/index.ts 编译后的 ./routes/index.js）
+import apiRouter from './routes/index.js'
 
 // 启动期菜单同步 —— 使用相对路径更稳妥（避免别名在 NodeNext 下解析失败）
 import { syncMenus } from './bootstrap/syncMenus.js'
 
-// 简易响应类型，避免外部导入失败
+// 简易响应类型
 type ApiResponse<T> = { success: boolean; data?: T | null; error?: string }
 
 // 兼容 __dirname（可选）
@@ -55,7 +56,7 @@ const __dirname = path.dirname(__filename)
   console.debug = withTs(console.debug?.bind(console) ?? console.log.bind(console))
 })()
 
-// 自定义 morgan token
+// 自定义 morgan token（morgan 现在是 any，直接调用即可）
 morgan.token('local-date', () => {
   const d = new Date()
   const pad = (n: number) => n.toString().padStart(2, '0')
@@ -88,27 +89,19 @@ app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')))
 app.use('/api', apiRouter)
 
 // 健康检查
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ ok: true, time: new Date().toISOString() })
 })
 
 /* -------------------- 404 -------------------- */
 app.use((req: Request, res: Response<ApiResponse<null>>) => {
-  const errorResponse: ApiResponse<null> = {
-    success: false,
-    error: '请求的资源不存在',
-  }
-  res.status(404).json(errorResponse)
+  res.status(404).json({ success: false, error: '请求的资源不存在' })
 })
 
 /* -------------------- 全局错误处理 -------------------- */
 app.use((err: Error, _req: Request, res: Response<ApiResponse<null>>, _next: NextFunction) => {
   console.error('未捕获的错误:', err)
-  const errorResponse: ApiResponse<null> = {
-    success: false,
-    error: '服务器内部错误',
-  }
-  res.status(500).json(errorResponse)
+  res.status(500).json({ success: false, error: '服务器内部错误' })
 })
 
 /* -------------------- 进程级兜底 -------------------- */
