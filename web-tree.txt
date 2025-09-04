@@ -139,7 +139,6 @@
 |   |   |   |   antd-override.css
 |   |   |   |   antd-theme.ts
 |   |   |   |   theme.css
-|   |   +-- ui
 |   |   +-- utils
 |   |   |   |   dayjs.ts
 |   |   |   |   fileParser.ts
