@@ -1,8 +1,8 @@
 import { Response } from 'express'
 import { RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface IResult extends RowDataPacket {
   id: number

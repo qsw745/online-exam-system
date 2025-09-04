@@ -1,8 +1,9 @@
+// apps/backend/src/modules/tasks/task.controller.ts
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '../config/database.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface ITask extends RowDataPacket {
   id: number
@@ -480,7 +481,7 @@ export class TaskController {
         )
 
         let totalScore = 0
-        let correctCount = 0 // ✅ 修复：统计正确题数
+        let correctCount = 0 // ✅ 统计正确题数
         const answerRecords: Array<[number, number, string, boolean]> = []
 
         // 计算分数并记录答案
@@ -521,7 +522,8 @@ export class TaskController {
 
         // 自动收集错题到错题本（异步）
         try {
-          const { WrongQuestionController } = await import('./wrong-question.controller.js')
+          // 路径修正：tasks -> ../wrong-questions
+          const { WrongQuestionController } = await import('../wrong-questions/wrong-question.controller.js')
           const wrongQuestionReq = { ...req, body: { exam_result_id: resultId } }
           setImmediate(() => {
             WrongQuestionController.autoCollectWrongQuestions(
@@ -530,7 +532,7 @@ export class TaskController {
                 json: () => {},
                 status: () => ({ json: () => {} }),
               } as any
-            ).catch(error => {
+            ).catch((error: unknown) => {
               console.error('自动收集错题失败:', error)
             })
           })
@@ -541,7 +543,8 @@ export class TaskController {
         // 异步记录学习进度
         setImmediate(async () => {
           try {
-            const { learningProgressController } = await import('./learning-progress.controller.js')
+            // 路径修正：tasks -> ../learning-progress
+            const { learningProgressController } = await import('../learning-progress/learning-progress.controller.js')
             const studyTime = Math.floor(Math.random() * 45) + 15 // 模拟学习时长15-60分钟
             await learningProgressController
               .recordProgress(
@@ -559,7 +562,7 @@ export class TaskController {
                   status: () => ({ json: () => {} }),
                 } as any
               )
-              .catch(error => {
+              .catch((error: unknown) => {
                 console.error('记录学习进度失败:', error)
               })
           } catch (error) {
@@ -570,7 +573,8 @@ export class TaskController {
         // 异步更新排行榜数据
         setImmediate(async () => {
           try {
-            const { LeaderboardService } = await import('../services/leaderboard.service.js')
+            // 路径修正：services 不在上级，实际在 ../leaderboard
+            const { LeaderboardService } = await import('../leaderboard/leaderboard.service.js')
             const leaderboardService = new LeaderboardService()
             const accuracy = questions.length > 0 ? (correctCount / questions.length) * 100 : 0 // ✅ 使用 correctCount
 
@@ -590,7 +594,6 @@ export class TaskController {
         return res.json({ success: true, data: null })
       } catch (error) {
         // 事务回滚
-
         await connection.rollback()
         throw error
       } finally {

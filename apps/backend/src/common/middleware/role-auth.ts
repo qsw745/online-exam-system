@@ -1,7 +1,8 @@
-// apps/backend/src/middleware/roleAuth.ts
+// apps/backend/src/common/middleware/role-auth.ts
 import type { NextFunction, Request, Response } from 'express'
-import { ROLE_IDS } from '../constants/roles.js'
-import { RoleService } from '../services/role.service.js'
+import { ROLE_IDS } from '../../config/roles.js'
+// ✅ 修正：RoleService 来自 role.service，而不是 menu.service
+import { RoleService } from '../../modules/roles/role.service.js'
 
 /**
  * 角色ID检查中间件工厂（按数值ID判断）

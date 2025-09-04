@@ -1,15 +1,16 @@
-// apps/backend/src/routes/dashboard.routes.ts
+// apps/backend/src/modules/analytics/dashboard.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
-import { DashboardController } from '../controllers/dashboard.controller.js'
-import type { AuthRequest } from '../types/auth.js'
-import { auth } from '../middleware/auth.middleware.js'
+
+// ✅ 控制器就在同目录
+import { DashboardController } from './dashboard.controller.js'
+
+// ✅ 中间件与类型用别名（对应 src/common/middleware 与 src/types）
+import { auth } from '@common/middleware/auth.js'
+import type { AuthRequest } from 'types/auth.js'
 
 const router = Router()
 
-/**
- * 将 (req: AuthRequest, res: Response) 控制器包装成 Express 的 RequestHandler，
- * 以解决类型不匹配与统一处理异步错误。
- */
+/** 统一包裹控制器，兼容类型并捕获异步异常 */
 const wrap =
   (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
   (req, res, next) => {

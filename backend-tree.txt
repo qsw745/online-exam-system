@@ -33,6 +33,7 @@
 |   |   |   org_user.sql
 |   +-- seeds
 +-- scripts
+|   |   check-imports.cjs
 |   |   init-db.ts
 +-- src
 |   +-- @types
@@ -63,8 +64,6 @@
 |   |   |   practice_records.sql
 |   |   |   roles.ts
 |   |   |   wrong_questions.sql
-|   +-- constants
-|   +-- controllers
 |   +-- database
 |   |   |   migrate_leaderboard.js
 |   +-- infrastructure
@@ -76,9 +75,6 @@
 |   |   |   |   email.service.ts
 |   |   +-- logging
 |   |   |   |   logger.ts
-|   +-- middleware
-|   +-- migrations
-|   +-- models
 |   +-- modules
 |   |   +-- analytics
 |   |   |   |   analytics.controller.ts
@@ -92,6 +88,7 @@
 |   |   |   |   auth.routes.ts
 |   |   |   |   password-reset.controller.ts
 |   |   |   |   password-reset.routes.ts
+|   |   |   |   password-reset.service.ts
 |   |   +-- exams
 |   |   |   +-- models
 |   |   |   |   |   result.model.ts
@@ -155,22 +152,21 @@
 |   |   |   |   wrong-question.routes.ts
 |   |   |   |   wrong-question.service.ts
 |   +-- routes
-|   +-- services
+|   |   |   index.ts
 |   +-- types
 |   |   |   auth.ts
 |   |   |   express.d.ts
 |   |   |   password-reset.ts
 |   |   |   response.ts
-|   +-- utils
 |   |   app.ts
 |   |   routes.ts
 +-- uploads
+|   +-- avatars
 |   .env
 |   add_more_paper_questions.sql
 |   assign_default_permissions.cjs
 |   assign_parent_menu_3_to_admin.cjs
 |   backend-refactor.ps1
-|   backend-tree.txt
 |   check_menu_hierarchy.cjs
 |   check_role_data.cjs
 |   check_user_2_roles.cjs

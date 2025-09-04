@@ -1,21 +1,73 @@
-// apps/backend/src/routes/favorites.routes.ts
+// apps/backend/src/modules/favorites/favorites.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
-import { FavoritesController } from '../controllers/favorites.controller.js'
-import { validateRequest } from '../middleware/validation.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
-import type { AuthRequest } from '../types/auth.js'
+
+// ==== 控制器导入（ESM 需显式 .js 扩展名；同时兼容多种导出方式）====
+import * as FavoritesControllerModule from './favorites.controller.js'
+
+// ==== 公共中间件路径（从 modules 返回到 common/middleware；ESM 需 .js）====
+import { validateRequest } from '../../common/middleware/validation.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+
+// ==== 类型（从 modules 返回到 types；ESM 需 .js）====
+import type { AuthRequest } from '../../types/auth.js'
 
 const router = Router()
 
-/** 将 (req: AuthRequest, res: Response) 控制器包装为 Express RequestHandler，并统一捕获异步错误 */
+/** 统一包装控制器，兼容异步错误并保留类型 */
 const wrap =
   (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
   (req, res, next) => {
     Promise.resolve(handler(req as AuthRequest, res)).catch(next)
   }
 
-// 获取收藏夹列表
+/**
+ * 在各种导出风格之间做动态解析：
+ * - 导出实例：export const favoritesController = new FavoritesController()
+ * - 导出类静态方法：export class FavoritesController { static getFavorites(...) {} }
+ * - 默认导出（可能是实例或含静态的类）
+ */
+function resolveHandler(method: string): (req: AuthRequest, res: Response) => unknown {
+  const m: any = FavoritesControllerModule
+
+  // 1) 优先实例：favoritesController
+  if (m.favoritesController && typeof m.favoritesController[method] === 'function') {
+    return m.favoritesController[method].bind(m.favoritesController)
+  }
+
+  // 2) 具名类：FavoritesController.<staticMethod>
+  if (m.FavoritesController && typeof m.FavoritesController[method] === 'function') {
+    return m.FavoritesController[method].bind(m.FavoritesController)
+  }
+  // 2.1) 具名类但需要实例化：new FavoritesController()[method]
+  if (m.FavoritesController) {
+    const inst = new m.FavoritesController()
+    if (typeof inst[method] === 'function') return inst[method].bind(inst)
+  }
+
+  // 3) 默认导出（可能是类或实例）
+  if (m.default) {
+    // 默认是实例
+    if (typeof m.default[method] === 'function') return m.default[method].bind(m.default)
+    // 默认是类静态方法
+    if (typeof m.default === 'function') {
+      if (typeof m.default[method] === 'function') return m.default[method].bind(m.default)
+      // 默认是类需要实例化
+      const inst = new m.default()
+      if (typeof inst[method] === 'function') return inst[method].bind(inst)
+    }
+  }
+
+  // 4) 兜底：返回 501，便于快速定位方法名不匹配的问题
+  return (req, res) =>
+    res.status(501).json({
+      success: false,
+      error: 'NOT_IMPLEMENTED',
+      message: `Controller method "${method}" is not implemented.`,
+    })
+}
+
+/** 获取收藏夹列表 */
 router.get(
   '/',
   authenticateToken,
@@ -26,10 +78,10 @@ router.get(
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('每页数量必须在1-100之间'),
   ],
   validateRequest,
-  wrap(FavoritesController.getFavorites)
+  wrap(resolveHandler('getFavorites'))
 )
 
-// 获取收藏夹详情
+/** 获取收藏夹详情 */
 router.get(
   '/:id',
   authenticateToken,
@@ -39,10 +91,10 @@ router.get(
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('每页数量必须在1-100之间'),
   ],
   validateRequest,
-  wrap(FavoritesController.getFavoriteById)
+  wrap(resolveHandler('getFavoriteById'))
 )
 
-// 创建收藏夹
+/** 创建收藏夹 */
 router.post(
   '/',
   authenticateToken,
@@ -53,10 +105,10 @@ router.post(
     body('is_public').optional().isBoolean().withMessage('公开状态必须是布尔值'),
   ],
   validateRequest,
-  wrap(FavoritesController.createFavorite)
+  wrap(resolveHandler('createFavorite'))
 )
 
-// 更新收藏夹
+/** 更新收藏夹 */
 router.put(
   '/:id',
   authenticateToken,
@@ -68,19 +120,19 @@ router.put(
     body('is_public').optional().isBoolean().withMessage('公开状态必须是布尔值'),
   ],
   validateRequest,
-  wrap(FavoritesController.updateFavorite)
+  wrap(resolveHandler('updateFavorite'))
 )
 
-// 删除收藏夹
+/** 删除收藏夹 */
 router.delete(
   '/:id',
   authenticateToken,
   [param('id').isInt({ min: 1 }).withMessage('收藏夹ID必须是正整数')],
   validateRequest,
-  wrap(FavoritesController.deleteFavorite)
+  wrap(resolveHandler('deleteFavorite'))
 )
 
-// 添加收藏项目
+/** 添加收藏项目 */
 router.post(
   '/:id/items',
   authenticateToken,
@@ -96,10 +148,10 @@ router.post(
     body('notes').optional().isLength({ max: 1000 }).withMessage('笔记长度不能超过1000字符'),
   ],
   validateRequest,
-  wrap(FavoritesController.addFavoriteItem)
+  wrap(resolveHandler('addFavoriteItem'))
 )
 
-// 删除收藏项目
+/** 删除收藏项目 */
 router.delete(
   '/:id/items/:itemId',
   authenticateToken,
@@ -108,10 +160,10 @@ router.delete(
     param('itemId').isInt({ min: 1 }).withMessage('项目ID必须是正整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.removeFavoriteItem)
+  wrap(resolveHandler('removeFavoriteItem'))
 )
 
-// 快速收藏
+/** 快速收藏 */
 router.post(
   '/quick-favorite',
   authenticateToken,
@@ -124,10 +176,10 @@ router.post(
     body('description').optional().isLength({ max: 500 }).withMessage('描述长度不能超过500字符'),
   ],
   validateRequest,
-  wrap(FavoritesController.quickFavorite)
+  wrap(resolveHandler('quickFavorite'))
 )
 
-// 取消收藏
+/** 取消收藏 */
 router.delete(
   '/unfavorite',
   authenticateToken,
@@ -138,10 +190,10 @@ router.delete(
     body('item_id').isInt({ min: 1 }).withMessage('项目ID必须是正整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.unfavoriteItem)
+  wrap(resolveHandler('unfavoriteItem'))
 )
 
-// 检查收藏状态
+/** 检查收藏状态 */
 router.get(
   '/check/:itemType/:itemId',
   authenticateToken,
@@ -152,10 +204,10 @@ router.get(
     param('itemId').isInt({ min: 1 }).withMessage('项目ID必须是正整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.checkFavoriteStatus)
+  wrap(resolveHandler('checkFavoriteStatus'))
 )
 
-// 生成分享链接
+/** 生成分享链接 */
 router.post(
   '/:id/share',
   authenticateToken,
@@ -165,10 +217,10 @@ router.post(
     body('access_password').optional().isLength({ min: 4, max: 20 }).withMessage('访问密码长度必须在4-20字符之间'),
   ],
   validateRequest,
-  wrap(FavoritesController.generateShareLink)
+  wrap(resolveHandler('generateShareLink'))
 )
 
-// 通过分享码访问收藏夹（可不认证）
+/** 通过分享码访问收藏夹（可不认证） */
 router.get(
   '/shared/:shareCode',
   [
@@ -176,10 +228,10 @@ router.get(
     body('password').optional().isLength({ min: 4, max: 20 }).withMessage('密码长度必须在4-20字符之间'),
   ],
   validateRequest,
-  wrap(FavoritesController.getSharedFavorite)
+  wrap(resolveHandler('getSharedFavorite'))
 )
 
-// 搜索收藏项目
+/** 搜索收藏项目 */
 router.get(
   '/search/items',
   authenticateToken,
@@ -192,10 +244,10 @@ router.get(
     query('favorite_id').optional().isInt({ min: 1 }).withMessage('收藏夹ID必须是正整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.searchFavoriteItems)
+  wrap(resolveHandler('searchFavoriteItems'))
 )
 
-// 批量移动收藏项目
+/** 批量移动收藏项目 */
 router.post(
   '/move-items',
   authenticateToken,
@@ -205,10 +257,10 @@ router.post(
     body('target_favorite_id').isInt({ min: 1 }).withMessage('目标收藏夹ID必须是正整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.moveItemsToFavorite)
+  wrap(resolveHandler('moveItemsToFavorite'))
 )
 
-// 复制收藏夹
+/** 复制收藏夹 */
 router.post(
   '/:id/copy',
   authenticateToken,
@@ -217,10 +269,10 @@ router.post(
     body('new_name').notEmpty().isLength({ min: 1, max: 100 }).withMessage('新收藏夹名称长度必须在1-100字符之间'),
   ],
   validateRequest,
-  wrap(FavoritesController.copyFavorite)
+  wrap(resolveHandler('copyFavorite'))
 )
 
-// 更新收藏项目排序
+/** 更新收藏项目排序 */
 router.put(
   '/:id/items/order',
   authenticateToken,
@@ -231,21 +283,21 @@ router.put(
     body('item_orders.*.sort_order').isInt({ min: 0 }).withMessage('排序值必须是非负整数'),
   ],
   validateRequest,
-  wrap(FavoritesController.updateItemsOrder)
+  wrap(resolveHandler('updateItemsOrder'))
 )
 
-// 获取收藏夹分类
-router.get('/categories/list', authenticateToken, wrap(FavoritesController.getCategories))
+/** 获取收藏夹分类 */
+router.get('/categories/list', authenticateToken, wrap(resolveHandler('getCategories')))
 
-// 获取用户收藏统计
-router.get('/stats/user', authenticateToken, wrap(FavoritesController.getUserFavoriteStats))
+/** 获取用户收藏统计 */
+router.get('/stats/user', authenticateToken, wrap(resolveHandler('getUserFavoriteStats')))
 
-// 获取热门公开收藏夹（无需认证）
+/** 获取热门公开收藏夹（无需认证） */
 router.get(
   '/public/popular',
   [query('limit').optional().isInt({ min: 1, max: 50 }).withMessage('数量限制必须在1-50之间')],
   validateRequest,
-  wrap(FavoritesController.getPopularPublicFavorites)
+  wrap(resolveHandler('getPopularPublicFavorites'))
 )
 
 export default router

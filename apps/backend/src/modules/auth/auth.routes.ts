@@ -1,7 +1,7 @@
-// apps/backend/src/routes/auth.routes.ts
+// apps/backend/src/modules/auth/auth.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
-import { AuthController } from '../controllers/auth.controller.js'
-import type { AuthRequest } from '../types/auth.js'
+import { AuthController } from './auth.controller.js'
+import type { AuthRequest } from 'types/auth.js'
 
 const router = Router()
 

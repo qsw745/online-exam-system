@@ -1,13 +1,14 @@
+// apps/backend/src/modules/wrong-questions/wrong-question.controller.ts
 import type { Request, Response } from 'express'
 import {
   WrongQuestionService,
-  type IWrongQuestionBook,
-  type IWrongQuestion,
   type IPracticeRecord,
-} from '../services/wrong-question.service.js'
+  type IWrongQuestion,
+  type IWrongQuestionBook,
+} from './wrong-question.service.js'
 
 // ---- 日志：做一个安全薄封装，避免签名不一致导致 TS 报错 ----
-import * as Logger from '../services/logger.service.js'
+import { LoggerService as Logger } from '@infrastructure/logging/logger.js'
 const safeLogSystem = (level: 'info' | 'warn' | 'error', message: string, meta?: any) => {
   try {
     const fn = (Logger as any).logSystemLog ?? (Logger as any).logSystem ?? (Logger as any).system

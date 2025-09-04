@@ -1,14 +1,17 @@
-// apps/backend/src/routes/question.routes.ts
+// apps/backend/src/modules/questions/question.routes.ts
 import { Router, type RequestHandler } from 'express'
 
-import { QuestionController } from '../controllers/question.controller.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
+// 控制器（同目录）
+import { QuestionController } from './question.controller.js'
+
+// 认证中间件（src/common/middleware/auth.ts）
+import { authenticateToken } from '../../common/middleware/auth.js'
 
 const router = Router()
 
 /**
- * 将任意 (req, res) => Promise 的控制器包装成标准的 RequestHandler。
- * 这样就不会跟 express 的重载签名冲突。
+ * 最兼容的包装器：用 any 消除控制器签名差异（AuthRequest / Request 等），
+ * 只负责捕获异步错误，不改变控制器的类型与返回值。
  */
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>
 const wrap = (fn: AnyAsyncController): RequestHandler => {
@@ -17,28 +20,26 @@ const wrap = (fn: AnyAsyncController): RequestHandler => {
   }
 }
 
-// 错题本相关路由 - 必须在通用路由之前定义
-router.post('/practice', authenticateToken, wrap(QuestionController.recordPractice))
-router.get('/practiced-questions', authenticateToken, wrap(QuestionController.getPracticedQuestions))
-router.get('/wrong-questions', authenticateToken, wrap(QuestionController.getWrongQuestions))
-router.put('/wrong-questions/:questionId/mastered', authenticateToken, wrap(QuestionController.markAsMastered))
-router.delete('/wrong-questions/:questionId', authenticateToken, wrap(QuestionController.removeFromWrongQuestions))
-router.get('/practice-stats', authenticateToken, wrap(QuestionController.getPracticeStats))
+// 统一鉴权
+router.use(authenticateToken)
 
-// 批量导入问题
-router.post('/bulk-import', authenticateToken, wrap(QuestionController.bulkImport))
+/** ===== 错题本 / 练习相关 ===== */
+router.post('/practice', wrap(QuestionController.recordPractice))
+router.get('/practiced-questions', wrap(QuestionController.getPracticedQuestions))
+router.get('/wrong-questions', wrap(QuestionController.getWrongQuestions))
+router.put('/wrong-questions/:questionId/mastered', wrap(QuestionController.markAsMastered))
+router.delete('/wrong-questions/:questionId', wrap(QuestionController.removeFromWrongQuestions))
+router.get('/practice-stats', wrap(QuestionController.getPracticeStats))
 
-// 获取知识点列表
-router.get('/knowledge-points', authenticateToken, wrap(QuestionController.getKnowledgePoints))
+/** ===== 批量导入 & 知识点 ===== */
+router.post('/bulk-import', wrap(QuestionController.bulkImport))
+router.get('/knowledge-points', wrap(QuestionController.getKnowledgePoints))
 
-// CRUD
-router.get('/', authenticateToken, wrap(QuestionController.list))
-router.get('/:id(\\d+)', authenticateToken, wrap(QuestionController.getById))
-
-router.post('/', authenticateToken, wrap(QuestionController.create))
-router.put('/:id(\\d+)', authenticateToken, wrap(QuestionController.update))
-
-router.delete('/:id(\\d+)', authenticateToken, wrap(QuestionController.delete))
-
+/** ===== CRUD ===== */
+router.get('/', wrap(QuestionController.list))
+router.get('/:id(\\d+)', wrap(QuestionController.getById))
+router.post('/', wrap(QuestionController.create))
+router.put('/:id(\\d+)', wrap(QuestionController.update))
+router.delete('/:id(\\d+)', wrap(QuestionController.delete))
 
 export { router as questionRoutes }

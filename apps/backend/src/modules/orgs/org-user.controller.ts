@@ -1,10 +1,35 @@
-// src/controllers/org-user.controller.ts
+// apps/backend/src/modules/orgs/org-user.controller.ts
 import type { Response } from 'express'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '../config/database.js'
-import { LoggerService } from '../services/logger.service.js'
-import type { AuthRequest } from '../types/auth.js'
-import type { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+// ✅ 使用现有的 logger（ESM 需显式 .js 扩展名）
+import { logger } from '../../infrastructure/logging/logger.js'
+import type { AuthRequest } from 'types/auth.js'
+import type { ApiResponse } from 'types/response.js'
+
+// 适配：统一日志结构，替代原 LoggerService.logUserAction
+async function logUserAction(payload: {
+  userId: number
+  username?: string
+  action: string
+  resourceType?: string
+  resourceId?: number
+  details?: unknown
+  ipAddress?: string
+  userAgent?: string
+}) {
+  try {
+    const meta = {
+      ...payload,
+      timestamp: new Date().toISOString(),
+    }
+    // ✅ 修复：logger.info 传入两个字符串参数（第一个 message / label，第二个序列化后的详情）
+    logger.info('user_action', JSON.stringify(meta))
+  } catch {
+    // 忽略日志错误
+  }
+}
+
 // 放在文件顶部其他 import 下面
 let cachedUserCols: Set<string> | null = null
 async function getUserCols(): Promise<Set<string>> {
@@ -109,7 +134,7 @@ export const OrgUserController = {
 
       await conn.commit()
 
-      await LoggerService.logUserAction({
+      await logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'move_user_org',
@@ -191,7 +216,7 @@ export const OrgUserController = {
 
       await conn.commit()
 
-      await LoggerService.logUserAction({
+      await logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'link_user_orgs',
@@ -218,9 +243,7 @@ export const OrgUserController = {
 
   /**
    * PUT /orgs/:orgId/users/:userId/primary
-   * 把 userId 在 orgId 上标记为主组织：
-   *  - 若 user_organizations 中不存在该关系，先插入（is_primary=0）
-   *  - 将该用户其它组织的 is_primary 置 0，再把当前置 1
+   * 把 userId 在 orgId 上标记为主组织
    */
   async setPrimary(req: AuthRequest, res: Response<ApiResponse<{ user_id: number; org_id: number }>>) {
     const orgId = Number(req.params.orgId)
@@ -275,8 +298,7 @@ export const OrgUserController = {
 
       await conn.commit()
 
-      // 记录日志（可选）
-      await LoggerService.logUserAction({
+      await logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'set_primary_org',
@@ -302,10 +324,7 @@ export const OrgUserController = {
   /**
    * GET /orgs/:orgId/users
    * ?page? &limit? &search? &role? &include_children?
-   * - search 同时在 username/real_name/email/phone 模糊
-   * - role 为 roles.code（如 'admin'），按用户在该机构（及可选子机构）的角色过滤
    */
-  // 替换原来的 listUsers
   async listUsers(
     req: AuthRequest,
     res: Response<
@@ -320,6 +339,9 @@ export const OrgUserController = {
           created_at: Date
           updated_at: Date
           role_codes: string[]
+          status?: 'active' | 'disabled'
+          org_id?: number | null
+          org_name?: string | null
         }>
         total: number
         page: number
@@ -469,9 +491,8 @@ export const OrgUserController = {
           username: r.username,
           // 如果没有 is_active 列，就给个安全默认值 1
           is_active: hasIsActive ? r.is_active : 1,
-          status: st, // ← 新增，前端就可以直接用 status
+          status: st,
           role_codes: (String(r.role_codes || '').trim() ? String(r.role_codes).split(',') : []) as string[],
-          // 🟢 补上部门信息（关键修复）
           org_id: r.org_id ?? null,
           org_name: r.org_name ?? null,
         }
@@ -493,8 +514,6 @@ export const OrgUserController = {
   /**
    * POST /orgs/:orgId/users
    * body: { user_ids: number[] }
-   * - 批量添加（忽略已存在）
-   * - 默认 is_primary=0
    */
   async addUsers(req: AuthRequest, res: Response<ApiResponse<{ added: number }>>) {
     try {
@@ -535,7 +554,7 @@ export const OrgUserController = {
         params
       )
 
-      await LoggerService.logUserAction({
+      await logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'add_users_to_org',
@@ -585,7 +604,7 @@ export const OrgUserController = {
         return res.status(500).json({ success: false, error: '移除失败' })
       }
 
-      await LoggerService.logUserAction({
+      await logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'remove_user_from_org',

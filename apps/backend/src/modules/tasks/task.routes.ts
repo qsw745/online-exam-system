@@ -1,7 +1,7 @@
 // apps/backend/src/routes/task.routes.ts
 import { Router, type RequestHandler } from 'express'
-import { TaskController } from '../controllers/task.controller.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+import { TaskController } from './task.controller.js'
 
 /** 将控制器包装为标准 RequestHandler，避免 TS2769 的重载不匹配 */
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>

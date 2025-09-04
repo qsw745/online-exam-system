@@ -1,8 +1,8 @@
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 // ❌ 这里不要 extends RowDataPacket（它不是直接来自 mysql2 的行）
 interface IQuestion {

@@ -1,5 +1,5 @@
 import { ResultSetHeader } from 'mysql2'
-import { pool } from '../config/database.js'
+import { pool } from '@config/database.js'
 
 export interface UserLogData {
   userId?: number

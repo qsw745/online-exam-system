@@ -1,5 +1,5 @@
 // apps/backend/src/services/logger.service.ts
-import { pool } from '../config/database.js'
+import { pool } from '@config/database.js'
 import { ResultSetHeader } from 'mysql2'
 
 export interface UserLogData {

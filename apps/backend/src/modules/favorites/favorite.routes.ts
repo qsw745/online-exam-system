@@ -1,8 +1,8 @@
-// apps/backend/src/routes/favorite.routes.ts
+// apps/backend/src/modules/favorites/favorite.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
-import { FavoriteController } from '../controllers/favorite.controller.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
-import type { AuthRequest } from '../types/auth.js'
+import { FavoriteController } from './favorite.controller.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+import type { AuthRequest } from '../../types/auth.js'
 
 const router = Router()
 

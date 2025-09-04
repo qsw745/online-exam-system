@@ -1,9 +1,10 @@
+// apps/backend/src/modules/exams/exam.controller.ts
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { LoggerService } from '../services/logger.service.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+import { LoggerService } from '@infrastructure/logging/logger.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface IExam extends RowDataPacket {
   id: number
@@ -38,15 +39,17 @@ type ExamDetailData = {
     options?: string
   }>
 }
+
 // 先定义查询返回的行类型
 interface QuestionRow extends RowDataPacket {
   id: number
   title: string
   content: string
-  type: string // 注意：SQL 里用了  q.question_type as type
+  type: string // 注意：SQL 里用了 q.question_type as type
   score: number
   options?: string | null
 }
+
 export class ExamController {
   static async list(req: AuthRequest, res: Response<ApiResponse<ExamListData>>) {
     try {
@@ -138,12 +141,13 @@ export class ExamController {
       // 把 RowDataPacket[] 换成 QuestionRow[]
       const [questionRows] = await pool.query<QuestionRow[]>(
         `SELECT q.id, q.title, q.content, q.question_type as type, eq.score, q.options
-   FROM questions q
-   JOIN exam_questions eq ON q.id = eq.question_id
-   WHERE eq.exam_id = ?
-   ORDER BY eq.question_order`,
+         FROM questions q
+         JOIN exam_questions eq ON q.id = eq.question_id
+         WHERE eq.exam_id = ?
+         ORDER BY eq.question_order`,
         [examId]
       )
+
       // 明确映射为 ExamDetailData 需要的结构（顺带把 null -> undefined）
       const questions = questionRows.map(q => ({
         id: q.id,
@@ -153,11 +157,12 @@ export class ExamController {
         score: q.score,
         options: q.options ?? undefined,
       }))
+
       const successResponse: ApiResponse<ExamDetailData> = {
         success: true,
         data: {
           exam: exams[0],
-          questions, // ✅ 不再是 RowDataPacket[]
+          questions,
         },
       }
       return res.json(successResponse)
@@ -583,7 +588,7 @@ export class ExamController {
 
         // 自动收集错题到错题本
         try {
-          const { WrongQuestionController } = await import('./wrong-question.controller.js')
+          const { WrongQuestionController } = await import('../wrong-questions/wrong-question.controller.js')
           const wrongQuestionReq = {
             ...req,
             body: { exam_result_id: resultId },
@@ -596,49 +601,49 @@ export class ExamController {
                 json: () => {},
                 status: () => ({ json: () => {} }),
               } as any
-            ).catch(error => {
-              console.error('自动收集错题失败:', error)
+            ).catch((err: unknown) => {
+              console.error('自动收集错题失败:', err)
             })
           })
-        } catch (error) {
-          console.error('导入错题控制器失败:', error)
+        } catch (err: unknown) {
+          console.error('导入错题控制器失败:', err)
         }
 
         // 异步记录学习进度，不影响考试提交响应
         setImmediate(async () => {
           try {
-            const { learningProgressController } = await import('./learning-progress.controller.js')
+            const mod = await import('../learning-progress/learning-progress.controller.js')
+            const LearningProgressController =
+              (mod as any).LearningProgressController ?? (mod as any).learningProgressController
             const totalQuestions = questions.length
             const correctCount = questions.filter(q => answers[q.id] === q.answer).length
             const studyTime = Math.floor(Math.random() * 60) + 30 // 模拟学习时长30-90分钟
-            learningProgressController
-              .recordProgress(
-                {
-                  user: req.user,
-                  body: {
-                    studyTime: studyTime,
-                    questionsAnswered: totalQuestions,
-                    correctAnswers: correctCount,
-                    studyContent: `考试：${examId}`,
-                  },
-                } as any,
-                {
-                  json: () => {},
-                  status: () => ({ json: () => {} }),
-                } as any
-              )
-              .catch(error => {
-                console.error('记录学习进度失败:', error)
-              })
-          } catch (error) {
-            console.error('导入学习进度控制器失败:', error)
+            await LearningProgressController.recordProgress(
+              {
+                user: req.user,
+                body: {
+                  studyTime,
+                  questionsAnswered: totalQuestions,
+                  correctAnswers: correctCount,
+                  studyContent: `考试：${examId}`,
+                },
+              } as any,
+              {
+                json: () => {},
+                status: () => ({ json: () => {} }),
+              } as any
+            ).catch((err: unknown) => {
+              console.error('记录学习进度失败:', err)
+            })
+          } catch (err: unknown) {
+            console.error('导入学习进度控制器失败:', err)
           }
         })
 
         // 异步更新排行榜数据，不影响考试提交响应
         setImmediate(async () => {
           try {
-            const { LeaderboardService } = await import('../services/leaderboard.service.js')
+            const { LeaderboardService } = await import('../leaderboard/leaderboard.service.js')
             const leaderboardService = new LeaderboardService()
             const totalQuestions = questions.length
             const correctCount = questions.filter(q => answers[q.id] === q.answer).length
@@ -652,8 +657,8 @@ export class ExamController {
 
             // 检查并颁发成就
             await leaderboardService.checkAndAwardRankingAchievements(userId!)
-          } catch (error) {
-            console.error('更新排行榜失败:', error)
+          } catch (err: unknown) {
+            console.error('更新排行榜失败:', err)
           }
         })
 

@@ -1,5 +1,7 @@
+// apps/backend/src/modules/roles/role.routes.ts
 import { Router, type RequestHandler } from 'express'
-import { ROLE_IDS } from '../constants/roles.js'
+
+// 控制器（同目录）
 import {
   addUsersToRole,
   checkCode,
@@ -19,9 +21,11 @@ import {
   getRoleOrgs,
   addRoleOrgs,
   removeRoleOrg,
-} from '../controllers/role.controller.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
-import { requireRole } from '../middleware/roleAuth.js'
+} from './role.controller.js'
+
+// 中间件
+import { authenticateToken } from '../../common/middleware/auth.js'
+import { requireRole } from '../../common/middleware/role-auth.js'
 
 /** 将任意 (req, res) => Promise 的控制器包装为标准 RequestHandler，避免 TS2769 */
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>
@@ -33,37 +37,41 @@ const wrap = (fn: AnyAsyncController): RequestHandler => {
 
 const router = Router()
 
-// 所有路由都需要认证
+// 统一认证
 router.use(authenticateToken)
 
+// 角色字符串常量（替代原 ROLE_IDS）
+const ADMIN_ONLY = ['super_admin'] as const
+const ADMIN_AND_SUPER = ['super_admin', 'admin'] as const
+
 // 便捷校验/推荐编码
-router.get('/check-code', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(checkCode))
-router.get('/suggest-code', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(suggestCode))
+router.get('/check-code', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(checkCode))
+router.get('/suggest-code', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(suggestCode))
 
 // 角色管理路由
-router.get('/', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getAllRoles))
-router.get('/next-sort-order', wrap(getNextSortOrder)) // 暂时移除权限限制以便测试
-router.get('/:id', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleById))
-router.post('/', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(createRole))
-router.put('/:id', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(updateRole))
-router.delete('/:id', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(deleteRole))
+router.get('/', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getAllRoles))
+router.get('/next-sort-order', wrap(getNextSortOrder)) // 暂时放开以便测试
+router.get('/:id', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleById))
+router.post('/', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(createRole))
+router.put('/:id', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(updateRole))
+router.delete('/:id', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(deleteRole))
 
 // 角色菜单权限管理
-router.get('/:id/menus', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleMenus))
-router.put('/:id/menus', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(setRoleMenus))
+router.get('/:id/menus', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleMenus))
+router.put('/:id/menus', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setRoleMenus))
 
 // 用户角色管理
-router.get('/users/:userId/roles', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getUserRoles))
-router.put('/users/:userId/roles', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(setUserRoles))
+router.get('/users/:userId/roles', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getUserRoles))
+router.put('/users/:userId/roles', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setUserRoles))
 
 // 角色用户管理
-router.get('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleUsers))
-router.post('/:roleId/users', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(addUsersToRole))
-router.delete('/:roleId/users/:userId', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(removeUserFromRole))
+router.get('/:roleId/users', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleUsers))
+router.post('/:roleId/users', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(addUsersToRole))
+router.delete('/:roleId/users/:userId', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(removeUserFromRole))
 
+// 角色 ⇄ 机构
+router.get('/:id/orgs', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleOrgs))
+router.post('/:id/orgs', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(addRoleOrgs))
+router.delete('/:id/orgs/:orgId', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(removeRoleOrg))
 
-// 角色⇄机构
-router.get('/:id/orgs', requireRole([ROLE_IDS.SUPER_ADMIN, ROLE_IDS.ADMIN]), wrap(getRoleOrgs))
-router.post('/:id/orgs', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(addRoleOrgs))
-router.delete('/:id/orgs/:orgId', requireRole([ROLE_IDS.SUPER_ADMIN]), wrap(removeRoleOrg))
 export default router

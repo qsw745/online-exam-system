@@ -1,10 +1,10 @@
+import { pool } from '@config/database.js'
+import { LoggerService } from '@infrastructure/logging/logger.js'
 import bcrypt from 'bcryptjs'
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { LoggerService } from '../services/logger.service.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface IUser extends RowDataPacket {
   id: number

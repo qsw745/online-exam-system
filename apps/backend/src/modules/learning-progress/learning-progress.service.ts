@@ -1,7 +1,7 @@
 // apps/backend/src/services/learning-progress.service.ts
 
 import type { PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { pool } from '../config/database.js'
+import { pool } from '@config/database.js'
 
 // ==== 导出给 controller 用的类型 ====
 

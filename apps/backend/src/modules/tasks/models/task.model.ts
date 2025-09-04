@@ -1,5 +1,5 @@
 import { RowDataPacket, ResultSetHeader, Pool } from 'mysql2/promise';
-import { pool } from '../config/database.js';
+import { pool } from '@config/database.js';
 
 export interface ITask extends RowDataPacket {
   id: number;

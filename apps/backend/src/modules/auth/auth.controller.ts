@@ -1,14 +1,17 @@
+// apps/backend/src/modules/auth/auth.controller.ts
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { Response } from 'express'
 import jwt, { SignOptions } from 'jsonwebtoken'
 import { RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import type { AuthRequest } from '../types/auth.js'
 
-import { LoggerService } from '../services/logger.service.js'
-import { ApiResponse } from '../types/response.js'
-import { emailService } from '../utils/email.service.js'
+import { pool } from '@config/database.js'
+import type { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
+
+// ✅ 修正后的导入路径（基础设施层）
+import { LoggerService } from '@infrastructure/logging/logger.js'
+import { emailService } from '@infrastructure/email/email.service.js'
 
 interface IUser extends RowDataPacket {
   id: number
@@ -29,6 +32,7 @@ interface JwtPayload {
   id: number
   email: string
 }
+
 // 辅助函数：拿默认org、把用户挂到org（主组织）、赋默认角色
 async function attachUserToDefaultOrgAndRoles(userId: number) {
   // 1) 默认组织
@@ -63,6 +67,7 @@ async function attachUserToDefaultOrgAndRoles(userId: number) {
 
   return orgId as number
 }
+
 export class AuthController {
   static async register(req: AuthRequest, res: Response<ApiResponse<AuthResponseData>>) {
     try {

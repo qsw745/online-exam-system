@@ -10,26 +10,24 @@
     "baseUrl": "./src",
     "paths": {
       "@common/*": ["common/*"],
-      "@infra/*": ["infrastructure/*"],
-      "@modules/*": ["modules/*"],
       "@config/*": ["config/*"],
-      "@bootstrap/*": ["bootstrap/*"],
-      "@types/*": ["types/*"]
+      "@modules/*": ["modules/*"],
+      "@infrastructure/*": ["infrastructure/*"],
+      "@types/*": ["types/*"],
+      "@utils/*": ["utils/*"],
+      "@routes": ["routes/index.ts"]
     },
 
     "types": ["node"],
     "typeRoots": ["./node_modules/@types", "./src/@types"],
-
     "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
 
     "strict": true,
+    "strictNullChecks": true,
     "noImplicitAny": true,
-    "noImplicitThis": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
 
     "allowJs": true,
     "checkJs": false,

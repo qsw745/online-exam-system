@@ -1,4 +1,4 @@
-import { pool } from '../config/database.js';
+import { pool } from '@config/database.js';
 import { RowDataPacket, ResultSetHeader } from 'mysql2';
 
 export class DiscussionsService {

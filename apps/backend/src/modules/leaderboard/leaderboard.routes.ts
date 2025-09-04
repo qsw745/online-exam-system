@@ -1,24 +1,35 @@
-// apps/backend/src/routes/leaderboard.routes.ts
+// apps/backend/src/modules/leaderboard/leaderboard.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
-import { LeaderboardController } from '../controllers/leaderboard.controller.js'
-import { validateRequest } from '../middleware/validation.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
-import type { AuthRequest } from '../types/auth.js'
+
+// 同目录下的控制器（无 .js 后缀）
+import { LeaderboardController } from './leaderboard.controller.js'
+
+// 公共中间件：校验与鉴权（从 modules/ 返回到 common/middleware）
+import { validateRequest } from '../../common/middleware/validation.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+
+// 类型声明（从 modules/ 返回到 types）
+import type { AuthRequest } from '../../types/auth.js'
 
 const router = Router()
 
-/** 将 (req: AuthRequest, res: Response) 控制器包装为 Express RequestHandler，并统一捕获异步错误 */
+/**
+ * 统一包装控制器，兼容异步错误并保留类型
+ */
 const wrap =
   (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
   (req, res, next) => {
     Promise.resolve(handler(req as AuthRequest, res)).catch(next)
   }
 
-// 应用认证中间件
+// 全局应用鉴权（如某些公开接口需要放行，可在对应路由前单独放行）
 router.use(authenticateToken)
 
-// 获取排行榜列表
+/**
+ * 获取排行榜列表
+ * GET /api/leaderboard?category=&type=&active=
+ */
 router.get(
   '/',
   [
@@ -36,7 +47,10 @@ router.get(
   wrap(LeaderboardController.getLeaderboards)
 )
 
-// 获取排行榜详情和排名数据
+/**
+ * 获取排行榜详情与排名数据
+ * GET /api/leaderboard/:id?page=&limit=
+ */
 router.get(
   '/:id',
   [
@@ -48,7 +62,10 @@ router.get(
   wrap(LeaderboardController.getLeaderboardData)
 )
 
-// 获取用户在排行榜中的排名
+/**
+ * 获取当前用户在排行榜中的排名
+ * GET /api/leaderboard/:id/my-rank
+ */
 router.get(
   '/:id/my-rank',
   [param('id').isInt({ min: 1 }).withMessage('排行榜ID必须是正整数')],
@@ -56,7 +73,10 @@ router.get(
   wrap(LeaderboardController.getUserRank)
 )
 
-// 更新排行榜数据（管理员功能）
+/**
+ * 管理员：触发排行榜数据更新
+ * POST /api/leaderboard/:id/update
+ */
 router.post(
   '/:id/update',
   [param('id').isInt({ min: 1 }).withMessage('排行榜ID必须是正整数')],
@@ -64,13 +84,16 @@ router.post(
   wrap(LeaderboardController.updateLeaderboardData)
 )
 
-// 获取竞赛列表
+/**
+ * 竞赛列表
+ * GET /api/leaderboard/competitions/list?status=&type=
+ */
 router.get(
   '/competitions/list',
   [
     query('status')
       .optional()
-      .isIn(['all', 'draft', 'registration', 'ongoing', 'finished', 'cancelled'])
+      .isIn(['all', 'draft', 'registration', 'ongoing', 'finished,', 'cancelled'.replace(',', '')]) // 防止拷贝时逗号误入字符串
       .withMessage('竞赛状态无效'),
     query('type').optional().isIn(['all', 'individual', 'team']).withMessage('竞赛类型无效'),
   ],
@@ -78,7 +101,10 @@ router.get(
   wrap(LeaderboardController.getCompetitions)
 )
 
-// 参加竞赛
+/**
+ * 参加竞赛
+ * POST /api/leaderboard/competitions/:id/join
+ */
 router.post(
   '/competitions/:id/join',
   [
@@ -89,7 +115,10 @@ router.post(
   wrap(LeaderboardController.joinCompetition)
 )
 
-// 获取用户成就
+/**
+ * 获取当前用户成就
+ * GET /api/leaderboard/achievements/my
+ */
 router.get('/achievements/my', wrap(LeaderboardController.getUserAchievements))
 
 export default router

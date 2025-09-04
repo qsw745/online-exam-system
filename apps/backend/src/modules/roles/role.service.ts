@@ -1,6 +1,6 @@
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { CreateRoleRequest, Role, UpdateRoleRequest } from '../models/menu.model.js'
+import { pool } from '@config/database.js'
+import { CreateRoleRequest, Role, UpdateRoleRequest } from './models/menu.model.js'
 
 /** 工具：把 undefined 统一转成 null（MySQL 可接受） */
 function u2n<T>(v: T | undefined): T | null {

@@ -1,8 +1,18 @@
-// apps/backend/src/routes/org.routes.ts
+// apps/backend/src/modules/orgs/org.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
-import { OrgController } from '../controllers/org.controller.js'
-import { authenticateToken, requireRole } from '../middleware/auth.middleware.js'
-import type { AuthRequest } from '../types/auth.js'
+
+// 控制器在同目录（ESM 需显式 .js）
+import { OrgController } from './org.controller.js'
+
+// 认证与角色中间件在 common/middleware 下（ESM 需显式 .js）
+import { authenticateToken } from '../../common/middleware/auth.js'
+import { requireRoleByIds } from '../../common/middleware/role-auth.js'
+
+// 角色常量：按数值ID检查，避免 TS2322
+import { ROLE_IDS } from '../../config/roles.js'
+
+// 类型（ESM 需显式 .js）
+import type { AuthRequest } from '../../types/auth.js'
 
 const router = Router()
 
@@ -17,27 +27,27 @@ const wrap =
 router.use(authenticateToken)
 
 // 获取组织树（所有已启用组织，以树形返回）
-router.get('/tree', requireRole(['admin', 'teacher']), wrap(OrgController.getTree))
+router.get('/tree', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]), wrap(OrgController.getTree))
 
 // 获取组织列表（分页 / 平铺）
-router.get('/', requireRole(['admin', 'teacher']), wrap(OrgController.list))
+router.get('/', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]), wrap(OrgController.list))
 
 // 获取组织详情
-router.get('/:id', requireRole(['admin', 'teacher']), wrap(OrgController.getById))
+router.get('/:id', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER]), wrap(OrgController.getById))
 
 // 创建组织
-router.post('/', requireRole(['admin']), wrap(OrgController.create))
+router.post('/', requireRoleByIds([ROLE_IDS.ADMIN]), wrap(OrgController.create))
 
 // 更新组织
-router.put('/:id', requireRole(['admin']), wrap(OrgController.update))
+router.put('/:id', requireRoleByIds([ROLE_IDS.ADMIN]), wrap(OrgController.update))
 
 // 删除组织
-router.delete('/:id', requireRole(['admin']), wrap(OrgController.delete))
+router.delete('/:id', requireRoleByIds([ROLE_IDS.ADMIN]), wrap(OrgController.delete))
 
-// （可选）批量排序
-router.put('/sort/batch', requireRole(['admin']), wrap(OrgController.batchSort))
+// 批量仅更新 parent_id（无排序列）
+router.put('/sort/batch', requireRoleByIds([ROLE_IDS.ADMIN]), wrap(OrgController.batchSort))
 
-// （可选）移动组织到新父节点
-router.put('/:id/move', requireRole(['admin']), wrap(OrgController.move))
+// 移动组织到新父节点
+router.put('/:id/move', requireRoleByIds([ROLE_IDS.ADMIN]), wrap(OrgController.move))
 
 export { router as orgRoutes }

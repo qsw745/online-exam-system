@@ -1,10 +1,16 @@
-// apps/backend/src/routes/learning-progress.routes.ts
+// apps/backend/src/modules/learning-progress/learning-progress.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
-import { learningProgressController } from '../controllers/learning-progress.controller.js'
-import { validateRequest } from '../middleware/validation.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
-import type { AuthRequest } from '../types/auth.js'
+
+// 同目录控制器（ESM 显式 .js）
+import { learningProgressController } from './learning-progress.controller.js'
+
+// 公共中间件（从 modules/ 返回到 common/middleware，ESM 显式 .js）
+import { validateRequest } from '../../common/middleware/validation.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+
+// 类型（从 modules/ 返回到 types，ESM 显式 .js）
+import type { AuthRequest } from '../../types/auth.js'
 
 const router = Router()
 
@@ -15,10 +21,10 @@ const wrap =
     Promise.resolve(handler(req as AuthRequest, res)).catch(next)
   }
 
-// 应用认证中间件（如需开放某些接口，再单独移除/改用 optionalAuth）
+// 全局鉴权（如需开放某些接口，再按需调整）
 router.use(authenticateToken)
 
-// 记录学习进度
+/** 记录学习进度 */
 router.post(
   '/record',
   [
@@ -32,7 +38,7 @@ router.post(
   wrap(learningProgressController.recordProgress.bind(learningProgressController))
 )
 
-// 获取学习进度统计
+/** 获取学习进度统计 */
 router.get(
   '/stats',
   [
@@ -43,7 +49,7 @@ router.get(
   wrap(learningProgressController.getProgressStats.bind(learningProgressController))
 )
 
-// 获取学习轨迹
+/** 获取学习轨迹 */
 router.get(
   '/track',
   [
@@ -55,7 +61,7 @@ router.get(
   wrap(learningProgressController.getLearningTrack.bind(learningProgressController))
 )
 
-// 设置学习目标
+/** 设置学习目标 */
 router.post(
   '/goals',
   [
@@ -81,7 +87,7 @@ router.post(
   wrap(learningProgressController.setLearningGoal.bind(learningProgressController))
 )
 
-// 获取学习目标
+/** 获取学习目标 */
 router.get(
   '/goals',
   [
@@ -104,7 +110,7 @@ router.get(
   wrap(learningProgressController.getLearningGoals.bind(learningProgressController))
 )
 
-// 更新学习目标进度
+/** 更新学习目标进度 */
 router.put(
   '/goals/:goalId',
   [
@@ -116,10 +122,10 @@ router.put(
   wrap(learningProgressController.updateGoalProgress.bind(learningProgressController))
 )
 
-// 获取学习成就
+/** 获取学习成就 */
 router.get('/achievements', wrap(learningProgressController.getLearningAchievements.bind(learningProgressController)))
 
-// 解锁学习成就
+/** 解锁学习成就 */
 router.post(
   '/achievements/unlock',
   [
@@ -130,7 +136,7 @@ router.post(
   wrap(learningProgressController.unlockAchievement.bind(learningProgressController))
 )
 
-// 获取学习报告
+/** 获取学习报告 */
 router.get(
   '/report',
   [
@@ -144,7 +150,7 @@ router.get(
   wrap(learningProgressController.getLearningReport.bind(learningProgressController))
 )
 
-// 获取学习记录
+/** 获取学习记录 */
 router.get(
   '/records',
   [
@@ -157,7 +163,7 @@ router.get(
   wrap(learningProgressController.getProgressRecords.bind(learningProgressController))
 )
 
-// 获取科目列表
+/** 获取科目列表 */
 router.get('/subjects', wrap(learningProgressController.getSubjects.bind(learningProgressController)))
 
 export default router

@@ -1,7 +1,8 @@
 import { Request, Response } from 'express'
-import { CreateRoleRequest, UpdateRoleRequest } from '../models/menu.model.js'
-import { DuplicateCodeError, RoleService, slugifyCode } from '../services/role.service.js'
-import type { AuthRequest } from '../types/auth.js'
+import { CreateRoleRequest, UpdateRoleRequest } from './models/menu.model.js'
+import { DuplicateCodeError, RoleService, slugifyCode } from './role.service.js'
+
+import type { AuthRequest } from 'types/auth.js'
 
 /**
  * 获取所有角色（支持分页和搜索）

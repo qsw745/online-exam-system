@@ -1,6 +1,6 @@
 import { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
-import { pool } from '../config/database.js'
+import { pool } from '@config/database.js'
 import {
   CreateMenuRequest,
   CreateRoleRequest,
@@ -10,7 +10,7 @@ import {
   UpdateMenuRequest,
   UpdateRoleRequest,
   UserMenuPermission,
-} from '../models/menu.model.js'
+} from './models/menu.model.js'
 
 type MenuUpdate = {
   id: number

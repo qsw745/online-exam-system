@@ -1,9 +1,9 @@
 // apps/backend/src/middleware/auth.middleware.ts
 import type { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
-import { pool } from '../config/database.js'
+import { pool } from '@config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
-import type { ApiResponse } from '../types/response.js'
+import type { ApiResponse } from 'types/response.js'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 

@@ -1,8 +1,8 @@
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface IPaper extends RowDataPacket {
   id: number

@@ -1,9 +1,14 @@
+// apps/backend/src/modules/orgs/org.controller.ts
 import type { Response } from 'express'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '../config/database.js'
-import { LoggerService } from '../services/logger.service.js'
-import type { AuthRequest } from '../types/auth.js'
-import type { ApiResponse } from '../types/response.js'
+import { pool } from '@config/database.js'
+
+// ✅ 修正：日志服务位于 infrastructure/logging
+import { LoggerService } from '../../infrastructure/logging/logger.js'
+
+// 类型（ESM 需显式 .js）
+import type { AuthRequest } from '../../types/auth.js'
+import type { ApiResponse } from '../../types/response.js'
 
 /** 和你当前 organizations 表一致 */
 interface IOrg extends RowDataPacket {
@@ -33,17 +38,13 @@ function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] 
   return nodes
 }
 
-/** 防环 */
+/** 防环：检测把 nodeId 移到 newParentId 是否会产生环 */
 function createsCycle(rows: IOrg[], nodeId: number, newParentId: number | null | undefined) {
   if (newParentId == null) return false
-
-  // ✅ 用传入的 newParentId
   let cursor: number | null = newParentId
-
   const map = new Map<number, IOrg>(rows.map(r => [r.id, r]))
   while (cursor != null) {
     if (cursor === nodeId) return true
-    // ✅ 避免与全局 parent 同名
     const p = map.get(cursor)
     cursor = p?.parent_id ?? null
   }
@@ -136,7 +137,6 @@ export const OrgController = {
     }
   },
 
-  /** 新增 */
   /** 创建组织 */
   async create(req: AuthRequest, res: Response<ApiResponse<{ id: number }>>) {
     try {
@@ -152,14 +152,14 @@ export const OrgController = {
         if (!Number.isNaN(n)) parentId = n
       }
 
-      // 关键：没有提供 code 或为空 → 自动生成并保证唯一
+      // 没提供 code → 用 name 生成 base，再确保唯一
       const rawCode = typeof code === 'string' ? code.trim() : ''
       const base = rawCode || makeBaseCode(name)
       const finalCode = await ensureUniqueCode(base)
 
       const [ret] = await pool.query<ResultSetHeader>(
         `INSERT INTO organizations (name, code, parent_id, is_active, created_at, updated_at)
-       VALUES (?,?,?,?,NOW(),NOW())`,
+         VALUES (?,?,?,?,NOW(),NOW())`,
         [String(name).trim(), finalCode, parentId, is_active ? 1 : 1] // 默认启用
       )
 
@@ -176,7 +176,6 @@ export const OrgController = {
 
       return res.status(201).json({ success: true, data: { id: ret.insertId } })
     } catch (error: any) {
-      // 如果数据库有 UNIQUE 约束，仍可能撞车（极低概率）——返回更友好的信息
       if (error?.code === 'ER_DUP_ENTRY') {
         return res.status(409).json({ success: false, error: '组织编码已存在，请更换名称或编码' })
       }
@@ -382,8 +381,8 @@ export const OrgController = {
         username: req.user?.username,
         action: 'batch_update_org_parent',
         resourceType: 'organization',
-        resourceId: 0, // ✅ number
-        details: { kind: 'batch', count: updates.length }, // ✅ 把信息放 details
+        resourceId: 0, // number
+        details: { kind: 'batch', count: updates.length },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })
@@ -399,24 +398,23 @@ export const OrgController = {
   },
 }
 
-/** 生成一个可读的编码（从name来，或回退到 org_时间戳_随机） */
+/** 生成一个可读的编码（从 name 来，或回退到 org_时间戳_随机） */
 function makeBaseCode(name?: string) {
   const slug = String(name || '')
     .trim()
     .toLowerCase()
-    .replace(/\s+/g, '-') // 空白转 -
-    .replace(/[^a-z0-9-]/g, '') // 非字母数字去掉
-    .replace(/-+/g, '-') // 连续 - 压缩
-    .replace(/^-|-$/g, '') // 去首尾 -
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
   return slug || `org_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`
 }
+
 /** 确保编码唯一：base、base-1、base-2... */
 async function ensureUniqueCode(base: string): Promise<string> {
-  // 直接查是否存在
   const [rows] = await pool.query<RowDataPacket[]>(`SELECT code FROM organizations WHERE code = ? LIMIT 1`, [base])
   if ((rows as any[]).length === 0) return base
 
-  // 查已有的后缀，找下一个可用序号
   const [all] = await pool.query<RowDataPacket[]>(
     `SELECT code FROM organizations WHERE code = ? OR code LIKE CONCAT(?, '-%')`,
     [base, base]
@@ -426,4 +424,5 @@ async function ensureUniqueCode(base: string): Promise<string> {
   while (used.has(`${base}-${i}`)) i++
   return `${base}-${i}`
 }
+
 export default OrgController

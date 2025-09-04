@@ -1,6 +1,6 @@
+import { pool } from '@config/database.js'
+import { LoggerService as Logger } from '@infrastructure/logging/logger.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '../config/database.js'
-import * as Logger from './logger.service.js' // 用 * as 导入，后面做安全封装
 
 // ---- 日志：安全薄封装，规避签名不一致导致的 TS 报错 ----
 const safeLogSystem = (level: 'info' | 'warn' | 'error', message: string, meta?: any) => {

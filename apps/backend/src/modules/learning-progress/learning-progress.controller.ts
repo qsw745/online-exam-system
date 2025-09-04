@@ -1,6 +1,7 @@
+// apps/backend/src/modules/learning-progress/learning-progress.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from '../types/auth.js'
-import { LearningProgressService } from '../services/learning-progress.service.js'
+import type { AuthRequest } from '../../types/auth.js'
+import { LearningProgressService } from './learning-progress.service.js'
 import type {
   LearningProgress,
   ProgressStats,
@@ -10,8 +11,8 @@ import type {
   LearningReport,
   ProgressRecord,
   Subject,
-} from '../services/learning-progress.service.js'
-import type { ApiResponse } from '../types/response.js'
+} from './learning-progress.service.js'
+import type { ApiResponse } from '../../types/response.js'
 
 export class LearningProgressController {
   private learningProgressService: LearningProgressService

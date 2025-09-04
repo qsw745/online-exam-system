@@ -1,7 +1,7 @@
 // apps/backend/src/routes/wrong-question.routes.ts
 import { Router, type RequestHandler } from 'express'
-import { WrongQuestionController } from '../controllers/wrong-question.controller.js'
-import { authenticateToken } from '../middleware/auth.middleware.js'
+import { authenticateToken } from '../../common/middleware/auth.js'
+import { WrongQuestionController } from './wrong-question.controller.js'
 
 /** 包装异步控制器，避免 TS2769 重载不匹配并统一错误处理 */
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>

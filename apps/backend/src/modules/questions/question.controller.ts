@@ -1,9 +1,10 @@
+import { pool } from '@config/database.js'
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { pool } from '../config/database.js'
-import { LoggerService } from '../services/logger.service.js'
-import { AuthRequest } from '../types/auth.js'
-import { ApiResponse } from '../types/response.js'
+import { LoggerService } from '../../infrastructure/logging/logger.js'
+
+import { AuthRequest } from 'types/auth.js'
+import { ApiResponse } from 'types/response.js'
 
 interface IQuestion extends RowDataPacket {
   id: number
@@ -84,18 +85,19 @@ export class QuestionController {
       const totalPages = Math.ceil(total / limit)
 
       // 解析JSON字段
-      const parsedQuestions = questions.map(question => {
+      // 解析JSON字段
+      const parsedQuestions = (questions as IQuestion[]).map((q: IQuestion) => {
         try {
-          if (question.options && typeof question.options === 'string') {
-            question.options = JSON.parse(question.options)
-          }
+          if (q.options && typeof q.options === 'string') {
+            // 如果 options 是 JSON 字符串则解析
 
-          // correct_answer 字段存储的是简单字符串（如 "A", "B", "C", "D", "true", "false"），不需要JSON解析
-          // 保持原字符串格式即可
+            q.options = JSON.parse(q.options)
+          }
+          // correct_answer 保持为字符串
         } catch (parseError) {
-          console.error(`题目ID ${question.id} 解析字段失败:`, parseError)
+          console.error(`题目ID ${q.id} 解析字段失败:`, parseError)
         }
-        return question
+        return q
       })
 
       const response: ApiResponse<QuestionListData> = {
@@ -911,12 +913,13 @@ export class QuestionController {
       }
 
       // 获取用户已练习过的题目ID列表（去重）
-      const [practicedQuestions] = await pool.query<RowDataPacket[]>(
+      const [practicedRows] = await pool.query<RowDataPacket[]>(
         'SELECT DISTINCT question_id FROM practice_records WHERE user_id = ? ORDER BY question_id',
         [userId]
       )
+      type PracticedRow = RowDataPacket & { question_id: number }
 
-      const questionIds = practicedQuestions.map(row => row.question_id)
+      const questionIds = (practicedRows as PracticedRow[]).map((row: PracticedRow) => row.question_id)
 
       const response: ApiResponse<number[]> = {
         success: true,
@@ -939,17 +942,20 @@ export class QuestionController {
       // 从questions表中提取所有不重复的知识点
       const [rows] = await pool.query<RowDataPacket[]>(
         `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) as knowledge_point
-         FROM questions
-         CROSS JOIN (
-           SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-           UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
-         ) numbers
-         WHERE JSON_LENGTH(knowledge_points) > numbers.n
-         AND JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
-         ORDER BY knowledge_point`
+   FROM questions
+   CROSS JOIN (
+     SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
+     UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
+   ) numbers
+   WHERE JSON_LENGTH(knowledge_points) > numbers.n
+   AND JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
+   ORDER BY knowledge_point`
       )
 
-      const knowledgePoints = rows.map(row => row.knowledge_point).filter(point => point && point !== 'null')
+      type KPRow = RowDataPacket & { knowledge_point: string | null }
+      const knowledgePoints = (rows as KPRow[])
+        .map((row: KPRow) => row.knowledge_point)
+        .filter((point: string | null): point is string => !!point && point !== 'null')
 
       const response = {
         success: true,
