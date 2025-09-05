@@ -1,16 +1,20 @@
+
 {
   "compilerOptions": {
     "target": "ES2021",
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "jsx": "react-jsx",
+    "lib": ["ES2021", "DOM", "DOM.Iterable"],
+    "types": ["vite/client", "react", "react-dom"], 
     "strict": true,
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-
-    "lib": ["ES2021", "DOM", "DOM.Iterable"], // ✅ 新增
-
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
     "baseUrl": ".",
     "paths": {
       "@app/*": ["src/app/*"],
@@ -18,5 +22,6 @@
       "@features/*": ["src/features/*"]
     }
   },
-  "include": ["src", "vite-env.d.ts", "src/types"] // ✅ 让自定义 d.ts 被包含
+  "include": ["src", "vite-env.d.ts"],
+  "references": [{ "path": "./tsconfig.node.json" }]
 }

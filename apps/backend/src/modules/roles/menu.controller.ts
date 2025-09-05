@@ -2,12 +2,28 @@
 import { Request, Response } from 'express'
 
 // 修正导入路径：当前文件在 modules/roles 下，models 与 service 都在同级目录
-import { CreateMenuRequest, CreateRoleRequest, UpdateMenuRequest, UpdateRoleRequest } from './models/menu.model.js'
 import { MenuService } from './menu.service.js'
+import { CreateMenuRequest, CreateRoleRequest, UpdateMenuRequest, UpdateRoleRequest } from './models/menu.model.js'
 
 function pickOrgId(req: Request): number | undefined {
   const h = req.header('x-org-id')
   return h ? Number(h) : undefined
+}
+
+/** 统一规范化 meta：空白=>null；JSON 字符串=>对象；对象=>原样；其它=>null */
+function normalizeMeta(input: unknown): any | null {
+  if (input == null) return null
+  if (typeof input === 'string') {
+    const t = input.trim()
+    if (!t) return null
+    try {
+      return JSON.parse(t)
+    } catch {
+      return null
+    }
+  }
+  if (typeof input === 'object') return input
+  return null
 }
 
 export class MenuController {
@@ -28,7 +44,6 @@ export class MenuController {
         children?: Node[]
       }
 
-      // 显式标注 m:any，避免 “参数 m 隐式 any” 报错
       const nodes: Node[] = menus.map((m: any) => ({
         id: m.id,
         path: m.path || undefined,
@@ -41,7 +56,6 @@ export class MenuController {
         children: [],
       }))
 
-      // 建映射，组树
       const id2node = new Map<number, Node>()
       nodes.forEach(n => id2node.set(n.id, n))
 
@@ -54,14 +68,13 @@ export class MenuController {
             p.children = p.children || []
             p.children.push(n)
           } else {
-            roots.push(n) // 容错：父不存在时作为根节点
+            roots.push(n)
           }
         } else {
           roots.push(n)
         }
       })
 
-      // 同层按照 sort_order 再做一次排序
       const sortTree = (list: Node[]) => {
         list.sort((a, b) => (a.sort_order ?? 999) - (b.sort_order ?? 999))
         list.forEach(c => c.children && sortTree(c.children))
@@ -125,8 +138,11 @@ export class MenuController {
         return
       }
 
-      const menuId = await MenuService.createMenu(menuData)
-      res.status(201).json({ success: true, data: { id: menuId }, message: '菜单创建成功' })
+      // 规范化 meta
+      const meta = normalizeMeta(menuData.meta)
+      const id = await MenuService.createMenu({ ...menuData, meta } as CreateMenuRequest)
+
+      res.status(201).json({ success: true, data: { id }, message: '菜单创建成功' })
     } catch (error) {
       console.error('创建菜单失败:', error)
       const msg = error instanceof Error ? error.message : '创建菜单失败'
@@ -134,13 +150,22 @@ export class MenuController {
     }
   }
 
-  // 更新菜单
+  // ✅ 更新菜单（已修复 meta 与 success/参数问题）
   static async updateMenu(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params
-      const updateData: Omit<UpdateMenuRequest, 'id'> = req.body
+      const idNum = Number(req.params.id)
+      if (!Number.isFinite(idNum)) {
+        res.status(400).json({ success: false, message: '参数 id 非法' })
+        return
+      }
 
-      const success = await MenuService.updateMenu({ id: parseInt(id, 10), ...updateData })
+      // 统一处理 meta
+      const meta = normalizeMeta(req.body?.meta)
+
+      // 组合 payload 并传递 id
+      const payload: UpdateMenuRequest = { ...(req.body as any), id: idNum, meta }
+
+      const success = await MenuService.updateMenu(payload)
 
       if (!success) {
         res.status(404).json({ success: false, message: '菜单不存在或更新失败' })
@@ -150,7 +175,8 @@ export class MenuController {
       res.json({ success: true, message: '菜单更新成功' })
     } catch (error) {
       console.error('更新菜单失败:', error)
-      res.status(500).json({ success: false, message: '更新菜单失败' })
+      const msg = error instanceof Error ? error.message : '更新菜单失败'
+      res.status(500).json({ success: false, message: msg })
     }
   }
 
@@ -240,7 +266,6 @@ export class MenuController {
     } catch (error: any) {
       console.error('创建角色失败:', error)
 
-      // 针对唯一键冲突（示例：uk_name）
       if (
         error?.code === 'ER_DUP_ENTRY' &&
         typeof error?.sqlMessage === 'string' &&

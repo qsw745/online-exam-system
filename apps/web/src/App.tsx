@@ -1,9 +1,8 @@
-/// <reference types="react" />
-/// <reference types="react-dom" />
+// apps/web/src/App.tsx
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Suspense, type ReactNode } from 'react'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 // 通用层（shared）
 import Layout from '@shared/components/Layout'
@@ -12,16 +11,16 @@ import { AuthProvider, useAuth } from '@shared/contexts/AuthContext'
 import { LanguageProvider } from '@shared/contexts/LanguageContext'
 import { MenuPermissionProvider } from '@shared/contexts/MenuPermissionContext'
 
-// 全局 Provider（主题、样式 等）
+// 全局 Provider
 import { AppProviders } from './AppProviders'
 
 // 错误页 & 动态菜单
+import Forbidden403 from '@app/errors/Forbidden403'
 import NotFound404 from '@app/errors/NotFound404'
+import ServerError500 from '@app/errors/ServerError500'
 import DynamicRoutes from '@app/routing/DynamicRoutes'
 
 // 顶层业务页面（features）
-import AdminPage from '@features/admin/pages/AdminPage'
-import OrgManage from '@features/orgs/pages/OrgManage'
 import AnalyticsPage from '@features/analytics/pages/AnalyticsPage'
 import ForgotPasswordPage from '@features/auth/pages/ForgotPasswordPage'
 import LoginPage from '@features/auth/pages/LoginPage'
@@ -31,19 +30,23 @@ import DashboardPage from '@features/dashboard/pages/DashboardPage'
 import DiscussionPage from '@features/discussions/pages/DiscussionPage'
 import ExamListPage from '@features/exams/pages/ExamListPage'
 import ExamPage from '@features/exams/pages/ExamPage'
+import ResultsPage from '@features/exams/pages/ResultsPage'
 import FavoritesPage from '@features/favorites/pages/FavoritesPage'
 import LeaderboardPage from '@features/leaderboard/pages/LeaderboardPage'
 import LearningProgressPage from '@features/learning-progress/pages/LearningProgressPage'
 import LogsPage from '@features/logs/pages/LogsPage'
 import NotificationsPage from '@features/notifications/pages/NotificationsPage'
+import OrgManage from '@features/orgs/pages/OrgManage'
 import ProfilePage from '@features/profile/pages/ProfilePage'
 import QuestionPracticePage from '@features/questions/pages/QuestionPracticePage'
 import QuestionsPage from '@features/questions/pages/QuestionsPage'
-import ResultsPage from '@features/exams/pages/ResultsPage'
 import SettingsPage from '@features/settings/pages/SettingsPage'
 import TasksPage from '@features/tasks/pages/TasksPage'
 import WrongQuestionsPage from '@features/wrong-questions/pages/WrongQuestionsPage'
-
+// ✅ 新增导入
+import RoleManagementPage from '@features/roles/pages/RoleManagementPage'
+import MyTasksPage from '@features/tasks/pages/MyTasksPage'
+import PublishTaskPage from '@features/tasks/pages/PublishTaskPage'
 // —— Query Client 全局设置 —— //
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,16 +65,10 @@ const queryClient = new QueryClient({
   },
 })
 
-// —— 访问控制：与你现有逻辑一致 —— //
+// —— 访问控制 —— //
 function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  if (loading) return <LoadingSpinner />
   const hasUser = user !== null
   const hasToken = localStorage.getItem('token') !== null
   if (!hasUser && !hasToken) return <Navigate to="/login" replace />
@@ -80,13 +77,7 @@ function ProtectedRoute({ children }: { children: ReactNode }) {
 
 function PublicRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  if (loading) return <LoadingSpinner />
   const hasUser = user !== null
   const hasToken = localStorage.getItem('token') !== null
   if (hasUser || hasToken) return <Navigate to="/dashboard" replace />
@@ -95,27 +86,17 @@ function PublicRoute({ children }: { children: ReactNode }) {
 
 function AdminRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100">
-        <LoadingSpinner />
-      </div>
-    )
-  }
+  if (loading) return <LoadingSpinner />
   const userRole = user?.role || localStorage.getItem('userRole')
   const isAdminOrTeacher = userRole === 'admin' || userRole === 'teacher'
   if (!isAdminOrTeacher) return <Navigate to="/dashboard" replace />
   return <>{children}</>
 }
 
-function MenuPermissionRoute({ children }: { children: ReactNode; requiredPath?: string }) {
-  // 预留给菜单权限校验
-  return <>{children}</>
-}
-
-// —— 路由（保留你的动态菜单注入方式） —— //
+// —— 路由 —— //
 function AppRoutes() {
   const dynamicRouteElements = DynamicRoutes()
+
   return (
     <Routes>
       {/* 公开路由 */}
@@ -164,18 +145,20 @@ function AppRoutes() {
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="tasks" element={<TasksPage />} />
+        <Route path="tasks/my" element={<MyTasksPage />} />
+        <Route path="tasks/publish" element={<PublishTaskPage />} />
+        {/* 题库 */}
         <Route path="questions" element={<QuestionsPage />} />
         <Route path="questions/all" element={<QuestionsPage />} />
-        <Route path="questions/browse" element={<QuestionsPage />} />
-        <Route path="questions/manage" element={<QuestionsPage />} />
-        <Route path="questions/favorites" element={<QuestionsPage />} />
         <Route path="questions/wrong" element={<WrongQuestionsPage />} />
+        {/* 练习页（显式两条） */}
         <Route path="questions/practice" element={<QuestionPracticePage />} />
         <Route path="questions/:id/practice" element={<QuestionPracticePage />} />
+
+        {/* 其它业务页 */}
         <Route path="results" element={<ResultsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="learning-progress" element={<LearningProgressPage />} />
-        <Route path="learning/progress" element={<LearningProgressPage />} />
         <Route path="leaderboard" element={<LeaderboardPage />} />
         <Route path="favorites" element={<FavoritesPage />} />
         <Route path="discussion" element={<DiscussionPage />} />
@@ -183,8 +166,9 @@ function AppRoutes() {
         <Route path="analytics" element={<AnalyticsPage />} />
         <Route path="profile" element={<ProfilePage />} />
         <Route path="settings" element={<SettingsPage />} />
-        <Route path="wrong-questions" element={<WrongQuestionsPage />} />
-
+        <Route path="orgs" element={<OrgManage />} />
+        <Route path="admin/roles" element={<RoleManagementPage />} />
+        {/* 列表页（懒加载有占位） */}
         <Route
           path="exam/list"
           element={
@@ -194,30 +178,20 @@ function AppRoutes() {
           }
         />
 
-        <Route path="orgs" element={<OrgManage />} />
+        {/* ✅ 显式错误页路由 —— 放在 dynamicRouteElements 之前 */}
+        {/* 形态一：/errors/xxx */}
+        <Route path="errors/403" element={<Forbidden403 />} />
+        <Route path="errors/404" element={<NotFound404 />} />
+        <Route path="errors/500" element={<ServerError500 />} />
+        {/* 形态二：/errors-xxx（兼容你的菜单可能用这种写法） */}
+        <Route path="errors-403" element={<Forbidden403 />} />
+        <Route path="errors-404" element={<NotFound404 />} />
+        <Route path="errors-500" element={<ServerError500 />} />
 
-        {/* 管理员静态入口 */}
-        <Route
-          path="admin/*"
-          element={
-            <AdminRoute>
-              <AdminPage />
-            </AdminRoute>
-          }
-        />
-        <Route
-          path="system/menus"
-          element={
-            <AdminRoute>
-              <AdminPage />
-            </AdminRoute>
-          }
-        />
-
-        {/* 动态菜单注入 */}
+        {/* 动态菜单（最后注入，避免抢先匹配） */}
         {dynamicRouteElements}
 
-        {/* 兜底 404（放在最后） */}
+        {/* 兜底 404（最后） */}
         <Route path="*" element={<NotFound404 />} />
       </Route>
 
@@ -234,7 +208,7 @@ function AppRoutes() {
   )
 }
 
-// —— App 根组件（集中 Provider） —— //
+// —— App 根组件 —— //
 export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -243,9 +217,7 @@ export default function App() {
           <LanguageProvider>
             <AppProviders>
               <Router>
-                <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
-                  <AppRoutes />
-                </div>
+                <AppRoutes />
               </Router>
             </AppProviders>
           </LanguageProvider>

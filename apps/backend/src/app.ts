@@ -1,6 +1,7 @@
 // apps/backend/src/app.ts
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { logUserRoles } from './common/middleware/debug-roles.js'
+import { requestId } from './common/middleware/requestId.js' // ✅ 补上
 
 // 动态导入第三方中间件，统一 any，绕过类型声明分歧
 const corsMod: any = await import('cors')
@@ -51,7 +52,10 @@ type ApiResponse<T> = { success: boolean; data?: T | null; error?: string }
   console.debug = withTs((console as any).debug?.bind(console) ?? console.log.bind(console))
 })()
 
-// 自定义 morgan token（morgan 为 any，直接调用）
+/* -------------------- 创建 app（⚠️ 一定要在所有 app.use 之前） -------------------- */
+const app = express()
+
+/* -------------------- morgan 自定义 token -------------------- */
 morgan.token('local-date', () => {
   const d = new Date()
   const pad = (n: number) => n.toString().padStart(2, '0')
@@ -69,23 +73,26 @@ morgan.token('local-date', () => {
     pad(d.getSeconds())
   )
 })
+morgan.token('rid', (req: any) => req.id || '-') // ✅ 请求 ID
 
-/* -------------------- 创建 app -------------------- */
-const app = express()
+/* -------------------- 全局中间件（顺序很重要） -------------------- */
+// 1) 请求 ID（尽早注入）
+app.use(requestId())
 
-/* -------------------- 全局中间件 -------------------- */
+// 2) CORS / JSON 解析
 app.use((cors as any)())
 app.use(express.json())
-app.use(morgan(':local-date :method :url :status :response-time ms - :res[content-length]'))
 
-// 静态文件（头像/上传等）— 使用相对路径即可，避免依赖 path/url 类型
+// 3) 访问日志（带 rid）
+app.use(morgan(':local-date [rid=:rid] :method :url :status :response-time ms - :res[content-length]'))
+
+// 4) 静态文件
 app.use('/uploads', express.static('uploads'))
 
-// 开发期调试日志（打印 token/角色等）
+// 5) 开发期调试日志（打印 token/角色等）
 app.use(logUserRoles)
 
 /* -------------------- 调试：当前登录身份与角色解析 -------------------- */
-// 说明：为避免你去修改 role-auth 导出，这里内联一个与 requireRoleByIds 同源的解析逻辑
 app.get('/api/__debug/whoami', (req, res) => {
   const user: any = (req as any).user ?? null
 

@@ -61,3 +61,32 @@
 .dark .ant-radio-wrapper {
   color: rgba(255, 255, 255, 0.85);
 }
+
+/* === 加强侧边菜单可点击性 === */
+.sidebar__link,
+.sidebar__label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;           /* 扩大命中区域 */
+  line-height: 1.4;
+}
+
+.sidebar__link {
+  text-decoration: none;
+}
+
+/* 使“整行可点”：避免子元素吞点击（图标/文本都让父 NavLink 接管） */
+.sidebar__link * {
+  pointer-events: none;
+}
+
+/* Hover 反馈更明显 */
+.ant-menu-item .sidebar__link:hover {
+  filter: brightness(0.95);
+}
+
+/* 选中态更清晰（可按主题调整） */
+.ant-menu-item-selected .sidebar__link {
+  font-weight: 600;
+}

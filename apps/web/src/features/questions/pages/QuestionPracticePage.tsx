@@ -49,6 +49,8 @@ export default function QuestionPracticePage() {
 
   const [loading, setLoading] = useState(true)
   const [question, setQuestion] = useState<Question | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null) // ✅ 新增：明确错误态
+
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([])
   const [textAnswer, setTextAnswer] = useState('')
   const [showExplanation, setShowExplanation] = useState(false)
@@ -116,7 +118,9 @@ export default function QuestionPracticePage() {
     search?: string | null
   }) => {
     try {
+      // ❗ 不要在这里 setLoading(false)。交给 loadQuestion 控制，避免闪一下 404
       setLoading(true)
+      setLoadError(null)
 
       // 已练习题目ID
       let practicedIds: number[] = []
@@ -162,12 +166,12 @@ export default function QuestionPracticePage() {
       if (filters.difficulty) qs.set('difficulty', String(filters.difficulty))
       if (filters.search) qs.set('search', String(filters.search))
       navigate(`/questions/${firstId}/practice?${qs.toString()}`, { replace: true })
+      // 这里不做 setLoading(false)，等待 loadQuestion 设置
     } catch (error) {
       console.error('初始化连续练习失败:', error)
+      setLoadError('初始化练习失败')
       message.error('初始化练习失败')
       navigate('/questions/all')
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -179,6 +183,7 @@ export default function QuestionPracticePage() {
         throw new Error('无效的题目ID')
       }
       setLoading(true)
+      setLoadError(null)
 
       const response: ApiResult<any> = await questionsApi.getById(questionId)
       if (!isSuccess(response)) throw new Error((response as any).error || '加载题目失败')
@@ -187,6 +192,7 @@ export default function QuestionPracticePage() {
       const r = response.data as any
       const questionData: Question = r && r.question ? r.question : r
       setQuestion(questionData)
+      setLoadError(null)
 
       resetQuestion()
 
@@ -200,15 +206,22 @@ export default function QuestionPracticePage() {
       }
     } catch (error: any) {
       console.error('加载题目失败:', error)
-      message.error(error?.response?.status === 404 ? '题目不存在或已被删除' : '加载题目失败')
+      if (reqNo !== latestReqRef.current) return
+
+      // ✅ 只在真正失败时标记错误；连续模式下尽量无感跳过
+      const notFound = error?.response?.status === 404
+      setLoadError(notFound ? '题目不存在或已被删除' : '加载题目失败')
+
       if (practiceMode === 'continuous') {
+        // 连续模式：静默跳到下一题，不弹“题目不存在”提示，避免抖动
         if (questionList.length > 1 && currentIndex < questionList.length - 1) {
           goToNextQuestion()
-        } else {
-          navigate('/questions/all')
+          return
         }
-      } else {
         navigate('/questions/all')
+      } else {
+        // 单题模式：保留错误态，由渲染分支展示“题目不存在”
+        // 可选：message.error(loadError)；此处避免重复提示
       }
     } finally {
       if (reqNo === latestReqRef.current) setLoading(false)
@@ -338,6 +351,7 @@ export default function QuestionPracticePage() {
   const getDifficultyLabel = (difficulty: string) =>
     (({ easy: '简单', medium: '中等', hard: '困难' } as any)[difficulty] || difficulty)
 
+  // ===== 渲染分支：先 loading，再错误，再正常 =====
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -348,7 +362,8 @@ export default function QuestionPracticePage() {
     )
   }
 
-  if (!question) {
+  if (loadError) {
+    // ✅ 只有明确失败才展示“题目不存在”，避免初始化阶段闪一下
     return (
       <div
         style={{
@@ -363,11 +378,22 @@ export default function QuestionPracticePage() {
         <Space direction="vertical" align="center" size="large">
           <AlertTriangle style={{ width: 64, height: 64, color: '#ff4d4f' }} />
           <Title level={2}>题目不存在</Title>
-          <Text type="secondary">请检查题目ID是否正确</Text>
+          <Text type="secondary">{loadError}</Text>
           <Button type="primary" onClick={() => navigate('/questions/all')}>
             返回题库
           </Button>
         </Space>
+      </div>
+    )
+  }
+
+  if (!question) {
+    // 理论上走不到（loading=false 且无错误时应有题目），做兜底 Spinner
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <Spin size="large" tip={t('questions.loading')}>
+          <div style={{ minHeight: '200px', minWidth: '200px' }} />
+        </Spin>
       </div>
     )
   }

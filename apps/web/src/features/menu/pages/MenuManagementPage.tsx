@@ -524,7 +524,7 @@ const MenuManagementPage: React.FC = () => {
           setIconPreview('')
         }}
         width={800}
-        destroyOnClose
+        destroyOnHidden
         forceRender
       >
         <Form<MenuFormData>
@@ -621,7 +621,7 @@ const MenuManagementPage: React.FC = () => {
         }}
         onCancel={() => setBatchSortVisible(false)}
         width={800}
-        destroyOnClose
+        destroyOnHidden
       >
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
           <Typography.Paragraph style={{ color: '#4b5563', marginBottom: 0 }}>

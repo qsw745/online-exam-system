@@ -17,7 +17,31 @@ type MenuUpdate = {
   parent_id?: number | null // 未提供则不修改
   sort_order?: number // 未提供则不修改
 }
+/** 统一把 meta 转为可写入 JSON 列的参数：对象=>JSON.stringify；空/非法/空白=>null；JSON 字符串=>规范化后写入 */
+function buildMetaParam(value: any): string | null {
+  if (value == null) return null
 
+  if (typeof value === 'string') {
+    const t = value.trim()
+    if (!t) return null
+    try {
+      const parsed = JSON.parse(t)
+      return JSON.stringify(parsed)
+    } catch {
+      return null
+    }
+  }
+
+  if (typeof value === 'object') {
+    try {
+      return JSON.stringify(value)
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
 // 从 userId 推断主组织（当没传 orgId 时兜底）
 export async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
@@ -46,7 +70,6 @@ export class MenuService {
     const [rows] = await pool.execute<RowDataPacket[]>('SELECT * FROM menus ORDER BY sort_order ASC, id ASC')
     return rows as unknown as Menu[]
   }
-
   // 获取菜单树结构
   static async getMenuTree(): Promise<MenuTreeNode[]> {
     const menus = await this.getAllMenus()
@@ -76,7 +99,7 @@ export class MenuService {
     return rows.length > 0 ? (rows[0] as unknown as Menu) : null
   }
 
-  // 创建菜单
+  // 创建菜单（meta 规范化）
   static async createMenu(menuData: CreateMenuRequest): Promise<number> {
     const {
       name,
@@ -104,6 +127,8 @@ export class MenuService {
       }
     }
 
+    const metaParam = buildMetaParam(meta)
+
     const [result] = await pool.execute<ResultSetHeader>(
       `INSERT INTO menus (
         name, title, path, component, icon, parent_id, sort_order, level,
@@ -125,7 +150,7 @@ export class MenuService {
         menu_type,
         permission_code || null,
         redirect || null,
-        meta ? JSON.stringify(meta) : null,
+        metaParam, // ✅ 统一后的 meta
         description || null,
       ]
     )
@@ -133,7 +158,7 @@ export class MenuService {
     return result.insertId
   }
 
-  // 更新菜单
+  // ✅ 更新菜单（meta 规范化 & 防止非法 JSON）
   static async updateMenu(menuData: UpdateMenuRequest): Promise<boolean> {
     const { id, ...updateData } = menuData
 
@@ -141,14 +166,16 @@ export class MenuService {
     const values: any[] = []
 
     for (const [key, value] of Object.entries(updateData)) {
-      if (value !== undefined) {
-        fields.push(`${key} = ?`)
-        if (key === 'meta' && value) {
-          values.push(JSON.stringify(value))
-        } else {
-          values.push(value)
-        }
+      if (value === undefined) continue
+
+      if (key === 'meta') {
+        fields.push('meta = ?')
+        values.push(buildMetaParam(value)) // ✅ 统一序列化
+        continue
       }
+
+      fields.push(`${key} = ?`)
+      values.push(value ?? null)
     }
 
     if (fields.length === 0) {
@@ -164,13 +191,11 @@ export class MenuService {
 
   // 删除菜单
   static async deleteMenu(id: number): Promise<boolean> {
-    // 检查是否为系统菜单
     const menu = await this.getMenuById(id)
     if (!menu || menu.is_system) {
       return false
     }
 
-    // 检查是否有子菜单
     const [childRows] = await pool.execute<RowDataPacket[]>('SELECT COUNT(*) as count FROM menus WHERE parent_id = ?', [
       id,
     ])
@@ -193,7 +218,6 @@ export class MenuService {
       conn = await pool.getConnection()
       await conn.beginTransaction()
 
-      // 1) 取出涉及到的 id，构建节点映射(id,parent_id)
       const ids = Array.from(
         new Set([
           ...updates.map(u => u.id),
@@ -210,7 +234,6 @@ export class MenuService {
           rows.map(r => [r.id, { id: r.id, parent_id: r.parent_id }])
         )
 
-        // 2) 防环校验：不能把节点挂到自己的子孙下面
         const isInSubtree = (ancestorId: number, candidateId: number | null | undefined) => {
           if (candidateId == null) return false
           let cur = nodeMap.get(candidateId)
@@ -234,7 +257,6 @@ export class MenuService {
         }
       }
 
-      // 3) 逐条最小化更新（只更新给到的字段）
       for (const u of updates) {
         const sets: string[] = []
         const vals: any[] = []

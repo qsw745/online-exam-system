@@ -1,44 +1,45 @@
-import React, { lazy } from 'react'
+// apps/web/src/app/routing/componentRegistry.ts
+import { lazy, type ComponentType } from 'react'
 
-import DashboardPage from '../pages/DashboardPage'
-import AnalyticsPage from '../pages/AnalyticsPage'
-import OrgManage from '../pages/admin/OrgManage'
-import RoleManagementPage from '../pages/admin/RoleManagementPage'
-import NotFound404 from '../pages/errors/NotFound404'
+// ==== 已存在的业务页面（features） ====
+import DashboardPage from '@features/dashboard/pages/DashboardPage'
+import AnalyticsPage from '@features/analytics/pages/AnalyticsPage'
+import ProfilePage from '@features/profile/pages/ProfilePage'
+import ResultsPage from '@features/exams/pages/ResultsPage'
+import QuestionPracticePage from '@features/questions/pages/QuestionPracticePage'
+import QuestionsPage from '@features/questions/pages/QuestionsPage'
+import DiscussionPage from '@features/discussions/pages/DiscussionPage'
+import FavoritesPage from '@features/favorites/pages/FavoritesPage'
+import LeaderboardPage from '@features/leaderboard/pages/LeaderboardPage'
+import LearningProgressPage from '@features/learning-progress/pages/LearningProgressPage'
+import LogsPage from '@features/logs/pages/LogsPage'
+import NotificationsPage from '@features/notifications/pages/NotificationsPage'
+import SettingsPage from '@features/settings/pages/SettingsPage'
+import TasksPage from '@features/tasks/pages/TasksPage'
+import WrongQuestionsPage from '@features/wrong-questions/pages/WrongQuestionsPage'
+import OrgManage from '@features/orgs/pages/OrgManage'
 
-// 常规页
-// import QuestionsPage from '../pages/QuestionsPage'
-import QuestionManagementPage from '../pages/admin/QuestionManagementPage'
-import ResultsPage from '../pages/ResultsPage'
-import QuestionPracticePage from '../pages/QuestionPracticePage'
-import SettingsPage from '../pages/SettingsPage'
-import LogsPage from '../pages/LogsPage'
-import NotificationsPage from '../pages/NotificationsPage'
-import TasksPage from '../pages/TasksPage' // 原有的“任务管理”总页
-import FavoritesPage from '../pages/FavoritesPage'
-import LearningProgressPage from '../pages/LearningProgressPage'
-import WrongQuestionsPage from '../pages/WrongQuestionsPage'
-import DiscussionPage from '../pages/DiscussionPage'
-import LeaderboardPage from '../pages/LeaderboardPage'
-import ProfilePage from '../pages/ProfilePage'
+// ✅ 新增真实页
+import MyTasksPage from '@features/tasks/pages/MyTasksPage'
+import PublishTaskPage from '@features/tasks/pages/PublishTaskPage'
 
-// 懒加载示例
-const ExamListPage = lazy(() => import('../pages/ExamListPage'))
+// 菜单管理
+const MenuManagePage = lazy(() => import('@features/menu/pages/MenuManagementPage'))
 
 // 错误页
-const Error403 = lazy(() => import('../pages/errors/Forbidden403'))
-const Error404 = lazy(() => import('../pages/errors/NotFound404'))
-const Error500 = lazy(() => import('../pages/errors/ServerError500'))
+import NotFound404 from '@app/errors/NotFound404'
+const Error403 = lazy(() => import('@app/errors/Forbidden403'))
+const Error404 = lazy(() => import('@app/errors/NotFound404'))
+const Error500 = lazy(() => import('@app/errors/ServerError500'))
 
-// 菜单管理 / 用户管理
-const MenuManagePage = lazy(() => import('../pages/admin/MenuManagementPage'))
-const UserManagementPage = lazy(() => import('../pages/admin/UserManagementPage'))
+// 懒加载
+const ExamListPage = lazy(() => import('@features/exams/pages/ExamListPage'))
 
-// ⬇️ 新增：我的任务 / 发布任务页面
-const MyTasksPage = lazy(() => import('../pages/tasks/MyTasksPage'))
-const PublishTaskPage = lazy(() => import('../pages/tasks/PublishTaskPage'))
+// 暂未实现/找不到原文件的页面
+const RoleManagementPage = NotFound404
+const UserManagementPage = NotFound404
 
-export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
+export const ComponentRegistry: Record<string, ComponentType<any>> = {
   // 基础
   dashboard: DashboardPage,
   analytics: AnalyticsPage,
@@ -50,7 +51,7 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   'question-practice': QuestionPracticePage,
 
   // 题库
-  questions: QuestionManagementPage,
+  questions: QuestionsPage,
 
   // 用户/系统
   'user-manage': UserManagementPage,
@@ -59,7 +60,7 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   settings: SettingsPage,
   logs: LogsPage,
   notifications: NotificationsPage,
-  tasks: TasksPage, // 原“任务管理”
+  tasks: TasksPage,
   'menu-manage': MenuManagePage,
 
   // 学习中心
@@ -69,11 +70,11 @@ export const ComponentRegistry: Record<string, React.ComponentType<any>> = {
   discussion: DiscussionPage,
   leaderboard: LeaderboardPage,
 
-  // 新增映射
-  'task-my': MyTasksPage, // 我的任务
-  'task-publish': PublishTaskPage, // 发布任务
+  // ✅ 我的任务 / 发布任务（供动态路由用的 key）
+  'task-my': MyTasksPage,
+  'task-publish': PublishTaskPage,
 
-  // 错误页管理
+  // 错误页
   errors: NotFound404,
   'errors-403': Error403,
   'errors-404': Error404,

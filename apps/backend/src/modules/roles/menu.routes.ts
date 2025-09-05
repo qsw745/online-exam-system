@@ -18,13 +18,13 @@ const wrap =
 const router = Router()
 
 // ---- 菜单（公共查询）----
-router.get('/menus', wrap(MenuController.getAllMenus))
+router.get('/', wrap(MenuController.getAllMenus))
 router.get('/menus/tree', wrap(MenuController.getMenuTree))
 router.get('/menus/:id', wrap(MenuController.getMenuById))
 router.post('/menus', authenticateToken, wrap(MenuController.createMenu))
-router.put('/menus/:id', authenticateToken, wrap(MenuController.updateMenu))
+router.put('/:id', authenticateToken, wrap(MenuController.updateMenu))
 router.delete('/menus/:id', authenticateToken, wrap(MenuController.deleteMenu))
-router.post('/menus/batch-sort', authenticateToken, wrap(MenuController.batchUpdateMenuSort))
+router.post('/batch-sort', authenticateToken, wrap(MenuController.batchUpdateMenuSort))
 
 // ---- 角色（需要登录）----
 router.get('/roles', authenticateToken, wrap(MenuController.getAllRoles))

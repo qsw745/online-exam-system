@@ -2,41 +2,8 @@ import { IconRenderer } from '@shared/components/IconRenderer'
 import LoadingSpinner from '@shared/components/LoadingSpinner'
 import { MenuItem, useMenuPermissions } from '@shared/hooks/useMenuPermissions'
 import { ChevronDown, ChevronRight } from 'lucide-react'
-import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
-
-// 图标映射（兼容旧数据里的字符串图标）
-const iconMap: Record<string, React.ReactNode> = {
-  home: '🏠',
-  users: '👥',
-  user: '👤',
-  questions: '❓',
-  'question-circle': '❓',
-  papers: '📄',
-  'file-text': '📄',
-  tasks: '⏰',
-  calendar: '📅',
-  analytics: '📊',
-  'bar-chart': '📊',
-  settings: '⚙️',
-  setting: '⚙️',
-  menus: '📋',
-  menu: '📋',
-  dashboard: '📊',
-  exams: '📝',
-  exam: '📝',
-  results: '🏆',
-  trophy: '🏆',
-  profile: '👤',
-  book: '📚',
-  edit: '✏️',
-  'unordered-list': '📋',
-  bell: '🔔',
-  heart: '❤️',
-  'exclamation-circle': '⚠️',
-  message: '💬',
-  'line-chart': '📈',
-}
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 
 interface DynamicSidebarProps {
   className?: string
@@ -44,144 +11,303 @@ interface DynamicSidebarProps {
   onToggle?: () => void
 }
 
+const LS_OPEN_KEYS = 'sidebar.openKeys.v1'
+
+/** 动态段判定，如 /exams/:id 或 /foo/[id] 或包含 {} */
+const hasDynamicSegment = (p?: string) => !!p && /[:\[\{]/.test(p)
+
+/** 根据当前路径判断菜单或后代是否命中 */
+function isActiveByPath(menu: MenuItem, pathname: string): boolean {
+  if (menu.path && (pathname === menu.path || pathname.startsWith(menu.path + '/'))) return true
+  if (Array.isArray(menu.children)) return menu.children.some(c => isActiveByPath(c, pathname))
+  return false
+}
+
+/** 找到所有命中的祖先 id，用于自动展开 */
+function collectActiveAncestors(menus: MenuItem[], pathname: string, stack: number[] = [], out: number[] = []) {
+  for (const m of menus) {
+    const next = [...stack, m.id]
+    if (isActiveByPath(m, pathname)) out.push(...stack)
+    if (m.children?.length) collectActiveAncestors(m.children, pathname, next, out)
+  }
+  return Array.from(new Set(out))
+}
+
+/** 获取第一个有效子菜单 path */
+function firstValidChildPath(menu: MenuItem): string | undefined {
+  if (!menu.children?.length) return undefined
+  for (const c of menu.children) {
+    if (c.path && !hasDynamicSegment(c.path)) return c.path
+    const deep = firstValidChildPath(c)
+    if (deep) return deep
+  }
+  return undefined
+}
+
+/** 计算父级点击时应该跳到哪里 */
+function resolveParentTarget(menu: MenuItem): string | undefined {
+  // 先跳子级的第一个有效 path
+  const child = firstValidChildPath(menu)
+  if (child) return child
+  // 父级自身 path 仅当不是动态段时可用
+  if (menu.path && !hasDynamicSegment(menu.path)) return menu.path
+  return undefined
+}
+
+/** 使整行命中：无子菜单时把整行包成 NavLink */
+function RowLink({
+  to,
+  children,
+  style,
+  onClick,
+}: {
+  to: string
+  children: React.ReactNode
+  style?: React.CSSProperties
+  onClick?: React.MouseEventHandler
+}) {
+  return (
+    <NavLink
+      to={to}
+      onClick={onClick}
+      style={({ isActive }) => ({
+        display: 'flex',
+        alignItems: 'center',
+        padding: '10px 12px',
+        textDecoration: 'none',
+        color: isActive ? '#1976d2' : '#374151',
+        backgroundColor: isActive ? '#e3f2fd' : 'transparent',
+        borderRight: isActive ? '2px solid #1976d2' : '2px solid transparent',
+        borderRadius: 8,
+        transition: 'background-color 0.15s ease',
+        ...style,
+      })}
+      onMouseEnter={e => {
+        const el = e.currentTarget as HTMLElement
+        if ((el.style.color || '').indexOf('#1976d2') === -1) el.style.backgroundColor = '#f5f5f5'
+      }}
+      onMouseLeave={e => {
+        const el = e.currentTarget as HTMLElement
+        if ((el.style.color || '').indexOf('#1976d2') === -1) el.style.backgroundColor = 'transparent'
+      }}
+    >
+      {children}
+    </NavLink>
+  )
+}
+
 export default function DynamicSidebar({ className = '', collapsed = false, onToggle }: DynamicSidebarProps) {
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
-  const [expandedMenus, setExpandedMenus] = useState<Set<number>>(new Set())
+  const navigate = useNavigate()
 
-  // 切换菜单展开状态
-  const toggleMenu = (menuId: number) => {
-    const newExpanded = new Set(expandedMenus)
-    if (newExpanded.has(menuId)) newExpanded.delete(menuId)
-    else newExpanded.add(menuId)
-    setExpandedMenus(newExpanded)
+  /** 展开项（持久化） */
+  const [openKeys, setOpenKeys] = useState<Set<number>>(() => {
+    try {
+      const raw = localStorage.getItem(LS_OPEN_KEYS)
+      if (!raw) return new Set()
+      const arr: number[] = JSON.parse(raw)
+      return new Set(arr)
+    } catch {
+      return new Set()
+    }
+  })
+
+  /** 点击节流，防止误触与重复跳转 */
+  const lockRef = useRef(false)
+  const throttled = useCallback((fn: () => void) => {
+    if (lockRef.current) return
+    lockRef.current = true
+    fn()
+    setTimeout(() => {
+      lockRef.current = false
+    }, 200)
+  }, [])
+
+  /** 展开/收起并持久化 */
+  const toggleOpen = (id: number) => {
+    const next = new Set(openKeys)
+    next.has(id) ? next.delete(id) : next.add(id)
+    setOpenKeys(next)
+    localStorage.setItem(LS_OPEN_KEYS, JSON.stringify(Array.from(next)))
   }
 
-  // 检查菜单是否激活
-  const isMenuActive = (menu: MenuItem): boolean => {
-    if (location.pathname === menu.path) return true
-    if (menu.children) return menu.children.some(child => isMenuActive(child))
-    return false
-  }
+  /** 路由变化：自动展开命中祖先 */
+  useEffect(() => {
+    const ancestors = collectActiveAncestors(menus, location.pathname)
+    if (ancestors.length) {
+      const merged = new Set([...openKeys, ...ancestors])
+      setOpenKeys(merged)
+      localStorage.setItem(LS_OPEN_KEYS, JSON.stringify(Array.from(merged)))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, menus])
 
-  const getMenuIcon = (menu: MenuItem) => <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
+  /** 路由变化：如果当前正落在“仅父级 path（或动态段父级）”，自动跳到其第一个有效子菜单 */
+  useEffect(() => {
+    // 深度优先查找与 pathname 完全相等的菜单
+    const stack: MenuItem[] = [...menus]
+    while (stack.length) {
+      const m = stack.shift()!
+      if (m.path === location.pathname && m.children?.length) {
+        const target = resolveParentTarget(m)
+        if (target && target !== location.pathname) {
+          navigate(target, { replace: true })
+        }
+        break
+      }
+      if (m.children?.length) stack.push(...m.children)
+    }
+  }, [location.pathname, menus, navigate])
 
-  // 渲染菜单项
-  const renderMenuItem = (menu: MenuItem, level = 0) => {
-    const hasChildren = !!(menu.children && menu.children.length > 0)
-    const isActive = isMenuActive(menu)
-    const isExpanded = expandedMenus.has(menu.id)
-    const indent = level * 16
+  const isActiveMemo = useCallback((m: MenuItem) => isActiveByPath(m, location.pathname), [location.pathname])
+
+  const renderRow = (menu: MenuItem, level = 0): React.ReactNode => {
+    const hasChildren = !!menu.children?.length
+    const isOpen = openKeys.has(menu.id)
+    const isActive = isActiveMemo(menu)
+    const indent = collapsed ? 0 : level * 14
+
+    const Icon = (
+      <span
+        style={{
+          width: 20,
+          height: 20,
+          marginRight: collapsed ? 0 : 12,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
+      </span>
+    )
+
+    // —— 无子菜单：整行可点 —— //
+    if (!hasChildren) {
+      const to = menu.path || '/'
+      return (
+        <RowLink key={menu.id} to={to} onClick={() => throttled(() => {})} style={{ paddingLeft: 12 + indent }}>
+          {Icon}
+          {!collapsed && <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{menu.title}</span>}
+        </RowLink>
+      )
+    }
+
+    // —— 有子菜单：标题跳“安全目标”，箭头仅负责展开 —— //
+    const safeTarget = resolveParentTarget(menu)
 
     return (
       <div key={menu.id}>
-        {/* 菜单项 */}
         <div
+          role="group"
+          aria-expanded={isOpen}
           style={{
             display: 'flex',
             alignItems: 'center',
-            padding: '8px 12px',
-            paddingLeft: `${12 + indent}px`,
-            borderRadius: '8px',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            backgroundColor: isActive ? '#e3f2fd' : 'transparent',
+            padding: '10px 12px',
+            paddingLeft: 12 + indent,
+            borderRadius: 8,
+            cursor: 'default',
             color: isActive ? '#1976d2' : '#374151',
-            borderRight: isActive ? '2px solid #1976d2' : 'none',
-          }}
-          onMouseEnter={e => {
-            if (!isActive) e.currentTarget.style.backgroundColor = '#f5f5f5'
-          }}
-          onMouseLeave={e => {
-            if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
-          }}
-          onClick={() => {
-            if (hasChildren) toggleMenu(menu.id)
+            backgroundColor: isActive ? '#e3f2fd' : 'transparent',
+            borderRight: isActive ? '2px solid #1976d2' : '2px solid transparent',
+            transition: 'background-color 0.15s ease',
           }}
         >
-          {/* 图标 */}
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              marginRight: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
-          </span>
+          {Icon}
 
-          {/* 菜单名称/链接 */}
           {!collapsed && (
-            <>
-              {hasChildren ? (
-                <span style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>{menu.title}</span>
-              ) : (
-                <Link
-                  to={menu.path ?? '/'} // 兜底，避免传入 undefined
-                  style={{
-                    flex: 1,
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    textDecoration: 'none',
-                    color: 'inherit',
-                  }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {menu.title}
-                </Link>
-              )}
+            <button
+              type="button"
+              onClick={() => {
+                if (!safeTarget) {
+                  // 没有可跳的目标则只展开
+                  throttled(() => toggleOpen(menu.id))
+                  return
+                }
+                throttled(() => navigate(safeTarget))
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  if (!safeTarget) throttled(() => toggleOpen(menu.id))
+                  else throttled(() => navigate(safeTarget))
+                }
+              }}
+              title={menu.title}
+              style={{
+                flex: 1,
+                textAlign: 'left',
+                background: 'transparent',
+                border: 'none',
+                fontSize: 14,
+                fontWeight: 600,
+                color: 'inherit',
+                padding: 0,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              {menu.title}
+            </button>
+          )}
 
-              {/* 展开/收起图标 */}
-              {hasChildren && (
-                <span style={{ flexShrink: 0, marginLeft: 8 }}>
-                  {isExpanded ? (
-                    <ChevronDown style={{ width: 16, height: 16 }} />
-                  ) : (
-                    <ChevronRight style={{ width: 16, height: 16 }} />
-                  )}
-                </span>
-              )}
-            </>
+          {!collapsed && (
+            <button
+              type="button"
+              aria-label={isOpen ? '收起' : '展开'}
+              onClick={() => throttled(() => toggleOpen(menu.id))}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  throttled(() => toggleOpen(menu.id))
+                }
+              }}
+              style={{
+                marginLeft: 8,
+                padding: 4,
+                borderRadius: 6,
+                border: 'none',
+                background: 'transparent',
+                cursor: 'pointer',
+                lineHeight: 0,
+              }}
+            >
+              {isOpen ? <ChevronDown width={16} height={16} /> : <ChevronRight width={16} height={16} />}
+            </button>
           )}
         </div>
 
-        {/* 子菜单 */}
-        {hasChildren && !collapsed && isExpanded && (
-          <div style={{ marginTop: 4 }}>{menu.children!.map(child => renderMenuItem(child, level + 1))}</div>
+        {!collapsed && isOpen && (
+          <div style={{ marginTop: 4 }}>{menu.children!.map(child => renderRow(child, level + 1))}</div>
         )}
       </div>
     )
   }
 
-  if (loading) {
-    return (
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16,
-          height: '100%',
-        }}
-      >
-        <LoadingSpinner size="sm" />
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div style={{ padding: 16 }}>
-        <div style={{ textAlign: 'center', color: '#dc2626' }}>
-          <p style={{ fontSize: 14 }}>菜单加载失败</p>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{error}</p>
+  const content = useMemo(() => {
+    if (loading) {
+      return (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, height: '100%' }}>
+          <LoadingSpinner size="sm" />
         </div>
-      </div>
-    )
-  }
+      )
+    }
+    if (error) {
+      return (
+        <div style={{ padding: 16 }}>
+          <div style={{ textAlign: 'center', color: '#dc2626' }}>
+            <p style={{ fontSize: 14 }}>菜单加载失败</p>
+            <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{error}</p>
+          </div>
+        </div>
+      )
+    }
+    return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{menus.map(m => renderRow(m))}</div>
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, error, menus, openKeys, collapsed, location.pathname])
 
   return (
     <aside
@@ -195,7 +321,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
         borderRight: '1px solid #e5e7eb',
       }}
     >
-      {/* 侧边栏头部 */}
       <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {!collapsed && <h2 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>在线考试系统</h2>}
@@ -210,12 +335,8 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
                 cursor: 'pointer',
                 transition: 'background-color 0.2s',
               }}
-              onMouseEnter={e => {
-                e.currentTarget.style.backgroundColor = '#f3f4f6'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f3f4f6')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
               aria-label={collapsed ? '展开菜单' : '收起菜单'}
               title={collapsed ? '展开菜单' : '收起菜单'}
             >
@@ -232,17 +353,13 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
         </div>
       </div>
 
-      {/* 菜单列表 */}
-      <nav style={{ padding: 16, flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 80px)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {menus.map(menu => renderMenuItem(menu))}
-        </div>
-      </nav>
+      <nav style={{ padding: 16, flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 80px)' }}>{content}</nav>
     </aside>
   )
 }
 
-// 移动端菜单抽屉组件
+/* ===================== 移动端抽屉 ===================== */
+
 interface MobileSidebarProps {
   isOpen: boolean
   onClose: () => void
@@ -252,32 +369,29 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const { menus, loading } = useMenuPermissions()
   const location = useLocation()
 
-  // 检查菜单是否激活
-  const isMenuActive = (menu: MenuItem): boolean => location.pathname === menu.path
-
-  // 获取菜单图标（兼容旧字符串图标）
-  const getMenuIcon = (menu: MenuItem): React.ReactNode => {
-    if (menu.icon) return iconMap[menu.icon] || menu.icon
-    return iconMap['dashboard']
-  }
-
-  // 渲染移动端菜单项
-  const renderMobileMenuItem = (menu: MenuItem) => {
-    const isActive = isMenuActive(menu)
-
+  const renderItem = (menu: MenuItem) => {
+    const active = isActiveByPath(menu, location.pathname)
+    const to = menu.path || '/'
     return (
-      <Link
+      <NavLink
         key={menu.id}
-        to={menu.path ?? '/'} // 兜底，避免 undefined 传入 To
+        to={to}
         onClick={onClose}
-        className={`
-          flex items-center px-4 py-3 border-b border-gray-100 transition-colors
-          ${isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}
-        `}
+        style={({ isActive }) => ({
+          display: 'flex',
+          alignItems: 'center',
+          padding: '12px 16px',
+          borderBottom: '1px solid #f3f4f6',
+          textDecoration: 'none',
+          color: isActive || active ? '#1d4ed8' : '#374151',
+          backgroundColor: isActive || active ? '#eff6ff' : '#fff',
+        })}
       >
-        <span className="w-6 h-6 mr-3 text-lg">{getMenuIcon(menu)}</span>
+        <span className="w-6 h-6 mr-3 text-lg" style={{ width: 24, height: 24, marginRight: 12 }}>
+          <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
+        </span>
         <span className="text-sm font-medium">{menu.title}</span>
-      </Link>
+      </NavLink>
     )
   }
 
@@ -285,12 +399,8 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
 
   return (
     <>
-      {/* 遮罩层 */}
       <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={onClose} />
-
-      {/* 侧边栏 */}
       <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg z-50 md:hidden">
-        {/* 头部 */}
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900">菜单</h2>
@@ -303,19 +413,13 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
             </button>
           </div>
         </div>
-
-        {/* 菜单列表 */}
         <nav className="overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center p-4">
               <LoadingSpinner size="sm" />
             </div>
           ) : (
-            menus.map(menu => {
-              // 只渲染顶级菜单
-              if (!menu.parent_id) return renderMobileMenuItem(menu)
-              return null
-            })
+            menus.filter(m => !m.parent_id).map(renderItem)
           )}
         </nav>
       </div>
