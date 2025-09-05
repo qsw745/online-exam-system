@@ -359,7 +359,7 @@ export const addUsersToRole = async (req: AuthRequest, res: Response): Promise<v
     }
 
     const { userIds }: { userIds: number[] } = req.body
-
+    console.log('===========userIds===========', userIds)
     if (!Array.isArray(userIds) || userIds.length === 0) {
       res.status(400).json({ success: false, message: '请选择要添加的用户' })
       return

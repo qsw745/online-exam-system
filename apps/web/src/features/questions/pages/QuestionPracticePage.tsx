@@ -15,13 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import {
-  favorites as favoritesApi,
-  isSuccess,
-  questions as questionsApi,
-  wrongQuestions,
-  type ApiResult,
-} from '@shared/api/http'
+import { favoritesApi, isSuccess, questions as questionsApi, wrongQuestions, type ApiResult } from '@shared/api/http'
 import { useAuth } from '@shared/contexts/AuthContext'
 import { useLanguage } from '@shared/contexts/LanguageContext'
 
@@ -198,9 +192,10 @@ export default function QuestionPracticePage() {
 
       // 收藏状态（统一走 /favorites）
       try {
-        const favResponse = await favoritesApi.list()
-        const list: any[] = favResponse.data?.favorites ?? []
-        setIsFavorited(list.some((f: any) => String(f.question_id) === String(questionData.id)))
+        const favStatus = await favoritesApi.checkQuestion(questionData.id)
+        if (isSuccess(favStatus)) {
+          setIsFavorited(!!favStatus.data?.is_favorited)
+        }
       } catch {
         /* ignore */
       }
@@ -280,18 +275,22 @@ export default function QuestionPracticePage() {
     try {
       if (isFavorited) {
         const r = await favoritesApi.remove(question.id)
-        if (!isSuccess(r)) throw new Error(r.error)
+        if (!isSuccess(r)) throw new Error((r as any).error || '取消收藏失败')
         setIsFavorited(false)
         message.success('已取消收藏')
       } else {
-        const r = await favoritesApi.add(question.id)
-        if (!isSuccess(r)) throw new Error(r.error)
+        const r = await favoritesApi.add(
+          question.id,
+          // 作为可选标题，避免太长
+          (question.content || '').slice(0, 100)
+        )
+        if (!isSuccess(r)) throw new Error((r as any).error || '收藏失败')
         setIsFavorited(true)
         message.success('已添加到收藏')
       }
-    } catch (e) {
-      console.error(e)
-      message.error('操作失败')
+    } catch (e: any) {
+      console.error('[favorite-toggle]', e)
+      message.error(e?.message || '操作失败')
     }
   }
 

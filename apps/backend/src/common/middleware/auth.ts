@@ -1,236 +1,160 @@
-// apps/backend/src/middleware/auth.middleware.ts
-import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
+// apps/backend/src/common/middleware/auth.ts
 import { pool } from '@config/database.js'
+import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import jwt from 'jsonwebtoken'
 import type { RowDataPacket } from 'mysql2/promise'
-import type { ApiResponse } from 'types/response.js'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const getJwtSecret = () => process.env.JWT_SECRET || 'dev-secret'
 
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id: number
-        username: string
-        email: string
-        role?: 'student' | 'teacher' | 'admin' | null
-      } | null
-      auth?: {
-        userId: number | null
-        orgId: number | null
-        isAdminInOrg: boolean
-      }
-    }
-  }
-}
-
-/** 根据 userId 取主组织 */
 async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
-    `SELECT org_id
-       FROM user_organizations
-      WHERE user_id=?
-      ORDER BY is_primary DESC
-      LIMIT 1`,
+    `SELECT org_id FROM user_organizations WHERE user_id=? ORDER BY is_primary DESC LIMIT 1`,
     [userId]
   )
   return (row as any)?.org_id ?? null
 }
 
-/** 判断用户在 org 是否 admin（基于 user_org_roles + roles.code='admin'） */
+export async function resolveOrgId(req: Request, userId: number): Promise<number | null> {
+  const p = (req.params as any)?.orgId
+  if (p != null && String(p).trim() !== '' && !Number.isNaN(Number(p))) return Number(p)
+  const hdr = req.header('x-org-id')
+  if (hdr && hdr.trim() !== '' && !Number.isNaN(Number(hdr))) return Number(hdr)
+  return getPrimaryOrgId(userId)
+}
+
 async function isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
   const [[row]] = await pool.query<RowDataPacket[]>(
     `SELECT 1
        FROM user_org_roles uor
        JOIN roles r ON r.id = uor.role_id
-      WHERE uor.user_id = ?
-        AND uor.org_id  = ?
-        AND r.code='admin'
-        AND r.is_disabled = 0
+      WHERE uor.user_id=? AND uor.org_id=? AND r.code='admin' AND r.is_disabled=0
       LIMIT 1`,
     [userId, orgId]
   )
   return !!row
 }
 
-/** 解析当前请求要使用的 orgId：优先 URL :orgId → header x-org-id → 用户主组织 */
-async function resolveOrgId(req: Request, userId: number): Promise<number | null> {
-  const paramVal = (req.params as any)?.orgId
-  if (paramVal != null && paramVal !== '' && !Number.isNaN(Number(paramVal))) {
-    return Number(paramVal)
-  }
-  const hdr = req.header('x-org-id')
-  if (hdr && hdr.trim() !== '' && !Number.isNaN(Number(hdr))) {
-    return Number(hdr)
-  }
-  return getPrimaryOrgId(userId)
-}
-
-/**
- * 认证：
- * - 校验 JWT，加载 DB 用户（以数据库为准）
- * - 解析 orgId（URL :orgId → 头 x-org-id → 主组织）
- * - 计算是否为该 org 的 admin，并挂到 req.auth
- */
-export const authenticateToken = async (
-  req: Request,
-  res: Response<ApiResponse<null> | any>,
-  next: NextFunction
-): Promise<void> => {
-  try {
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(' ')[1]
-    if (!token) {
-      res.status(401).json({ success: false, error: '访问令牌缺失' })
-      return
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number
+        username?: string
+        email?: string
+        role?: string | null
+        role_ids?: number[]
+        roles?: Array<{ id: number; code: string }>
+        is_admin?: boolean
+        is_super_admin?: boolean
+        isAdmin?: boolean
+        isSuperAdmin?: boolean
+      } | null
+      auth?: { userId: number | null; orgId: number | null; isAdminInOrg: boolean }
     }
-
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number }
-    if (!decoded?.id || Number.isNaN(decoded.id) || decoded.id <= 0) {
-      res.status(401).json({ success: false, error: '无效的访问令牌' })
-      return
-    }
-
-    // 以数据库为准拿用户信息
-    const [users] = await pool.query<RowDataPacket[]>(
-      'SELECT id, username, email, role FROM users WHERE id=? LIMIT 1',
-      [decoded.id]
-    )
-    if (users.length === 0) {
-      res.status(401).json({ success: false, error: '用户不存在' })
-      return
-    }
-    const u = users[0] as any
-
-    const orgId = await resolveOrgId(req, u.id)
-    const adminFlag = orgId ? await isUserAdminInOrg(u.id, orgId) : false
-
-    req.user = { id: u.id, username: u.username, email: u.email, role: (u.role as any) ?? null }
-    req.auth = { userId: u.id, orgId, isAdminInOrg: adminFlag }
-
-    next()
-  } catch (error: any) {
-    if (error?.name === 'JsonWebTokenError') {
-      res.status(401).json({ success: false, error: '无效的访问令牌' })
-      return
-    }
-    if (error?.name === 'TokenExpiredError') {
-      res.status(401).json({ success: false, error: '访问令牌已过期' })
-      return
-    }
-    console.error('authenticateToken error:', error)
-    res.status(500).json({ success: false, error: '服务器内部错误' })
   }
 }
 
-/**
- * 可选认证：有 token 则解析，无 token 不报错
- */
-export const optionalAuth = async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
+/** 可选认证：有 token 就验证并挂载 user/roles；无 token 当匿名 */
+export const optionalAuth: RequestHandler = async (req, _res, next) => {
   try {
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(' ')[1]
+    const token = (req.headers['authorization'] || '').split(' ')[1]
     if (!token) {
       req.user = null
       req.auth = { userId: null, orgId: null, isAdminInOrg: false }
-      next()
-      return
+      return next()
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: number }
-    if (!decoded?.id) {
+    const payload: any = jwt.verify(token, getJwtSecret())
+    const uid = Number(payload?.id)
+    if (!Number.isFinite(uid) || uid <= 0) {
       req.user = null
       req.auth = { userId: null, orgId: null, isAdminInOrg: false }
-      next()
-      return
+      return next()
     }
 
-    const [users] = await pool.query<RowDataPacket[]>(
-      'SELECT id, username, email, role FROM users WHERE id=? LIMIT 1',
-      [decoded.id]
-    )
-    if (users.length === 0) {
+    const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, username, email, role FROM users WHERE id=? LIMIT 1`, [
+      uid,
+    ])
+    if (rows.length === 0) {
       req.user = null
       req.auth = { userId: null, orgId: null, isAdminInOrg: false }
-      next()
-      return
+      return next()
     }
 
-    const u = users[0] as any
+    const u = rows[0] as any
+    const tokenRoles = Array.isArray(payload?.roles)
+      ? payload.roles.map((r: any) => ({ id: Number(r?.id), code: String(r?.code || '').toLowerCase() }))
+      : []
+    const tokenRoleIds = Array.isArray(payload?.role_ids)
+      ? payload.role_ids.map((n: any) => Number(n)).filter(Number.isFinite)
+      : []
+
+    const hasAdminCode = tokenRoles.some(r => r.code === 'admin' || r.code === 'super_admin' || r.code === 'superadmin')
+    const hasAdminId = tokenRoleIds.includes(1) || tokenRoleIds.includes(2)
+
+    req.user = {
+      id: u.id,
+      username: u.username,
+      email: u.email,
+      role: (u.role as any) ?? (hasAdminCode || hasAdminId ? 'admin' : null),
+      role_ids: tokenRoleIds.length ? tokenRoleIds : undefined,
+      roles: tokenRoles.length ? tokenRoles : undefined,
+      is_admin: hasAdminCode || hasAdminId || undefined,
+      is_super_admin: tokenRoleIds.includes(1) || undefined,
+      isAdmin: hasAdminCode || hasAdminId || undefined,
+      isSuperAdmin: tokenRoleIds.includes(1) || undefined,
+    }
+
     const orgId = await resolveOrgId(req, u.id)
-    const adminFlag = orgId ? await isUserAdminInOrg(u.id, orgId) : false
+    const isAdmin = orgId ? await isUserAdminInOrg(u.id, orgId) : false
+    req.auth = { userId: u.id, orgId, isAdminInOrg: isAdmin }
 
-    req.user = { id: u.id, username: u.username, email: u.email, role: (u.role as any) ?? null }
-    req.auth = { userId: u.id, orgId, isAdminInOrg: adminFlag }
     next()
   } catch {
+    // 验签失败 → 匿名
     req.user = null
     req.auth = { userId: null, orgId: null, isAdminInOrg: false }
     next()
   }
 }
 
-/**
- * 授权守卫（支持全局/组织角色）：
- * - 若 users.role 在允许列表 → 放行（全局直通）
- * - 若当前 org 是 admin → 放行（组织直通）
- * - 否则到 user_org_roles/roles 检查是否在当前 org 拥有任一允许的 roles.code
- */
-export const requireRole = (roles: Array<'student' | 'teacher' | 'admin'> | string[]) => {
-  const allowed = roles as string[]
-
-  return async (req: Request, res: Response<ApiResponse<null>>, next: NextFunction) => {
-    try {
-      if (!req.user?.id) {
-        res.status(401).json({ success: false, error: '请先登录' })
-        return
-      }
-
-      const uid = req.user.id
-      const globalRole = req.user.role || null
-
-      // 1) 全局角色直通
-      if (globalRole && allowed.includes(globalRole)) {
-        next()
-        return
-      }
-
-      // 2) 组织 admin 直通
-      if (req.auth?.isAdminInOrg) {
-        next()
-        return
-      }
-
-      // 3) 组织角色匹配（teacher/admin 等）
-      const orgId = await resolveOrgId(req, uid)
-      if (!orgId) {
-        res.status(403).json({ success: false, error: '权限不足（缺少 orgId）' })
-        return
-      }
-
-      const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT r.code
-           FROM user_org_roles uor
-           JOIN roles r ON r.id=uor.role_id
-          WHERE uor.user_id=? AND uor.org_id=? AND r.is_disabled=0`,
-        [uid, orgId]
-      )
-      const codes = (rows as any[]).map(r => String(r.code))
-      const ok = codes.some(c => allowed.includes(c))
-
-      if (ok) {
-        next()
-        return
-      }
-
-      res.status(403).json({ success: false, error: '权限不足，需要指定的角色权限' })
-    } catch (e) {
-      console.error('requireRole error:', e)
-      res.status(500).json({ success: false, error: '权限检查失败' })
+/** 强制认证：需要登录 */
+export const authenticateToken: RequestHandler = async (req, res, next) => {
+  const token = (req.headers['authorization'] || '').split(' ')[1]
+  if (!token) return res.status(401).json({ success: false, error: '访问令牌缺失' })
+  try {
+    // 增加 30s 容错，避免轻微时钟漂移导致“刚好过期就掉线”
+    jwt.verify(token, getJwtSecret(), { clockTolerance: 30 })
+    next()
+  } catch (e: any) {
+    if (e?.name === 'TokenExpiredError') {
+      return res.status(401).json({ success: false, error: '访问令牌已过期' })
     }
+    return res.status(401).json({ success: false, error: '无效的访问令牌' })
   }
 }
 
-/** 兼容导出：某些地方可能还在 import { auth } */
-export const auth = authenticateToken
+/** ✅ 兼容旧路由所需的 requireRole（允许 admin/super_admin 或指定角色 code ） */
+export function requireRole(allowed: string[] = []): RequestHandler {
+  const allow = new Set(allowed.map(s => String(s || '').toLowerCase()))
+  return (req: Request, res: Response, next: NextFunction) => {
+    const u: any = (req as any).user
+    if (!u?.id) return res.status(401).json({ success: false, message: '请先登录' })
+
+    // 全局 admin 直通
+    const isGlobalAdmin = !!(u.is_admin || u.isAdmin || u.is_super_admin || u.isSuperAdmin)
+    const hasAdminCode =
+      Array.isArray(u.roles) &&
+      u.roles.some((r: any) => ['admin', 'super_admin', 'superadmin'].includes(String(r?.code || '').toLowerCase()))
+    if (isGlobalAdmin || hasAdminCode) return next()
+
+    // 角色 code 命中
+    const codes = new Set<string>()
+    if (u.role) codes.add(String(u.role).toLowerCase())
+    if (Array.isArray(u.roles)) u.roles.forEach((r: any) => r?.code && codes.add(String(r.code).toLowerCase()))
+    const hit = Array.from(codes).some(c => allow.has(c))
+    if (hit) return next()
+
+    return res.status(403).json({ success: false, message: '权限不足，需要指定的角色权限' })
+  }
+}

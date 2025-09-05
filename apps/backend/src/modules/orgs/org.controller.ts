@@ -1,10 +1,10 @@
 // apps/backend/src/modules/orgs/org.controller.ts
+import { pool } from '@config/database.js'
 import type { Response } from 'express'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '@config/database.js'
 
 // ✅ 修正：日志服务位于 infrastructure/logging
-import { LoggerService } from '../../infrastructure/logging/logger.js'
+import { LoggerService  } from '@services/logger.service.js'
 
 // 类型（ESM 需显式 .js）
 import type { AuthRequest } from '../../types/auth.js'
@@ -121,7 +121,9 @@ export const OrgController = {
   /** 详情 */
   async getById(req: AuthRequest, res: Response<ApiResponse<IOrg>>) {
     try {
-      const id = Number(req.params.id)
+      console.log('req.params--------------', req.query)
+      const id = Number(req.query.orgId)
+      console.log('======id=======', id)
       if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: '无效的组织ID' })
 
       const [rows] = await pool.query<IOrg[]>(

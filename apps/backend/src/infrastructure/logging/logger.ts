@@ -1,252 +1,120 @@
-// apps/backend/src/services/logger.service.ts
-import { pool } from '@config/database.js'
-import { ResultSetHeader } from 'mysql2'
+import path from 'node:path'
+import fs from 'node:fs'
+import winston from 'winston'
+import 'winston-daily-rotate-file'
 
-export interface UserLogData {
-  userId?: number
-  username?: string // 可选用户名
-  action: string
-  resourceType?: string
-  resourceId?: number
-  details?: any
-  ipAddress?: string
-  userAgent?: string
+const svcName = process.env.SVC_NAME || 'backend'
+const LOG_DIR = process.env.LOG_DIR || path.resolve(process.cwd(), 'logs')
+if (!fs.existsSync(LOG_DIR)) fs.mkdirSync(LOG_DIR, { recursive: true })
+
+// 统一时间格式（本地时区）
+export function formatTime(d = new Date()): string {
+  const pad = (n: number) => (n < 10 ? '0' + n : '' + n)
+  const Y = d.getFullYear(),
+    M = pad(d.getMonth() + 1),
+    D = pad(d.getDate())
+  const h = pad(d.getHours()),
+    m = pad(d.getMinutes()),
+    s = pad(d.getSeconds())
+  return `${Y}-${M}-${D} ${h}:${m}:${s}`
 }
 
-export interface SystemLogData {
-  level: 'debug' | 'info' | 'warn' | 'error' | 'fatal'
-  module: string
-  message: string
-  details?: any
-  stackTrace?: string
+// 多行友好 Console 格式（含堆栈、缩进后的 meta）
+const prettyConsole = winston.format.printf(info => {
+  const { level } = info
+  const ts = info.timestamp || formatTime()
+  const msg = info.message
+  const stack = (info as any).stack
+  // 去掉我们注入的内部字段避免双重输出
+  const { timestamp, level: _l, message: _m, ...meta } = info as any
+
+  const hasMeta = Object.keys(meta || {}).length > 0
+  const metaStr = hasMeta ? JSON.stringify(meta, null, 2) : ''
+  const lines: string[] = [`[${ts}] ${level}: ${msg}`]
+  if (stack) lines.push(stack)
+  if (hasMeta) lines.push(metaStr)
+  return lines.join('\n')
+})
+
+// Console Transport：彩色 + 错误堆栈
+const consoleTransport = new winston.transports.Console({
+  level: process.env.LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.colorize(),
+    winston.format.timestamp({ format: formatTime }),
+    winston.format.errors({ stack: true }),
+    winston.format.splat(),
+    prettyConsole
+  ),
+})
+
+// File（按天切分，JSON），用于检索/对接 ELK
+const fileCommon = {
+  dirname: LOG_DIR,
+  datePattern: 'YYYY-MM-DD',
+  zippedArchive: true,
+  maxSize: process.env.LOG_MAX_SIZE || '20m',
+  maxFiles: process.env.LOG_RETENTION || '14d',
 }
 
-export interface AuditLogData {
-  userId?: number
-  username?: string // ✅ 补上这个字段，修复 TS2339
-  action: string
-  tableName?: string
-  recordId?: number
-  oldValues?: any
-  newValues?: any
-  ipAddress?: string
-  userAgent?: string
-}
+const fileAll = new (winston.transports as any).DailyRotateFile({
+  ...fileCommon,
+  filename: '%DATE%.log',
+  level: process.env.FILE_LOG_LEVEL || 'info',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+})
 
-export interface LoginLogData {
-  userId?: number
-  username: string
-  status: 'success' | 'failed'
-  failureReason?: string
-  ipAddress?: string
-  userAgent?: string
-}
+const fileError = new (winston.transports as any).DailyRotateFile({
+  ...fileCommon,
+  filename: '%DATE%-error.log',
+  level: 'error',
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    winston.format.json()
+  ),
+})
 
-export interface ExamLogData {
-  examId: number
-  userId: number
-  action: 'start' | 'pause' | 'resume' | 'submit' | 'timeout' | 'answer_change'
-  questionId?: number
-  oldAnswer?: string
-  newAnswer?: string
-  timestampOffset?: number
-}
+export const appLogger = winston.createLogger({
+  defaultMeta: { svc: svcName },
+  transports: [consoleTransport, fileAll, fileError],
+})
 
-export class LoggerService {
-  // 记录用户操作日志（统一日志表）
-  static async logUserAction(data: UserLogData): Promise<void> {
-    try {
-      await pool.query(
-        `INSERT INTO logs (log_type, level, user_id, username, action, resource_type, resource_id, details, ip_address, user_agent) 
-         VALUES ('user', 'info', ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          data.userId ?? null,
-          data.username ?? null,
-          data.action,
-          data.resourceType ?? null,
-          data.resourceId ?? null,
-          data.details ? JSON.stringify(data.details) : null,
-          data.ipAddress ?? null,
-          data.userAgent ?? null,
-        ]
-      )
-    } catch (error) {
-      console.error('记录用户操作日志失败:', error)
-    }
-  }
-
-  // 记录系统日志（统一日志表）
-  static async logSystem(data: SystemLogData): Promise<void> {
-    try {
-      await pool.query(
-        `INSERT INTO logs (log_type, level, action, resource_type, message, details) 
-         VALUES ('system', ?, ?, ?, ?, ?)`,
-        [
-          data.level,
-          data.module || 'system',
-          data.module,
-          data.message,
-          data.details ? JSON.stringify(data.details) : null,
-        ]
-      )
-
-      // 同时输出到控制台
-      const timestamp = new Date().toISOString()
-      const logMessage = `[${timestamp}] [${data.level.toUpperCase()}] [${data.module}] ${data.message}`
-
-      switch (data.level) {
-        case 'error':
-        case 'fatal':
-          console.error(logMessage, data.details || '')
-          if (data.stackTrace) console.error(data.stackTrace)
-          break
-        case 'warn':
-          console.warn(logMessage, data.details || '')
-          break
-        case 'debug':
-          console.debug(logMessage, data.details || '')
-          break
-        default:
-          console.log(logMessage, data.details || '')
-      }
-    } catch (error) {
-      console.error('记录系统日志失败:', error)
-    }
-  }
-
-  // 记录审计日志（统一日志表）
-  static async logAudit(data: AuditLogData): Promise<void> {
-    try {
-      const details = {
-        tableName: data.tableName,
-        recordId: data.recordId,
-        oldValues: data.oldValues,
-        newValues: data.newValues,
-      }
-
-      await pool.query(
-        `INSERT INTO logs (log_type, level, user_id, username, action, resource_type, resource_id, details, ip_address, user_agent) 
-         VALUES ('audit', 'info', ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          data.userId ?? null,
-          data.username ?? null, // ✅ 现在有类型定义了
-          data.action,
-          data.tableName ?? null,
-          data.recordId ?? null,
-          JSON.stringify(details),
-          data.ipAddress ?? null,
-          data.userAgent ?? null,
-        ]
-      )
-    } catch (error) {
-      console.error('记录审计日志失败:', error)
-    }
-  }
-
-  // 记录登录日志（统一日志表）
-  static async logLogin(data: LoginLogData): Promise<void> {
-    try {
-      const details = {
-        status: data.status,
-        failureReason: data.failureReason,
-      }
-
-      await pool.query(
-        `INSERT INTO logs (log_type, level, user_id, username, action, resource_type, message, details, ip_address, user_agent) 
-         VALUES ('login', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          data.status === 'success' ? 'info' : 'error',
-          data.userId ?? null,
-          data.username,
-          'login',
-          'auth',
-          data.status === 'success' ? 'User login successful' : 'User login failed',
-          JSON.stringify(details),
-          data.ipAddress ?? null,
-          data.userAgent ?? null,
-        ]
-      )
-    } catch (error) {
-      console.error('记录登录日志失败:', error)
-    }
-  }
-
-  // 记录考试日志
-  static async logExam(data: ExamLogData): Promise<void> {
-    try {
-      const details = {
-        examId: data.examId,
-        questionId: data.questionId,
-        oldAnswer: data.oldAnswer,
-        newAnswer: data.newAnswer,
-        timestampOffset: data.timestampOffset,
-      }
-
-      await pool.query(
-        `INSERT INTO logs (log_type, level, user_id, action, resource_type, message, details, created_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-        ['exam', 'info', data.userId, data.action, 'exam', `Exam action: ${data.action}`, JSON.stringify(details)]
-      )
-    } catch (error) {
-      console.error('记录考试日志失败:', error)
-    }
-  }
-
-  // 便捷方法：记录信息日志
-  static info(module: string, message: string, details?: any): void {
-    this.logSystem({ level: 'info', module, message, details })
-  }
-
-  // 便捷方法：记录警告日志
-  static warn(module: string, message: string, details?: any): void {
-    this.logSystem({ level: 'warn', module, message, details })
-  }
-
-  // 便捷方法：记录错误日志
-  static error(module: string, message: string, error?: Error, details?: any): void {
-    this.logSystem({
-      level: 'error',
-      module,
-      message,
-      details,
-      stackTrace: error?.stack,
-    })
-  }
-
-  // 便捷方法：记录调试日志
-  static debug(module: string, message: string, details?: any): void {
-    this.logSystem({ level: 'debug', module, message, details })
-  }
-
-  // 清理过期日志
-  static async cleanupLogs(daysToKeep: number = 90): Promise<void> {
-    try {
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - daysToKeep)
-
-      const [result] = await pool.query<ResultSetHeader>(`DELETE FROM logs WHERE created_at < ?`, [cutoffDate])
-
-      this.info('logger', '清理logs表过期日志', { deletedRows: result.affectedRows })
-    } catch (error) {
-      this.error('logger', '清理过期日志失败', error as Error)
-    }
+// 供 http-logger 创建“请求作用域”日志器（把 rid/method/url 等挂在 defaultMeta）
+export function reqLogger(base: Record<string, any>) {
+  const child = appLogger.child(base)
+  return {
+    info(msg: string, meta?: Record<string, any>) {
+      child.info(msg, meta)
+    },
+    warn(msg: string, meta?: Record<string, any>) {
+      child.warn(msg, meta)
+    },
+    error(msg: string, meta?: Record<string, any>) {
+      child.error(msg, meta)
+    },
+    log(level: 'info' | 'warn' | 'error' | 'debug', msg: string, meta?: Record<string, any>) {
+      ;(child as any).log(level, msg, meta)
+    },
   }
 }
 
-// 导出便捷的日志记录函数
-export const logUserAction = LoggerService.logUserAction.bind(LoggerService)
-export const logSystemLog = LoggerService.logSystem.bind(LoggerService)
-export const logAudit = LoggerService.logAudit.bind(LoggerService)
-export const logLogin = LoggerService.logLogin.bind(LoggerService)
-export const logExam = LoggerService.logExam.bind(LoggerService)
-
-export const logger = {
-  info: LoggerService.info.bind(LoggerService),
-  warn: LoggerService.warn.bind(LoggerService),
-  error: LoggerService.error.bind(LoggerService),
-  debug: LoggerService.debug.bind(LoggerService),
-  userAction: LoggerService.logUserAction.bind(LoggerService),
-  audit: LoggerService.logAudit.bind(LoggerService),
-  login: LoggerService.logLogin.bind(LoggerService),
-  exam: LoggerService.logExam.bind(LoggerService),
+/** 便捷封装（可选） */
+export const AppLogger = {
+  info(module: string, message: string, details?: any) {
+    appLogger.info(message, { module, details })
+  },
+  warn(module: string, message: string, details?: any) {
+    appLogger.warn(message, { module, details })
+  },
+  error(module: string, message: string, error?: Error, details?: any) {
+    appLogger.error(message, { module, details, stack: (error as any)?.stack })
+  },
+  debug(module: string, message: string, details?: any) {
+    ;(appLogger as any).debug?.(message, { module, details })
+  },
 }

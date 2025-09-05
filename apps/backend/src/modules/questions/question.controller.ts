@@ -1,10 +1,9 @@
 import { pool } from '@config/database.js'
 import { Response } from 'express'
 import { ResultSetHeader, RowDataPacket } from 'mysql2'
-import { LoggerService } from '../../infrastructure/logging/logger.js'
-
 import { AuthRequest } from 'types/auth.js'
 import { ApiResponse } from 'types/response.js'
+import { LoggerService } from '../../services/logger.service.js'
 
 interface IQuestion extends RowDataPacket {
   id: number
@@ -12,9 +11,10 @@ interface IQuestion extends RowDataPacket {
   content: string
   question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
   difficulty: 'easy' | 'medium' | 'hard'
-  options: string
-  correct_answer: string
-  knowledge_points: string
+  options: any // ← 宽松类型，避免解析后 TS 报错
+  correct_answer: any
+  knowledge_points: any
+  tags: any // ← 新增：标签
   explanation: string
   exam_id: number | null
   score: number
@@ -22,18 +22,29 @@ interface IQuestion extends RowDataPacket {
   updated_at: Date
 }
 
-type QuestionData = {
-  question: IQuestion
-}
-
+type QuestionData = { question: IQuestion }
 type QuestionListData = {
   questions: IQuestion[]
-  pagination: {
-    total: number
-    totalPages: number
-    currentPage: number
-    pageSize: number
+  pagination: { total: number; totalPages: number; currentPage: number; pageSize: number }
+}
+
+// ---- 直接替换工具函数 ----
+function ensureArrayFromMaybeCsv(input: any): string[] {
+  if (Array.isArray(input)) return input.map(String).filter(Boolean)
+  if (typeof input === 'string') {
+    const normalized = input
+      .trim()
+      .replace(/[\r\n]+/g, ',')
+      .replace(/[，；;]/g, ',')
+    return normalized
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
   }
+  if (input != null && (typeof input === 'number' || typeof input === 'boolean')) {
+    return [String(input)]
+  }
+  return []
 }
 
 export class QuestionController {
@@ -51,6 +62,10 @@ export class QuestionController {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10
       const offset = (page - 1) * limit
 
+      // tags 支持：?tags=backend,Java,算法
+      const tagsParam = req.query.tags
+      const tags = ensureArrayFromMaybeCsv(tagsParam)
+
       const conditions: string[] = []
       const values: any[] = []
 
@@ -58,15 +73,20 @@ export class QuestionController {
         conditions.push('question_type = ?')
         values.push(question_type)
       }
-
       if (difficulty) {
         conditions.push('difficulty = ?')
         values.push(difficulty)
       }
-
       if (search) {
         conditions.push('content LIKE ?')
         values.push(`%${search}%`)
+      }
+      if (tags.length > 0) {
+        // 所有传入标签都需要命中（AND 模式），若要“任一命中”改成用 OR 包裹
+        for (const t of tags) {
+          conditions.push(`JSON_CONTAINS(tags, JSON_QUOTE(?))`)
+          values.push(t)
+        }
       }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
@@ -75,106 +95,73 @@ export class QuestionController {
         `SELECT * FROM questions ${whereClause} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
         [...values, limit, offset]
       )
-
       const [totalRows] = await pool.query<RowDataPacket[]>(
         `SELECT COUNT(*) as total FROM questions ${whereClause}`,
         values
       )
-
-      const total = totalRows[0].total
+      const total = (totalRows as any)[0].total
       const totalPages = Math.ceil(total / limit)
 
-      // 解析JSON字段
-      // 解析JSON字段
+      // 解析 JSON 字段
       const parsedQuestions = (questions as IQuestion[]).map((q: IQuestion) => {
         try {
-          if (q.options && typeof q.options === 'string') {
-            // 如果 options 是 JSON 字符串则解析
-
-            q.options = JSON.parse(q.options)
-          }
-          // correct_answer 保持为字符串
-        } catch (parseError) {
-          console.error(`题目ID ${q.id} 解析字段失败:`, parseError)
+          if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
+          if (q.knowledge_points && typeof q.knowledge_points === 'string')
+            q.knowledge_points = JSON.parse(q.knowledge_points)
+          if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
+        } catch (e) {
+          console.error(`题目ID ${q.id} 解析字段失败:`, e)
         }
         return q
       })
 
-      const response: ApiResponse<QuestionListData> = {
+      return res.json({
         success: true,
         data: {
           questions: parsedQuestions,
-          pagination: {
-            total,
-            totalPages,
-            currentPage: page,
-            pageSize: limit,
-          },
+          pagination: { total, totalPages, currentPage: page, pageSize: limit },
         },
-      }
-      return res.json(response)
+      })
     } catch (error) {
       console.error('获取问题列表错误:', error)
-      const response: ApiResponse<QuestionListData> = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取问题列表失败',
-      }
-      return res.status(500).json(response)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取问题列表失败' })
     }
   }
 
   static async getById(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
     try {
-      const { id } = req.params
-      const questionId = parseInt(id)
-
+      const questionId = parseInt(req.params.id)
       if (isNaN(questionId) || questionId <= 0) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '无效的题目ID',
-        }
-        return res.status(400).json(response)
+        return res.status(400).json({ success: false, error: '无效的题目ID' })
       }
 
       const [questions] = await pool.query<IQuestion[]>('SELECT * FROM questions WHERE id = ?', [questionId])
-
       if (questions.length === 0) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '问题不存在',
-        }
-        return res.status(404).json(response)
+        return res.status(404).json({ success: false, error: '问题不存在' })
       }
 
-      // 解析JSON字段
       const question = questions[0]
       try {
-        if (question.options && typeof question.options === 'string') {
-          question.options = JSON.parse(question.options)
-        }
-        // correct_answer 是简单字符串，不需要JSON解析
-        // if (question.correct_answer && typeof question.correct_answer === 'string') {
-        //   question.correct_answer = JSON.parse(question.correct_answer);
-        // }
-      } catch (parseError) {
-        console.error('解析JSON字段失败:', parseError)
+        if (question.options && typeof question.options === 'string') question.options = JSON.parse(question.options)
+        if (question.knowledge_points && typeof question.knowledge_points === 'string')
+          question.knowledge_points = JSON.parse(question.knowledge_points)
+        if (question.tags && typeof question.tags === 'string') question.tags = JSON.parse(question.tags)
+      } catch (e) {
+        console.error('解析JSON字段失败:', e)
       }
 
-      const response: ApiResponse<QuestionData> = {
-        success: true,
-        data: { question },
-      }
-      return res.json(response)
+      return res.json({ success: true, data: { question } })
     } catch (error) {
       console.error('获取问题详情错误:', error)
-      const response: ApiResponse<QuestionData> = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取问题详情失败',
-      }
-      return res.status(500).json(response)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取问题详情失败' })
     }
   }
 
+  // ---- 直接替换 create 方法 ----
   static async create(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
     try {
       const {
@@ -184,69 +171,48 @@ export class QuestionController {
         options,
         correct_answer,
         knowledge_points,
+        tags,
         explanation,
         difficulty = 'medium',
         exam_id = null,
         score = 10,
       } = req.body
 
-      // 验证必填字段
-      if (!content || !question_type || !correct_answer) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '缺少必填字段：题目内容、题目类型和正确答案',
-        }
-        return res.status(400).json(response)
+      if (!content || !question_type || correct_answer === undefined) {
+        return res.status(400).json({ success: false, error: '缺少必填字段：题目内容、题目类型和正确答案' })
       }
 
-      // 验证题目类型
       const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'short_answer']
-      if (!validTypes.includes(question_type)) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '无效的题目类型',
-        }
-        return res.status(400).json(response)
-      }
-
-      // 验证难度等级
+      if (!validTypes.includes(question_type)) return res.status(400).json({ success: false, error: '无效的题目类型' })
       const validDifficulties = ['easy', 'medium', 'hard']
-      if (!validDifficulties.includes(difficulty)) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '无效的难度等级',
-        }
-        return res.status(400).json(response)
-      }
+      if (!validDifficulties.includes(difficulty))
+        return res.status(400).json({ success: false, error: '无效的难度等级' })
 
-      // 处理选项数据
-      let optionsJson = null
+      let optionsJson: string | null = null
       if (question_type === 'single_choice' || question_type === 'multiple_choice') {
-        if (!options || !Array.isArray(options) || options.length === 0) {
-          const response: ApiResponse<QuestionData> = {
-            success: false,
-            error: '选择题必须提供选项',
-          }
-          return res.status(400).json(response)
-        }
+        if (!Array.isArray(options) || options.length === 0)
+          return res.status(400).json({ success: false, error: '选择题必须提供选项' })
         optionsJson = JSON.stringify(options)
       }
 
-      // 处理知识点
-      const knowledgePointsJson = knowledge_points ? JSON.stringify(knowledge_points) : '[]'
+      const correctAnswerStr = typeof correct_answer === 'string' ? correct_answer : JSON.stringify(correct_answer)
+      const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledge_points))
+      const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tags))
 
-      // 生成标题（如果未提供）
       const questionTitle = title || (content.length > 50 ? content.substring(0, 50) + '...' : content)
 
       const [result] = await pool.query<ResultSetHeader>(
-        'INSERT INTO questions (title, content, question_type, options, correct_answer, knowledge_points, explanation, difficulty, exam_id, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        `INSERT INTO questions
+       (title, content, question_type, options, correct_answer, knowledge_points, tags, explanation, difficulty, exam_id, score)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           questionTitle,
           content,
           question_type,
           optionsJson,
-          correct_answer,
-          knowledgePointsJson,
+          correctAnswerStr,
+          knowledgePointsStr,
+          tagsStr,
           explanation || '',
           difficulty,
           exam_id,
@@ -256,37 +222,41 @@ export class QuestionController {
 
       const [question] = await pool.query<IQuestion[]>('SELECT * FROM questions WHERE id = ?', [result.insertId])
 
-      // 记录题目创建操作日志
       await LoggerService.logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'create_question',
         resourceType: 'question',
         resourceId: Number(result.insertId),
-        details: { questionType: question_type, title: questionTitle, difficulty },
+        details: { questionType: question_type, title: questionTitle, difficulty, tags: ensureArrayFromMaybeCsv(tags) },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })
 
-      const response: ApiResponse<QuestionData> = {
-        success: true,
-        data: { question: question[0] },
-      }
-      return res.status(201).json(response)
+      return res.status(201).json({ success: true, data: { question: question[0] } })
     } catch (error) {
       console.error('创建问题错误:', error)
-      const response: ApiResponse<QuestionData> = {
-        success: false,
-        error: error instanceof Error ? error.message : '创建问题失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '创建问题失败' })
     }
   }
 
+  // ---- 直接替换 update 方法 ----
   static async update(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
     try {
       const { id } = req.params
-      const { title, content, question_type, options, correct_answer } = req.body
+      const {
+        title,
+        content,
+        question_type,
+        options,
+        correct_answer,
+        knowledge_points,
+        tags,
+        explanation,
+        difficulty,
+        exam_id,
+        score,
+      } = req.body
 
       const updates: string[] = []
       const values: any[] = []
@@ -295,94 +265,82 @@ export class QuestionController {
         updates.push('title = ?')
         values.push(title)
       }
-
       if (content !== undefined) {
         updates.push('content = ?')
         values.push(content)
       }
-
       if (question_type !== undefined) {
         updates.push('question_type = ?')
         values.push(question_type)
       }
-
       if (options !== undefined) {
         updates.push('options = ?')
-        values.push(options)
+        values.push(options == null ? null : JSON.stringify(options))
       }
-
       if (correct_answer !== undefined) {
         updates.push('correct_answer = ?')
-        values.push(correct_answer)
+        values.push(typeof correct_answer === 'string' ? correct_answer : JSON.stringify(correct_answer))
+      }
+      if (knowledge_points !== undefined) {
+        updates.push('knowledge_points = ?')
+        values.push(JSON.stringify(ensureArrayFromMaybeCsv(knowledge_points)))
+      }
+      if (tags !== undefined) {
+        updates.push('tags = ?')
+        values.push(JSON.stringify(ensureArrayFromMaybeCsv(tags)))
+      }
+      if (explanation !== undefined) {
+        updates.push('explanation = ?')
+        values.push(explanation || '')
+      }
+      if (difficulty !== undefined) {
+        updates.push('difficulty = ?')
+        values.push(difficulty)
+      }
+      if (exam_id !== undefined) {
+        updates.push('exam_id = ?')
+        values.push(exam_id ?? null)
+      }
+      if (score !== undefined) {
+        updates.push('score = ?')
+        values.push(Number(score))
       }
 
-      if (updates.length === 0) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '没有需要更新的字段',
-        }
-        return res.status(400).json(response)
-      }
-
-      values.push(parseInt(id))
+      if (updates.length === 0) return res.status(400).json({ success: false, error: '没有需要更新的字段' })
+      values.push(parseInt(id, 10))
 
       const [result] = await pool.query<ResultSetHeader>(
         `UPDATE questions SET ${updates.join(', ')}, updated_at = NOW() WHERE id = ?`,
         values
       )
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, error: '问题不存在' })
 
-      if (result.affectedRows === 0) {
-        const response: ApiResponse<QuestionData> = {
-          success: false,
-          error: '问题不存在',
-        }
-        return res.status(404).json(response)
-      }
+      const [question] = await pool.query<IQuestion[]>('SELECT * FROM questions WHERE id = ?', [parseInt(id, 10)])
 
-      const [question] = await pool.query<IQuestion[]>('SELECT * FROM questions WHERE id = ?', [parseInt(id)])
-
-      // 记录题目更新操作日志
       await LoggerService.logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'update_question',
         resourceType: 'question',
         resourceId: Number(id),
-        details: { updatedFields: updates, questionId: parseInt(id) },
+        details: { updatedFields: updates, questionId: parseInt(id, 10) },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })
 
-      const response: ApiResponse<QuestionData> = {
-        success: true,
-        data: { question: question[0] },
-      }
-      return res.json(response)
+      return res.json({ success: true, data: { question: question[0] } })
     } catch (error) {
       console.error('更新问题错误:', error)
-      const response: ApiResponse<QuestionData> = {
-        success: false,
-        error: error instanceof Error ? error.message : '更新问题失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '更新问题失败' })
     }
   }
 
   static async delete(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const { id } = req.params
-
       const [result] = await pool.query<ResultSetHeader>('DELETE FROM questions WHERE id = ?', [parseInt(id)])
+      if (result.affectedRows === 0) return res.status(404).json({ success: false, error: '问题不存在' })
 
-      if (result.affectedRows === 0) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '问题不存在',
-        }
-        return res.status(404).json(response)
-      }
-
-      // 记录题目删除操作日志
       await LoggerService.logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
@@ -393,44 +351,25 @@ export class QuestionController {
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })
-
-      const response: ApiResponse<null> = {
-        success: true,
-        data: null,
-      }
-      return res.json(response)
+      return res.json({ success: true, data: null })
     } catch (error) {
       console.error('删除问题错误:', error)
-      const response: ApiResponse<null> = {
-        success: false,
-        error: error instanceof Error ? error.message : '删除问题失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '删除问题失败' })
     }
   }
 
+  // ---- 直接替换 bulkImport 方法 ----
   static async bulkImport(
     req: AuthRequest,
     res: Response<ApiResponse<{ success_count: number; fail_count: number; errors: string[] }>>
   ) {
     try {
       const { questions } = req.body
-
       if (!questions || !Array.isArray(questions) || questions.length === 0) {
-        const response: ApiResponse<{ success_count: number; fail_count: number; errors: string[] }> = {
-          success: false,
-          error: '请提供有效的题目数据',
-        }
-        return res.status(400).json(response)
+        return res.status(400).json({ success: false, error: '请提供有效的题目数据' })
       }
-
-      // 验证题目数量限制
       if (questions.length > 1000) {
-        const response: ApiResponse<{ success_count: number; fail_count: number; errors: string[] }> = {
-          success: false,
-          error: '单次导入题目数量不能超过1000道',
-        }
-        return res.status(400).json(response)
+        return res.status(400).json({ success: false, error: '单次导入题目数量不能超过1000道' })
       }
 
       let successCount = 0
@@ -439,216 +378,183 @@ export class QuestionController {
       const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'short_answer']
       const validDifficulties = ['easy', 'medium', 'hard']
 
-      // 批量处理题目
       for (let i = 0; i < questions.length; i++) {
         try {
-          const question = questions[i]
+          const q = questions[i]
           const {
             title,
             content,
             question_type,
             options,
             answer,
-            knowledge_points,
+            correct_answer,
             explanation,
             difficulty = 'medium',
             score = 10,
-          } = question
+          } = q
 
-          // 验证必填字段
-          if (!content || !question_type || !answer) {
+          if (!content || !question_type || (!answer && correct_answer === undefined)) {
             failCount++
             errors.push(`第${i + 1}题：缺少必填字段（题目内容、题目类型或答案）`)
             continue
           }
-
-          // 验证题目类型
           if (!validTypes.includes(question_type)) {
             failCount++
             errors.push(`第${i + 1}题：无效的题目类型 ${question_type}`)
             continue
           }
-
-          // 验证难度等级
           if (!validDifficulties.includes(difficulty)) {
             failCount++
             errors.push(`第${i + 1}题：无效的难度等级 ${difficulty}`)
             continue
           }
 
-          // 处理选项数据
+          // 兼容中文键名
+          const tagsRaw = (q as any).tags ?? (q as any)['标签'] ?? (q as any).tag ?? (q as any).Tags
+          const knowledgeRaw = (q as any).knowledge_points ?? (q as any)['知识点'] ?? (q as any)['知識點']
+
           let optionsJson = null
           if (question_type === 'single_choice' || question_type === 'multiple_choice') {
-            if (options && Array.isArray(options) && options.length > 0) {
-              // 验证选项格式
-              const validOptions = options.every(
-                opt => typeof opt === 'object' && typeof opt.content === 'string' && typeof opt.is_correct === 'boolean'
-              )
-              if (!validOptions) {
-                failCount++
-                errors.push(`第${i + 1}题：选项格式不正确，应包含content和is_correct字段`)
-                continue
-              }
-              optionsJson = JSON.stringify(options)
-            } else {
+            if (!Array.isArray(options) || options.length === 0) {
               failCount++
               errors.push(`第${i + 1}题：选择题必须提供选项`)
               continue
             }
+            const validOptions = options.every(
+              (opt: any) =>
+                typeof opt === 'object' && typeof opt.content === 'string' && typeof opt.is_correct === 'boolean'
+            )
+            if (!validOptions) {
+              failCount++
+              errors.push(`第${i + 1}题：选项格式不正确，应包含 content(string) 和 is_correct(boolean)`)
+              continue
+            }
+            optionsJson = JSON.stringify(options)
           }
 
-          // 处理知识点
-          const knowledgePointsJson = knowledge_points ? JSON.stringify(knowledge_points) : '[]'
-
-          // 检查是否已存在相同的题目（基于内容和类型）
-          const [existingQuestions] = await pool.query<RowDataPacket[]>(
+          const finalCorrect = correct_answer !== undefined ? correct_answer : answer
+          const correctAnswerStr = typeof finalCorrect === 'string' ? finalCorrect : JSON.stringify(finalCorrect)
+          const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledgeRaw))
+          const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tagsRaw))
+          console.log('=====tagsStr=======', tagsStr)
+          // 去重：同内容 & 类型
+          const [existing] = await pool.query<RowDataPacket[]>(
             'SELECT id FROM questions WHERE content = ? AND question_type = ?',
             [content, question_type]
           )
 
-          if (existingQuestions.length > 0) {
-            failCount++
-            errors.push(`第${i + 1}题：题目已存在，跳过导入`)
+          if ((existing as any).length > 0) {
+            const existId = (existing as any)[0].id
+            console.log('=====req.query.upsert=====', req.query.upsert)
+            const doUpsert = req.query.upsert === 'true' || req.body?.upsert === true
+            if (doUpsert) {
+              await pool.query(
+                `UPDATE questions
+                 SET tags=?, knowledge_points=?, explanation=?, score=?, difficulty=?, updated_at=NOW()
+               WHERE id=?`,
+                [tagsStr, knowledgePointsStr, explanation || '', score, difficulty, existId]
+              )
+              successCount++
+            } else {
+              failCount++
+              errors.push(`第${i + 1}题：题目已存在，跳过导入`)
+            }
             continue
           }
 
-          // 生成标题（使用提供的标题或题目内容的前50个字符）
           const questionTitle = title || (content.length > 50 ? content.substring(0, 50) + '...' : content)
-
-          // 插入题目
           await pool.query(
-            'INSERT INTO questions (title, content, question_type, options, correct_answer, knowledge_points, explanation, difficulty, exam_id, score) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            `INSERT INTO questions (title, content, question_type, options, correct_answer, knowledge_points, tags, explanation, difficulty, exam_id, score)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               questionTitle,
               content,
               question_type,
               optionsJson,
-              answer,
-              knowledgePointsJson,
+              correctAnswerStr,
+              knowledgePointsStr,
+              tagsStr,
               explanation || '',
               difficulty,
               null,
               score,
             ]
           )
-
           successCount++
-        } catch (error) {
+        } catch (e: any) {
           failCount++
-          const errorMsg = error instanceof Error ? error.message : '未知错误'
-          errors.push(`第${i + 1}题导入失败：${errorMsg}`)
+          errors.push(`第${i + 1}题导入失败：${e?.message || '未知错误'}`)
         }
       }
 
-      // 记录批量导入操作日志
       await LoggerService.logUserAction({
         userId: req.user?.id || 0,
         username: req.user?.username,
         action: 'bulk_import_questions',
         resourceType: 'question',
-        details: {
-          totalQuestions: questions.length,
-          successCount,
-          failCount,
-          errorCount: errors.length,
-        },
+        details: { totalQuestions: questions.length, successCount, failCount, errorCount: errors.length },
         ipAddress: req.ip,
         userAgent: req.get('User-Agent'),
       })
 
-      const response: ApiResponse<{ success_count: number; fail_count: number; errors: string[] }> = {
-        success: true,
-        data: {
-          success_count: successCount,
-          fail_count: failCount,
-          errors: errors,
-        },
-      }
-
-      return res.status(200).json(response)
+      return res
+        .status(200)
+        .json({ success: true, data: { success_count: successCount, fail_count: failCount, errors } })
     } catch (error) {
       console.error('批量导入问题错误:', error)
-      const response: ApiResponse<{ success_count: number; fail_count: number; errors: string[] }> = {
-        success: false,
-        error: error instanceof Error ? error.message : '批量导入失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '批量导入失败' })
     }
   }
 
-  // 记录练习结果
+  // ====== 以下保持你原有练习/错题本/统计接口 ======
+
   static async recordPractice(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const { question_id, is_correct, answer } = req.body
-
-      if (!userId || isNaN(userId)) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '未授权访问或用户ID无效',
-        }
-        return res.status(401).json(response)
-      }
-
-      if (!question_id || is_correct === undefined) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '缺少必要参数',
-        }
-        return res.status(400).json(response)
-      }
+      if (!userId || isNaN(userId)) return res.status(401).json({ success: false, error: '未授权访问或用户ID无效' })
+      if (!question_id || is_correct === undefined)
+        return res.status(400).json({ success: false, error: '缺少必要参数' })
 
       const connection = await pool.getConnection()
       try {
         await connection.beginTransaction()
-
-        // 记录练习记录
         await connection.query(
           'INSERT INTO practice_records (user_id, question_id, is_correct, user_answer) VALUES (?, ?, ?, ?)',
           [userId, question_id, is_correct, JSON.stringify(answer)]
         )
 
-        // 如果答错了，更新错题本
         if (!is_correct) {
           const [existing] = await connection.query<RowDataPacket[]>(
             'SELECT * FROM wrong_questions WHERE user_id = ? AND question_id = ?',
             [userId, question_id]
           )
-
-          if (existing.length > 0) {
-            // 更新现有错题记录
+          if ((existing as any).length > 0) {
             await connection.query(
               'UPDATE wrong_questions SET wrong_count = wrong_count + 1, last_practice_time = NOW(), is_mastered = FALSE WHERE user_id = ? AND question_id = ?',
               [userId, question_id]
             )
           } else {
-            // 创建新的错题记录
             await connection.query(
               'INSERT INTO wrong_questions (user_id, question_id, wrong_count, correct_count) VALUES (?, ?, 1, 0)',
               [userId, question_id]
             )
           }
         } else {
-          // 如果答对了，检查是否在错题本中
           const [existing] = await connection.query<RowDataPacket[]>(
             'SELECT * FROM wrong_questions WHERE user_id = ? AND question_id = ?',
             [userId, question_id]
           )
-
-          if (existing.length > 0) {
-            // 更新正确次数
+          if ((existing as any).length > 0) {
             await connection.query(
               'UPDATE wrong_questions SET correct_count = correct_count + 1, last_practice_time = NOW() WHERE user_id = ? AND question_id = ?',
               [userId, question_id]
             )
-
-            // 检查是否掌握（连续答对3次认为掌握）
             const [updated] = await connection.query<RowDataPacket[]>(
-              'SELECT correct_count, wrong_count FROM wrong_questions WHERE user_id = ? AND question_id = ?',
+              'SELECT correct_count FROM wrong_questions WHERE user_id = ? AND question_id = ?',
               [userId, question_id]
             )
-
-            if (updated.length > 0 && updated[0].correct_count >= 3) {
+            if ((updated as any)[0]?.correct_count >= 3) {
               await connection.query(
                 'UPDATE wrong_questions SET is_mastered = TRUE WHERE user_id = ? AND question_id = ?',
                 [userId, question_id]
@@ -658,29 +564,21 @@ export class QuestionController {
         }
 
         await connection.commit()
-
-        const response: ApiResponse<null> = {
-          success: true,
-          data: null,
-        }
-        return res.json(response)
-      } catch (error) {
+        return res.json({ success: true, data: null })
+      } catch (e) {
         await connection.rollback()
-        throw error
+        throw e
       } finally {
         connection.release()
       }
     } catch (error) {
       console.error('记录练习结果错误:', error)
-      const response: ApiResponse<null> = {
-        success: false,
-        error: error instanceof Error ? error.message : '记录练习结果失败',
-      }
-      return res.status(500).json(response)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '记录练习结果失败' })
     }
   }
 
-  // 获取错题本列表
   static async getWrongQuestions(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
@@ -689,286 +587,190 @@ export class QuestionController {
       const mastered = req.query.mastered === 'true' ? true : req.query.mastered === 'false' ? false : undefined
       const offset = (page - 1) * limit
 
-      if (!userId || isNaN(userId)) {
-        const response: ApiResponse<any> = {
-          success: false,
-          error: '未授权访问或用户ID无效',
-        }
-        return res.status(401).json(response)
-      }
+      if (!userId || isNaN(userId)) return res.status(401).json({ success: false, error: '未授权访问或用户ID无效' })
 
       let whereClause = 'WHERE wq.user_id = ?'
-      const queryParams = [userId]
-
+      const queryParams: any[] = [userId]
       if (mastered !== undefined) {
         whereClause += ' AND wq.is_mastered = ?'
         queryParams.push(mastered ? 1 : 0)
       }
 
-      // 获取错题总数
       const [countResult] = await pool.query<RowDataPacket[]>(
         `SELECT COUNT(*) as total FROM wrong_questions wq ${whereClause}`,
         queryParams
       )
-      const total = countResult[0].total
+      const total = (countResult as any)[0].total
 
-      // 获取错题列表
       const [wrongQuestions] = await pool.query<RowDataPacket[]>(
         `SELECT 
-          wq.*,
-          q.content,
-          q.question_type,
-          q.options,
-          q.correct_answer,
-          q.explanation,
-          q.knowledge_points
-        FROM wrong_questions wq
-        JOIN questions q ON wq.question_id = q.id
-        ${whereClause}
-        ORDER BY wq.last_practice_time DESC
-        LIMIT ? OFFSET ?`,
+          wq.*, q.content, q.question_type, q.options, q.correct_answer, q.explanation, q.knowledge_points, q.tags
+         FROM wrong_questions wq
+         JOIN questions q ON wq.question_id = q.id
+         ${whereClause}
+         ORDER BY wq.last_practice_time DESC
+         LIMIT ? OFFSET ?`,
         [...queryParams, limit, offset]
       )
 
-      const totalPages = Math.ceil(total / limit)
-
-      const response: ApiResponse<any> = {
+      return res.json({
         success: true,
         data: {
           wrongQuestions,
-          pagination: {
-            total,
-            totalPages,
-            currentPage: page,
-            pageSize: limit,
-          },
+          pagination: { total, totalPages: Math.ceil(total / limit), currentPage: page, pageSize: limit },
         },
-      }
-      return res.json(response)
+      })
     } catch (error) {
       console.error('获取错题本错误:', error)
-      console.error('错误详情:', error instanceof Error ? error.stack : error)
-      const response: ApiResponse<any> = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取错题本失败',
-      }
-      return res.status(400).json(response)
+      return res.status(400).json({ success: false, error: error instanceof Error ? error.message : '获取错题本失败' })
     }
   }
 
-  // 标记题目为已掌握
   static async markAsMastered(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const questionId = parseInt(req.params.questionId)
-
-      if (!userId || isNaN(userId)) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '未授权访问或用户ID无效',
-        }
-        return res.status(401).json(response)
-      }
-
-      if (isNaN(questionId)) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '无效的题目ID',
-        }
-        return res.status(400).json(response)
-      }
+      if (!userId || isNaN(userId)) return res.status(401).json({ success: false, error: '未授权访问或用户ID无效' })
+      if (isNaN(questionId)) return res.status(400).json({ success: false, error: '无效的题目ID' })
 
       await pool.query('UPDATE wrong_questions SET is_mastered = TRUE WHERE user_id = ? AND question_id = ?', [
         userId,
         questionId,
       ])
-
-      const response: ApiResponse<null> = {
-        success: true,
-        data: null,
-      }
-      return res.json(response)
+      return res.json({ success: true, data: null })
     } catch (error) {
       console.error('标记掌握错误:', error)
-      const response: ApiResponse<null> = {
-        success: false,
-        error: error instanceof Error ? error.message : '标记掌握失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '标记掌握失败' })
     }
   }
 
-  // 从错题本中移除题目
   static async removeFromWrongQuestions(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const questionId = parseInt(req.params.questionId)
-
-      if (!userId) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '未授权访问',
-        }
-        return res.status(401).json(response)
-      }
-
-      if (isNaN(questionId)) {
-        const response: ApiResponse<null> = {
-          success: false,
-          error: '无效的题目ID',
-        }
-        return res.status(400).json(response)
-      }
+      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (isNaN(questionId)) return res.status(400).json({ success: false, error: '无效的题目ID' })
 
       await pool.query('DELETE FROM wrong_questions WHERE user_id = ? AND question_id = ?', [userId, questionId])
-
-      const response: ApiResponse<null> = {
-        success: true,
-        data: null,
-      }
-      return res.json(response)
+      return res.json({ success: true, data: null })
     } catch (error) {
       console.error('移除错题错误:', error)
-      const response: ApiResponse<null> = {
-        success: false,
-        error: error instanceof Error ? error.message : '移除错题失败',
-      }
-      return res.status(500).json(response)
+      return res.status(500).json({ success: false, error: error instanceof Error ? error.message : '移除错题失败' })
     }
   }
 
-  // 获取练习统计
   static async getPracticeStats(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
+      if (!userId || isNaN(userId)) return res.status(401).json({ success: false, error: '未授权访问或用户ID无效' })
 
-      if (!userId || isNaN(userId)) {
-        const response: ApiResponse<any> = {
-          success: false,
-          error: '未授权访问或用户ID无效',
-        }
-        return res.status(401).json(response)
-      }
-
-      // 获取总练习次数
       const [totalPractice] = await pool.query<RowDataPacket[]>(
         'SELECT COUNT(*) as total FROM practice_records WHERE user_id = ?',
         [userId]
       )
-
-      // 获取正确率
       const [correctRate] = await pool.query<RowDataPacket[]>(
         'SELECT COUNT(*) as correct FROM practice_records WHERE user_id = ? AND is_correct = TRUE',
         [userId]
       )
-
-      // 获取错题数量
       const [wrongCount] = await pool.query<RowDataPacket[]>(
         'SELECT COUNT(*) as total FROM wrong_questions WHERE user_id = ? AND is_mastered = FALSE',
         [userId]
       )
-
-      // 获取已掌握题目数量
       const [masteredCount] = await pool.query<RowDataPacket[]>(
         'SELECT COUNT(*) as total FROM wrong_questions WHERE user_id = ? AND is_mastered = TRUE',
         [userId]
       )
 
-      const total = totalPractice[0].total
-      const correct = correctRate[0].correct
+      const total = (totalPractice as any)[0].total
+      const correct = (correctRate as any)[0].correct
       const rate = total > 0 ? ((correct / total) * 100).toFixed(1) : '0.0'
 
-      const response: ApiResponse<any> = {
+      return res.json({
         success: true,
         data: {
           totalPractice: total,
           correctRate: rate,
-          wrongQuestions: wrongCount[0].total,
-          masteredQuestions: masteredCount[0].total,
+          wrongQuestions: (wrongCount as any)[0].total,
+          masteredQuestions: (masteredCount as any)[0].total,
         },
-      }
-      return res.json(response)
+      })
     } catch (error) {
       console.error('获取练习统计错误:', error)
-      console.error('错误详情:', error instanceof Error ? error.stack : error)
-      const response: ApiResponse<any> = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取练习统计失败',
-      }
-      return res.status(400).json(response)
+      return res
+        .status(400)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取练习统计失败' })
     }
   }
 
-  // 获取用户已练习过的题目ID列表
   static async getPracticedQuestions(req: AuthRequest, res: Response<ApiResponse<number[]>>) {
     try {
       const userId = req.user?.id
+      if (!userId || isNaN(userId)) return res.status(401).json({ success: false, error: '未授权访问或用户ID无效' })
 
-      if (!userId || isNaN(userId)) {
-        const response: ApiResponse<number[]> = {
-          success: false,
-          error: '未授权访问或用户ID无效',
-        }
-        return res.status(401).json(response)
-      }
-
-      // 获取用户已练习过的题目ID列表（去重）
-      const [practicedRows] = await pool.query<RowDataPacket[]>(
+      const [rows] = await pool.query<RowDataPacket[]>(
         'SELECT DISTINCT question_id FROM practice_records WHERE user_id = ? ORDER BY question_id',
         [userId]
       )
-      type PracticedRow = RowDataPacket & { question_id: number }
-
-      const questionIds = (practicedRows as PracticedRow[]).map((row: PracticedRow) => row.question_id)
-
-      const response: ApiResponse<number[]> = {
-        success: true,
-        data: questionIds,
-      }
-      return res.json(response)
+      const ids = (rows as any[]).map(r => r.question_id as number)
+      return res.json({ success: true, data: ids })
     } catch (error) {
       console.error('获取已练习题目列表错误:', error)
-      const response: ApiResponse<number[]> = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取已练习题目列表失败',
-      }
-      return res.status(500).json(response)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取已练习题目列表失败' })
     }
   }
 
-  // 获取所有知识点列表
-  static async getKnowledgePoints(req: AuthRequest, res: Response) {
+  // ===== 标签聚合 =====
+  static async getTags(req: AuthRequest, res: Response) {
     try {
-      // 从questions表中提取所有不重复的知识点
       const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) as knowledge_point
-   FROM questions
-   CROSS JOIN (
-     SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
-     UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
-   ) numbers
-   WHERE JSON_LENGTH(knowledge_points) > numbers.n
-   AND JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
-   ORDER BY knowledge_point`
+        `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(tags, CONCAT('$[', numbers.n, ']'))) as tag
+           FROM questions
+           CROSS JOIN (
+             SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4
+             UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
+             UNION SELECT 10 UNION SELECT 11 UNION SELECT 12 UNION SELECT 13 UNION SELECT 14
+             UNION SELECT 15 UNION SELECT 16 UNION SELECT 17 UNION SELECT 18 UNION SELECT 19
+           ) numbers
+          WHERE JSON_LENGTH(tags) > numbers.n
+            AND JSON_UNQUOTE(JSON_EXTRACT(tags, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
+          ORDER BY tag`
       )
 
-      type KPRow = RowDataPacket & { knowledge_point: string | null }
-      const knowledgePoints = (rows as KPRow[])
-        .map((row: KPRow) => row.knowledge_point)
-        .filter((point: string | null): point is string => !!point && point !== 'null')
+      const tags = (rows as any[]).map(r => r.tag).filter((t: string | null) => !!t && t !== 'null')
+      return res.json({ success: true, data: tags })
+    } catch (error) {
+      console.error('获取标签列表错误:', error)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取标签列表失败' })
+    }
+  }
 
-      const response = {
-        success: true,
-        data: knowledgePoints,
-      }
-      return res.json(response)
+  // ===== 知识点聚合（保留原实现） =====
+  static async getKnowledgePoints(req: AuthRequest, res: Response) {
+    try {
+      const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT DISTINCT JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) as knowledge_point
+           FROM questions
+           CROSS JOIN (
+             SELECT 0 as n UNION SELECT 1 UNION SELECT 2 UNION SELECT 3 UNION SELECT 4 
+             UNION SELECT 5 UNION SELECT 6 UNION SELECT 7 UNION SELECT 8 UNION SELECT 9
+           ) numbers
+          WHERE JSON_LENGTH(knowledge_points) > numbers.n
+            AND JSON_UNQUOTE(JSON_EXTRACT(knowledge_points, CONCAT('$[', numbers.n, ']'))) IS NOT NULL
+          ORDER BY knowledge_point`
+      )
+      const knowledgePoints = (rows as any[])
+        .map(r => r.knowledge_point)
+        .filter((p: string | null) => !!p && p !== 'null')
+      return res.json({ success: true, data: knowledgePoints })
     } catch (error) {
       console.error('获取知识点列表错误:', error)
-      const response = {
-        success: false,
-        error: error instanceof Error ? error.message : '获取知识点列表失败',
-      }
-      return res.status(500).json(response)
+      return res
+        .status(500)
+        .json({ success: false, error: error instanceof Error ? error.message : '获取知识点列表失败' })
     }
   }
 }

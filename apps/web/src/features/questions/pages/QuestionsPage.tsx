@@ -22,7 +22,7 @@ import {
   Tag,
   Typography,
 } from 'antd'
-import { BookmarkPlus, Clock, Eye, Filter, Heart, Play, Plus, Search, Upload } from 'lucide-react'
+import { BookmarkPlus, Clock, Eye, Filter, Heart, Play, Search } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import * as XLSX from 'xlsx'
@@ -553,19 +553,10 @@ const QuestionsPage: React.FC = () => {
 
           <Space>
             {/* 管理员功能按钮 */}
-            {user?.role === 'admin' && viewType === 'manage' && (
-              <>
-                <Button
-                  type="primary"
-                  icon={<Plus style={{ width: 16, height: 16 }} />}
-                  onClick={() => setShowAddModal(true)}
-                >
-                  新增题目
-                </Button>
-                <Button icon={<Upload style={{ width: 16, height: 16 }} />} onClick={() => setShowImportModal(true)}>
-                  批量导入
-                </Button>
-              </>
+            {user?.role === 'admin' && (
+              <Link to="/admin/questions">
+                <Button type="primary">去后台管理</Button>
+              </Link>
             )}
 
             {/* 新增题目 Modal */}

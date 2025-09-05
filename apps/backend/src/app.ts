@@ -1,202 +1,162 @@
 // apps/backend/src/app.ts
+import 'dotenv/config'
+import 'source-map-support/register'
+
 import express, { type NextFunction, type Request, type Response } from 'express'
-import { logUserRoles } from './common/middleware/debug-roles.js'
-import { requestId } from './common/middleware/requestId.js' // ✅ 补上
+import path from 'node:path'
+import fs from 'node:fs'
+import cookieParser from 'cookie-parser' 
+// 中间件
+import { requestId } from './common/middleware/requestId.js'
+import { httpLogger } from './common/middleware/http-logger.js'
+import { optionalAuth } from './common/middleware/auth.js'
 
-// 动态导入第三方中间件，统一 any，绕过类型声明分歧
-const corsMod: any = await import('cors')
-const morganMod: any = await import('morgan')
-const cors: any = corsMod?.default ?? corsMod
-const morgan: any = morganMod?.default ?? morganMod
-
-// 子路由（指向 src/routes/index.ts 编译产物）
+// 路由
 import apiRouter from './routes/index.js'
 
 // 启动期菜单同步
 import { syncMenus } from './bootstrap/syncMenus.js'
 
-// 简易响应类型
-type ApiResponse<T> = { success: boolean; data?: T | null; error?: string }
+// 时间格式
+import { formatTime } from './infrastructure/logging/logger.js'
 
-/* --------- 给 console 输出加时间戳（使用 globalThis 避免 Node 类型依赖） --------- */
-;(function patchConsoleWithTimestamp() {
-  const g: any = globalThis as any
-  if (g.__console_ts_patched) return
-  g.__console_ts_patched = true
+type ApiResponse<T> = { success: boolean; data?: T | null; error?: string; details?: any }
 
-  function formatDate() {
-    const d = new Date()
-    const pad = (n: number) => n.toString().padStart(2, '0')
-    return (
-      d.getFullYear() +
-      '-' +
-      pad(d.getMonth() + 1) +
-      '-' +
-      pad(d.getDate()) +
-      ' ' +
-      pad(d.getHours()) +
-      ':' +
-      pad(d.getMinutes()) +
-      ':' +
-      pad(d.getSeconds())
-    )
-  }
+/**
+ * 与 upload.ts 保持一致的目录策略：
+ * 1) 优先用 UPLOADS_DIR
+ * 2) 否则回落到 <进程工作目录>/uploads
+ */
+const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
+if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
-  const withTs = <T extends (...args: any[]) => any>(fn: T): T =>
-    ((...args: any[]) => fn.apply(console, [`[${formatDate()}]`, ...args])) as T
-
-  console.log = withTs(console.log.bind(console))
-  console.info = withTs((console as any).info?.bind(console) ?? console.log.bind(console))
-  console.warn = withTs(console.warn.bind(console))
-  console.error = withTs(console.error.bind(console))
-  console.debug = withTs((console as any).debug?.bind(console) ?? console.log.bind(console))
-})()
-
-/* -------------------- 创建 app（⚠️ 一定要在所有 app.use 之前） -------------------- */
 const app = express()
 
-/* -------------------- morgan 自定义 token -------------------- */
-morgan.token('local-date', () => {
-  const d = new Date()
-  const pad = (n: number) => n.toString().padStart(2, '0')
-  return (
-    d.getFullYear() +
-    '-' +
-    pad(d.getMonth() + 1) +
-    '-' +
-    pad(d.getDate()) +
-    ' ' +
-    pad(d.getHours()) +
-    ':' +
-    pad(d.getMinutes()) +
-    ':' +
-    pad(d.getSeconds())
-  )
-})
-morgan.token('rid', (req: any) => req.id || '-') // ✅ 请求 ID
+// 静态资源：/uploads/** -> UPLOADS_DIR
+app.use('/uploads', express.static(UPLOADS_DIR))
 
-/* -------------------- 全局中间件（顺序很重要） -------------------- */
-// 1) 请求 ID（尽早注入）
+// 顺序很重要
 app.use(requestId())
 
-// 2) CORS / JSON 解析
-app.use((cors as any)())
-app.use(express.json())
-
-// 3) 访问日志（带 rid）
-app.use(morgan(':local-date [rid=:rid] :method :url :status :response-time ms - :res[content-length]'))
-
-// 4) 静态文件
-app.use('/uploads', express.static('uploads'))
-
-// 5) 开发期调试日志（打印 token/角色等）
-app.use(logUserRoles)
-
-/* -------------------- 调试：当前登录身份与角色解析 -------------------- */
-app.get('/api/__debug/whoami', (req, res) => {
-  const user: any = (req as any).user ?? null
-
-  const ROLE_IDS = { SUPER_ADMIN: 1, ADMIN: 2, TEACHER: 3, STUDENT: 4 } as const
-  const ROLE_CODE_TO_ID: Record<string, number> = {
-    super_admin: ROLE_IDS.SUPER_ADMIN,
-    superadmin: ROLE_IDS.SUPER_ADMIN,
-    admin: ROLE_IDS.ADMIN,
-    teacher: ROLE_IDS.TEACHER,
-    student: ROLE_IDS.STUDENT,
-  }
-
-  function extractUserRoleIds(u: any): number[] {
-    const ids = new Set<number>()
-    if (!u) return []
-
-    const rawIds: unknown = u.role_ids ?? u.roleIds ?? u.roles_ids ?? u.rolesIds
-    if (Array.isArray(rawIds)) {
-      for (const v of rawIds) {
-        const n = typeof v === 'string' ? parseInt(v, 10) : v
-        if (Number.isFinite(n)) ids.add(n as number)
-      }
-    }
-
-    const rawCodes: unknown = u.role_codes ?? u.roleCodes ?? u.roles_codes ?? u.rolesCodes
-    if (Array.isArray(rawCodes)) {
-      for (const c of rawCodes) {
-        const code = String(c || '').toLowerCase()
-        const id = ROLE_CODE_TO_ID[code]
-        if (id) ids.add(id)
-      }
-    }
-
-    const rawRoles: unknown = u.roles
-    if (Array.isArray(rawRoles)) {
-      for (const r of rawRoles) {
-        const id = Number((r as any).id)
-        if (Number.isFinite(id)) ids.add(id)
-        const code = String((r as any).code || '').toLowerCase()
-        const mapped = ROLE_CODE_TO_ID[code]
-        if (mapped) ids.add(mapped)
-      }
-    }
-
-    if (u?.is_super_admin || u?.isSuperAdmin) {
-      ids.add(ROLE_IDS.SUPER_ADMIN)
-    }
-    return Array.from(ids)
-  }
-
-  res.json({
-    ok: true,
-    user,
-    extractedRoleIds: extractUserRoleIds(user),
+// CORS
+const corsMod: any = await import('cors')
+const cors: any = corsMod?.default ?? corsMod
+const FRONTEND_ORIGIN = (process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+app.use(
+  (cors as any)({
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
   })
-})
+)
+app.use(cookieParser())
+app.use(express.json({ limit: '5mb' }))
+app.use(optionalAuth)
+app.use(httpLogger())
 
-/* -------------------- 路由：集中入口 -------------------- */
 app.use('/api', apiRouter)
 
-// 健康检查
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.json({ ok: true, time: new Date().toISOString() })
+  res.json({ ok: true, time: formatTime() })
 })
 
-/* -------------------- 404 -------------------- */
+// 兜底 404（API）
 app.use((req: Request, res: Response<ApiResponse<null>>) => {
   res.status(404).json({ success: false, error: '请求的资源不存在' })
 })
 
-/* -------------------- 全局错误处理 -------------------- */
-app.use((err: Error, _req: Request, res: Response<ApiResponse<null>>, _next: NextFunction) => {
-  console.error('未捕获的错误:', err)
-  res.status(500).json({ success: false, error: '服务器内部错误' })
-})
+/** ====== 辅助：从堆栈里挑选第一条业务帧（文件+行列+方法） ====== */
+function pickTopBusinessFrame(stack?: string) {
+  if (!stack) return null
+  const lines = stack.split('\n').slice(1)
+  for (const l of lines) {
+    let m = l.match(/\s*at\s+(.*?)\s+\((.*?):(\d+):(\d+)\)/)
+    if (!m) {
+      m = l.match(/\s*at\s+(.*?):(\d+):(\d+)/)
+      if (m) {
+        const [, file, line, column] = m
+        if (file.includes('node:') || file.includes('node_modules')) continue
+        return { method: undefined, file, line: Number(line), column: Number(column) }
+      }
+      continue
+    }
+    const [, method, file, line, column] = m
+    if (file.includes('node:') || file.includes('node_modules')) continue
+    return { method, file, line: Number(line), column: Number(column) }
+  }
+  return null
+}
 
-/* -------------------- 进程级兜底（通过 globalThis 获取 process，避免类型依赖） -------------------- */
-const proc: any = (globalThis as any).process
-
-proc?.on?.('uncaughtException', (err: unknown) => {
-  console.error('未捕获的异常:', err)
-  proc?.exit?.(1)
-})
-
-proc?.on?.('unhandledRejection', (reason: unknown) => {
-  console.error('未处理的 Promise 拒绝:', reason)
-})
-
-/* -------------------- 启动 -------------------- */
-const port = Number(proc?.env?.PORT) || 3000
-
-async function start() {
+function safeJson(obj: any, max = 4000) {
   try {
-    // 启动期同步菜单（首次建议 removeOrphans: false）
-    await syncMenus({ removeOrphans: false, mode: 'patch' })
-
-    app.listen(port, '0.0.0.0', () => {
-      console.log(`服务器运行在 http://localhost:${port}`)
-      console.log(`网络访问地址: http://0.0.0.0:${port}`)
-    })
-  } catch (err: unknown) {
-    console.error('[menu-sync] 启动期同步失败：', err)
-    proc?.exit?.(1)
+    const s = JSON.stringify(obj)
+    return s.length > max ? s.slice(0, max) + '…(truncated)' : s
+  } catch {
+    return undefined
   }
 }
 
+// 统一错误处理
+app.use((err: any, req: Request, res: Response<ApiResponse<null>>, _next: NextFunction) => {
+  const log = (req as any).log ?? console
+  const status = typeof err?.status === 'number' ? err.status : 500
+  ;(req as any).onError?.(err)
+
+  const top = pickTopBusinessFrame(err?.stack)
+  const short =
+    `[error-handler] ${err?.name || 'Error'}: ${String(err?.message ?? err)}` +
+    (top ? ` @ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
+
+  const reqDump =
+    req.method === 'GET' || req.method === 'HEAD'
+      ? { params: req.params, query: req.query }
+      : { params: req.params, query: req.query, body: JSON.parse(safeJson(req.body) || 'null') }
+
+  log[status >= 500 ? 'error' : 'warn']?.(short, {
+    rid: (req as any).id ?? null,
+    method: req.method,
+    url: req.originalUrl || req.url,
+    routePath: (req as any).route?.path || null,
+    handler: (req as any).__handlerName ?? null,
+    error: {
+      type: err?.name,
+      message: String(err?.message ?? err),
+      stack: err?.stack,
+      code: err?.code,
+      status,
+      details: err?.details,
+      ctx: err?.ctx,
+    },
+    request: reqDump,
+  })
+
+  res.status(status).json({
+    success: false,
+    error: err?.message || '服务器内部错误',
+    ...(err?.details ? { details: err.details } : null),
+  })
+})
+
+process.on('uncaughtException', err => {
+  console.error('[uncaughtException]', err)
+  process.exit(1)
+})
+process.on('unhandledRejection', reason => {
+  console.error('[unhandledRejection]', reason)
+})
+
+const port = Number(process.env.PORT || 3000)
+async function start() {
+  try {
+    await syncMenus?.({ removeOrphans: false, mode: 'patch' }).catch((e: any) => {
+      console.warn('[menu-sync] failed at boot:', e?.message || e)
+    })
+    app.listen(port, '0.0.0.0', () => {
+      console.log(`[boot] server at http://localhost:${port} (0.0.0.0:${port})`)
+      console.log(`[boot] uploads dir = ${UPLOADS_DIR}`)
+    })
+  } catch (e) {
+    console.error('[boot] failed:', e)
+    process.exit(1)
+  }
+}
 start()

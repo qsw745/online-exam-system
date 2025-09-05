@@ -1,5 +1,5 @@
 // apps/backend/src/modules/notifications/discussions.routes.ts
-import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express'
+import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
 
 // 控制器（ESM 需显式 .js 扩展名）
@@ -7,8 +7,8 @@ import { DiscussionsController } from './discussions.controller.js'
 const discussionsController = new DiscussionsController()
 
 // 公共中间件（从 modules 返回到 common/middleware；ESM 需 .js）
-import { validateRequest } from '../../common/middleware/validation.js'
 import { authenticateToken } from '../../common/middleware/auth.js'
+import { validateRequest } from '../../common/middleware/validation.js'
 
 // 类型（从 modules 返回到 types；ESM 需 .js）
 import type { AuthRequest } from '../../types/auth.js'

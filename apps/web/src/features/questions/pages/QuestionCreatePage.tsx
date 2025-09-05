@@ -16,61 +16,110 @@ import {
   Typography,
 } from 'antd'
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import React from 'react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { questionsApi } from '../api'
+
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
 
-// ======= 通用 ApiResult 守卫，避免在 {} 上取 .data =======
+// ======= 通用 ApiResult 守卫 =======
 type ApiSuccess<T = any> = { success: true; data: T; message?: string }
 type ApiFailure = { success: false; error?: string; message?: string }
 type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
 const getMsg = (r: any, fallback = '请求失败') =>
   r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
-// =======================================================
+// ===================================
 
-interface Option {
+interface OptionType {
   content: string
   is_correct: boolean
 }
 
+// ======= 小工具：解析数组 / CSV / JSON =======
+const ensureArrayFromMaybeCsv = (input: any): string[] => {
+  if (Array.isArray(input)) return input.map(String).filter(Boolean)
+  if (typeof input === 'string') {
+    return input
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  }
+  return []
+}
+const parseMaybeJsonArray = (raw: unknown): any[] | null => {
+  if (Array.isArray(raw)) return raw
+  if (typeof raw === 'string') {
+    const s = raw.trim()
+    if (s.startsWith('[') && s.endsWith(']')) {
+      try {
+        const arr = JSON.parse(s)
+        return Array.isArray(arr) ? arr : null
+      } catch {
+        return null
+      }
+    }
+  }
+  return null
+}
+const parseTags = (raw: unknown): string[] => {
+  const arr = parseMaybeJsonArray(raw)
+  if (arr) return arr.map(String).filter(Boolean)
+  return ensureArrayFromMaybeCsv(raw)
+}
+
 const QuestionCreatePage: React.FC = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { id } = useParams<{ id: string }>()
-  const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(false)
-  const [content, setContent] = useState('')
-  const [type, setType] = useState<'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'>('single_choice')
-  const [options, setOptions] = useState<Option[]>([
+
+  // ✅ 统一由 pathname 推导模式
+  const mode: 'create' | 'view' | 'edit' = React.useMemo(() => {
+    if (!id) return 'create'
+    const p = location.pathname
+    if (/\/(question-edit|questions\/[^/]+\/edit)\b/i.test(p)) return 'edit'
+    return 'view'
+  }, [id, location.pathname])
+
+  const isViewMode = mode === 'view'
+  const isEditMode = mode === 'edit'
+
+  const [loading, setLoading] = React.useState(false)
+  const [initialLoading, setInitialLoading] = React.useState(false)
+  const [content, setContent] = React.useState('')
+  const [type, setType] = React.useState<'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'>(
+    'single_choice'
+  )
+  const [options, setOptions] = React.useState<OptionType[]>([
     { content: '', is_correct: false },
     { content: '', is_correct: false },
     { content: '', is_correct: false },
     { content: '', is_correct: false },
   ])
-  const [answer, setAnswer] = useState('') // true_false: 'true'/'false'; short_answer: 文本
-  const [explanation, setExplanation] = useState('')
-  const [knowledgePoints, setKnowledgePoints] = useState<string[]>([])
-  const [knowledgePointInput, setKnowledgePointInput] = useState('')
-  const [isViewMode, setIsViewMode] = useState(false)
-  const [isEditMode, setIsEditMode] = useState(false)
+  const [answer, setAnswer] = React.useState('') // true_false: 'true'/'false'; short_answer: 文本
+  const [explanation, setExplanation] = React.useState('')
+  const [knowledgePoints, setKnowledgePoints] = React.useState<string[]>([])
+  const [knowledgePointInput, setKnowledgePointInput] = React.useState('')
 
-  // 根据路由判断当前模式
-  useEffect(() => {
-    if (id) {
-      const path = window.location.pathname
-      if (path.includes('question-detail')) setIsViewMode(true)
-      else if (path.includes('question-edit')) setIsEditMode(true)
-
-      // 获取题目详情
-      fetchQuestionDetail(id)
+  // ====== 新增：标签状态 ======
+  const [tags, setTags] = React.useState<string[]>([])
+  const [allTags, setAllTags] = React.useState<string[]>([])
+  const loadAllTags = React.useCallback(async () => {
+    try {
+      const res: ApiResult<string[]> = await (questionsApi as any).getTags?.()
+      if (isSuccess(res) && Array.isArray(res.data)) setAllTags(res.data)
+    } catch {
+      // 忽略：接口不存在或失败不阻塞页面
     }
-  }, [id])
+  }, [])
+  React.useEffect(() => {
+    loadAllTags()
+  }, [loadAllTags])
 
   // 安全解析 options：可能是数组或 JSON 字符串
-  const parseOptions = (raw: unknown): Option[] => {
+  const parseOptions = (raw: unknown): OptionType[] => {
     try {
       if (!raw) return []
       const v = typeof raw === 'string' ? JSON.parse(raw) : raw
@@ -88,29 +137,43 @@ const QuestionCreatePage: React.FC = () => {
     }
   }
 
-  // 把正确答案映射到 options.is_correct（当后端用“索引数组/字母串”返回时）
-  const applyCorrectToOptions = (opts: Option[], correct: unknown): Option[] => {
+  // 把正确答案映射到 options.is_correct
+  const applyCorrectToOptions = (opts: OptionType[], correct: unknown): OptionType[] => {
     if (!Array.isArray(opts) || opts.length === 0) return opts
-    // 支持 [0,2] / "A,C" / "1,3" / "B" 等
     let indices: number[] = []
+
+    const fromArray = (arr: unknown) =>
+      Array.isArray(arr)
+        ? (arr as any[]).map(n => Number(n)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+        : null
+
     if (Array.isArray(correct)) {
-      indices = (correct as any[]).map(n => Number(n)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+      indices = fromArray(correct) ?? []
     } else if (typeof correct === 'string') {
-      const parts = correct
-        .split(',')
-        .map(s => s.trim())
-        .filter(Boolean)
-      // 如果是字母 A/B/C... -> 转为索引
-      const tryLetters = parts.every(p => /^[A-Za-z]$/.test(p))
-      if (tryLetters) {
-        indices = parts
-          .map(p => p.toUpperCase().charCodeAt(0) - 65)
-          .filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
-      } else {
-        // 尝试按数字索引
-        indices = parts.map(p => Number(p)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+      const s = correct.trim()
+      if (s.startsWith('[') && s.endsWith(']')) {
+        try {
+          const arr = JSON.parse(s)
+          const parsed = fromArray(arr)
+          if (parsed) indices = parsed
+        } catch {}
+      }
+      if (indices.length === 0) {
+        const parts = s
+          .split(',')
+          .map(t => t.trim())
+          .filter(Boolean)
+        const allLetters = parts.every(p => /^[A-Za-z]$/.test(p))
+        if (allLetters) {
+          indices = parts
+            .map(p => p.toUpperCase().charCodeAt(0) - 65)
+            .filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+        } else {
+          indices = parts.map(p => Number(p)).filter(n => Number.isInteger(n) && n >= 0 && n < opts.length)
+        }
       }
     }
+
     return opts.map((o, i) => ({ ...o, is_correct: indices.includes(i) }))
   }
 
@@ -124,9 +187,7 @@ const QuestionCreatePage: React.FC = () => {
         return
       }
       const d = res.data
-      // 兼容 d.question 或直接返回题目对象
       const q = d && typeof d === 'object' && (d as any).question ? (d as any).question : d
-
       if (!q || typeof q !== 'object') return
 
       setContent(q.content || '')
@@ -134,26 +195,23 @@ const QuestionCreatePage: React.FC = () => {
       setExplanation(q.explanation || '')
       setKnowledgePoints(Array.isArray(q.knowledge_points) ? q.knowledge_points : [])
 
-      // 处理选项
+      // 标签
+      setTags(parseTags((q as any).tags))
+
+      // 选项
       let opts = parseOptions(q.options)
-      // 某些后端 correct_answer 不是和 options 同步的，这里做一次同步
       if (opts.length) {
         const ca = q.correct_answer
-        if (ca != null) {
-          opts = applyCorrectToOptions(opts, typeof ca === 'string' ? ca : Array.isArray(ca) ? ca : undefined)
-        }
+        if (ca != null) opts = applyCorrectToOptions(opts, ca)
         setOptions(opts)
       } else {
-        // 没有选项也不报错
         setOptions([])
       }
 
-      // 处理答案
+      // 答案
       if (q.question_type === 'true_false') {
-        // 可能是 'true'/'false' 或 [0]/[1]
         if (typeof q.correct_answer === 'string') {
-          const v = q.correct_answer.toLowerCase()
-          setAnswer(v === 'true' ? 'true' : 'false')
+          setAnswer(q.correct_answer.toLowerCase() === 'true' ? 'true' : 'false')
         } else if (Array.isArray(q.correct_answer)) {
           setAnswer(q.correct_answer[0] === 0 ? 'true' : 'false')
         } else {
@@ -162,7 +220,6 @@ const QuestionCreatePage: React.FC = () => {
       } else if (q.question_type === 'short_answer') {
         setAnswer(q.answer || '')
       } else {
-        // 选择题不直接写 answer，保持空
         setAnswer('')
       }
     } catch (error: any) {
@@ -173,105 +230,88 @@ const QuestionCreatePage: React.FC = () => {
     }
   }
 
-  const handleOptionChange = (index: number, field: keyof Option, value: string | boolean) => {
+  React.useEffect(() => {
+    if (id) fetchQuestionDetail(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  const handleOptionChange = (index: number, field: keyof OptionType, value: string | boolean) => {
     const newOptions = [...options]
     newOptions[index] = { ...newOptions[index], [field]: value }
-
-    // 单选题确保只有一个正确
     if (type === 'single_choice' && field === 'is_correct' && value === true) {
       newOptions.forEach((option, i) => {
         if (i !== index) newOptions[i] = { ...option, is_correct: false }
       })
     }
-
     setOptions(newOptions)
   }
 
-  const addOption = () => {
-    setOptions([...options, { content: '', is_correct: false }])
-  }
-
+  const addOption = () => setOptions([...options, { content: '', is_correct: false }])
   const removeOption = (index: number) => {
-    if (options.length <= 2) {
-      message.error('至少需要两个选项')
-      return
-    }
+    if (options.length <= 2) return message.error('至少需要两个选项')
     const newOptions = [...options]
     newOptions.splice(index, 1)
     setOptions(newOptions)
   }
 
   const addKnowledgePoint = () => {
-    if (!knowledgePointInput.trim()) return
-    if (knowledgePoints.includes(knowledgePointInput.trim())) {
-      message.error('知识点已存在')
-      return
-    }
-    setKnowledgePoints([...knowledgePoints, knowledgePointInput.trim()])
+    const v = knowledgePointInput.trim()
+    if (!v) return
+    if (knowledgePoints.includes(v)) return message.error('知识点已存在')
+    setKnowledgePoints([...knowledgePoints, v])
     setKnowledgePointInput('')
   }
-
   const removeKnowledgePoint = (index: number) => {
-    const newPoints = [...knowledgePoints]
-    newPoints.splice(index, 1)
-    setKnowledgePoints(newPoints)
+    const next = [...knowledgePoints]
+    next.splice(index, 1)
+    setKnowledgePoints(next)
   }
 
-  // 表单提交处理
+  // 表单提交
   const handleSubmit = async () => {
     if (!content.trim()) return message.error('请输入题目内容')
 
-    // 选择题验证
     if (type === 'single_choice' || type === 'multiple_choice') {
       const hasEmptyOption = options.some(option => !option.content.trim())
       if (hasEmptyOption) return message.error('选项内容不能为空')
-
       const hasCorrectOption = options.some(option => option.is_correct)
       if (!hasCorrectOption) return message.error('请至少选择一个正确选项')
     }
-
-    // 判断题验证
     if (type === 'true_false' && !answer) return message.error('请选择正确答案')
-
-    // 简答题验证
     if (type === 'short_answer' && !answer.trim()) return message.error('请输入参考答案')
 
     try {
       setLoading(true)
-
-      // 准备提交数据（这里保持与你后端的字段一致）
-      const questionData: any = {
+      const payload: any = {
         content,
         question_type: type,
         knowledge_points: knowledgePoints,
+        tags, // ← 带上标签
         explanation,
-        exam_id: 1, // 示例：默认考试 ID
-        score: 10, // 示例：默认分值
+        exam_id: 1,
+        score: 10,
       }
 
       if (type === 'single_choice' || type === 'multiple_choice') {
-        // 后端若接受数组就直接传；若要求字符串可改：JSON.stringify(options)
-        questionData.options = options
-        // 正确答案用“索引数组”，与详情读取逻辑匹配
-        const correctIdx = options
+        payload.options = options
+        payload.correct_answer = options
           .map((opt, idx) => (opt.is_correct ? idx : null))
           .filter((v): v is number => v !== null)
-        questionData.correct_answer = correctIdx
       } else if (type === 'true_false') {
-        questionData.options = [{ content: '正确' }, { content: '错误' }]
-        questionData.correct_answer = [answer === 'true' ? 0 : 1]
+        payload.options = [{ content: '正确' }, { content: '错误' }]
+        payload.correct_answer = [answer === 'true' ? 0 : 1]
       } else if (type === 'short_answer') {
-        questionData.options = []
-        questionData.correct_answer = answer
-        questionData.answer = answer
+        payload.options = []
+        payload.correct_answer = answer
+        payload.answer = answer
       }
 
       if (isEditMode && id) {
-        const res: ApiResult<any> = await questionsApi.update(id, questionData)
+        const res: ApiResult<any> = await questionsApi.update(id, payload)
         if (!isSuccess(res)) return message.error(getMsg(res, '题目更新失败'))
         message.success('题目更新成功')
       } else {
-        const res: ApiResult<any> = await questionsApi.create(questionData)
+        const res: ApiResult<any> = await questionsApi.create(payload)
         if (!isSuccess(res)) return message.error(getMsg(res, '题目创建失败'))
         message.success('题目创建成功')
       }
@@ -285,10 +325,8 @@ const QuestionCreatePage: React.FC = () => {
     }
   }
 
-  // 获取页面标题/描述
-  const getPageTitle = () => (isViewMode ? '查看题目' : isEditMode ? '编辑题目' : '创建新题目')
-  const getPageDescription = () =>
-    isViewMode ? '查看题目详细信息' : isEditMode ? '修改现有题目信息' : '添加新的考试题目到题库'
+  const pageTitle = isViewMode ? '查看题目' : isEditMode ? '编辑题目' : '创建新题目'
+  const pageDesc = isViewMode ? '查看题目详细信息' : isEditMode ? '修改现有题目信息' : '添加新的考试题目到题库'
 
   if (initialLoading) {
     return (
@@ -307,10 +345,10 @@ const QuestionCreatePage: React.FC = () => {
         <Row justify="space-between" align="middle">
           <Col>
             <Title level={2} style={{ margin: 0 }}>
-              {getPageTitle()}
+              {pageTitle}
             </Title>
             <Paragraph type="secondary" style={{ margin: '8px 0 0 0' }}>
-              {getPageDescription()}
+              {pageDesc}
             </Paragraph>
           </Col>
           <Col>
@@ -321,7 +359,7 @@ const QuestionCreatePage: React.FC = () => {
         </Row>
       </Card>
 
-      {/* 创建表单 */}
+      {/* 表单 */}
       <Card>
         <Form layout="vertical" onFinish={isViewMode ? undefined : handleSubmit} disabled={isViewMode}>
           {/* 基本信息 */}
@@ -465,6 +503,31 @@ const QuestionCreatePage: React.FC = () => {
                   </Tag>
                 ))}
               </Space>
+            )}
+          </Form.Item>
+
+          {/* ===== 新增：标签 ===== */}
+          <Form.Item label="标签（可多选/自定义）">
+            {isViewMode ? (
+              tags.length ? (
+                <Space wrap>
+                  {tags.map((t, i) => (
+                    <Tag key={i} color="geekblue">
+                      {t}
+                    </Tag>
+                  ))}
+                </Space>
+              ) : (
+                <span style={{ color: '#999' }}>-</span>
+              )
+            ) : (
+              <Select
+                mode="tags"
+                placeholder="选择或输入标签后回车"
+                value={tags}
+                onChange={vals => setTags(vals as string[])}
+                options={allTags.map(t => ({ label: t, value: t }))}
+              />
             )}
           </Form.Item>
 

@@ -34,7 +34,7 @@ router.get('/practice-stats', wrap(QuestionController.getPracticeStats))
 /** ===== 批量导入 & 知识点 ===== */
 router.post('/bulk-import', wrap(QuestionController.bulkImport))
 router.get('/knowledge-points', wrap(QuestionController.getKnowledgePoints))
-
+router.get('/tags', wrap(QuestionController.getTags))  
 /** ===== CRUD ===== */
 router.get('/', wrap(QuestionController.list))
 router.get('/:id(\\d+)', wrap(QuestionController.getById))

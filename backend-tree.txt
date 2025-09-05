@@ -29,9 +29,19 @@
 |   |   |   007_create_task_assignments.sql
 |   |   |   008_add_user_status.sql
 |   |   |   009_add_role_code.sql
+|   |   |   17_add.sql
+|   |   |   20250906_090000_add_tags_to_questions.sql
 |   |   |   add_task_publish_status.sql
 |   |   |   org_user.sql
-|   +-- seeds
++-- logs
+|   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
+|   |   .6cce1b2ac5b7254167a2a5993b7803825039634e-audit.json
+|   |   .7cff1956a464da8f07818737bdb6cd01584089b1-audit.json
+|   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
+|   |   2025-09-06.log.gz
+|   |   2025-09-06-error.log.gz
+|   |   2025-09-07.log
+|   |   2025-09-07-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -50,28 +60,27 @@
 |   |   |   |   http-error.ts
 |   |   +-- middleware
 |   |   |   |   auth.ts
-|   |   |   |   debug-roles.ts
+|   |   |   |   http-logger.ts
+|   |   |   |   jwt-role-hydrator.ts
+|   |   |   |   rbac.ts
+|   |   |   |   requestId.ts
 |   |   |   |   role-auth.ts
 |   |   |   |   upload.ts
 |   |   |   |   validation.ts
 |   |   +-- utils
 |   |   |   |   date.ts
+|   |   +-- validation
+|   |   |   |   favorites.schema.ts
+|   |   |   async-handler.ts
+|   |   |   errors.ts
 |   +-- config
-|   |   +-- migrations
-|   |   |   database.sql
 |   |   |   database.ts
-|   |   |   init.sql
-|   |   |   logs.sql
-|   |   |   password-reset.sql
-|   |   |   practice_records.sql
+|   |   |   jwt.ts
 |   |   |   roles.ts
-|   |   |   wrong_questions.sql
 |   +-- database
 |   |   |   migrate_leaderboard.js
 |   +-- infrastructure
 |   |   +-- db
-|   |   |   +-- migrations
-|   |   |   +-- seeds
 |   |   |   |   index.ts
 |   |   +-- email
 |   |   |   |   email.service.ts
@@ -96,14 +105,12 @@
 |   |   |   |   |   result.model.ts
 |   |   |   |   exam.controller.ts
 |   |   |   |   exam.routes.ts
-|   |   |   |   exam_result.routes.ts
+|   |   |   |   exam-result.routes.ts
 |   |   |   |   paper.controller.ts
 |   |   |   |   paper.routes.ts
 |   |   |   |   result.controller.ts
 |   |   |   |   result.routes.ts
 |   |   +-- favorites
-|   |   |   |   favorite.controller.ts
-|   |   |   |   favorite.routes.ts
 |   |   |   |   favorites.controller.ts
 |   |   |   |   favorites.routes.ts
 |   |   |   |   favorites.service.ts
@@ -155,6 +162,8 @@
 |   |   |   |   wrong-question.service.ts
 |   +-- routes
 |   |   |   index.ts
+|   +-- services
+|   |   |   logger.service.ts
 |   +-- types
 |   |   |   auth.ts
 |   |   |   express.d.ts
@@ -163,27 +172,13 @@
 |   |   app.ts
 +-- uploads
 |   +-- avatars
+|   |   |   avatar-1757179079331-7746723879422801.jpg
+|   |   |   avatar-1757179116674-08540409240457825.jpg
 |   .env
-|   add_more_paper_questions.sql
-|   assign_default_permissions.cjs
-|   assign_parent_menu_3_to_admin.cjs
 |   backend-refactor.ps1
-|   check_menu_hierarchy.cjs
-|   check_role_data.cjs
-|   check_user_2_roles.cjs
-|   create_paper_questions.sql
-|   debug_menu_tree_api.cjs
-|   debug_user2_permissions.cjs
 |   Dockerfile
 |   EMAIL_SETUP.md
-|   fix_user_2_admin_role.cjs
-|   insert_paper_questions.sql
 |   latest_menu_response.json
-|   learning_progress.sql
-|   migrate_favorites.js
-|   migrate_learning_progress.js
-|   migrate_menu_management.cjs
-|   migrate_wrong_questions.js
 |   package.json
 |   pnpm-lock.yaml
 |   tsconfig.json

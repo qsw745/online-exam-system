@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
-
+import '@ant-design/v5-patch-for-react-19'
 // 新路径（shared 通用组件）
 import { ErrorBoundary } from '@shared/components/ErrorBoundary'
 

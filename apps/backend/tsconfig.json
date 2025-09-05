@@ -15,7 +15,8 @@
       "@infrastructure/*": ["infrastructure/*"],
       "@types/*": ["types/*"],
       "@utils/*": ["utils/*"],
-      "@routes": ["routes/index.ts"]
+      "@routes": ["routes/index.ts"],
+      "@services/*": ["services/*"]
     },
 
     "types": ["node"],
@@ -31,7 +32,8 @@
 
     "allowJs": true,
     "checkJs": false,
-    "sourceMap": true
+    "sourceMap": true,
+    "inlineSources": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]

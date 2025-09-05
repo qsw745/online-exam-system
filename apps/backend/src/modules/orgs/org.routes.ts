@@ -40,7 +40,7 @@ router.get('/', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER, ROLE_IDS.SUP
 
 // 获取组织详情
 router.get(
-  '/:id',
+  '/org',
   requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER, ROLE_IDS.SUPER_ADMIN]),
   wrap(OrgController.getById)
 )

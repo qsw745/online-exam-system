@@ -1,6 +1,6 @@
-import type { Request, Response, NextFunction, RequestHandler } from 'express'
+import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import { ROLE_HIERARCHY, ROLE_IDS } from '../../config/roles.js'
 import type { AuthRequest } from '../../types/auth.js'
-import { ROLE_IDS, ROLE_HIERARCHY } from '../../config/roles.js'
 
 /** code/名称 到 id 的映射（可按你库里实际情况增补） */
 const ROLE_CODE_TO_ID: Record<string, number> = {
@@ -92,8 +92,8 @@ export function requireRoleByIds(allowedRoleIds: number[]): RequestHandler {
       return res.status(401).json({ success: false, message: '未登录或令牌无效' })
     }
     const userRoleIds = extractUserRoleIds(user)
-
-    if (userRoleIds.includes(ROLE_IDS.SUPER_ADMIN)) return next()
+    console.log('===========userRoleIds=====================', userRoleIds)
+    if (userRoleIds.includes(ROLE_IDS.ADMIN) || userRoleIds.includes(ROLE_IDS.SUPER_ADMIN)) return next()
     if (userRoleIds.some(id => allowedRoleIds.includes(id))) return next()
     if (userRoleIds.some(id => hasEnoughLevel(id, allowedRoleIds))) return next()
 

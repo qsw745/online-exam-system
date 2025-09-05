@@ -1,7 +1,7 @@
 // apps/backend/src/modules/auth/auth.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
-import { AuthController } from './auth.controller.js'
 import type { AuthRequest } from 'types/auth.js'
+import { AuthController } from './auth.controller.js'
 
 const router = Router()
 
@@ -24,5 +24,6 @@ router.post('/login', wrap(AuthController.login))
 router.post('/password-reset/forgot', wrap(AuthController.forgotPassword))
 router.post('/password-reset/validate', wrap(AuthController.validateResetToken))
 router.post('/password-reset/reset', wrap(AuthController.resetPassword))
-
+router.post('/refresh', wrap(AuthController.refresh)) // ← 新增
+router.post('/logout', wrap(AuthController.logout)) // ← 新增
 export { router as authRoutes }
