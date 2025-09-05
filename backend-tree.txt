@@ -39,6 +39,7 @@
 |   +-- @types
 |   |   +-- bcryptjs
 |   |   |   |   index.d.ts
+|   |   |   shims.d.ts
 |   +-- bootstrap
 |   |   |   menu.config.ts
 |   |   |   syncMenus.ts
@@ -49,6 +50,7 @@
 |   |   |   |   http-error.ts
 |   |   +-- middleware
 |   |   |   |   auth.ts
+|   |   |   |   debug-roles.ts
 |   |   |   |   role-auth.ts
 |   |   |   |   upload.ts
 |   |   |   |   validation.ts
@@ -159,7 +161,6 @@
 |   |   |   password-reset.ts
 |   |   |   response.ts
 |   |   app.ts
-|   |   routes.ts
 +-- uploads
 |   +-- avatars
 |   .env

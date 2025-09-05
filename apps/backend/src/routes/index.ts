@@ -62,23 +62,22 @@ import * as Orgs from '@modules/orgs/org.routes.js'
 import * as OrgUsers from '@modules/orgs/org-user.routes.js'
 
 useIf('/orgs', Orgs, 'orgRoutes')
-useIf('/org-users', OrgUsers, 'orgUserRoutes')
+useIf('/orgs', OrgUsers, 'orgUserRoutes') // 与 orgs 同前缀：在其模块内区分路径
 
 /** ---------------- questions ---------------- */
 import * as Questions from '@modules/questions/question.routes.js'
 useIf('/questions', Questions, 'questionRoutes')
 
-/**
- * ---------------- roles / menus ----------------
- * 子路由文件里已自带 '/roles'、'/menus' 前缀，这里挂在根路径即可，
- * 避免出现 '/roles/roles'、'/menus/menus'。
+/** ---------------- roles / menus ----------------
+ * 子路由文件不带 '/roles'、'/menus' 前缀，这里显式挂载前缀
+ * （防止把 '/api/tasks' 误当作 '/:id' 命中）
  */
 import * as Roles from '@modules/roles/role.routes.js'
 import * as Menus from '@modules/roles/menu.routes.js'
 
-useIf('/', Roles, 'roleRoutes')
-useIf('/', Menus, 'menuRoutes')
-
+useIf('/roles', Roles, 'roleRoutes')
+useIf('/menus', Menus, 'menuRoutes')
+useIf('/menu', Menus, 'menuRoutes') 
 /** ---------------- tasks / users / wrong-questions ---------------- */
 import * as Tasks from '@modules/tasks/task.routes.js'
 import * as Users from '@modules/users/user.routes.js'

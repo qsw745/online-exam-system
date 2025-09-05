@@ -1,5 +1,7 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "types": ["vite/client"] },
+  "compilerOptions": {
+    "types": ["vite/client", "react", "react-dom"] // ✅ 新增 react/DOM 声明
+  },
   "include": ["src"]
 }

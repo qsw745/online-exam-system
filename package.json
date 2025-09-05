@@ -2,13 +2,15 @@
   "name": "online-exam-system",
   "private": true,
   "version": "1.0.0",
- "scripts": {
+  "scripts": {
     "dev": "concurrently -k -r -n api,web -c yellow,cyan \"pnpm -C apps/backend dev\" \"pnpm -C apps/web dev\"",
     "dev:api": "pnpm -C apps/backend dev",
     "dev:web": "pnpm -C apps/web dev"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
+    "cross-env": "^7.0.3",
+    "tsconfig-paths": "^4.2.0",
     "wait-on": "^8.0.4"
   }
 }

@@ -116,6 +116,9 @@
 |   |   |   |   |   WrongQuestionsPage.tsx
 |   +-- shared
 |   |   +-- api
+|   |   |   +-- endpoints
+|   |   |   |   |   index.ts
+|   |   |   |   |   menu.ts
 |   |   |   |   http.ts
 |   |   |   |   types.ts
 |   |   +-- components

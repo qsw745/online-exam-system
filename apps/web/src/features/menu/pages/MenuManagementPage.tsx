@@ -1,3 +1,4 @@
+// apps/web/src/features/menu/pages/MenuManagementPage.tsx
 import {
   CopyOutlined,
   DeleteOutlined,
@@ -8,7 +9,16 @@ import {
   ImportOutlined,
   PlusOutlined,
 } from '@ant-design/icons'
-import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
+
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
 import {
   arrayMove,
   SortableContext,
@@ -17,309 +27,214 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { App, Button, Card, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Tag, Tree } from 'antd'
-import type { EventDataNode, TreeDataNode } from 'antd/es/tree'
-import React, { useEffect, useState } from 'react'
-import { api } from '@shared/api/http'
+import { menuApi, type MenuDTO } from '@shared/api/endpoints/menu'
+import {
+  App,
+  Button,
+  Card,
+  Form,
+  Input,
+  InputNumber,
+  Modal,
+  Popconfirm,
+  Select,
+  Space,
+  Switch,
+  Tag,
+  Tree,
+  Typography,
+  type TreeProps,
+} from 'antd'
+import type { DataNode, EventDataNode } from 'antd/es/tree'
+import React, { useEffect, useMemo, useState } from 'react'
 
-interface Menu {
-  id: number
-  name: string
-  title: string
-  path?: string
-  component?: string
-  icon?: string
-  parent_id?: number
-  sort_order: number
-  level: number
-  is_hidden: boolean
-  is_disabled: boolean
-  is_system: boolean
-  menu_type: 'menu' | 'button' | 'page'
-  permission_code?: string
-  redirect?: string
-  meta?: string
-  created_at: string
-  updated_at: string
-}
-
+/** 前端表单模型 */
 interface MenuFormData {
   name: string
   title: string
   path?: string
   component?: string
   icon?: string
-  parent_id?: number
-  sort_order: number
-  is_hidden: boolean
-  is_disabled: boolean
+  parent_id?: number | null
+  sort_order?: number
+  is_hidden?: boolean
+  is_disabled?: boolean
   menu_type: 'menu' | 'button' | 'page'
   permission_code?: string
   redirect?: string
   meta?: string
 }
 
-// 可拖拽的菜单项组件
+/** 可拖拽列表项（批量排序对话框里用） */
 interface SortableMenuItemProps {
-  menu: Menu
+  menu: MenuDTO
   index: number
-  onSortOrderChange: (index: number, newSortOrder: number) => void
+  onSortOrderChange: (index: number, newIndex: number) => void
 }
 
 const SortableMenuItem: React.FC<SortableMenuItemProps> = ({ menu, index, onSortOrderChange }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: menu.id })
-
-  const style = {
+  const style: React.CSSProperties = {
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
+    border: '1px solid #e5e7eb',
+    padding: 12,
+    borderRadius: 8,
+    background: '#fff',
+  }
+
+  const handleChange = (value: number | null) => {
+    if (typeof value === 'number') onSortOrderChange(index, value)
   }
 
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`flex items-center justify-between p-3 border rounded hover:bg-gray-50 ${
-        isDragging ? 'shadow-lg' : ''
-      }`}
-    >
-      <div className="flex items-center gap-3">
-        <div {...attributes} {...listeners} className="cursor-move">
-          <HolderOutlined className="text-gray-400" />
+    <div ref={setNodeRef} style={style} className={isDragging ? 'shadow' : ''}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span {...attributes} {...(listeners as any)} style={{ cursor: 'grab', color: '#9ca3af' }}>
+            <HolderOutlined />
+          </span>
+          {menu.icon && <span className={`anticon anticon-${menu.icon}`} />}
+          <span style={{ fontWeight: 500 }}>{menu.title}</span>
+          <span style={{ color: '#9ca3af', fontSize: 12 }}>({menu.name})</span>
+          {menu.path && <span style={{ color: '#3b82f6', fontSize: 12 }}>{menu.path}</span>}
         </div>
-        {menu.icon && <span className={`anticon anticon-${menu.icon}`} />}
-        <span className="font-medium">{menu.title}</span>
-        <span className="text-gray-400 text-sm">({menu.name})</span>
-        {menu.path && <span className="text-blue-500 text-sm">{menu.path}</span>}
-      </div>
-      <div className="flex items-center gap-2">
-        <span className="text-sm text-gray-500">排序:</span>
-        <InputNumber
-          size="small"
-          value={index}
-          min={0}
-          onChange={value => {
-            if (value !== null && value !== undefined) {
-              onSortOrderChange(index, value)
-            }
-          }}
-        />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>当前位置:</span>
+          <InputNumber size="small" value={index} min={0} onChange={handleChange} />
+        </div>
       </div>
     </div>
   )
 }
 
+const STEP = 10 // sort_order 步长，用于层内重排
+
 const MenuManagementPage: React.FC = () => {
   const { message } = App.useApp()
-  const [menus, setMenus] = useState<Menu[]>([])
-  const [treeData, setTreeData] = useState<TreeDataNode[]>([])
-  const [loading, setLoading] = useState(false)
 
-  // 菜单相关状态
-  const [menuModalVisible, setMenuModalVisible] = useState(false)
-  const [editingMenu, setEditingMenu] = useState<Menu | null>(null)
-  const [menuForm] = Form.useForm()
+  const [menus, setMenus] = useState<MenuDTO[]>([])
+  const [treeData, setTreeData] = useState<DataNode[]>([])
+  const [loading, setLoading] = useState<boolean>(false)
+
+  const [menuModalVisible, setMenuModalVisible] = useState<boolean>(false)
+  const [editingMenu, setEditingMenu] = useState<MenuDTO | null>(null)
+  const [menuForm] = Form.useForm<MenuFormData>()
 
   const [iconPreview, setIconPreview] = useState<string>('')
-  const [draggedNode, setDraggedNode] = useState<EventDataNode<TreeDataNode> | null>(null)
-  const [batchSortVisible, setBatchSortVisible] = useState(false)
-  const [batchSortMenus, setBatchSortMenus] = useState<Menu[]>([])
+  const [draggedNode, setDraggedNode] = useState<EventDataNode<DataNode> | null>(null)
 
-  // 拖拽传感器
+  const [batchSortVisible, setBatchSortVisible] = useState<boolean>(false)
+  const [batchSortMenus, setBatchSortMenus] = useState<MenuDTO[]>([])
+
   const sensors = useSensors(
     useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   )
 
-  useEffect(() => {
-    loadMenus()
-  }, [])
-
-  // 处理拖拽结束
-  const handleDragEnd = (event: any) => {
-    const { active, over } = event
-
-    if (active.id !== over?.id) {
-      setBatchSortMenus(items => {
-        const oldIndex = items.findIndex(item => item.id === active.id)
-        const newIndex = items.findIndex(item => item.id === over.id)
-
-        return arrayMove(items, oldIndex, newIndex)
-      })
+  /** 构建树节点 */
+  const buildTreeData = (menuList: MenuDTO[]): DataNode[] => {
+    const byParent = new Map<number | null, MenuDTO[]>()
+    for (const m of menuList) {
+      const pid = m.parent_id ?? null
+      const arr = byParent.get(pid) ?? []
+      arr.push(m)
+      byParent.set(pid, arr)
     }
+    const sortAsc = (a: MenuDTO, b: MenuDTO) => a.sort_order - b.sort_order
+
+    const makeNodes = (pid: number | null): DataNode[] =>
+      (byParent.get(pid) ?? []).sort(sortAsc).map((m: MenuDTO) => ({
+        key: m.id,
+        title: (
+          <div
+            className="flex items-center justify-between w-full"
+            style={{ display: 'flex', justifyContent: 'space-between', width: '100%' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {m.icon && <span className={`anticon anticon-${m.icon}`} />}
+              <span style={{ fontWeight: 500 }}>{m.title}</span>
+              <span style={{ color: '#9ca3af', fontSize: 12 }}>({m.name})</span>
+              <Tag color={m.menu_type === 'menu' ? 'blue' : m.menu_type === 'button' ? 'green' : 'orange'}>
+                {m.menu_type === 'menu' ? '菜单' : m.menu_type === 'button' ? '按钮' : '页面'}
+              </Tag>
+              {m.is_hidden && <Tag color="red">隐藏</Tag>}
+              {m.is_disabled && <Tag color="gray">禁用</Tag>}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#6b7280', fontSize: 12 }}>
+                {m.path && <span>路径: {m.path}</span>}
+                <span>排序: {m.sort_order}</span>
+              </div>
+              <Space>
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<EditOutlined />}
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation()
+                    handleEditMenu(m)
+                  }}
+                  title="编辑菜单"
+                />
+                <Button
+                  type="text"
+                  size="small"
+                  icon={<CopyOutlined />}
+                  onClick={(e: React.MouseEvent<HTMLButtonElement>) => {
+                    e.stopPropagation()
+                    handleCopyMenu(m)
+                  }}
+                  title="复制菜单"
+                />
+                {!m.is_system && (
+                  <Popconfirm
+                    title="确定删除此菜单吗？"
+                    onConfirm={(e?: React.MouseEvent<HTMLElement>) => {
+                      e?.stopPropagation?.()
+                      handleDeleteMenu(m.id)
+                    }}
+                    onClick={(e?: React.MouseEvent<HTMLElement>) => e?.stopPropagation?.()}
+                  >
+                    <Button
+                      type="text"
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={(e: React.MouseEvent<HTMLButtonElement>) => e.stopPropagation()}
+                    />
+                  </Popconfirm>
+                )}
+              </Space>
+            </div>
+          </div>
+        ),
+        children: makeNodes(m.id),
+      }))
+
+    return makeNodes(null)
   }
 
-  // 处理排序号变更
-  const handleSortOrderChange = (currentIndex: number, newSortOrder: number) => {
-    if (newSortOrder >= 0 && newSortOrder < batchSortMenus.length) {
-      setBatchSortMenus(items => {
-        const newItems = [...items]
-        const [movedItem] = newItems.splice(currentIndex, 1)
-        newItems.splice(newSortOrder, 0, movedItem)
-        return newItems
-      })
-    }
-  }
-
-  // 导出菜单配置
-  const handleExportMenus = () => {
-    const exportData = menus.map(menu => ({
-      name: menu.name,
-      title: menu.title,
-      path: menu.path,
-      component: menu.component,
-      icon: menu.icon,
-      parent_id: menu.parent_id,
-      sort_order: menu.sort_order,
-      is_hidden: menu.is_hidden,
-      is_disabled: menu.is_disabled,
-      menu_type: menu.menu_type,
-      permission_code: menu.permission_code,
-      redirect: menu.redirect,
-      meta: menu.meta,
-    }))
-
-    const dataStr = JSON.stringify(exportData, null, 2)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' })
-    const url = URL.createObjectURL(dataBlob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `menu-config-${new Date().toISOString().split('T')[0]}.json`
-    link.click()
-    URL.revokeObjectURL(url)
-    message.success('菜单配置导出成功')
-  }
-
-  // 导入菜单配置
-  const handleImportMenus = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = async e => {
-      try {
-        const importData = JSON.parse(e.target?.result as string)
-
-        if (!Array.isArray(importData)) {
-          message.error('导入文件格式错误')
-          return
-        }
-
-        // 这里可以添加批量创建菜单的逻辑
-        // 为了简化，这里只是显示导入的数据
-        console.log('导入的菜单数据:', importData)
-        message.success(`准备导入 ${importData.length} 个菜单项`)
-
-        // 实际项目中，这里应该调用批量创建菜单的API
-        // await api.post('/menu/menus/batch-import', { menus: importData });
-        // loadMenus();
-      } catch (error) {
-        message.error('导入文件解析失败，请检查文件格式')
-      }
-    }
-    reader.readAsText(file)
-
-    // 清空input值，允许重复选择同一文件
-    event.target.value = ''
-  }
-
+  /** 加载菜单 */
   const loadMenus = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/menu/menus')
-      if (response.data) {
-        setMenus(response.data)
-        buildTreeData(response.data)
-      }
-    } catch (error) {
+      const list = await menuApi.list()
+      setMenus(list)
+      setTreeData(buildTreeData(list))
+    } catch (err) {
       message.error('加载菜单失败')
     } finally {
       setLoading(false)
     }
   }
 
-  const buildTreeData = (menuList: Menu[]): void => {
-    const menuMap = new Map<number, Menu>()
-    menuList.forEach(menu => menuMap.set(menu.id, menu))
+  useEffect(() => {
+    void loadMenus()
+  }, [])
 
-    const buildNode = (menu: Menu): TreeDataNode => ({
-      key: menu.id,
-      title: (
-        <div className="flex items-center justify-between w-full">
-          <div className="flex items-center gap-2">
-            {menu.icon && <span className={`anticon anticon-${menu.icon}`} />}
-            <span className="font-medium">{menu.title}</span>
-            <span className="text-gray-400 text-xs">({menu.name})</span>
-            <Tag color={menu.menu_type === 'menu' ? 'blue' : menu.menu_type === 'button' ? 'green' : 'orange'}>
-              {menu.menu_type === 'menu' ? '菜单' : menu.menu_type === 'button' ? '按钮' : '页面'}
-            </Tag>
-            {menu.is_hidden && <Tag color="red">隐藏</Tag>}
-            {menu.is_disabled && <Tag color="gray">禁用</Tag>}
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs text-gray-500">
-              {menu.path && <span>路径: {menu.path}</span>}
-              <span>排序: {menu.sort_order}</span>
-            </div>
-            <Space>
-              <Button
-                type="text"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={e => {
-                  e.stopPropagation()
-                  handleEditMenu(menu)
-                }}
-                title="编辑菜单"
-              />
-              <Button
-                type="text"
-                size="small"
-                icon={<CopyOutlined />}
-                onClick={e => {
-                  e.stopPropagation()
-                  handleCopyMenu(menu)
-                }}
-                title="复制菜单"
-              />
-              {!menu.is_system && (
-                <Popconfirm
-                  title="确定删除此菜单吗？"
-                  onConfirm={e => {
-                    e?.stopPropagation()
-                    handleDeleteMenu(menu.id)
-                  }}
-                  onClick={e => e?.stopPropagation()}
-                >
-                  <Button
-                    type="text"
-                    size="small"
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={e => e.stopPropagation()}
-                  />
-                </Popconfirm>
-              )}
-            </Space>
-          </div>
-        </div>
-      ),
-      children: menuList
-        .filter(child => child.parent_id === menu.id)
-        .sort((a, b) => a.sort_order - b.sort_order)
-        .map(child => buildNode(child)),
-    })
-
-    const rootMenus = menuList
-      .filter(menu => !menu.parent_id)
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map(menu => buildNode(menu))
-
-    setTreeData(rootMenus)
-  }
-
+  /** 新建 */
   const handleCreateMenu = () => {
     setEditingMenu(null)
     menuForm.resetFields()
@@ -327,226 +242,277 @@ const MenuManagementPage: React.FC = () => {
     setMenuModalVisible(true)
   }
 
-  const handleCopyMenu = (menu: Menu) => {
-    const copiedMenu = {
-      ...menu,
+  /** 复制 */
+  const handleCopyMenu = (menu: MenuDTO) => {
+    const copied: Partial<MenuFormData> = {
       name: `${menu.name}_copy`,
       title: `${menu.title}(副本)`,
-      sort_order: menu.sort_order + 1,
+      path: menu.path,
+      component: menu.component,
+      icon: menu.icon,
+      parent_id: menu.parent_id ?? null,
+      sort_order: (menu.sort_order ?? 0) + 1,
+      is_hidden: menu.is_hidden,
+      is_disabled: menu.is_disabled,
+      menu_type: menu.menu_type,
+      permission_code: menu.permission_code,
+      redirect: menu.redirect,
+      meta: menu.meta,
     }
-    delete (copiedMenu as any).id
-    delete (copiedMenu as any).created_at
-    delete (copiedMenu as any).updated_at
-
     setEditingMenu(null)
-    menuForm.setFieldsValue(copiedMenu)
+    menuForm.setFieldsValue(copied as MenuFormData)
     setIconPreview(menu.icon || '')
     setMenuModalVisible(true)
   }
 
-  const handleEditMenu = (menu: Menu) => {
+  /** 编辑 */
+  const handleEditMenu = (menu: MenuDTO) => {
     setEditingMenu(menu)
     let metaValue = ''
     if (menu.meta) {
       try {
-        // 如果meta已经是JSON字符串，则格式化显示
         metaValue = JSON.stringify(JSON.parse(menu.meta), null, 2)
-      } catch (error) {
-        // 如果meta不是有效的JSON，则直接显示原始值
+      } catch {
         metaValue = menu.meta
       }
     }
-    menuForm.setFieldsValue({
-      ...menu,
-      meta: metaValue,
-    })
+    menuForm.setFieldsValue({ ...menu, meta: metaValue } as MenuFormData)
     setIconPreview(menu.icon || '')
     setMenuModalVisible(true)
   }
 
+  /** 删除 */
   const handleDeleteMenu = async (menuId: number) => {
     try {
-      const response = await api.delete(`/menu/menus/${menuId}`)
-      if (response.data.success) {
+      const ret = await menuApi.remove(menuId)
+      const ok = (ret as any)?.success !== false // 容忍不带 success 的纯 200
+      if (ok) {
         message.success('删除成功')
-        loadMenus()
+        void loadMenus()
       } else {
-        message.error(response.data.message || '删除失败')
+        message.error((ret as any)?.message || '删除失败')
       }
-    } catch (error) {
+    } catch {
       message.error('删除失败')
     }
   }
 
+  /** 提交（新建/编辑） */
   const handleMenuSubmit = async () => {
     try {
       const values = await menuForm.validateFields()
-      let metaValue: string | undefined = undefined
-      if (values.meta) {
+      const formData: MenuFormData = { ...values }
+
+      if (formData.meta) {
         try {
-          // 尝试解析并重新格式化JSON
-          metaValue = JSON.stringify(JSON.parse(values.meta))
-        } catch (error) {
-          // 如果不是有效的JSON，则直接使用原始值
-          metaValue = values.meta
+          formData.meta = JSON.stringify(JSON.parse(formData.meta))
+        } catch {
+          // keep original
         }
       }
-      const formData: MenuFormData = {
-        ...values,
-        meta: metaValue,
-      }
 
-      let response
-      if (editingMenu) {
-        response = await api.put(`/menu/menus/${editingMenu.id}`, formData)
-      } else {
-        response = await api.post('/menu/menus', formData)
-      }
+      const ret = editingMenu ? await menuApi.update(editingMenu.id, formData) : await menuApi.create(formData)
 
-      if (response.data.success) {
+      const ok = (ret as any)?.success !== false
+      if (ok) {
         message.success(editingMenu ? '更新成功' : '创建成功')
         setMenuModalVisible(false)
-        loadMenus()
+        void loadMenus()
       } else {
-        message.error(response.data.message || '操作失败')
+        message.error((ret as any)?.message || '操作失败')
       }
-    } catch (error) {
+    } catch {
       message.error('操作失败')
     }
   }
 
-  // ===== 放到组件文件顶部或组件内（与 Menu 类型共存）=====
-  const STEP = 10 // sort_order 步长
+  /** ========== 树拖拽：仅在同层维护排序 & 支持换父级 ========== */
 
-  // 判断 candidate 是否在 ancestor 的子树中（用于防环）
-  const isInSubtree = (all: Menu[], ancestorId: number, candidateId: number | null | undefined) => {
+  const isInSubtree = (all: MenuDTO[], ancestorId: number, candidateId: number | null | undefined) => {
     if (candidateId == null) return false
-    const map = new Map(all.map(m => [m.id, m]))
-    let cur = map.get(candidateId)
+    const map = new Map<number, MenuDTO>(all.map((m: MenuDTO) => [m.id, m]))
+    let cur: MenuDTO | undefined = map.get(candidateId)
     while (cur) {
-      if (cur.parent_id === ancestorId) return true // 找到祖先
+      if ((cur.parent_id ?? null) === ancestorId) return true
       if (cur.parent_id == null) break
       cur = map.get(cur.parent_id)
     }
     return false
   }
 
-  // 生成同层排序更新（只更新这个层级，量小）
-  const buildLayerUpdates = (layer: Menu[], draggedId: number, forcedParent: number | null) =>
-    layer.map((m, i) => ({
+  const buildLayerUpdates = (layer: MenuDTO[], draggedId: number, forcedParent: number | null) =>
+    layer.map((m: MenuDTO, i: number) => ({
       id: m.id,
       parent_id: m.id === draggedId ? forcedParent : m.parent_id ?? null,
       sort_order: i * STEP,
     }))
 
-  // ====== 替换 Tree 的 onDrop 回调 ======
-  const handleTreeDrop: any = async (info: any) => {
+  const handleTreeDrop: TreeProps['onDrop'] = async info => {
     const { dragNode, node, dropPosition, dropToGap } = info
     if (!dragNode || !node) return
 
     const draggedId = Number(dragNode.key)
     const targetId = Number(node.key)
 
-    const map = new Map(menus.map(m => [m.id, m]))
-    const dragged = map.get(draggedId)!
-    const target = map.get(targetId)!
+    const map = new Map<number, MenuDTO>(menus.map((m: MenuDTO) => [m.id, m]))
+    const dragged = map.get(draggedId)
+    const target = map.get(targetId)
+    if (!dragged || !target) return
 
-    // 1) 计算新父级
-    // - dropToGap=true   → 同层：parent = 目标的 parent
-    // - dropToGap=false  → 成为目标子级：parent = 目标 id
     const newParentId: number | null = dropToGap ? target.parent_id ?? null : target.id
 
-    // 2) 防止拖到自己的子孙里（形成环）
     if (isInSubtree(menus, draggedId, newParentId)) {
       message.warning('不能把菜单拖到自己的子级里')
       return
     }
 
-    // 3) 取新父级下的同层兄弟（不含自身），按 sort_order 排序
     const siblings = menus
-      .filter(m => (m.parent_id ?? null) === (newParentId ?? null) && m.id !== dragged.id)
-      .sort((a, b) => a.sort_order - b.sort_order)
+      .filter((m: MenuDTO) => (m.parent_id ?? null) === (newParentId ?? null) && m.id !== dragged.id)
+      .sort((a: MenuDTO, b: MenuDTO) => a.sort_order - b.sort_order)
 
-    // 4) 计算插入位置
     let insertIdx = 0
     if (dropToGap) {
-      const targetIdx = siblings.findIndex(s => s.id === target.id)
-      insertIdx = dropPosition < 0 ? targetIdx : targetIdx + 1 // 目标前/后
+      const targetIdx = siblings.findIndex((s: MenuDTO) => s.id === target.id)
+      insertIdx = dropPosition && dropPosition < 0 ? targetIdx : targetIdx + 1
     } else {
-      insertIdx = siblings.length // 作为子节点放末尾
+      insertIdx = siblings.length
     }
 
-    // 5) 把拖拽项插入到同层数组中
-    const nextLayer: Menu[] = [...siblings]
-    nextLayer.splice(insertIdx, 0, { ...dragged, parent_id: newParentId ?? undefined })
+    const nextLayer: MenuDTO[] = [...siblings]
+    nextLayer.splice(insertIdx, 0, { ...dragged, parent_id: newParentId })
 
-    // 6) 生成最小化批量更新 payload（仅新父级这层）
     const menuUpdates = buildLayerUpdates(nextLayer, dragged.id, newParentId)
 
     try {
-      await api.post('/menu/menus/batch-sort', { menuUpdates })
-      message.success('菜单结构已更新')
-      loadMenus()
-    } catch (e: any) {
-      message.error(e?.message || '更新失败')
+      const ret = await menuApi.batchSort(menuUpdates)
+      const ok = (ret as any)?.success !== false
+      if (ok) {
+        message.success('菜单结构已更新')
+        void loadMenus()
+      } else {
+        message.error((ret as any)?.message || '更新失败')
+      }
+    } catch (e: unknown) {
+      const err = e as { message?: string }
+      message.error(err?.message || '更新失败')
     }
   }
 
+  /** ===== 批量排序对话框 —— DnD 列表 ===== */
+  const onDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    setBatchSortMenus((items: MenuDTO[]) => {
+      const oldIndex = items.findIndex((x: MenuDTO) => x.id === active.id)
+      const newIndex = items.findIndex((x: MenuDTO) => x.id === over.id)
+      return arrayMove(items, oldIndex, newIndex)
+    })
+  }
 
-    
-  const renderMenuTab = () => (
-    <Card
-      title="菜单管理"
-      extra={
-        <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateMenu}>
-            新增菜单
-          </Button>
-          <Button
-            icon={<DragOutlined />}
-            onClick={() => {
-              setBatchSortMenus([...menus].sort((a, b) => a.sort_order - b.sort_order))
-              setBatchSortVisible(true)
-            }}
-          >
-            批量排序
-          </Button>
-          <Button icon={<ExportOutlined />} onClick={handleExportMenus}>
-            导出配置
-          </Button>
-          <Button
-            icon={<ImportOutlined />}
-            onClick={() => {
-              const input = document.createElement('input')
-              input.type = 'file'
-              input.accept = '.json'
-              input.onchange = handleImportMenus
-              input.click()
-            }}
-          >
-            导入配置
-          </Button>
-        </Space>
-      }
-    >
-      <Tree
-        treeData={treeData}
-        defaultExpandAll
-        showLine
-        loading={loading}
-        draggable
-        blockNode
-        onDragStart={info => {
-          setDraggedNode(info.node)
-        }}
-        onDrop={handleTreeDrop}
-      />
-    </Card>
+  const parentMenuOptions = useMemo(
+    () => menus.filter((m: MenuDTO) => m.menu_type === 'menu').map((m: MenuDTO) => ({ label: m.title, value: m.id })),
+    [menus]
   )
 
   return (
-    <div className="p-6">
-      {renderMenuTab()}
+    <div style={{ padding: 24 }}>
+      <Card
+        title="菜单管理"
+        extra={
+          <Space>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleCreateMenu}>
+              新增菜单
+            </Button>
+            <Button
+              icon={<DragOutlined />}
+              onClick={() => {
+                setBatchSortMenus([...menus].sort((a: MenuDTO, b: MenuDTO) => a.sort_order - b.sort_order))
+                setBatchSortVisible(true)
+              }}
+            >
+              批量排序
+            </Button>
+            <Button
+              icon={<ExportOutlined />}
+              onClick={() => {
+                const exportData = menus.map((menu: MenuDTO) => ({
+                  name: menu.name,
+                  title: menu.title,
+                  path: menu.path,
+                  component: menu.component,
+                  icon: menu.icon,
+                  parent_id: menu.parent_id ?? null,
+                  sort_order: menu.sort_order,
+                  is_hidden: menu.is_hidden,
+                  is_disabled: menu.is_disabled,
+                  menu_type: menu.menu_type,
+                  permission_code: menu.permission_code,
+                  redirect: menu.redirect,
+                  meta: menu.meta,
+                }))
+                const dataStr = JSON.stringify(exportData, null, 2)
+                const dataBlob = new Blob([dataStr], { type: 'application/json' })
+                const url = URL.createObjectURL(dataBlob)
+                const link = document.createElement('a')
+                link.href = url
+                link.download = `menu-config-${new Date().toISOString().split('T')[0]}.json`
+                link.click()
+                URL.revokeObjectURL(url)
+                message.success('菜单配置导出成功')
+              }}
+            >
+              导出配置
+            </Button>
+            <Button
+              icon={<ImportOutlined />}
+              onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = '.json'
+                input.onchange = (event: Event) => {
+                  const target = event.target as HTMLInputElement
+                  const file = target.files?.[0]
+                  if (!file) return
+                  const reader = new FileReader()
+                  reader.onload = async (e: ProgressEvent<FileReader>) => {
+                    try {
+                      const text = String(e.target?.result || '')
+                      const importData: unknown = JSON.parse(text)
+                      if (!Array.isArray(importData)) {
+                        message.error('导入文件格式错误')
+                        return
+                      }
+                      // 仅提示
+                      message.success(`准备导入 ${importData.length} 个菜单项`)
+                      // TODO: 调用批量创建接口
+                      // await menuApi.batchCreate(importData as MenuFormData[])
+                      // await loadMenus()
+                    } catch {
+                      message.error('导入文件解析失败，请检查文件格式')
+                    }
+                  }
+                  reader.readAsText(file)
+                  target.value = ''
+                }
+                input.click()
+              }}
+            >
+              导入配置
+            </Button>
+          </Space>
+        }
+      >
+        <Tree
+          treeData={treeData}
+          defaultExpandAll
+          showLine
+          draggable
+          blockNode
+          loading={loading as unknown as boolean}
+          onDragStart={(info: Parameters<NonNullable<TreeProps['onDragStart']>>[0]) => setDraggedNode(info.node)}
+          onDrop={handleTreeDrop}
+        />
+      </Card>
 
       {/* 菜单编辑模态框 */}
       <Modal
@@ -558,10 +524,14 @@ const MenuManagementPage: React.FC = () => {
           setIconPreview('')
         }}
         width={800}
-        destroyOnHidden
+        destroyOnClose
         forceRender
       >
-        <Form form={menuForm} layout="vertical">
+        <Form<MenuFormData>
+          form={menuForm}
+          layout="vertical"
+          initialValues={{ menu_type: 'menu', is_hidden: false, is_disabled: false }}
+        >
           <Form.Item name="name" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
             <Input placeholder="请输入菜单名称" />
           </Form.Item>
@@ -582,33 +552,22 @@ const MenuManagementPage: React.FC = () => {
             <Input
               placeholder="请输入图标类名（如：user, setting, dashboard）"
               addonBefore={iconPreview ? <span className={`anticon anticon-${iconPreview}`} /> : <span>图标</span>}
-              onChange={e => setIconPreview(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setIconPreview(e.target.value)}
             />
           </Form.Item>
 
           <Form.Item name="parent_id" label="父级菜单">
-            <Select placeholder="请选择父级菜单" allowClear>
-              {menus
-                .filter(menu => menu.menu_type === 'menu')
-                .map(menu => (
-                  <Select.Option key={menu.id} value={menu.id}>
-                    {menu.title}
-                  </Select.Option>
-                ))}
-            </Select>
+            <Select placeholder="请选择父级菜单" allowClear options={parentMenuOptions} />
           </Form.Item>
 
-          <Form.Item
-            name="menu_type"
-            label="菜单类型"
-            rules={[{ required: true, message: '请选择菜单类型' }]}
-            initialValue="menu"
-          >
-            <Select>
-              <Select.Option value="menu">菜单</Select.Option>
-              <Select.Option value="button">按钮</Select.Option>
-              <Select.Option value="page">页面</Select.Option>
-            </Select>
+          <Form.Item name="menu_type" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
+            <Select
+              options={[
+                { value: 'menu', label: '菜单' },
+                { value: 'button', label: '按钮' },
+                { value: 'page', label: '页面' },
+              ]}
+            />
           </Form.Item>
 
           <Form.Item name="sort_order" label="排序号" tooltip="数值越小排序越靠前，留空将自动设置为最大排序号+1">
@@ -627,11 +586,11 @@ const MenuManagementPage: React.FC = () => {
             <Input.TextArea rows={3} placeholder="请输入JSON格式的元数据" />
           </Form.Item>
 
-          <Form.Item name="is_hidden" valuePropName="checked" initialValue={false}>
+          <Form.Item name="is_hidden" valuePropName="checked">
             <Switch checkedChildren="隐藏" unCheckedChildren="显示" />
           </Form.Item>
 
-          <Form.Item name="is_disabled" valuePropName="checked" initialValue={false}>
+          <Form.Item name="is_disabled" valuePropName="checked">
             <Switch checkedChildren="禁用" unCheckedChildren="启用" />
           </Form.Item>
         </Form>
@@ -643,43 +602,55 @@ const MenuManagementPage: React.FC = () => {
         open={batchSortVisible}
         onOk={async () => {
           try {
-            // 使用新的批量更新API
-            const menuUpdates = batchSortMenus.map((menu, index) => ({
-              id: menu.id,
-              sort_order: index,
+            const menuUpdates = batchSortMenus.map((m: MenuDTO, index: number) => ({
+              id: m.id,
+              sort_order: index * STEP,
             }))
-
-            const response = await api.post('/menu/menus/batch-sort', {
-              menuUpdates,
-            })
-
-            if (response.data) {
+            const ret = await menuApi.batchSort(menuUpdates)
+            const ok = (ret as any)?.success !== false
+            if (ok) {
               message.success('批量排序更新成功')
               setBatchSortVisible(false)
-              loadMenus()
+              void loadMenus()
             } else {
-              message.error(response.data.message || '批量排序更新失败')
+              message.error((ret as any)?.message || '批量排序更新失败')
             }
-          } catch (error) {
+          } catch {
             message.error('批量排序更新失败')
           }
         }}
         onCancel={() => setBatchSortVisible(false)}
         width={800}
-        destroyOnHidden
+        destroyOnClose
       >
-        <div className="space-y-2">
-          <p className="text-gray-600 mb-4">拖拽下方列表项来调整菜单排序，或直接修改排序号：</p>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <SortableContext items={batchSortMenus.map(menu => menu.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2">
-                {batchSortMenus.map((menu, index) => (
-                  <SortableMenuItem key={menu.id} menu={menu} index={index} onSortOrderChange={handleSortOrderChange} />
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Typography.Paragraph style={{ color: '#4b5563', marginBottom: 0 }}>
+            拖拽下方列表项来调整菜单排序，或直接修改“当前位置”：
+          </Typography.Paragraph>
+
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+            <SortableContext items={batchSortMenus.map((m: MenuDTO) => m.id)} strategy={verticalListSortingStrategy}>
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                {batchSortMenus.map((menu: MenuDTO, index: number) => (
+                  <SortableMenuItem
+                    key={menu.id}
+                    menu={menu}
+                    index={index}
+                    onSortOrderChange={(from: number, to: number) => {
+                      if (to < 0 || to >= batchSortMenus.length) return
+                      setBatchSortMenus((items: MenuDTO[]) => {
+                        const copy = [...items]
+                        const [moved] = copy.splice(from, 1)
+                        copy.splice(to, 0, moved)
+                        return copy
+                      })
+                    }}
+                  />
                 ))}
-              </div>
+              </Space>
             </SortableContext>
           </DndContext>
-        </div>
+        </Space>
       </Modal>
     </div>
   )

@@ -1,4 +1,7 @@
-import React, { Suspense } from 'react'
+/// <reference types="react" />
+/// <reference types="react-dom" />
+
+import { Suspense, type ReactNode } from 'react'
 import { Navigate, Route, BrowserRouter as Router, Routes } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
@@ -60,7 +63,7 @@ const queryClient = new QueryClient({
 })
 
 // —— 访问控制：与你现有逻辑一致 —— //
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
     return (
@@ -75,7 +78,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
+function PublicRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
     return (
@@ -90,7 +93,7 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function AdminRoute({ children }: { children: React.ReactNode }) {
+function AdminRoute({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth()
   if (loading) {
     return (
@@ -105,7 +108,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-function MenuPermissionRoute({ children }: { children: React.ReactNode; requiredPath?: string }) {
+function MenuPermissionRoute({ children }: { children: ReactNode; requiredPath?: string }) {
   // 预留给菜单权限校验
   return <>{children}</>
 }
