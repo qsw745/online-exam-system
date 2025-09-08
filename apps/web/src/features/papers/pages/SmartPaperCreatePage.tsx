@@ -1,11 +1,11 @@
 // features/smart-paper/pages/SmartPaperCreatePage.tsx
+import LoadingSpinner from '@shared/components/LoadingSpinner'
 import { Button } from 'antd'
 import { ArrowLeft, Save, Shuffle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { useSmartPaper } from '../../../shared/hooks/useSmartPaper'
 import ConfigForm from '../components/ConfigForm'
 import PreviewList from '../components/PreviewList'
-import { useSmartPaper } from '../hooks/useSmartPaper'
 
 export default function SmartPaperCreatePage() {
   const nav = useNavigate()

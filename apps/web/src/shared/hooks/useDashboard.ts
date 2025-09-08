@@ -68,3 +68,5 @@ export function useDashboard(limit = 5) {
 
   return { stats, recentTasks, recentResults, isLoading, isError, errorMessages, refetchAll }
 }
+
+export default useDashboard

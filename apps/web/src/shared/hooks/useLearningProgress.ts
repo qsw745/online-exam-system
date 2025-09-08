@@ -81,3 +81,5 @@ export function useLearningProgress() {
     loading,
   }
 }
+
+export default useLearningProgress

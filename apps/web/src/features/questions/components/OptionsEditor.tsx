@@ -1,8 +1,7 @@
 // features/questions/components/OptionsEditor.tsx
 import { Button, Checkbox, Col, Input, Row, Space } from 'antd'
 import { Plus, Trash2 } from 'lucide-react'
-import React from 'react'
-import type { OptionDTO } from '../types/question'
+import type { OptionDTO } from '../../../shared/types/question'
 
 export default function OptionsEditor({
   options,

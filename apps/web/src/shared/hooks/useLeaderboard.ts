@@ -167,3 +167,5 @@ export function useLeaderboard() {
     },
   }
 }
+
+export default useLeaderboard

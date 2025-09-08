@@ -1,10 +1,10 @@
 // features/settings/hooks/useUserSettings.ts
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App } from 'antd'
-import { settingsService } from '../services/settings.service'
-import type { UserSettings } from '../types/settings'
 import { useAuth } from '@shared/contexts/AuthContext'
 import { useLanguage } from '@shared/contexts/LanguageContext'
+import { App } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { UserSettings } from '../../../shared/types/settings'
+import { settingsService } from '../services/settings.service'
 
 const DEFAULTS: UserSettings = {
   notifications: { email: true, push: true, sound: true },

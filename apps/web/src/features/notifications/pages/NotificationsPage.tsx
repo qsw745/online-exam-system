@@ -1,7 +1,7 @@
 import { Card, Spin } from 'antd'
-import NotificationsToolbar from '../components/NotificationsToolbar'
+import { useUserNotifications } from '../../../shared/hooks/useUserNotifications'
 import NotificationsList from '../components/NotificationsList'
-import { useUserNotifications } from '../hooks/useUserNotifications'
+import NotificationsToolbar from '../components/NotificationsToolbar'
 
 export default function NotificationsPage() {
   const { notifications, unread, loading, markRead, markAllRead, remove } = useUserNotifications()

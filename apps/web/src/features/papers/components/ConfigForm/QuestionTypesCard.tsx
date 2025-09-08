@@ -1,6 +1,6 @@
 // features/smart-paper/components/ConfigForm/QuestionTypesCard.tsx
 import { Card, Form, Input } from 'antd'
-import type { SmartPaperConfig } from '../../endpoints/smartPaper'
+import type { SmartPaperConfig } from '../../../../shared/api/endpoints/smartPaper'
 
 export default function QuestionTypesCard({
   config,

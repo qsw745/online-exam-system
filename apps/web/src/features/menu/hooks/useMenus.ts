@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { App } from 'antd'
 import { menuApi, type MenuDTO } from '@shared/api/endpoints/menu'
-import { STEP, isInSubtree, buildLayerUpdates } from '../utils/tree'
+import { App } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { STEP, buildLayerUpdates, isInSubtree } from '../../../shared/utils/tree'
 
 export type MenuFormData = {
   name: string

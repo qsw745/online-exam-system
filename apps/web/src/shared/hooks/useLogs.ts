@@ -92,3 +92,6 @@ export function useLogs() {
     exportLogs,
   }
 }
+
+
+export default useLogs

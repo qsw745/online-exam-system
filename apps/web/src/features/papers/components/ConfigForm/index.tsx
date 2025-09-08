@@ -1,10 +1,9 @@
 // features/smart-paper/components/ConfigForm/index.tsx
-import { Card, Checkbox, Form, Input, Select } from 'antd'
+import type { SmartPaperConfig } from '../../../../shared/api/endpoints/smartPaper'
 import BasicInfoCard from './BasicInfoCard'
-import QuestionTypesCard from './QuestionTypesCard'
 import DifficultyDistributionCard from './DifficultyDistributionCard'
 import KnowledgePointsCard from './KnowledgePointsCard'
-import type { SmartPaperConfig } from '../../endpoints/smartPaper'
+import QuestionTypesCard from './QuestionTypesCard'
 
 export default function ConfigForm({
   config,

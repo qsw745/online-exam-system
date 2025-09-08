@@ -1,8 +1,8 @@
 import { Card, Spin } from 'antd'
-import { useManualPaper } from '../hooks/useManualPaper'
-import QuestionFilters from '../components/QuestionFilters'
-import QuestionCard from '../components/QuestionCard'
+import { useManualPaper } from '../../../shared/hooks/useManualPaper'
 import PaperInfoForm from '../components/PaperInfoForm'
+import QuestionCard from '../components/QuestionCard'
+import QuestionFilters from '../components/QuestionFilters'
 
 export default function ManualPaperCreationPage() {
   const h = useManualPaper()

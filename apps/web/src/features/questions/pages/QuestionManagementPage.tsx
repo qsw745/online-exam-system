@@ -1,12 +1,11 @@
+// src/features/questions/pages/QuestionManagementPage.tsx
+import { Card, Modal, Typography, message } from 'antd'
 import React from 'react'
-import { Button, Card, Modal, Typography, message } from 'antd'
-import QuestionToolbar from '../components/QuestionToolbar'
+import { useImportQuestions } from '../../../shared/hooks/useImportQuestions'
+import { useQuestionQuery } from '../../../shared/hooks/useQuestionQuery'
+import { useQuestionSelection } from '../../../shared/hooks/useQuestionSelection'
 import QuestionTable from '../components/QuestionTable'
-import { useQuestionQuery } from '../hooks/useQuestionQuery'
-import { useQuestionSelection } from '../hooks/useQuestionSelection'
-import { useImportQuestions } from '../hooks/useImportQuestions'
-import AddQuestionModal from '../components/AddQuestionModal'
-import ImportModal from '../components/ImportModal'
+import QuestionToolbar from '../components/QuestionToolbar'
 
 const { Title, Paragraph } = Typography
 
@@ -16,10 +15,12 @@ export default function QuestionManagementPage() {
     q.list.map(i => i.id),
     q.reload
   )
-  const imp = useImportQuestions(q.reload, () => q.reload()) // 导入后刷新列表+标签
+  const imp = useImportQuestions(q.reload, () => q.reload())
 
-  // 单条删除（用选择弹窗复用 UI）
+  // 单条删除
   const [single, setSingle] = React.useState<{ id: string; content: string } | null>(null)
+  // 新增题目弹窗开关（替换掉错误的模块级变量）
+  const [addOpen, setAddOpen] = React.useState(false)
 
   return (
     <div style={{ padding: 24 }}>
@@ -92,14 +93,14 @@ export default function QuestionManagementPage() {
         确定要删除选中的 {sel.selected.length} 道题目吗？此操作无法撤销。
       </Modal>
 
-      {/* 单个删除（复用 UI） */}
+      {/* 单个删除 */}
       <Modal
         title="确认删除"
         open={!!single}
         onCancel={() => setSingle(null)}
         onOk={async () => {
           if (!single) return
-          const r = await (await import('../api')).questionsApi.delete(single.id)
+          const r = await (await import('@shared/api/http')).questionsApi.remove(single.id)
           if ((r as any)?.success) {
             message.success('题目删除成功')
             q.reload()
@@ -114,30 +115,35 @@ export default function QuestionManagementPage() {
         确定要删除题目 {single?.content ?? ''}？此操作无法撤销。
       </Modal>
 
-      {/* 导入/新增 */}
-      <ImportModal
+      {/* 导入题目（用内联 Modal，避免 ImportModal 的 props 类型不匹配） */}
+      <Modal
+        title="导入题目"
         open={imp.open}
-        onClose={() => imp.setOpen(false)}
-        file={imp.file}
-        setFile={imp.setFile}
-        loading={imp.loading}
-        progress={imp.progress}
-        onStart={imp.startImport}
-      />
+        onCancel={() => imp.setOpen(false)}
+        onOk={imp.startImport}
+        confirmLoading={imp.loading}
+        okText={imp.loading ? `导入中… ${Math.round(imp.progress)}%` : '开始导入'}
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          <input type="file" accept=".xlsx,.xls,.csv,.json" onChange={e => imp.setFile(e.target.files?.[0] ?? null)} />
+          {imp.progress > 0 && <div>进度：{Math.round(imp.progress)}%</div>}
+          <div style={{ color: '#999' }}>请选择题目文件后点击「开始导入」。</div>
+        </div>
+      </Modal>
 
-      <AddQuestionModal
+      {/* 新增题目（简单占位） */}
+      <Modal
+        title="新增题目"
         open={addOpen}
-        onClose={() => setAddOpen(false)}
+        onCancel={() => setAddOpen(false)}
         onOk={() => {
           setAddOpen(false)
           q.reload()
         }}
-      />
+        okText="保存"
+      >
+        <div style={{ color: '#999' }}>这里可以放新增题目的表单（占位）。</div>
+      </Modal>
     </div>
   )
-}
-
-let addOpen = false
-function setAddOpen(v: boolean) {
-  addOpen = v
 }

@@ -1,8 +1,8 @@
 // features/admin-settings/components/SettingsForm.tsx
-import React, { useEffect } from 'react'
+import { EditOutlined, KeyOutlined, SaveOutlined } from '@ant-design/icons'
 import { Button, Form, Input, InputNumber, Space, Switch } from 'antd'
-import { SaveOutlined, KeyOutlined, EditOutlined } from '@ant-design/icons'
-import type { SystemSettings } from '../types'
+import React, { useEffect } from 'react'
+import type { SystemSettings } from '../../../shared/types/admin-settings'
 
 type Props = {
   value?: SystemSettings | null

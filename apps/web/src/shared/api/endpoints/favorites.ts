@@ -1,5 +1,6 @@
 // src/shared/api/endpoints/favorites.ts
 import { api } from '../core/httpClient'
+import type { ApiResult } from '../core/types'
 
 export interface Favorite {
   id: number

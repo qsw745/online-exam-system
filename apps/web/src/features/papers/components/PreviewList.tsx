@@ -1,6 +1,6 @@
 // features/smart-paper/components/PreviewList.tsx
 import { Card } from 'antd'
-import type { Question } from '../endpoints/smartPaper'
+import type { Question } from '../../../shared/api/endpoints/smartPaper'
 
 export default function PreviewList({
   title,

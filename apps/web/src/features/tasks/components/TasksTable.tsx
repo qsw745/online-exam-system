@@ -1,12 +1,24 @@
-// features/tasks/components/TasksTable.tsx
+// src/features/tasks/components/TasksTable.tsx
 import { EyeOutlined, PauseOutlined, SendOutlined } from '@ant-design/icons'
 import { Button, Space, Table, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+// ❗ 修复 dayjs 类型报错：使用项目内封装的 dayjs
+import dayjs from '@shared/utils/dayjs'
 import React, { useMemo } from 'react'
 import { AssignedUsersCell } from './AssignedUsersCell'
 import { StatusTag } from './StatusTag'
-import type { Task } from '../types'
+
+// ❗ 本地最小 Task 类型（避免找不到 ../types）
+export interface Task {
+  id: string
+  title: string
+  description?: string
+  assigned_users: Array<{ id: string | number; name: string }>
+  status: 'draft' | 'published' | 'closed' | string
+  start_time?: string | number | Date | null
+  end_time?: string | number | Date | null
+  created_at?: string | number | Date | null
+}
 
 const { Paragraph } = Typography
 

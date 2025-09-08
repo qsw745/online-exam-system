@@ -1,74 +1,90 @@
-// features/users/hooks/useOrgUsersQuery.ts
-import { useEffect, useState } from 'react'
-import { orgsService } from '../services/orgs.service'
-import { useDebounced } from './useDebounced'
-import { normalizeStatus, pickDisplayRole } from '../utils/apiResult'
+import { useCallback, useEffect, useState } from 'react'
+import { api, isSuccess, getErr, type ApiResult } from '@shared/api/http'
 
-export function useOrgUsersQuery(selectedOrgId?: number | null) {
-  const [loading, setLoading] = useState(false)
+export function useOrgUsersQuery(orgId: number | null) {
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(10)
+  const [keyword, setKeyword] = useState('')
+  const [role, setRole] = useState<string | undefined>(undefined)
+  const [includeChildren, setIncludeChildren] = useState(true)
+
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
-  const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(20)
-  const [role, setRole] = useState('')
-  const [includeChildren, setIncludeChildren] = useState(true)
-  const [keyword, setKeyword] = useState('')
-  const debounced = useDebounced(keyword, 300)
+  const [loading, setLoading] = useState(false)
+
+  const fetchList = useCallback(async () => {
+    if (!orgId) {
+      setRows([])
+      setTotal(0)
+      return
+    }
+    setLoading(true)
+    try {
+      // 优先走 org 维度列表（按你的后端实际调整）
+      const params: any = {
+        page,
+        limit,
+        keyword: keyword || undefined,
+        role: role || undefined,
+        include_children: includeChildren || undefined,
+      }
+      let r: ApiResult<any>
+      try {
+        r = await api.get(`/orgs/${orgId}/users`, { params })
+      } catch {
+        // 兼容回退：如果没有 org 专属路由，就用 /users?org_id=xxx
+        r = await api.get('/users', { params: { ...params, org_id: orgId } })
+      }
+      if (!isSuccess(r)) throw new Error(getErr(r, '加载用户失败'))
+
+      // 兼容 data 结构
+      const payload = r.data as any
+      const list = payload?.items ?? payload?.list ?? payload?.users ?? payload ?? []
+      const t = payload?.total ?? payload?.count ?? list.length
+      setRows(list)
+      setTotal(t)
+    } finally {
+      setLoading(false)
+    }
+  }, [orgId, page, limit, keyword, role, includeChildren])
 
   useEffect(() => {
-    ;(async () => {
-      if (!selectedOrgId) {
-        setRows([])
-        setTotal(0)
-        return
-      }
-      setLoading(true)
-      try {
-        const d = await orgsService.orgUsers({
-          orgId: selectedOrgId,
-          page,
-          limit,
-          search: debounced || undefined,
-          role: role || undefined,
-          include_children: includeChildren ? 1 : 0,
-        })
-        const raw = Array.isArray(d?.items) ? d.items : Array.isArray(d?.users) ? d.users : []
-        const mapped = raw.map((x: any) => ({
-          id: x.id,
-          email: x.email ?? '',
-          role: pickDisplayRole(x.role_codes),
-          nickname: x.nickname ?? x.username ?? '',
-          school: x.school ?? '',
-          class_name: x.class_name ?? '',
-          experience_points: x.experience_points ?? 0,
-          level: x.level ?? 1,
-          status: normalizeStatus(x),
-          created_at: x.created_at,
-          updated_at: x.updated_at,
-          org_id: x.org_id ?? null,
-          org_name: x.org_name ?? null,
-        }))
-        setRows(mapped)
-        setTotal(Number(d?.total || mapped.length || 0))
-      } finally {
-        setLoading(false)
-      }
-    })()
-  }, [selectedOrgId, page, limit, role, includeChildren, debounced])
+    fetchList()
+  }, [fetchList])
+
+  // —— 行操作（统一由 hook 暴露给页面）——
+  const resetPassword = (id: number | string) => api.put(`/users/${id}/reset-password`).then(r => r)
+
+  const toggleStatus = (id: number | string, status: 'active' | 'disabled') =>
+    api.put(`/users/${id}/status`, { status }).then(r => r)
+
+  const unbind = (orgId: number, userId: number | string) => api.delete(`/orgs/${orgId}/users/${userId}`).then(r => r)
+
+  const deleteUser = (id: number | string) => api.delete(`/users/${id}`).then(r => r)
 
   return {
-    loading,
+    // data
     rows,
     total,
+    loading,
+    // paging & filters
     page,
-    limit,
     setPage,
+    limit,
     setLimit,
+    keyword,
+    setKeyword,
     role,
     setRole,
     includeChildren,
     setIncludeChildren,
-    keyword,
-    setKeyword,
+    // actions
+    refetch: fetchList,
+    resetPassword,
+    toggleStatus,
+    unbind,
+    deleteUser,
   }
 }
+
+export default useOrgUsersQuery

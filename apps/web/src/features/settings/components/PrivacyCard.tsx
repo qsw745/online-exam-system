@@ -1,10 +1,10 @@
 // features/settings/components/PrivacyCard.tsx
-import { Switch, Select, Space } from 'antd'
-import { Eye, Bell, Trophy } from 'lucide-react'
+import { Select, Space, Switch } from 'antd'
+import { Bell, Eye, Trophy } from 'lucide-react'
 import React from 'react'
-import { SettingSection } from './SettingSection'
+import type { PrivacySettings, ProfileVisibility } from '../../../shared/types/settings'
 import { SettingRow } from './SettingRow'
-import type { PrivacySettings, ProfileVisibility } from '../types/settings'
+import { SettingSection } from './SettingSection'
 
 export const PrivacyCard: React.FC<{
   value: PrivacySettings

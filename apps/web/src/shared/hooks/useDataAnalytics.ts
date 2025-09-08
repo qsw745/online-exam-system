@@ -1,26 +1,44 @@
-import { useQuery } from '@tanstack/react-query'
+// src/shared/hooks/useDataAnalytics.ts
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api, isSuccess } from '@shared/api/http'
-import type {
-  ActivityDatum,
-  DataOverview,
-  DifficultyDatum,
-  KnowledgePoint,
-  Period,
-} from '@features/analytics/dataTypes'
+
+// —— 最小类型 —— //
+export type Period = '7d' | '30d' | '90d' | 'custom' | string
+export interface DataOverview {
+  totalUsers: number
+  activeUsers: number
+  totalSubmissions: number
+  averageScore: number
+  [k: string]: any
+}
+export interface KnowledgePoint {
+  id: number | string
+  name: string
+  value?: number
+  [k: string]: any
+}
+export interface DifficultyDatum {
+  difficulty: string
+  count: number
+}
+export interface ActivityDatum {
+  date: string
+  value: number
+}
 
 export function useDataAnalytics(period: Period) {
-  const overviewQ = useQuery({
+  const overviewQ = useQuery<DataOverview>({
     queryKey: ['data-analytics', 'overview', period],
     queryFn: async () => {
       const res = await api.get<DataOverview>('/analytics/overview', { params: { period } })
       if (isSuccess(res)) return res.data || { totalUsers: 0, activeUsers: 0, totalSubmissions: 0, averageScore: 0 }
       throw new Error((res as any)?.error || '加载概览失败')
     },
-    keepPreviousData: true,
+    placeholderData: keepPreviousData, // ✅ v5
     staleTime: 5 * 60 * 1000,
   })
 
-  const knowledgeQ = useQuery({
+  const knowledgeQ = useQuery<KnowledgePoint[]>({
     queryKey: ['data-analytics', 'knowledge-points'],
     queryFn: async () => {
       const res = await api.get<KnowledgePoint[]>('/analytics/knowledge-points')
@@ -30,7 +48,7 @@ export function useDataAnalytics(period: Period) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const difficultyQ = useQuery({
+  const difficultyQ = useQuery<DifficultyDatum[]>({
     queryKey: ['data-analytics', 'difficulty'],
     queryFn: async () => {
       const res = await api.get<DifficultyDatum[]>('/analytics/difficulty-distribution')
@@ -40,14 +58,14 @@ export function useDataAnalytics(period: Period) {
     staleTime: 5 * 60 * 1000,
   })
 
-  const activityQ = useQuery({
+  const activityQ = useQuery<ActivityDatum[]>({
     queryKey: ['data-analytics', 'activity', period],
     queryFn: async () => {
       const res = await api.get<ActivityDatum[]>('/analytics/user-activity', { params: { period } })
       if (isSuccess(res)) return res.data || []
       throw new Error((res as any)?.error || '加载活跃度失败')
     },
-    keepPreviousData: true,
+    placeholderData: keepPreviousData, // ✅ v5
   })
 
   return {
@@ -67,3 +85,5 @@ export function useDataAnalytics(period: Period) {
     },
   }
 }
+
+export default useDataAnalytics

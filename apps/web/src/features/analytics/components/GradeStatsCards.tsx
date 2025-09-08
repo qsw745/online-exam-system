@@ -1,6 +1,6 @@
-import React from 'react'
-import type { GradeStats } from '@features/analytics/types/grades'
+import type { GradeStats } from '@shared/types/grades'
 import { Calendar, TrendingUp, Trophy, Users } from 'lucide-react'
+import React from 'react'
 
 export const GradeStatsCards: React.FC<{ stats: GradeStats }> = ({ stats }) => {
   return (

@@ -29,16 +29,11 @@
 |   |   |   |   |   AdminPage.tsx
 |   |   +-- admin-settings
 |   |   |   +-- components
-|   |   |   |   |   SectionCard.tsx
 |   |   |   |   |   SettingsForm.tsx
 |   |   |   +-- hooks
 |   |   |   |   |   useSettings.ts
 |   |   |   +-- pages
-|   |   |   |   |   AdminSettingsPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   settings.ts
-|   |   |   +-- types
-|   |   |   |   |   index.ts
+|   |   |   |   |   SystemSettingsPage.tsx
 |   |   |   +-- validation
 |   |   |   |   |   settings.schema.ts
 |   |   +-- analytics
@@ -59,14 +54,9 @@
 |   |   |   +-- hooks
 |   |   |   |   |   useGrades.ts
 |   |   |   +-- pages
-|   |   |   |   |   AnalyticsPage.tsx
-|   |   |   |   |   DataAnalyticsPage.tsx
+|   |   |   |   |   AnalyticsDetailsPage.tsx
+|   |   |   |   |   AnalyticsOverviewPage.tsx
 |   |   |   |   |   GradeManagementPage.tsx
-|   |   |   +-- types
-|   |   |   |   |   grades.ts
-|   |   |   |   dataTypes.ts
-|   |   |   |   types.ts
-|   |   |   |   utils.ts
 |   |   +-- auth
 |   |   |   +-- components
 |   |   |   |   |   DemoAccountsCard.tsx
@@ -94,7 +84,6 @@
 |   |   |   |   |   RecentTasksList.tsx
 |   |   |   +-- pages
 |   |   |   |   |   DashboardPage.tsx
-|   |   |   |   types.ts
 |   |   +-- discussions
 |   |   |   +-- components
 |   |   |   |   |   CreateDiscussionModal.tsx
@@ -107,7 +96,6 @@
 |   |   |   |   |   useDiscussions.ts
 |   |   |   +-- pages
 |   |   |   |   |   DiscussionPage.tsx
-|   |   |   |   types.ts
 |   |   +-- exams
 |   |   |   +-- components
 |   |   |   |   |   ExamCard.tsx
@@ -122,8 +110,6 @@
 |   |   |   |   |   ExamListPage.tsx
 |   |   |   |   |   ExamPage.tsx
 |   |   |   |   |   ResultsPage.tsx
-|   |   |   |   api.ts
-|   |   |   |   types.ts
 |   |   +-- favorites
 |   |   |   +-- components
 |   |   |   |   |   CreateFavoriteModal.tsx
@@ -166,21 +152,12 @@
 |   |   |   +-- pages
 |   |   |   |   |   MenuManagementPage.tsx
 |   |   |   +-- utils
-|   |   |   |   |   tree.ts
 |   |   |   |   model.ts
 |   |   +-- notifications
-|   |   |   +-- api
-|   |   |   |   |   notifications.ts
-|   |   |   |   |   users.ts
 |   |   |   +-- components
 |   |   |   |   |   NotificationFormModal.tsx
 |   |   |   |   |   NotificationsList.tsx
 |   |   |   |   |   NotificationsToolbar.tsx
-|   |   |   |   |   NotificationTable.tsx
-|   |   |   |   |   NotificationToolbar.tsx
-|   |   |   +-- hooks
-|   |   |   |   |   useNotifications.ts
-|   |   |   |   |   useUserNotifications.ts
 |   |   |   +-- pages
 |   |   |   |   |   NotificationManagementPage.tsx
 |   |   |   |   |   NotificationsPage.tsx
@@ -192,10 +169,7 @@
 |   |   |   +-- hooks
 |   |   |   |   |   useOrgManage.ts
 |   |   |   +-- pages
-|   |   |   |   |   OrgManage.tsx
-|   |   |   |   api.ts
-|   |   |   |   index.ts
-|   |   |   |   model.ts
+|   |   |   |   |   OrgManagementPage.tsx
 |   |   +-- papers
 |   |   |   +-- components
 |   |   |   |   +-- ConfigForm
@@ -213,16 +187,6 @@
 |   |   |   |   |   PreviewList.tsx
 |   |   |   |   |   QuestionCard.tsx
 |   |   |   |   |   QuestionFilters.tsx
-|   |   |   +-- endpoints
-|   |   |   |   |   papers.ts
-|   |   |   |   |   questions.ts
-|   |   |   |   |   smartPaper.ts
-|   |   |   +-- hooks
-|   |   |   |   |   useDebouncedValue.ts
-|   |   |   |   |   useManualPaper.ts
-|   |   |   |   |   usePaperEditor.ts
-|   |   |   |   |   usePapersList.ts
-|   |   |   |   |   useSmartPaper.ts
 |   |   |   +-- pages
 |   |   |   |   |   ManualPaperCreationPage.tsx
 |   |   |   |   |   PaperCreatePage.tsx
@@ -239,24 +203,16 @@
 |   |   |   |   |   ProfilePage.tsx
 |   |   |   +-- utils
 |   |   |   |   |   avatar.ts
-|   |   |   |   api.ts
 |   |   +-- questions
 |   |   |   +-- browse
 |   |   |   |   +-- components
-|   |   |   |   |   |   FiltersBar.tsx
 |   |   |   |   |   |   PageHeader.tsx
 |   |   |   |   |   |   PaginationBar.tsx
 |   |   |   |   |   |   QuestionCard.tsx
 |   |   |   |   |   |   QuestionGrid.tsx
-|   |   |   |   +-- hooks
-|   |   |   |   |   |   useFavorites.ts
-|   |   |   |   |   |   useQuestionsQuery.ts
 |   |   |   |   +-- pages
 |   |   |   |   |   |   QuestionsPage.tsx
-|   |   |   |   +-- types
-|   |   |   |   |   |   question.ts
 |   |   |   |   +-- utils
-|   |   |   |   |   |   apiResult.ts
 |   |   |   |   |   |   labelMaps.ts
 |   |   |   |   |   |   practiceLink.ts
 |   |   |   +-- components
@@ -268,11 +224,6 @@
 |   |   |   |   |   QuestionTable.tsx
 |   |   |   |   |   QuestionToolbar.tsx
 |   |   |   |   |   TrueFalseEditor.tsx
-|   |   |   +-- hooks
-|   |   |   |   |   useImportQuestions.ts
-|   |   |   |   |   useQuestionEditor.ts
-|   |   |   |   |   useQuestionQuery.ts
-|   |   |   |   |   useQuestionSelection.ts
 |   |   |   +-- pages
 |   |   |   |   |   QuestionCreatePage.tsx
 |   |   |   |   |   QuestionDetailPage.tsx
@@ -280,7 +231,6 @@
 |   |   |   |   |   QuestionEditPage.tsx
 |   |   |   |   |   QuestionManagementPage.tsx
 |   |   |   |   |   QuestionPracticePage.tsx
-|   |   |   |   |   QuestionsPage.tsx
 |   |   |   +-- practice
 |   |   |   |   +-- components
 |   |   |   |   |   |   ExplanationCard.tsx
@@ -294,19 +244,9 @@
 |   |   |   |   |   |   usePracticeController.ts
 |   |   |   |   +-- pages
 |   |   |   |   |   |   QuestionPracticePage.tsx
-|   |   |   |   +-- types
-|   |   |   |   |   |   question.ts
 |   |   |   |   +-- utils
 |   |   |   |   |   |   answer.ts
-|   |   |   |   |   |   question-normalize.ts
 |   |   |   |   |   |   url.ts
-|   |   |   +-- types
-|   |   |   |   |   question.ts
-|   |   |   +-- utils
-|   |   |   |   |   api-result.ts
-|   |   |   |   |   import-normalize.ts
-|   |   |   |   |   question-normalize.ts
-|   |   |   |   api.ts
 |   |   +-- roles
 |   |   |   +-- components
 |   |   |   |   |   OrgSelectModal.tsx
@@ -316,15 +256,11 @@
 |   |   |   |   |   RolesTable.tsx
 |   |   |   |   |   UserSelectModal.tsx
 |   |   |   +-- hooks
-|   |   |   |   |   useOrgTree.ts
 |   |   |   |   |   useRoleMembers.ts
 |   |   |   |   |   useRolePermissions.ts
 |   |   |   |   |   useRoles.ts
 |   |   |   +-- pages
 |   |   |   |   |   RoleManagementPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   roles.ts
-|   |   |   |   model.ts
 |   |   +-- settings
 |   |   |   +-- components
 |   |   |   |   |   AppearanceCard.tsx
@@ -334,23 +270,16 @@
 |   |   |   +-- hooks
 |   |   |   |   |   useUserSettings.ts
 |   |   |   +-- pages
-|   |   |   |   |   AdminSettingsPage.tsx
-|   |   |   |   |   SettingsPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   settings.service.ts
-|   |   |   +-- types
-|   |   |   |   |   settings.ts
+|   |   |   |   |   UserSettingsPage.tsx
 |   |   +-- tasks
 |   |   |   +-- components
 |   |   |   |   |   AssignedUsersCell.tsx
-|   |   |   |   |   FilterBar.tsx
 |   |   |   |   |   PublishTaskForm.tsx
 |   |   |   |   |   StatusTag.tsx
 |   |   |   |   |   TaskCard.tsx
 |   |   |   |   |   TaskDetail.tsx
 |   |   |   |   |   TaskForm.tsx
 |   |   |   |   |   TasksTable.tsx
-|   |   |   |   |   TaskTable.tsx
 |   |   |   +-- hooks
 |   |   |   |   |   useTaskById.ts
 |   |   |   |   |   useTasksQuery.ts
@@ -362,44 +291,27 @@
 |   |   |   |   |   TaskDetailPage.tsx
 |   |   |   |   |   TaskManagementPage.tsx
 |   |   |   |   |   TasksPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   tasks.service.ts
-|   |   |   +-- types
-|   |   |   |   |   index.ts
 |   |   +-- users
 |   |   |   +-- components
 |   |   |   |   |   OrgTreePanel.tsx
 |   |   |   |   |   UserFilterBar.tsx
 |   |   |   |   |   UsersTable.tsx
-|   |   |   |   |   UserTable.tsx
 |   |   |   +-- constants
 |   |   |   |   |   index.ts
 |   |   |   +-- hooks
-|   |   |   |   |   useDebounced.ts
 |   |   |   |   |   useOrgPathMap.ts
-|   |   |   |   |   useOrgTree.ts
 |   |   |   |   |   useOrgUsersQuery.ts
 |   |   |   |   |   useUsersQuery.ts
 |   |   |   +-- pages
 |   |   |   |   |   UserManagementPage.tsx
 |   |   |   |   |   UserRoleManagementPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   orgs.service.ts
-|   |   |   |   |   roles.service.ts
-|   |   |   |   |   users.service.ts
-|   |   |   +-- utils
-|   |   |   |   |   apiResult.ts
 |   |   +-- wrong-questions
 |   |   |   +-- components
-|   |   |   |   |   FilterBar.tsx
-|   |   |   |   |   StatsCards.tsx
 |   |   |   |   |   WrongQuestionItem.tsx
 |   |   |   +-- hooks
 |   |   |   |   |   useWrongQuestions.ts
 |   |   |   +-- pages
 |   |   |   |   |   WrongQuestionsPage.tsx
-|   |   |   +-- services
-|   |   |   |   |   wq.service.ts
 |   +-- shared
 |   |   +-- api
 |   |   |   +-- core
@@ -424,19 +336,30 @@
 |   |   |   |   |   profile.ts
 |   |   |   |   |   questions.ts
 |   |   |   |   |   results.ts
+|   |   |   |   |   roles.ts
 |   |   |   |   |   settings.ts
+|   |   |   |   |   smartPaper.ts
 |   |   |   |   |   tasks.ts
 |   |   |   |   |   users.ts
 |   |   |   |   |   wrongQuestions.ts
+|   |   |   +-- normalizers
+|   |   |   |   |   import-normalize.ts
+|   |   |   |   |   question-normalize.ts
 |   |   |   |   http.ts
-|   |   |   |   types.ts
 |   |   +-- components
 |   |   |   |   AuthDebugger.tsx
+|   |   |   |   DataTable.tsx
 |   |   |   |   ErrorBoundary.tsx
+|   |   |   |   FiltersBar.tsx
+|   |   |   |   FormModal.tsx
 |   |   |   |   Header.tsx
 |   |   |   |   IconRenderer.tsx
+|   |   |   |   index.ts
 |   |   |   |   Layout.tsx
 |   |   |   |   LoadingSpinner.tsx
+|   |   |   |   SectionCard.tsx
+|   |   |   |   StatsCard.tsx
+|   |   |   |   StatsCardGroup.tsx
 |   |   +-- constants
 |   |   |   |   pagination.ts
 |   |   +-- contexts
@@ -444,25 +367,45 @@
 |   |   |   |   LanguageContext.tsx
 |   |   |   |   MenuPermissionContext.tsx
 |   |   +-- hooks
+|   |   |   |   index.ts
 |   |   |   |   useAnalytics.ts
 |   |   |   |   useDashboard.ts
 |   |   |   |   useDataAnalytics.ts
 |   |   |   |   useDebounce.ts
 |   |   |   |   useFavorites.ts
+|   |   |   |   useImportQuestions.ts
 |   |   |   |   useLeaderboard.ts
 |   |   |   |   useLearningProgress.ts
 |   |   |   |   useLogs.ts
+|   |   |   |   useManualPaper.ts
 |   |   |   |   useMenuPermissions.ts
 |   |   |   |   useMobile.tsx
+|   |   |   |   useNotifications.ts
+|   |   |   |   useOrgTree.ts
+|   |   |   |   usePaperEditor.ts
+|   |   |   |   usePapersList.ts
+|   |   |   |   useQuestionEditor.ts
+|   |   |   |   useQuestionQuery.ts
+|   |   |   |   useQuestionSelection.ts
+|   |   |   |   useQuestionsQuery.ts
 |   |   |   |   useResults.ts
+|   |   |   |   useSmartPaper.ts
 |   |   |   |   useTheme.tsx
+|   |   |   |   useUserNotifications.ts
 |   |   +-- styles
 |   |   |   |   antd-override.css
 |   |   |   |   antd-theme.ts
 |   |   |   |   theme.css
+|   |   +-- types
+|   |   |   |   admin-settings.ts
+|   |   |   |   grades.ts
+|   |   |   |   index.ts
+|   |   |   |   question.ts
+|   |   |   |   settings.ts
 |   |   +-- utils
 |   |   |   |   dayjs.ts
 |   |   |   |   fileParser.ts
+|   |   |   |   tree.ts
 |   +-- types
 |   |   |   global.d.ts
 |   |   App.css

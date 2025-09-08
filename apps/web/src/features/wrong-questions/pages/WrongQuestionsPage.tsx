@@ -1,11 +1,10 @@
-// features/wrong-questions/pages/WrongQuestionsPage.tsx
-import { Button, Empty, Pagination, Space, Spin, Typography, Card } from 'antd'
+// src/features/wrong-questions/pages/WrongQuestionsPage.tsx
+import { Button, Empty, Pagination, Space, Spin, Typography, Card, Segmented } from 'antd'
 import { RefreshCw, BookOpen } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useWrongQuestions } from '../hooks/useWrongQuestions'
-import { StatsCards } from '../components/StatsCards'
-import { FilterBar } from '../components/FilterBar'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
+
 const { Title, Text } = Typography
 
 export default function WrongQuestionsPage() {
@@ -56,9 +55,35 @@ export default function WrongQuestionsPage() {
         </Button>
       </div>
 
-      {stats && <StatsCards stats={stats} />}
+      {/* 简单统计展示（避免 StatsCard props 不匹配） */}
+      {stats && (
+        <Card>
+          <Space size="large" wrap>
+            {Object.entries(stats).map(([k, v]) => (
+              <div key={k} style={{ minWidth: 120 }}>
+                <div style={{ fontSize: 12, color: '#999' }}>{k}</div>
+                <div style={{ fontSize: 22, fontWeight: 600 }}>{String(v)}</div>
+              </div>
+            ))}
+          </Space>
+        </Card>
+      )}
 
-      <FilterBar value={filter} onChange={setFilter} />
+      {/* 过滤条（避免 FiltersBar 泛型不匹配） */}
+      <Card>
+        <Space align="center">
+          <div style={{ color: '#666' }}>筛选：</div>
+          <Segmented
+            value={filter}
+            onChange={v => setFilter(v as any)}
+            options={[
+              { label: '未掌握', value: 'unmastered' },
+              { label: '已掌握', value: 'mastered' },
+              { label: '全部', value: 'all' },
+            ]}
+          />
+        </Space>
+      </Card>
 
       {/* 列表 */}
       {list.length === 0 ? (

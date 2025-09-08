@@ -1,10 +1,10 @@
 // features/settings/components/AppearanceCard.tsx
 import { Button, Select, Space, Typography } from 'antd'
-import { Globe, Moon, Sun, Palette } from 'lucide-react'
+import { Globe, Moon, Palette, Sun } from 'lucide-react'
 import React from 'react'
-import { SettingSection } from './SettingSection'
+import type { AppearanceSettings } from '../../../shared/types/settings'
 import { SettingRow } from './SettingRow'
-import type { AppearanceSettings } from '../types/settings'
+import { SettingSection } from './SettingSection'
 
 const { Text } = Typography
 

@@ -1,13 +1,13 @@
 // features/papers/pages/PaperManagementPage.tsx
-import { Pagination } from 'antd'
 import LoadingSpinner from '@shared/components/LoadingSpinner'
 import { createPaginationConfig } from '@shared/constants/pagination'
+import { Pagination } from 'antd'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import PapersToolbar from '../components/PapersToolbar'
-import PapersTable from '../components/PapersTable'
+import { usePapersList } from '../../../shared/hooks/usePapersList'
 import ConfirmDialog from '../components/ConfirmDialog'
-import { usePapersList } from '../hooks/usePapersList'
-import React, { useState } from 'react'
+import PapersTable from '../components/PapersTable'
+import PapersToolbar from '../components/PapersToolbar'
 
 export default function PaperManagementPage() {
   const nav = useNavigate()

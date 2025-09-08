@@ -1,8 +1,8 @@
 import { Button, Space, Table, Tag, Tooltip } from 'antd'
-import React, { useMemo } from 'react'
 import { Edit, Eye, Trash2 } from 'lucide-react'
-import type { Question } from '../types/question'
+import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import type { Question } from '../../../shared/types/question'
 
 export default function QuestionTable({
   loading,

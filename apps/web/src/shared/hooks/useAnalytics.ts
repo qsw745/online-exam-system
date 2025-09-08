@@ -1,9 +1,16 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import dayjs from '@shared/utils/dayjs'
 import { api, isSuccess } from '@shared/api/http'
-import type { AnalyticsData } from '@features/analytics/types'
 
 export type DateRange = [dayjs.Dayjs, dayjs.Dayjs] | null
+
+// 若你有正式类型可替换；这里给一个安全的兜底
+export interface AnalyticsData {
+  overview?: Record<string, any>
+  trend?: Array<{ date: string; value: number }>
+  subjects?: string[]
+  [k: string]: any
+}
 
 export function useAnalytics(timeRange: DateRange, subject: string) {
   // 科目列表
@@ -17,7 +24,7 @@ export function useAnalytics(timeRange: DateRange, subject: string) {
   })
 
   // 主数据
-  const dataQ = useQuery({
+  const dataQ = useQuery<AnalyticsData>({
     queryKey: [
       'analytics',
       'data',
@@ -32,19 +39,20 @@ export function useAnalytics(timeRange: DateRange, subject: string) {
         subject: subject && subject !== 'all' ? subject : undefined,
       }
       const res = await api.get<AnalyticsData>('/analytics', { params })
-      // 后端统一响应：success/data
       if (isSuccess(res)) return (res.data || {}) as AnalyticsData
       throw new Error((res as any)?.error || '获取统计数据失败')
     },
-    keepPreviousData: true,
+    placeholderData: keepPreviousData, // ✅ v5 的写法
   })
 
   return {
     subjects: subjectsQ.data || [],
     isLoading: dataQ.isLoading || subjectsQ.isLoading,
     isError: dataQ.isError,
-    error: dataQ.error as Error | null,
+    error: (dataQ.error as Error) ?? null,
     data: dataQ.data ?? null,
     refetch: dataQ.refetch,
   }
 }
+
+export default useAnalytics

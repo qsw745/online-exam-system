@@ -1,13 +1,12 @@
 // features/questions/pages/QuestionEditorPage.tsx
-import { Card, Col, Divider, Form, Input, Row, Select, Typography, Button } from 'antd'
-import React from 'react'
-import QuestionHeader from '../components/QuestionHeader'
-import OptionsEditor from '../components/OptionsEditor'
-import { TrueFalseEditor } from '../components/TrueFalseEditor'
-import { ShortAnswerEditor } from '../components/ShortAnswerEditor'
+import { Button, Card, Col, Divider, Form, Input, Row, Select, Typography } from 'antd'
+import { useQuestionEditor } from '../../../shared/hooks/useQuestionEditor'
 import KnowledgePointsField from '../components/KnowledgePointsField'
+import OptionsEditor from '../components/OptionsEditor'
+import QuestionHeader from '../components/QuestionHeader'
+import { ShortAnswerEditor } from '../components/ShortAnswerEditor'
 import TagsField from '../components/TagsField'
-import { useQuestionEditor } from '../hooks/useQuestionEditor'
+import { TrueFalseEditor } from '../components/TrueFalseEditor'
 const { TextArea } = Input
 const { Title, Text } = Typography
 const { Option } = Select

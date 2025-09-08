@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, isSuccess } from '@shared/api/http'
 import { useDebounce } from '@shared/hooks/useDebounce'
-import type { GradeQuery, GradeStats, PaperLite, StudentResult } from '../types/grades'
+import { useCallback, useEffect, useState } from 'react'
+import type { GradeQuery, GradeStats, PaperLite, StudentResult } from '../../../shared/types/grades'
 
 type LoadResultsResp = {
   results: StudentResult[]

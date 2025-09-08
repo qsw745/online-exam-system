@@ -1,10 +1,10 @@
 // features/settings/components/NotificationsCard.tsx
-import { Switch, Space } from 'antd'
+import { Space, Switch } from 'antd'
 import { Mail, Smartphone, Volume2 } from 'lucide-react'
 import React from 'react'
-import { SettingSection } from './SettingSection'
+import type { NotificationSettings } from '../../../shared/types/settings'
 import { SettingRow } from './SettingRow'
-import type { NotificationSettings } from '../types/settings'
+import { SettingSection } from './SettingSection'
 
 export const NotificationsCard: React.FC<{
   value: NotificationSettings

@@ -33,15 +33,12 @@
 |   |   |   20250906_090000_add_tags_to_questions.sql
 |   |   |   add_task_publish_status.sql
 |   |   |   org_user.sql
+|   +-- seeds
 +-- logs
-|   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
-|   |   .6cce1b2ac5b7254167a2a5993b7803825039634e-audit.json
-|   |   .7cff1956a464da8f07818737bdb6cd01584089b1-audit.json
-|   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
-|   |   2025-09-06.log.gz
-|   |   2025-09-06-error.log.gz
-|   |   2025-09-07.log
-|   |   2025-09-07-error.log
+|   |   .77553ab959ad6a3b9ca434caba14dbe90f27c8d1-audit.json
+|   |   .d06c931e74736c0fbc018d06399b3faea82a59dc-audit.json
+|   |   2025-09-08.log
+|   |   2025-09-08-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -74,13 +71,21 @@
 |   |   |   async-handler.ts
 |   |   |   errors.ts
 |   +-- config
+|   |   |   database.sql
 |   |   |   database.ts
+|   |   |   init.sql
 |   |   |   jwt.ts
+|   |   |   logs.sql
+|   |   |   password-reset.sql
+|   |   |   practice_records.sql
 |   |   |   roles.ts
+|   |   |   wrong_questions.sql
 |   +-- database
 |   |   |   migrate_leaderboard.js
 |   +-- infrastructure
 |   |   +-- db
+|   |   |   +-- migrations
+|   |   |   +-- seeds
 |   |   |   |   index.ts
 |   |   +-- email
 |   |   |   |   email.service.ts
@@ -172,13 +177,15 @@
 |   |   app.ts
 +-- uploads
 |   +-- avatars
-|   |   |   avatar-1757179079331-7746723879422801.jpg
-|   |   |   avatar-1757179116674-08540409240457825.jpg
 |   .env
+|   add_more_paper_questions.sql
 |   backend-refactor.ps1
+|   create_paper_questions.sql
 |   Dockerfile
 |   EMAIL_SETUP.md
+|   insert_paper_questions.sql
 |   latest_menu_response.json
+|   learning_progress.sql
 |   package.json
 |   pnpm-lock.yaml
 |   tsconfig.json

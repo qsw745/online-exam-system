@@ -1,24 +1,22 @@
-// features/users/pages/UserManagementPage.tsx
+// src/features/users/pages/UserManagementPage.tsx
 import { Layout, Card, Pagination, Typography, Space, App } from 'antd'
-import React, { useMemo, useState } from 'react'
+import React from 'react'
 import { OrgTreePanel } from '../components/OrgTreePanel'
 import { UserFilterBar } from '../components/UserFilterBar'
-import { UserTable } from '../components/UserTable'
-import { useOrgTree } from '../hooks/useOrgTree'
+import { UsersTable } from '../components/UsersTable' // ✅ 改为具名导入
+import { useOrgTree } from '@shared/hooks'
 import { useOrgPathMap } from '../hooks/useOrgPathMap'
-import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
-import { orgsService } from '../services/orgs.service'
-import { usersService } from '../services/users.service'
+import { useOrgUsersQuery } from '@shared/hooks'
 
 const { Sider, Content } = Layout
 const { Title, Paragraph } = Typography
 
 const UserManagementPage: React.FC = () => {
-  const { message, modal } = App.useApp() // 如果需要 confirm 可用 modal.confirm
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
+  const { message } = App.useApp()
+  const [selectedOrgId, setSelectedOrgId] = React.useState<number | null>(null)
 
   // 机构树
-  const { tree, loading: treeLoading, expanded, setExpanded } = useOrgTree()
+  const { tree, loading: treeLoading, expanded, setExpanded, refetch: refetchTree } = useOrgTree()
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
@@ -26,42 +24,41 @@ const UserManagementPage: React.FC = () => {
   const q = useOrgUsersQuery(selectedOrgId)
 
   const refreshTree = async () => {
-    // 简化：useOrgTree 默认会在挂载时加载，这里如需刷新可重新触发（略）
-    window.location.reload() // 或者在 useOrgTree 暴露一个 refetch
+    await refetchTree()
   }
 
-  // 操作
-  const onView = async (u: any) => {
-    /* 打开 UserDetailModal（略）*/
-  }
-  const onEdit = (u: any) => {
-    /* 打开 UserEditModal（略） */
-  }
+  // 行操作 —— 全部走 hook 暴露的方法
+  const onView = async (_u: any) => {}
+  const onEdit = async (_u: any) => {}
+
   const onReset = async (u: any) => {
-    await usersService.resetPassword(u.id)
+    await q.resetPassword(u.id)
     message.success('密码重置成功')
+    q.refetch()
   }
+
   const onToggle = async (u: any) => {
-    await usersService.updateStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
+    await q.toggleStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
     message.success('状态已更新')
-    q.setPage(1)
+    q.refetch()
   }
+
   const onUnbind = async (u: any) => {
     if (!selectedOrgId) return
-    await orgsService.unbind(selectedOrgId, u.id)
+    await q.unbind(selectedOrgId, u.id)
     message.success('已从机构移除')
-    q.setPage(1)
-  }
-  const onDelete = async (u: any) => {
-    await usersService.delete(u.id)
-    message.success('用户删除成功')
-    q.setPage(1)
+    q.refetch()
   }
 
-  // 绑定到机构
-  const openBindModal = () => {
-    /* 打开 BindUsersModal（略）*/
+  const onDelete = async (u: any) => {
+    await q.deleteUser(u.id)
+    message.success('用户删除成功')
+    const rest = q.total - 1 - (q.page - 1) * q.limit
+    if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
+    else q.refetch()
   }
+
+  const openBindModal = () => {}
 
   return (
     <Layout style={{ padding: 16 }}>
@@ -110,7 +107,7 @@ const UserManagementPage: React.FC = () => {
         </Card>
 
         <Card>
-          <UserTable
+          <UsersTable
             data={q.rows}
             loading={q.loading}
             getOrgPath={getOrgPath}
@@ -137,10 +134,9 @@ const UserManagementPage: React.FC = () => {
             />
           </div>
         </Card>
-
-        {/* 这里挂载各类弹窗组件：UserDetailModal / UserEditModal / BindUsersModal / OrgPickerModal / LinkOrgsModal（略） */}
       </Content>
     </Layout>
   )
 }
+
 export default UserManagementPage

@@ -154,3 +154,5 @@ export function useFavorites() {
     shareFavorite,
   }
 }
+
+export default useFavorites

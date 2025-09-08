@@ -1,6 +1,6 @@
-import React from 'react'
-import type { StudentResult } from '@features/analytics/types/grades'
+import type { StudentResult } from '@shared/types/grades'
 import { Eye, Trophy } from 'lucide-react'
+import React from 'react'
 
 type Props = {
   results: StudentResult[]

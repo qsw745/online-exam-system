@@ -1,6 +1,6 @@
-import React, { FormEvent } from 'react'
-import type { PaperLite } from '@features/analytics/types/grades'
+import type { PaperLite } from '@shared/types/grades'
 import { Download, Search } from 'lucide-react'
+import React, { FormEvent } from 'react'
 
 type Props = {
   searchTerm: string

@@ -63,3 +63,4 @@ export function useResults(initialPageSize = 12) {
     refetch: fetchList,
   }
 }
+export default useResults

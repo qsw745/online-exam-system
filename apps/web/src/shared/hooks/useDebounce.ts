@@ -8,3 +8,4 @@ export function useDebounce<T>(value: T, delay = 300) {
   }, [value, delay])
   return debounced
 }
+export default useDebounce

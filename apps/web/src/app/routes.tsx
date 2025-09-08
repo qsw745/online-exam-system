@@ -3,23 +3,24 @@ import Forbidden403 from '@app/errors/Forbidden403'
 import NotFound404 from '@app/errors/NotFound404'
 import ServerError500 from '@app/errors/ServerError500'
 import LoadingSpinner from '@shared/components/LoadingSpinner'
-import { lazy, Suspense } from 'react'
+import React, { lazy, Suspense, type ReactElement } from 'react'
 import { createBrowserRouter, Navigate, redirect } from 'react-router-dom'
 
 // 布局守卫
 import AdminLayout from '@app/routing/AdminLayout'
 import ProtectedLayout from '@app/routing/ProtectedLayout'
 
-const withSuspense = (el: JSX.Element) => <Suspense fallback={<LoadingSpinner />}>{el}</Suspense>
+// ❗ 避免 “找不到命名空间 JSX” —— 不再使用 JSX.Element，改为 ReactElement
+const withSuspense = (el: ReactElement) => <Suspense fallback={<LoadingSpinner />}>{el}</Suspense>
 
 // ====== 顶层业务页面 ======
 const DashboardPage = lazy(() => import('@features/dashboard/pages/DashboardPage'))
-const AnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsPage'))
+const AnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsOverviewPage'))
 const DiscussionPage = lazy(() => import('@features/discussions/pages/DiscussionPage'))
 const ExamListPage = lazy(() => import('@features/exams/pages/ExamListPage'))
 const ExamPage = lazy(() => import('@features/exams/pages/ExamPage'))
 const ResultsPage = lazy(() => import('@features/exams/pages/ResultsPage'))
-const QuestionsPage = lazy(() => import('@features/questions/pages/QuestionsPage'))
+const QuestionsPage = lazy(() => import('@features/questions/browse/pages/QuestionsPage'))
 const QuestionPracticePage = lazy(() => import('@features/questions/pages/QuestionPracticePage'))
 const FavoritesPage = lazy(() => import('@features/favorites/pages/FavoritesPage'))
 const LeaderboardPage = lazy(() => import('@features/leaderboard/pages/LeaderboardPage'))
@@ -27,7 +28,7 @@ const LearningProgressPage = lazy(() => import('@features/learning-progress/page
 const LogsPage = lazy(() => import('@features/logs/pages/LogsPage'))
 const NotificationsPage = lazy(() => import('@features/notifications/pages/NotificationsPage'))
 const ProfilePage = lazy(() => import('@features/profile/pages/ProfilePage'))
-const SettingsPage = lazy(() => import('@features/settings/pages/SettingsPage'))
+const SettingsPage = lazy(() => import('@features/settings/pages/UserSettingsPage'))
 const WrongQuestionsPage = lazy(() => import('@features/wrong-questions/pages/WrongQuestionsPage'))
 const TasksPage = lazy(() => import('@features/tasks/pages/TasksPage'))
 const MyTasksPage = lazy(() => import('@features/tasks/pages/MyTasksPage'))
@@ -42,7 +43,7 @@ const ResetPasswordPage = lazy(() => import('@features/auth/pages/ResetPasswordP
 
 // ====== Admin ======
 const AdminPage = lazy(() => import('@features/admin/pages/AdminPage'))
-const OrgManage = lazy(() => import('@features/orgs/pages/OrgManage'))
+const OrgManage = lazy(() => import('@features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@features/roles/pages/RoleManagementPage'))
 const MenuManagementPage = lazy(() => import('@features/menu/pages/MenuManagementPage'))
 const UserManagementPage = lazy(() => import('@features/users/pages/UserManagementPage'))
@@ -55,9 +56,9 @@ const ManualPaperCreationPage = lazy(() => import('@features/papers/pages/Manual
 const SmartPaperCreatePage = lazy(() => import('@features/papers/pages/SmartPaperCreatePage'))
 const QuestionManagementPage = lazy(() => import('@features/questions/pages/QuestionManagementPage'))
 const QuestionCreatePage = lazy(() => import('@features/questions/pages/QuestionCreatePage'))
-const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/DataAnalyticsPage'))
+const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsDetailsPage'))
 const GradeManagementPage = lazy(() => import('@features/analytics/pages/GradeManagementPage'))
-const AdminSettingsPage = lazy(() => import('@features/settings/pages/AdminSettingsPage'))
+const AdminSettingsPage = lazy(() => import('@features/admin-settings/pages/SystemSettingsPage'))
 
 export const router = createBrowserRouter(
   [
@@ -84,14 +85,14 @@ export const router = createBrowserRouter(
         // 题库 & 练习
         { path: 'questions', element: withSuspense(<QuestionsPage />) },
         { path: 'questions/all', element: withSuspense(<QuestionsPage />) },
-        { path: 'questions/wrong', element: withSuspense(<WrongQuestionsPage />) },
         { path: 'questions/practice', element: withSuspense(<QuestionPracticePage />) },
         { path: 'questions/:id/practice', element: withSuspense(<QuestionPracticePage />) },
-        // ✅ 旧地址重定向到新地址
+        // 兼容旧地址：重定向到新地址
         { path: 'questions/wrong', loader: () => redirect('/wrong-questions') },
 
-        // ✅ 新地址：/wrong-questions
+        // 新地址：/wrong-questions
         { path: 'wrong-questions', element: withSuspense(<WrongQuestionsPage />) },
+
         // 其它业务
         { path: 'results', element: withSuspense(<ResultsPage />) },
         { path: 'notifications', element: withSuspense(<NotificationsPage />) },

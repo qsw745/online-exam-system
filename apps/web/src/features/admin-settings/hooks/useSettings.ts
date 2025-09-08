@@ -1,8 +1,8 @@
 // features/admin-settings/hooks/useSettings.ts
-import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import type { SystemSettings } from '../../../shared/types/admin-settings'
 import { settingsService } from '../services/settings'
-import type { SystemSettings } from '../types'
 import { settingsSchema } from '../validation/settings.schema'
 
 export function useSettings() {

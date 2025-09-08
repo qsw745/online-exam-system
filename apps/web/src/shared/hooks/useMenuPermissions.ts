@@ -23,3 +23,5 @@ export function withMenuPermission<T extends object>(
     return React.createElement(Component, props)
   }
 }
+
+export default useMenuPermissions

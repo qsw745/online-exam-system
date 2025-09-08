@@ -1,7 +1,7 @@
 // src/features/exams/hooks/useExamRunner.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { App } from 'antd'
-import { examsApi } from '@shared/api/endpoints/exams'
+import { exams } from '@shared/api/endpoints/exams'
 import type { ExamPaper } from '../types'
 
 export function useExamRunner(taskId: string) {
@@ -42,7 +42,7 @@ export function useExamRunner(taskId: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const paper = await examsApi.getTaskPaper(taskId)
+      const paper = await exams.getTaskPaper(taskId)
       if (!paper || !paper.duration || !Array.isArray(paper.questions) || paper.questions.length === 0) {
         message.error('考试数据无效')
         setExam(null)
@@ -106,7 +106,7 @@ export function useExamRunner(taskId: string) {
     setSubmitting(true)
     try {
       const time_spent = exam.duration * 60 - timeLeft
-      await examsApi.submitTask(taskId, { answers, time_spent })
+      await exams.submitTask(taskId, { answers, time_spent })
       // 成功后清理草稿
       localStorage.removeItem(storageKey)
       return true

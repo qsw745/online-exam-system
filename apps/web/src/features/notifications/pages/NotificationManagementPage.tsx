@@ -1,8 +1,8 @@
 import { Card } from 'antd'
-import NotificationToolbar from '../components/NotificationToolbar'
-import NotificationTable from '../components/NotificationTable'
+import { useNotifications } from '../../../shared/hooks/useNotifications'
 import NotificationFormModal from '../components/NotificationFormModal'
-import { useNotifications } from '../hooks/useNotifications'
+import NotificationTable from '../components/NotificationTable'
+import NotificationToolbar from '../components/NotificationToolbar'
 
 export default function NotificationManagementPage() {
   const {

@@ -1,6 +1,6 @@
 // features/smart-paper/components/ConfigForm/BasicInfoCard.tsx
 import { Card, Form, Input, Select } from 'antd'
-import type { SmartPaperConfig } from '../../endpoints/smartPaper'
+import type { SmartPaperConfig } from '../../../../shared/api/endpoints/smartPaper'
 const { TextArea } = Input
 
 export default function BasicInfoCard({

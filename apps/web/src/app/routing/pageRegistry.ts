@@ -11,7 +11,7 @@ const PaperCreatePage = lazy(() => import('@features/papers/pages/PaperCreatePag
 const TaskManagementPage = lazy(() => import('@features/tasks/pages/TaskManagementPage'))
 const TaskCreatePage = lazy(() => import('@features/tasks/pages/TaskCreatePage'))
 const MenuManagementPage = lazy(() => import('@features/menu/pages/MenuManagementPage'))
-const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/DataAnalyticsPage'))
+const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsDetailsPage'))
 const GradeManagementPage = lazy(() => import('@features/analytics/pages/GradeManagementPage'))
 
 // User / 顶层业务
@@ -20,14 +20,14 @@ const ExamListPage = lazy(() => import('@features/exams/pages/ExamListPage'))
 const ExamPage = lazy(() => import('@features/exams/pages/ExamPage'))
 const ResultsPage = lazy(() => import('@features/exams/pages/ResultsPage'))
 const QuestionPracticePage = lazy(() => import('@features/questions/pages/QuestionPracticePage'))
-const QuestionsPage = lazy(() => import('@features/questions/pages/QuestionsPage'))
+
 const FavoritesPage = lazy(() => import('@features/favorites/pages/FavoritesPage'))
 const LeaderboardPage = lazy(() => import('@features/leaderboard/pages/LeaderboardPage'))
 const LearningProgressPage = lazy(() => import('@features/learning-progress/pages/LearningProgressPage'))
 const LogsPage = lazy(() => import('@features/logs/pages/LogsPage'))
 const NotificationsPage = lazy(() => import('@features/notifications/pages/NotificationsPage'))
 const ProfilePage = lazy(() => import('@features/profile/pages/ProfilePage'))
-const SettingsPage = lazy(() => import('@features/settings/pages/SettingsPage'))
+const SettingsPage = lazy(() => import('@features/settings/pages/UserSettingsPage'))
 const WrongQuestionsPage = lazy(() => import('@features/wrong-questions/pages/WrongQuestionsPage'))
 
 // 统一导出：路径 => 懒组件
@@ -55,7 +55,7 @@ export const pageRegistry: Record<string, LazyExoticComponent<ComponentType<any>
   '/results': ResultsPage,
   '/profile': ProfilePage,
   '/learning-progress': LearningProgressPage,
- 
+
   '/favorites': FavoritesPage,
 
   '/wrong-questions': WrongQuestionsPage,
@@ -65,6 +65,6 @@ export const pageRegistry: Record<string, LazyExoticComponent<ComponentType<any>
   '/analytics': DataAnalyticsPage, // 也可放在 /admin/analytics，仅示例
   '/settings': SettingsPage,
   '/notifications': NotificationsPage,
-  '/questions': QuestionsPage,
+
   '/questions/practice': QuestionPracticePage,
 }
