@@ -7,7 +7,7 @@ import LogsTable from '@features/logs/components/LogsTable'
 import LogDetailModal from '@features/logs/components/LogDetailModal'
 
 const { Title } = Typography
-
+// 日志组件
 export default function LogsPage() {
   const {
     logs,
