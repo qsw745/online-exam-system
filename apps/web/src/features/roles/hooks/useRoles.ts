@@ -1,10 +1,57 @@
-// hooks/useRoles.ts
+// features/roles/hooks/useRoles.ts
 import { useCallback, useState } from 'react'
 import { App } from 'antd'
-import { roleService } from '../services/roles'
-import { isSuccess, getMsg } from '../utils/apiResult'
-import { ensureArray, pickTotal } from '../utils/normalizers'
-import type { Role } from '../types'
+import { api } from '@shared/api/http'
+
+// ===== 轻量类型 =====
+export type Role = {
+  id: number
+  name: string
+  code?: string
+  description?: string | null
+  status?: string
+}
+
+// ===== 轻量工具 =====
+const ensureArray = <T>(input: any, fallback: T[] = []): T[] => {
+  if (Array.isArray(input)) return input as T[]
+  if (input == null) return fallback
+  const maybe = (input.items ?? input.data ?? input.list ?? input.rows) as T[] | undefined
+  return Array.isArray(maybe) ? maybe : fallback
+}
+const pickTotal = (input: any, fallback = 0): number => {
+  if (!input) return fallback
+  return (
+    Number(input?.pagination?.total) ??
+    Number(input?.total) ??
+    Number(input?.count) ??
+    Number(input?.length) ??
+    fallback
+  )
+}
+const isOk = (r: any) => r?.success !== false && !r?.error
+const getMsg = (r: any, fallback: string) => r?.message || r?.error || fallback
+const unwrap = (r: any) => (r && typeof r === 'object' && 'data' in r ? (r as any).data : r)
+
+// ===== API =====
+const roleService = {
+  async list(params: { page?: number; limit?: number; keyword?: string }) {
+    const r = await api.get<any>('/roles', { params })
+    return unwrap(r)
+  },
+  async create(payload: Partial<Role>) {
+    const r = await api.post<any>('/roles', payload)
+    return unwrap(r)
+  },
+  async update(id: number, payload: Partial<Role>) {
+    const r = await api.put<any>(`/roles/${id}`, payload)
+    return unwrap(r)
+  },
+  async remove(id: number) {
+    const r = await api.delete<any>(`/roles/${id}`)
+    return unwrap(r)
+  },
+}
 
 export function useRoles() {
   const { message } = App.useApp()
@@ -20,38 +67,37 @@ export function useRoles() {
       try {
         setLoading(true)
         const resp = await roleService.list({ page: p, limit: s, keyword: k || undefined })
-        if (!isSuccess(resp)) throw new Error(getMsg(resp, '加载角色失败'))
-        const d = resp.data as any
-        const arr = ensureArray<Role>(d, [])
+        if (!isOk(resp)) throw new Error(getMsg(resp, '加载角色失败'))
+        const arr = ensureArray<Role>(resp, [])
         setList(arr)
-        setTotal(arr.length ? pickTotal(d, arr.length) : pickTotal(d, 0))
+        setTotal(arr.length ? pickTotal(resp, arr.length) : pickTotal(resp, 0))
         setPage(p)
         setPageSize(s)
       } catch (e: any) {
         console.error(e)
-        message.error(e.message || '加载角色失败')
+        message.error(e?.message || '加载角色失败')
         setList([])
         setTotal(0)
       } finally {
         setLoading(false)
       }
     },
-    [page, pageSize, keyword]
+    [page, pageSize, keyword, message]
   )
 
   const create = async (payload: Partial<Role>) => {
     const r = await roleService.create(payload)
-    if (!isSuccess(r)) throw new Error(getMsg(r, '角色创建失败'))
+    if (!isOk(r)) throw new Error(getMsg(r, '角色创建失败'))
     await load(1, pageSize, keyword)
   }
   const update = async (id: number, payload: Partial<Role>) => {
     const r = await roleService.update(id, payload)
-    if (!isSuccess(r)) throw new Error(getMsg(r, '角色更新失败'))
+    if (!isOk(r)) throw new Error(getMsg(r, '角色更新失败'))
     await load(page, pageSize, keyword)
   }
   const remove = async (id: number) => {
     const r = await roleService.remove(id)
-    if (!isSuccess(r)) throw new Error(getMsg(r, '删除失败'))
+    if (!isOk(r)) throw new Error(getMsg(r, '删除失败'))
     await load(page, pageSize, keyword)
   }
 

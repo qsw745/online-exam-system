@@ -18,7 +18,7 @@ import {
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { questionsApi } from '../api'
+import { questionsApi } from '@shared/api/http'
 
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input

@@ -1,4 +1,3 @@
-// features/settings/components/PrivacyCard.tsx
 import { Select, Space, Switch } from 'antd'
 import { Bell, Eye, Trophy } from 'lucide-react'
 import React from 'react'

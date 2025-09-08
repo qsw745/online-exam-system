@@ -1,7 +1,18 @@
 import { Card, Progress, Table } from 'antd'
 import React, { useMemo } from 'react'
-import type { SubjectRow } from '../types'
-import { getScoreColor } from '../utils'
+
+export type SubjectRow = {
+  subject: string
+  questions_count: number
+  avg_score: number
+  completion_rate: number
+}
+
+const getScoreColor = (score: number): string => {
+  if (score >= 85) return '#52c41a'
+  if (score >= 60) return '#faad14'
+  return '#ff4d4f'
+}
 
 export const SubjectsTable: React.FC<{ data: SubjectRow[] }> = ({ data }) => {
   const columns = useMemo(

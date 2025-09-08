@@ -1,4 +1,5 @@
-import { api } from '@shared/api/http'
+// src/shared/api/endpoints/orgs.ts
+import { api, isSuccess } from '@shared/api/http'
 
 export interface OrgNode {
   id: number
@@ -16,8 +17,16 @@ export interface OrgNode {
 }
 
 export const orgs = {
-  tree: () => api.get<{ data: OrgNode[] }>('/orgs/tree').then(r => r.data),
-  get: (id: number) => api.get<{ data: OrgNode }>(`/orgs/${id}`).then(r => r.data),
+  async tree(): Promise<OrgNode[]> {
+    const r = await api.get<{ data: OrgNode[] }>('/orgs/tree')
+    if (isSuccess(r)) return (r.data as any)?.data ?? []
+    throw new Error((r as any)?.error || (r as any)?.message || '获取机构树失败')
+  },
+  async get(id: number): Promise<OrgNode> {
+    const r = await api.get<{ data: OrgNode }>(`/orgs/${id}`)
+    if (isSuccess(r)) return (r.data as any)?.data
+    throw new Error((r as any)?.error || (r as any)?.message || '获取机构详情失败')
+  },
   create: (payload: Partial<OrgNode>) => api.post('/orgs', payload),
   update: (id: number, payload: Partial<OrgNode>) => api.put(`/orgs/${id}`, payload),
   remove: (id: number) => api.delete(`/orgs/${id}`),

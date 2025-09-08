@@ -1,9 +1,20 @@
-// features/tasks/hooks/useTasksQuery.ts
+// src/features/tasks/hooks/useTasksQuery.ts
 import { App } from 'antd'
 import dayjs from 'dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { tasksService } from '../services/tasks.service'
-import type { Task } from '../types'
+import { tasksApi } from '@shared/api/http'
+import { isSuccess } from '@shared/api/http'
+
+export type Task = {
+  id: string
+  title: string
+  description?: string
+  assigned_users?: Array<{ id: number; name: string }>
+  status: 'draft' | 'published' | 'in_progress' | 'completed' | 'archived' | string
+  start_time?: string | null
+  end_time?: string | null
+  created_at?: string | null
+}
 
 export interface TaskFilters {
   keyword?: string
@@ -37,9 +48,26 @@ export function useTasksQuery(initialPageSize = 10) {
   const fetch = useCallback(async () => {
     setLoading(true)
     try {
-      const { rows, total } = await tasksService.list(params)
-      setRows(rows)
-      setTotal(total)
+      const res: any = await(tasksApi as any).list?.(params)
+      if (!isSuccess(res)) {
+        message.error(res?.error || res?.message || '加载任务失败')
+        setRows([])
+        setTotal(0)
+        return
+      }
+      const d = res.data
+      if (Array.isArray(d)) {
+        setRows(d as Task[])
+        setTotal(d.length)
+      } else if (d && typeof d === 'object') {
+        const arr = (d.items ?? d.tasks ?? []) as Task[]
+        setRows(Array.isArray(arr) ? arr : [])
+        const pg = d.pagination ?? {}
+        setTotal(pg.total ?? d.total ?? arr.length ?? 0)
+      } else {
+        setRows([])
+        setTotal(0)
+      }
     } catch (e: any) {
       console.error(e)
       message.error(e?.message || '加载任务失败')
@@ -65,3 +93,5 @@ export function useTasksQuery(initialPageSize = 10) {
 
   return { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset, refetch: fetch }
 }
+
+export default useTasksQuery

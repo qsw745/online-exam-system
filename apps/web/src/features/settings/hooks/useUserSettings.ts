@@ -4,7 +4,32 @@ import { useLanguage } from '@shared/contexts/LanguageContext'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserSettings } from '../../../shared/types/settings'
-import { settingsService } from '../services/settings.service'
+import { api } from '@shared/api/http'
+
+// 轻量内联服务（避免缺失的 services/settings.service）
+const settingsEndpoint = '/settings/me'
+const settingsService = {
+  async get(): Promise<UserSettings | null> {
+    try {
+      const r = await api.get<any>(settingsEndpoint)
+      const d = (r as any)?.data ?? r
+      // 兼容 { data: {...} } / 直接 {...}
+      return (d?.data ?? d ?? null) as UserSettings | null
+    } catch {
+      return null
+    }
+  },
+  async save(payload: UserSettings): Promise<boolean> {
+    try {
+      const r = await api.put<any>(settingsEndpoint, payload)
+      // 兼容 { success } / axios 响应
+      const ok = (r as any)?.success
+      return ok !== false
+    } catch {
+      return false
+    }
+  },
+}
 
 const DEFAULTS: UserSettings = {
   notifications: { email: true, push: true, sound: true },
@@ -47,12 +72,11 @@ export function useUserSettings() {
   }, [load])
 
   const isDirty = useMemo(() => {
-    // 只对比除语言外变化？这里全部比较
+    // 简单对比（必要时可定制忽略字段）
     return (
       JSON.stringify(settings) !==
       JSON.stringify({
         ...DEFAULTS,
-        // 注意：如果后端返回时某些字段缺省，DEFAULTS 可确保结构一致
         ...settings,
       })
     )
@@ -93,3 +117,5 @@ export function useUserSettings() {
     isDirty,
   }
 }
+
+export default useUserSettings

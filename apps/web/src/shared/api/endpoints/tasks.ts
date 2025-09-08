@@ -1,6 +1,6 @@
 import { api } from '../core/httpClient'
 
-export const tasks = {
+export const tasksApi = {
   list: (params?: { page?: number; limit?: number; search?: string; status?: string; sort?: string }) =>
     api.get('/tasks', { params }),
   getById: (id: string) => api.get(`/tasks/${id}`),

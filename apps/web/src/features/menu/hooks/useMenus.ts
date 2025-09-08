@@ -1,3 +1,4 @@
+// src/features/menu/hooks/useMenus.ts
 import { menuApi, type MenuDTO } from '@shared/api/endpoints/menu'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
@@ -40,9 +41,23 @@ export function useMenus() {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const list = await menuApi.list()
-      setMenus(list)
+      const ret: any = await menuApi.list()
+      let list: MenuDTO[] = []
+
+      if (Array.isArray(ret)) {
+        list = ret as MenuDTO[]
+      } else if (ret && typeof ret === 'object') {
+        const data = (ret as any).data ?? (ret as any).items ?? (ret as any).menus ?? []
+        if (Array.isArray(data)) list = data as MenuDTO[]
+      }
+
+      setMenus(Array.isArray(list) ? list : [])
+      if (!Array.isArray(list)) {
+        // 非致命，给个提示
+        message.warning('菜单数据格式异常，已为空展示')
+      }
     } catch {
+      setMenus([]) // 防御：出现 404/网络错时不再抛到 UI
       message.error('加载菜单失败')
     } finally {
       setLoading(false)

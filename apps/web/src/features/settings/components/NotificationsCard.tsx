@@ -1,4 +1,3 @@
-// features/settings/components/NotificationsCard.tsx
 import { Space, Switch } from 'antd'
 import { Mail, Smartphone, Volume2 } from 'lucide-react'
 import React from 'react'

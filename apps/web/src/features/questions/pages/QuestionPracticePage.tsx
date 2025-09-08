@@ -1,3 +1,4 @@
+// features/questions/pages/QuestionPracticePage.tsx
 import { Button, Card, Checkbox, Input, message, Radio, Space, Spin, Tag, Typography } from 'antd'
 import {
   AlertTriangle,
@@ -15,7 +16,8 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
-import { favoritesApi, isSuccess, questions as questionsApi, wrongQuestions, type ApiResult } from '@shared/api/http'
+// ✅ 不再从 http 中导出 questions；改为使用 api + 轻量包装
+import { api, favoritesApi, isSuccess, wrongQuestions, type ApiResult } from '@shared/api/http'
 import { useAuth } from '@shared/contexts/AuthContext'
 import { useLanguage } from '@shared/contexts/LanguageContext'
 
@@ -25,13 +27,97 @@ const { Title, Text } = Typography
 interface Question {
   id: string
   content: string
-  question_type: string
+  question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
   options?: Array<{ content: string; is_correct: boolean }>
   correct_answer?: number[] | string
   answer?: string
   explanation?: string
-  difficulty?: string
+  difficulty?: 'easy' | 'medium' | 'hard' | string
   knowledge_points?: string[]
+}
+
+/** 将后端响应统一“归一化”为 ApiResult 结构，方便和 isSuccess 协作 */
+function asApiResult<T = any>(res: any): ApiResult<T> {
+  const d = res?.data ?? res
+  if (d && typeof d === 'object' && ('success' in d || 'data' in d || 'error' in d)) return d as ApiResult<T>
+  return { success: true, data: d } as unknown as ApiResult<T>
+}
+
+/** 轻量 questions API 封装（避免直接依赖缺失的导出） */
+const questionsApi = {
+  async list(params: any): Promise<ApiResult<any>> {
+    const r = await api.get<any>('/questions', { params })
+    return asApiResult(r)
+  },
+  async getById(id: string): Promise<ApiResult<any>> {
+    const r = await api.get<any>(`/questions/${id}`)
+    return asApiResult(r)
+  },
+}
+
+/** —— favorites 兼容层 ——
+ *  你现有的 favoritesApi 没有 checkQuestion / add / remove；
+ *  这里通过 list / items / addItem / removeItem 组合实现同等能力。
+ */
+async function getFirstFavoriteList(): Promise<any | null> {
+  try {
+    const lists = await (favoritesApi as any).list?.()
+    const arr = (lists?.data ?? lists) as any
+    if (Array.isArray(arr) && arr.length) return arr[0]
+    if (!(favoritesApi as any).create) return null
+    const created = await (favoritesApi as any).create?.({ name: '默认收藏' })
+    return created?.data ?? created ?? null
+  } catch {
+    return null
+  }
+}
+
+async function isQuestionFavorited(questionId: string): Promise<boolean> {
+  try {
+    const fav = await getFirstFavoriteList()
+    if (!fav) return false
+    const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
+    const items = await (favoritesApi as any).items?.(fid)
+    const list = (items?.data ?? items) as any[]
+    const qidNum = Number(questionId)
+    return (
+      Array.isArray(list) &&
+      list.some(it => {
+        const qid = it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id
+        return Number(qid) === qidNum
+      })
+    )
+  } catch {
+    return false
+  }
+}
+
+async function addQuestionToFavorites(questionId: string, title?: string) {
+  const fav = await getFirstFavoriteList()
+  if (!fav) throw new Error('没有可用的收藏夹')
+  const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
+  if (!(favoritesApi as any).addItem) throw new Error('当前收藏接口不支持新增项目')
+  await (favoritesApi as any).addItem(fid, { question_id: Number(questionId), title })
+}
+
+async function removeQuestionFromFavorites(questionId: string) {
+  const fav = await getFirstFavoriteList()
+  if (!fav) throw new Error('没有可用的收藏夹')
+  const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
+  if (!(favoritesApi as any).removeItem) throw new Error('当前收藏接口不支持删除项目')
+
+  const items = await (favoritesApi as any).items?.(fid)
+  const list = (items?.data ?? items) as any[]
+  const qidNum = Number(questionId)
+  const hit = Array.isArray(list)
+    ? list.find(it => {
+        const qid = it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id
+        return Number(qid) === qidNum
+      })
+    : null
+  if (!hit) return
+  const itemId = Number(hit.id ?? hit.item_id ?? hit.ID ?? qidNum)
+  await (favoritesApi as any).removeItem(fid, itemId)
 }
 
 export default function QuestionPracticePage() {
@@ -43,7 +129,7 @@ export default function QuestionPracticePage() {
 
   const [loading, setLoading] = useState(true)
   const [question, setQuestion] = useState<Question | null>(null)
-  const [loadError, setLoadError] = useState<string | null>(null) // ✅ 新增：明确错误态
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [selectedAnswers, setSelectedAnswers] = useState<number[]>([])
   const [textAnswer, setTextAnswer] = useState('')
@@ -59,7 +145,6 @@ export default function QuestionPracticePage() {
   const [practiceFilters, setPracticeFilters] = useState<{ type?: string; difficulty?: string; search?: string }>({})
   const [filterKey, setFilterKey] = useState('')
 
-  // 去重 / 竞态控制
   const fetchingRef = useRef<string | null>(null)
   const latestReqRef = useRef(0)
 
@@ -77,7 +162,7 @@ export default function QuestionPracticePage() {
         search: sp.get('search') || undefined,
       })
       setFilterKey(fKey)
-      initializeContinuousPractice({
+      void initializeContinuousPractice({
         type: sp.get('type'),
         difficulty: sp.get('difficulty'),
         search: sp.get('search'),
@@ -112,7 +197,6 @@ export default function QuestionPracticePage() {
     search?: string | null
   }) => {
     try {
-      // ❗ 不要在这里 setLoading(false)。交给 loadQuestion 控制，避免闪一下 404
       setLoading(true)
       setLoadError(null)
 
@@ -160,7 +244,6 @@ export default function QuestionPracticePage() {
       if (filters.difficulty) qs.set('difficulty', String(filters.difficulty))
       if (filters.search) qs.set('search', String(filters.search))
       navigate(`/questions/${firstId}/practice?${qs.toString()}`, { replace: true })
-      // 这里不做 setLoading(false)，等待 loadQuestion 设置
     } catch (error) {
       console.error('初始化连续练习失败:', error)
       setLoadError('初始化练习失败')
@@ -190,12 +273,10 @@ export default function QuestionPracticePage() {
 
       resetQuestion()
 
-      // 收藏状态（统一走 /favorites）
+      // 收藏状态检查（通过 favoritesApi 的 list/items 组合）
       try {
-        const favStatus = await favoritesApi.checkQuestion(questionData.id)
-        if (isSuccess(favStatus)) {
-          setIsFavorited(!!favStatus.data?.is_favorited)
-        }
+        const fav = await isQuestionFavorited(questionData.id)
+        setIsFavorited(!!fav)
       } catch {
         /* ignore */
       }
@@ -203,20 +284,15 @@ export default function QuestionPracticePage() {
       console.error('加载题目失败:', error)
       if (reqNo !== latestReqRef.current) return
 
-      // ✅ 只在真正失败时标记错误；连续模式下尽量无感跳过
       const notFound = error?.response?.status === 404
       setLoadError(notFound ? '题目不存在或已被删除' : '加载题目失败')
 
       if (practiceMode === 'continuous') {
-        // 连续模式：静默跳到下一题，不弹“题目不存在”提示，避免抖动
         if (questionList.length > 1 && currentIndex < questionList.length - 1) {
           goToNextQuestion()
           return
         }
         navigate('/questions/all')
-      } else {
-        // 单题模式：保留错误态，由渲染分支展示“题目不存在”
-        // 可选：message.error(loadError)；此处避免重复提示
       }
     } finally {
       if (reqNo === latestReqRef.current) setLoading(false)
@@ -254,7 +330,7 @@ export default function QuestionPracticePage() {
     setIsCorrect(correct)
     setIsAnswered(true)
     setShowExplanation(true)
-    recordAnswer(correct)
+    void recordAnswer(correct)
   }
 
   const recordAnswer = async (correct: boolean) => {
@@ -269,22 +345,17 @@ export default function QuestionPracticePage() {
     }
   }
 
-  // 统一走 favoritesApi
+  // ✅ 统一使用 favorites 兼容层
   const toggleFavorite = async () => {
     if (!question) return
     try {
+      const qid = String(question.id)
       if (isFavorited) {
-        const r = await favoritesApi.remove(question.id)
-        if (!isSuccess(r)) throw new Error((r as any).error || '取消收藏失败')
+        await removeQuestionFromFavorites(qid)
         setIsFavorited(false)
         message.success('已取消收藏')
       } else {
-        const r = await favoritesApi.add(
-          question.id,
-          // 作为可选标题，避免太长
-          (question.content || '').slice(0, 100)
-        )
-        if (!isSuccess(r)) throw new Error((r as any).error || '收藏失败')
+        await addQuestionToFavorites(qid, (question.content || '').slice(0, 100))
         setIsFavorited(true)
         message.success('已添加到收藏')
       }
@@ -302,7 +373,6 @@ export default function QuestionPracticePage() {
     setShowExplanation(false)
   }
 
-  // 只导航，让 useEffect([id]) 去加载
   const goToNextQuestion = () => {
     if (practiceMode === 'continuous' && questionList.length > 0) {
       const nextIndex = currentIndex + 1
@@ -350,7 +420,7 @@ export default function QuestionPracticePage() {
   const getDifficultyLabel = (difficulty: string) =>
     (({ easy: '简单', medium: '中等', hard: '困难' } as any)[difficulty] || difficulty)
 
-  // ===== 渲染分支：先 loading，再错误，再正常 =====
+  // ===== 渲染分支 =====
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
@@ -362,7 +432,6 @@ export default function QuestionPracticePage() {
   }
 
   if (loadError) {
-    // ✅ 只有明确失败才展示“题目不存在”，避免初始化阶段闪一下
     return (
       <div
         style={{
@@ -387,7 +456,6 @@ export default function QuestionPracticePage() {
   }
 
   if (!question) {
-    // 理论上走不到（loading=false 且无错误时应有题目），做兜底 Spinner
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
         <Spin size="large" tip={t('questions.loading')}>

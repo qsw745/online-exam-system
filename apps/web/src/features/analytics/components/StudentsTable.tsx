@@ -1,17 +1,42 @@
+// apps/web/src/features/analytics/components/StudentsTable.tsx
 import { Card, Pagination, Progress, Table } from 'antd'
 import dayjs from '@shared/utils/dayjs'
 import React, { useMemo } from 'react'
-import type { StudentRow } from '../types'
 import { createPaginationConfig } from '@shared/constants/pagination'
-import { formatStudyTime, getScoreColor } from '../utils'
 
+// ==== 本地最小类型与工具，去除对 ../types 与 ../utils 的依赖 ====
+export type StudentRow = {
+  user_id: number | string
+  username: string
+  avg_score: number
+  exams_completed: number
+  total_score: number
+  study_time: number // 单位：分钟
+  last_active: string // ISO 时间
+}
+
+const getScoreColor = (score: number) => {
+  if (score >= 85) return '#52c41a' // 绿色
+  if (score >= 60) return '#faad14' // 橙色
+  return '#ff4d4f' // 红色
+}
+
+const formatStudyTime = (minutes: number) => {
+  const m = Math.max(0, Math.floor(minutes || 0))
+  const h = Math.floor(m / 60)
+  const mm = m % 60
+  if (h === 0) return `${mm}分`
+  return `${h}小时${mm}分`
+}
+
+// ==== 组件 ====
 type Props = {
   data: StudentRow[]
   total: number
   current: number
   pageSize: number
   onPageChange: (p: number) => void
-  onPageSizeChange: (c: number, size: number) => void
+  onPageSizeChange: (current: number, size: number) => void
 }
 
 export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize, onPageChange, onPageSizeChange }) => {
@@ -36,12 +61,12 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         render: (score: number) => (
           <div className="text-center">
             <div className="font-bold" style={{ color: getScoreColor(score) }}>
-              {score.toFixed(1)}
+              {Number.isFinite(score) ? score.toFixed(1) : '-'}
             </div>
             <Progress
-              percent={Math.max(0, Math.min(100, score))}
+              percent={Math.max(0, Math.min(100, Number.isFinite(score) ? score : 0))}
               size="small"
-              strokeColor={getScoreColor(score)}
+              strokeColor={getScoreColor(score || 0)}
               showInfo={false}
             />
           </div>
@@ -59,7 +84,7 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         dataIndex: 'total_score',
         key: 'total_score',
         sorter: (a: any, b: any) => b.total_score - a.total_score,
-        render: (s: number) => <div className="text-center font-medium">{s.toFixed(1)}</div>,
+        render: (s: number) => <div className="text-center font-medium">{Number.isFinite(s) ? s.toFixed(1) : '-'}</div>,
       },
       {
         title: '学习时长',
@@ -72,7 +97,7 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         title: '最后活跃',
         dataIndex: 'last_active',
         key: 'last_active',
-        render: (t: string) => <div className="text-sm text-gray-600">{dayjs(t).format('MM-DD HH:mm')}</div>,
+        render: (t: string) => <div className="text-sm text-gray-600">{t ? dayjs(t).format('MM-DD HH:mm') : '-'}</div>,
       },
     ],
     []
@@ -80,7 +105,13 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
 
   return (
     <Card title="学生表现">
-      <Table columns={columns as any} dataSource={data || []} rowKey="user_id" pagination={false} size="small" />
+      <Table
+        columns={columns as any}
+        dataSource={Array.isArray(data) ? data : []}
+        rowKey="user_id"
+        pagination={false}
+        size="small"
+      />
       <Pagination
         current={current}
         total={total}

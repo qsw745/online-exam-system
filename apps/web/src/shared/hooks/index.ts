@@ -1,3 +1,5 @@
+// src/shared/hooks/index.ts
+
 // —— 业务域 Hooks ——（都在 shared 下统一出口）
 export { default as useAnalytics } from './useAnalytics'
 export * from './useAnalytics'
@@ -46,5 +48,6 @@ export { default as useQuestionsQuery } from './useQuestionsQuery'
 export * from './useQuestionsQuery'
 
 // —— 用户组织相关 ——
-export { default as useOrgUsersQuery } from './useOrgUsersQuery'
-export * from './useOrgUsersQuery'
+// 修复：转发到 features 下实际实现，避免找不到本地文件
+export { default as useOrgUsersQuery } from '@features/users/hooks/useOrgUsersQuery'
+export * from '@features/users/hooks/useOrgUsersQuery'

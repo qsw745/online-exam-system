@@ -1,13 +1,46 @@
-// hooks/useRoleMembers.ts
+// features/roles/hooks/useRoleMembers.ts
 import { useCallback, useState } from 'react'
 import { App } from 'antd'
-import { roleService } from '../services/roles'
-import { isSuccess, getMsg } from '../utils/apiResult'
-import { ensureArray } from '../utils/normalizers'
-import type { RoleUser, User, Role } from '../types'
+import { api } from '@shared/api/http'
+
+// ===== 轻量类型 =====
+export type Role = { id: number; name: string }
+export type User = { id: number; username: string; email?: string; status?: string }
+export type RoleUser = User
+
+// ===== 轻量工具 =====
+const ensureArray = <T>(input: any, fallback: T[] = []): T[] => {
+  if (Array.isArray(input)) return input as T[]
+  if (input == null) return fallback
+  const maybe = (input.items ?? input.data ?? input.list ?? input.rows) as T[] | undefined
+  return Array.isArray(maybe) ? maybe : fallback
+}
+const isOk = (r: any) => r?.success !== false && !r?.error
+const getMsg = (r: any, fallback: string) => r?.message || r?.error || fallback
+const unwrap = (r: any) => (r && typeof r === 'object' && 'data' in r ? (r as any).data : r)
+
+// ===== API =====
+const roleService = {
+  async roleUsers(roleId: number) {
+    const r = await api.get<any>(`/roles/${roleId}/users`)
+    return unwrap(r)
+  },
+  async removeUser(roleId: number, userId: number) {
+    const r = await api.delete<any>(`/roles/${roleId}/users/${userId}`)
+    return unwrap(r)
+  },
+  async users() {
+    const r = await api.get<any>('/users', { params: { limit: 1000 } })
+    return unwrap(r)
+  },
+  async addUsers(roleId: number, userIds: number[]) {
+    const r = await api.post<any>(`/roles/${roleId}/users`, { user_ids: userIds })
+    return unwrap(r)
+  },
+}
 
 export function useRoleMembers() {
-  const { message, modal } = App.useApp()
+  const { message } = App.useApp()
   const [role, setRole] = useState<Role | null>(null)
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -23,10 +56,10 @@ export function useRoleMembers() {
       setLoading(true)
       try {
         const r = await roleService.roleUsers(roleId)
-        if (!isSuccess(r)) throw new Error(getMsg(r, '加载角色用户失败'))
-        setMembers(ensureArray<RoleUser>(r.data, []))
+        if (!isOk(r)) throw new Error(getMsg(r, '加载角色用户失败'))
+        setMembers(ensureArray<RoleUser>(r, []))
       } catch (e: any) {
-        message.error(e.message)
+        message.error(e?.message || '加载角色用户失败')
       } finally {
         setLoading(false)
       }
@@ -43,7 +76,7 @@ export function useRoleMembers() {
   const remove = async (userId: number) => {
     if (!role) return
     const r = await roleService.removeUser(role.id, userId)
-    if (!isSuccess(r)) return message.error(getMsg(r, '移除用户失败'))
+    if (!isOk(r)) return message.error(getMsg(r, '移除用户失败'))
     await loadMembers(role.id)
   }
 
@@ -54,13 +87,14 @@ export function useRoleMembers() {
     try {
       const all = await roleService.users()
       const cur = await roleService.roleUsers(role.id)
-      if (!isSuccess(all)) throw new Error(getMsg(all, '加载用户失败'))
-      const allList = ensureArray<User>(all.data, [])
-      const curIds = new Set(ensureArray<RoleUser>(isSuccess(cur) ? cur.data : [], []).map(u => u.id))
-      setCandidateUsers(allList.filter(u => !curIds.has(u.id) && u.status === 'active'))
+      if (!isOk(all)) throw new Error(getMsg(all, '加载用户失败'))
+
+      const allList = ensureArray<User>(all, [])
+      const curIds = new Set(ensureArray<RoleUser>(isOk(cur) ? cur : [], []).map((u: RoleUser) => u.id))
+      setCandidateUsers(allList.filter((u: User) => !curIds.has(u.id) && (u.status ?? 'active') === 'active'))
       setUserOpen(true)
     } catch (e: any) {
-      message.error(e.message)
+      message.error(e?.message || '加载用户失败')
     } finally {
       setUserLoading(false)
     }
@@ -69,7 +103,7 @@ export function useRoleMembers() {
   const addUsers = async () => {
     if (!role || selectedIds.length === 0) return
     const r = await roleService.addUsers(role.id, selectedIds)
-    if (!isSuccess(r)) return message.error(getMsg(r, '添加用户失败'))
+    if (!isOk(r)) return message.error(getMsg(r, '添加用户失败'))
     setUserOpen(false)
     setSelectedIds([])
     await loadMembers(role.id)

@@ -3,7 +3,7 @@ import Forbidden403 from '@app/errors/Forbidden403'
 import NotFound404 from '@app/errors/NotFound404'
 import ServerError500 from '@app/errors/ServerError500'
 import LoadingSpinner from '@shared/components/LoadingSpinner'
-import React, { lazy, Suspense, type ReactElement } from 'react'
+import { lazy, Suspense, type ReactElement } from 'react'
 import { createBrowserRouter, Navigate, redirect } from 'react-router-dom'
 
 // 布局守卫
@@ -59,7 +59,7 @@ const QuestionCreatePage = lazy(() => import('@features/questions/pages/Question
 const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsDetailsPage'))
 const GradeManagementPage = lazy(() => import('@features/analytics/pages/GradeManagementPage'))
 const AdminSettingsPage = lazy(() => import('@features/admin-settings/pages/SystemSettingsPage'))
-
+const OrgManagementPage = lazy(() => import('@features/orgs/pages/OrgManagementPage'))
 export const router = createBrowserRouter(
   [
     // ===== 公开页 =====
@@ -133,7 +133,7 @@ export const router = createBrowserRouter(
             { path: 'menus', element: withSuspense(<MenuManagementPage />) },
             { path: 'users', element: withSuspense(<UserManagementPage />) },
             { path: 'users/roles', element: withSuspense(<UserRoleManagementPage />) },
-
+          
             // 任务 & 组卷
             { path: 'tasks', element: withSuspense(<TaskManagementPage />) },
             { path: 'tasks/create', element: withSuspense(<TaskCreatePage />) },

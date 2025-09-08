@@ -13,7 +13,7 @@ const TaskCreatePage = lazy(() => import('@features/tasks/pages/TaskCreatePage')
 const MenuManagementPage = lazy(() => import('@features/menu/pages/MenuManagementPage'))
 const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsDetailsPage'))
 const GradeManagementPage = lazy(() => import('@features/analytics/pages/GradeManagementPage'))
-
+const OrgManagementPage = lazy(() => import('@features/orgs/pages/OrgManagementPage'))
 // User / 顶层业务
 const DashboardPage = lazy(() => import('@features/dashboard/pages/DashboardPage'))
 const ExamListPage = lazy(() => import('@features/exams/pages/ExamListPage'))
@@ -45,7 +45,7 @@ export const pageRegistry: Record<string, LazyExoticComponent<ComponentType<any>
   '/admin/menus': MenuManagementPage,
   '/admin/analytics': DataAnalyticsPage,
   '/admin/grades': GradeManagementPage,
-
+  '/orgs': OrgManagementPage,
   // User / 顶层
   '/dashboard': DashboardPage,
   '/exams': ExamListPage,

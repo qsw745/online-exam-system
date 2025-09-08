@@ -1,8 +1,20 @@
-// features/wrong-questions/components/WrongQuestionItem.tsx
+// apps/web/src/features/wrong-questions/components/WrongQuestionItem.tsx
 import { Button, Card, Space, Tag, Typography } from 'antd'
 import { CheckCircle, Eye, Trash2 } from 'lucide-react'
-import type { WrongQuestion } from '../services/wq.service'
+import React from 'react'
+
 const { Text } = Typography
+
+// 本地声明所需的最小类型，避免依赖已删除的 service
+export type WrongQuestion = {
+  question_id: number
+  question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
+  is_mastered: boolean
+  content: string
+  wrong_count: number
+  correct_count: number
+  last_practice_time: string
+}
 
 const getLabel = (type: string) =>
   (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[

@@ -1,4 +1,3 @@
-// features/settings/components/AppearanceCard.tsx
 import { Button, Select, Space, Typography } from 'antd'
 import { Globe, Moon, Palette, Sun } from 'lucide-react'
 import React from 'react'

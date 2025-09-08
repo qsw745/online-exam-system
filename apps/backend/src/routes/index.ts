@@ -68,6 +68,7 @@ const TO_MOUNT: Array<{ base: string; spec: string; keys: string[] }> = [
     keys: ['learningProgressRoutes'],
   },
   { base: '/tasks', spec: '@modules/tasks/task.routes', keys: ['taskRoutes'] },
+  { base: '/menus', spec: '@modules/menus/menus.routes', keys: ['menusRoutes'] },
 ]
 
 // -------- 执行挂载（仅一次） -------------------------------------------------

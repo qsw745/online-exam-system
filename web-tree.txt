@@ -151,7 +151,6 @@
 |   |   |   |   |   useMenus.ts
 |   |   |   +-- pages
 |   |   |   |   |   MenuManagementPage.tsx
-|   |   |   +-- utils
 |   |   |   |   model.ts
 |   |   +-- notifications
 |   |   |   +-- components
@@ -266,6 +265,7 @@
 |   |   |   |   |   AppearanceCard.tsx
 |   |   |   |   |   NotificationsCard.tsx
 |   |   |   |   |   PrivacyCard.tsx
+|   |   |   |   |   SettingRow.tsx
 |   |   |   |   |   SettingSection.tsx
 |   |   |   +-- hooks
 |   |   |   |   |   useUserSettings.ts
