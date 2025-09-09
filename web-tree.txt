@@ -151,6 +151,7 @@
 |   |   |   |   |   useMenus.ts
 |   |   |   +-- pages
 |   |   |   |   |   MenuManagementPage.tsx
+|   |   |   +-- utils
 |   |   |   |   model.ts
 |   |   +-- notifications
 |   |   |   +-- components

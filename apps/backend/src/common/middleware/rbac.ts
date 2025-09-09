@@ -2,8 +2,7 @@ import type { Request, Response, NextFunction, RequestHandler } from 'express'
 import { pool } from '@config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
 import { resolveOrgId } from './auth.js'
-
-export const ROLE_IDS = { SUPER_ADMIN: 1, ADMIN: 2, TEACHER: 3, STUDENT: 4 } as const
+import { ROLE_IDS } from '@config/roles.js'
 
 function extractRoleIdsFromReq(req: Request): number[] {
   const u: any = (req as any).user || {}

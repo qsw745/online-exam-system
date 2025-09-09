@@ -1,4 +1,4 @@
-import { api } from '@shared/api/http'
+import { api, menuApi } from '@shared/api/http'
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
 
 import { useAuth } from './AuthContext'
@@ -58,14 +58,15 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     setError(null)
 
     try {
-      const res = await api.get<MenuItem[]>(`/menu/users/${user.id}/menus`)
-      if (!res.success) {
-        const msg = 'error' in res ? res.error : '获取菜单权限失败'
+    //   const res = await api.get<MenuItem[]>(`/menu/users/${user.id}/menus`)
+      const res:any = await menuApi.userMenus(Number(user.id))
+      if (!res) {
+        const msg = 'error' in res ? res : '获取菜单权限失败'
         throw new Error(msg)
       }
 
       // res.data 可能就是数组，也可能是 { data:[] } / { items:[] } / { list:[] }
-      const payload: any = res.data
+      const payload: any = res
       const menuData: MenuItem[] = Array.isArray(payload)
         ? payload
         : payload?.data ?? payload?.items ?? payload?.list ?? []

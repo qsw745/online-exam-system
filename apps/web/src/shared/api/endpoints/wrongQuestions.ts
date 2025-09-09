@@ -7,7 +7,7 @@ export const wrongQuestions = {
     return api.post('/wrong-questions/records', payload)
   },
   getPracticedQuestions(): Promise<ApiResult<{ ids: number[] } | number[]>> {
-    return api.get('/wrong-questions/practiced')
+    return api.post('/wrong-questions/practiced')
   },
   getWrongQuestions: (params?: { page?: number; limit?: number; mastered?: boolean }) =>
     api.get('/questions/wrong-questions', { params }),

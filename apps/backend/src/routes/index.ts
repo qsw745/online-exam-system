@@ -1,92 +1,109 @@
+// apps/backend/src/routes/index.ts
 import { Router } from 'express'
 
-// ---------------------------------------------------------------------------
-// routes/index.ts — 聚合器，仅做模块挂载；修复“router 已被重复声明”
-// 关键点：文件内只能有一个 const router = Router()，不要在任何条件/分支里再次声明。
-// ---------------------------------------------------------------------------
+// —— 统一用别名 & 不带 .js 后缀，并“容错”拾取默认/命名导出 ——
+// auth
+import * as authRoutesMod from '@modules/auth/routes/auth.routes'
+import * as pwdResetRoutesMod from '@modules/auth/routes/password-reset.routes'
+// users
+import * as userRoutesMod from '@modules/users/routes/user.routes'
+// orgs
+import * as orgUserRoutesMod from '@modules/orgs/routes/org-user.routes'
+import * as orgRoutesMod from '@modules/orgs/routes/org.routes'
+// roles & menus
+import * as menusRoutesMod from '@modules/menus/routes/menus.routes'
+import * as roleRoutesMod from '@modules/roles/routes/role.routes'
+// favorites
+import * as favoritesRoutesMod from '@modules/favorites/routes/favorites.routes'
+// questions
+import * as questionRoutesMod from '@modules/questions/routes/question.routes'
+// exams
+import * as examRoutesMod from '@modules/exams/routes/exam.routes'
+import * as paperRoutesMod from '@modules/exams/routes/paper.routes'
+import * as resultRoutesMod from '@modules/exams/routes/result.routes'
+// leaderboard
+import * as leaderboardRoutesMod from '@modules/leaderboard/routes/leaderboard.routes'
+// analytics
+import * as analyticsRoutesMod from '@modules/analytics/routes/analytics.routes'
+import * as dashboardRoutesMod from '@modules/analytics/routes/dashboard.routes'
+import * as logRoutesMod from '@modules/analytics/routes/log.routes'
+// notifications
+import * as notificationRoutesMod from '@modules/notifications/routes/notification.routes'
+// discussions
+import * as discussionsRoutesMod from '@modules/discussions/routes/discussions.routes'
+// learning-progress
+import * as learningProgressRoutesMod from '@modules/learning-progress/routes/learning-progress.routes'
+// tasks
+import * as taskRoutesMod from '@modules/tasks/routes/task.routes'
+// wrong-questions
+import * as wrongQuestionRoutesMod from '@modules/wrong-questions/routes/wrong-question.routes'
+
+// —— 安全拾取工具：优先命名导出，其次 default ——
+// 允许模块导出形态：export const xxxRoutes = router  或 export default router
+const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
+
+const authRoutes = pick(authRoutesMod, 'authRoutes')
+const passwordResetRoutes = pick(pwdResetRoutesMod, 'passwordResetRoutes')
+const userRoutes = pick(userRoutesMod, 'userRoutes')
+const orgUserRoutes = pick(orgUserRoutesMod, 'orgUserRoutes')
+const orgRoutes = pick(orgRoutesMod, 'orgRoutes')
+const menusRoutes = pick(menusRoutesMod, 'menusRoutes')
+const roleRoutes = pick(roleRoutesMod, 'roleRoutes')
+const favoritesRoutes = pick(favoritesRoutesMod, 'favoritesRoutes')
+const questionRoutes = pick(questionRoutesMod, 'questionRoutes')
+const examRoutes = pick(examRoutesMod, 'examRoutes')
+const paperRoutes = pick(paperRoutesMod, 'paperRoutes')
+const resultRoutes = pick(resultRoutesMod, 'resultRoutes')
+const leaderboardRoutes = pick(leaderboardRoutesMod, 'leaderboardRoutes')
+const analyticsRoutes = pick(analyticsRoutesMod, 'analyticsRoutes')
+const dashboardRoutes = pick(dashboardRoutesMod, 'dashboardRoutes')
+const logRoutes = pick(logRoutesMod, 'logRoutes')
+const notificationRoutes = pick(notificationRoutesMod, 'notificationRoutes')
+const discussionsRoutes = pick(discussionsRoutesMod, 'discussionsRoutes')
+const learningProgressRoutes = pick(learningProgressRoutesMod, 'learningProgressRoutes')
+const taskRoutes = pick(taskRoutesMod, 'taskRoutes')
+const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
 
 const router = Router()
 
-// -------- 动态导入工具 ------------------------------------------------------
-const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
-
-async function tryImport(spec: string): Promise<any | null> {
-  try {
-    return await import(spec)
-  } catch (err: any) {
-    console.warn(`[routes] failed to import ${spec}:`, err?.message || err)
-    return null
-  }
-}
-
-async function mountAt(basePath: string, spec: string, ...keys: string[]): Promise<boolean> {
-  const mod = await tryImport(spec)
-  if (!mod) return false
-  const r = pick(mod, ...keys)
-  if (!r) {
-    console.warn(`[routes] ${spec} has no export among [${keys.join(', ')}] or default`)
-    return false
-  }
-  try {
-    const inst = typeof r === 'function' && !(r.use && r.handle) ? await r() : r
-    if (inst?.use && inst?.handle) {
-      router.use(basePath, inst)
-      console.log(`[routes] mounted ${spec} -> ${basePath}`)
-      return true
-    }
-    console.warn(`[routes] ${spec} is not an Express Router`)
-    return false
-  } catch (e: any) {
-    console.warn(`[routes] mount failed for ${spec}:`, e?.message || e)
-    return false
-  }
-}
-
-// -------- 统一挂载清单（保持与前端请求一致的前缀） -----------------------------
-const TO_MOUNT: Array<{ base: string; spec: string; keys: string[] }> = [
-  { base: '/auth', spec: '@modules/auth/auth.routes', keys: ['authRoutes'] },
-  { base: '/users', spec: '@modules/users/user.routes', keys: ['userRoutes'] },
-  { base: '/orgs', spec: '@modules/orgs/org.routes', keys: ['orgRoutes'] },
-  { base: '/orgusers', spec: '@modules/orgs/org-user.routes', keys: ['orgUserRoutes'] },
-  { base: '/roles', spec: '@modules/roles/role.routes', keys: ['roleRoutes'] },
-  // 日志显示是 /api/menu/...（单数）
-  { base: '/menu', spec: '@modules/roles/menu.routes', keys: ['menuRoutes'] },
-  { base: '/favorites', spec: '@modules/favorites/favorites.routes', keys: ['favoritesRoutes', 'favoriteRoutes'] },
-  { base: '/questions', spec: '@modules/questions/question.routes', keys: ['questionRoutes'] },
-  { base: '/exams', spec: '@modules/exams/exam.routes', keys: ['examRoutes'] },
-  // 日志显示是 /api/exam_results（下划线）
-  { base: '/exam_results', spec: '@modules/exams/exam-result.routes', keys: ['examResultRoutes', 'resultRoutes'] },
-  { base: '/leaderboard', spec: '@modules/leaderboard/leaderboard.routes', keys: ['leaderboardRoutes'] },
-  { base: '/analytics', spec: '@modules/analytics/analytics.routes', keys: ['analyticsRoutes'] },
-  // 日志显示是 /api/dashboard/stats
-  { base: '/dashboard', spec: '@modules/analytics/dashboard.routes', keys: ['dashboardRoutes'] },
-  { base: '/notifications', spec: '@modules/notifications/notification.routes', keys: ['notificationRoutes'] },
-  { base: '/discussions', spec: '@modules/notifications/discussions.routes', keys: ['discussionsRoutes'] },
-  {
-    base: '/learning-progress',
-    spec: '@modules/learning-progress/learning-progress.routes',
-    keys: ['learningProgressRoutes'],
-  },
-  { base: '/tasks', spec: '@modules/tasks/task.routes', keys: ['taskRoutes'] },
-  { base: '/menus', spec: '@modules/menus/menus.routes', keys: ['menusRoutes'] },
+// 统一挂载表
+const mounts: Array<[string, any]> = [
+  ['/auth', authRoutes],
+  ['/auth/password-reset', passwordResetRoutes],
+  ['/users', userRoutes],
+  ['/orgs', orgRoutes],
+  ['/orgusers', orgUserRoutes],
+  ['/roles', roleRoutes],
+  ['/menus', menusRoutes],
+  ['/favorites', favoritesRoutes],
+  ['/questions', questionRoutes],
+  ['/exams', examRoutes],
+  ['/papers', paperRoutes],
+  ['/exam_results', resultRoutes],
+  ['/leaderboard', leaderboardRoutes],
+  ['/analytics', analyticsRoutes],
+  ['/dashboard', dashboardRoutes],
+  ['/logs', logRoutes],
+  ['/notifications', notificationRoutes],
+  ['/discussions', discussionsRoutes],
+  ['/learning-progress', learningProgressRoutes],
+  ['/tasks', taskRoutes],
+  ['/wrong-questions', wrongQuestionRoutes],
 ]
 
-// -------- 执行挂载（仅一次） -------------------------------------------------
-async function mountAll() {
-  console.log('[routes] 🚀 mounting module routes...')
-  let ok = 0
-  for (const item of TO_MOUNT) {
-    const mounted = await mountAt(item.base, item.spec, ...item.keys)
-    if (mounted) ok++
+// 逐一挂载（判定是否为 Router 实例）
+let ok = 0
+for (const [base, r] of mounts) {
+  const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
+  if (inst?.use && inst?.handle) {
+    router.use(base, inst)
+    ok++
+  } else {
+    console.warn(`[routes] skip mount ${base}: not an Express Router`)
   }
-  console.log(`[routes] ✅ mounted ${ok}/${TO_MOUNT.length} modules`)
 }
+console.log(`[routes] ✅ mounted ${ok}/${mounts.length} modules`)
 
-await mountAll()
-
-// 自检入口：GET /api
-router.get('/', (_req, res) => {
-  res.json({ ok: true, mounted: TO_MOUNT.map(m => m.base) })
-})
+router.get('/', (_req, res) => res.json({ ok: true, mounted: mounts.map(m => m[0]) }))
 
 export default router

@@ -32,18 +32,21 @@
 |   |   |   17_add.sql
 |   |   |   20250906_090000_add_tags_to_questions.sql
 |   |   |   add_task_publish_status.sql
+|   |   |   database.sql
+|   |   |   init.sql
+|   |   |   logs.sql
 |   |   |   org_user.sql
+|   |   |   password-reset.sql
+|   |   |   practice_records.sql
+|   |   |   wrong_questions.sql
+|   +-- seeds
 +-- logs
-|   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
-|   |   .6cce1b2ac5b7254167a2a5993b7803825039634e-audit.json
-|   |   .7cff1956a464da8f07818737bdb6cd01584089b1-audit.json
-|   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
-|   |   2025-09-06.log.gz
-|   |   2025-09-06-error.log.gz
-|   |   2025-09-07.log
-|   |   2025-09-07-error.log
+|   |   .77553ab959ad6a3b9ca434caba14dbe90f27c8d1-audit.json
+|   |   .d06c931e74736c0fbc018d06399b3faea82a59dc-audit.json
 |   |   2025-09-08.log
 |   |   2025-09-08-error.log
+|   |   2025-09-09.log
+|   |   2025-09-09-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -56,13 +59,12 @@
 |   |   |   menu.config.ts
 |   |   |   syncMenus.ts
 |   +-- common
-|   |   +-- dto
-|   |   |   |   response.ts
 |   |   +-- errors
 |   |   |   |   http-error.ts
 |   |   +-- middleware
 |   |   |   |   auth.ts
 |   |   |   |   http-logger.ts
+|   |   |   |   index.ts
 |   |   |   |   jwt-role-hydrator.ts
 |   |   |   |   rbac.ts
 |   |   |   |   requestId.ts
@@ -74,7 +76,6 @@
 |   |   +-- validation
 |   |   |   |   favorites.schema.ts
 |   |   |   async-handler.ts
-|   |   |   errors.ts
 |   +-- config
 |   |   |   database.ts
 |   |   |   jwt.ts
@@ -84,91 +85,208 @@
 |   +-- infrastructure
 |   |   +-- db
 |   |   |   |   index.ts
+|   |   |   |   transaction.ts
 |   |   +-- email
 |   |   |   |   email.service.ts
 |   |   +-- logging
 |   |   |   |   logger.ts
 |   +-- modules
 |   |   +-- analytics
-|   |   |   |   analytics.controller.ts
-|   |   |   |   analytics.routes.ts
-|   |   |   |   dashboard.controller.ts
-|   |   |   |   dashboard.routes.ts
-|   |   |   |   log.controller.ts
-|   |   |   |   log.routes.ts
+|   |   |   +-- controllers
+|   |   |   |   |   analytics.controller.ts
+|   |   |   |   |   dashboard.controller.ts
+|   |   |   |   |   log.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   analytics.model.ts
+|   |   |   |   |   dashboard.model.ts
+|   |   |   |   |   log.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   log.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   analytics.routes.ts
+|   |   |   |   |   dashboard.routes.ts
+|   |   |   |   |   log.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   analytics.service.ts
+|   |   |   |   |   dashboard.service.ts
+|   |   |   |   |   log.service.ts
 |   |   +-- auth
-|   |   |   |   auth.controller.ts
-|   |   |   |   auth.routes.ts
-|   |   |   |   password-reset.controller.ts
-|   |   |   |   password-reset.routes.ts
-|   |   |   |   password-reset.service.ts
+|   |   |   +-- controllers
+|   |   |   |   |   auth.controller.ts
+|   |   |   |   |   password-reset.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   auth.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   token.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   auth.routes.ts
+|   |   |   |   |   index.ts
+|   |   |   |   |   password-reset.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   auth.service.ts
+|   |   |   |   |   password-reset.service.ts
+|   |   +-- discussions
+|   |   |   +-- controllers
+|   |   |   |   |   discussions.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   discussion.types.ts
+|   |   |   +-- repositories
+|   |   |   |   |   discussion.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   discussions.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   discussions.service.ts
 |   |   +-- exams
-|   |   |   +-- models
+|   |   |   +-- controllers
+|   |   |   |   |   exam.controller.ts
+|   |   |   |   |   paper.controller.ts
+|   |   |   |   |   result.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   exam.model.ts
+|   |   |   |   |   paper.model.ts
 |   |   |   |   |   result.model.ts
-|   |   |   |   exam.controller.ts
-|   |   |   |   exam.routes.ts
-|   |   |   |   exam-result.routes.ts
-|   |   |   |   paper.controller.ts
-|   |   |   |   paper.routes.ts
-|   |   |   |   result.controller.ts
-|   |   |   |   result.routes.ts
+|   |   |   +-- repositories
+|   |   |   |   |   exam.repository.ts
+|   |   |   |   |   paper.repository.ts
+|   |   |   |   |   result.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   exam.routes.ts
+|   |   |   |   |   paper.routes.ts
+|   |   |   |   |   result.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   exam.service.ts
+|   |   |   |   |   paper.service.ts
+|   |   |   |   |   result.service.ts
 |   |   +-- favorites
-|   |   |   |   favorites.controller.ts
-|   |   |   |   favorites.routes.ts
-|   |   |   |   favorites.service.ts
+|   |   |   +-- controllers
+|   |   |   |   |   favorites.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   favorites.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   favorites.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   favorites.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   favorites.service.ts
 |   |   +-- leaderboard
-|   |   |   |   leaderboard.controller.ts
-|   |   |   |   leaderboard.routes.ts
-|   |   |   |   leaderboard.service.ts
+|   |   |   +-- controllers
+|   |   |   |   |   leaderboard.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   leaderboard.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   achievement.repository.ts
+|   |   |   |   |   competition.repository.ts
+|   |   |   |   |   leaderboard.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   leaderboard.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   leaderboard.service.ts
 |   |   +-- learning-progress
-|   |   |   |   learning-progress.controller.ts
-|   |   |   |   learning-progress.routes.ts
-|   |   |   |   learning-progress.service.ts
+|   |   |   +-- controllers
+|   |   |   |   |   learning-progress.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   learning-progress.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   learning-progress.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   learning-progress.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   learning-progress.service.ts
 |   |   +-- menus
-|   |   |   |   menu.controller.ts
-|   |   |   |   menus.routes.ts
-|   |   +-- notifications
-|   |   |   +-- models
-|   |   |   |   |   notification.model.ts
-|   |   |   |   discussions.controller.ts
-|   |   |   |   discussions.routes.ts
-|   |   |   |   discussions.service.ts
-|   |   |   |   notification.controller.ts
-|   |   |   |   notification.routes.ts
-|   |   +-- orgs
-|   |   |   |   org.controller.ts
-|   |   |   |   org.routes.ts
-|   |   |   |   org-user.controller.ts
-|   |   |   |   org-user.routes.ts
-|   |   |   |   org-user.service.ts
-|   |   +-- questions
-|   |   |   |   question.controller.ts
-|   |   |   |   question.routes.ts
-|   |   +-- roles
-|   |   |   +-- models
+|   |   |   +-- controllers
+|   |   |   |   |   menu.controller.ts
+|   |   |   +-- domain
 |   |   |   |   |   menu.model.ts
-|   |   |   |   menu.controller.ts
-|   |   |   |   menu.routes.ts
-|   |   |   |   menu.service.ts
-|   |   |   |   role.controller.ts
-|   |   |   |   role.routes.ts
-|   |   |   |   role.service.ts
+|   |   |   +-- repositories
+|   |   |   |   |   menu.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   menus.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   menus.service.ts
+|   |   +-- notifications
+|   |   |   +-- controllers
+|   |   |   |   |   notification.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   notification.types.ts
+|   |   |   +-- repositories
+|   |   |   |   |   notification.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   notification.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   notification.service.ts
+|   |   +-- orgs
+|   |   |   +-- controllers
+|   |   |   |   |   org.controller.ts
+|   |   |   |   |   org-user.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   org.model.ts
+|   |   |   |   |   org-user.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   org.repository.ts
+|   |   |   |   |   org-user.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   org.routes.ts
+|   |   |   |   |   org-user.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   org.service.ts
+|   |   |   |   |   org-user.service.ts
+|   |   +-- questions
+|   |   |   +-- controllers
+|   |   |   |   |   question.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   question.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   question.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   question.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   question.service.ts
+|   |   +-- roles
+|   |   |   +-- controllers
+|   |   |   |   |   role.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   role.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   role.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   role.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   role.service.ts
 |   |   +-- tasks
-|   |   |   +-- models
+|   |   |   +-- controllers
+|   |   |   |   |   task.controller.ts
+|   |   |   +-- domain
 |   |   |   |   |   task.model.ts
-|   |   |   |   task.controller.ts
-|   |   |   |   task.routes.ts
+|   |   |   +-- repositories
+|   |   |   |   |   task.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   task.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   task.service.ts
 |   |   +-- users
-|   |   |   |   user.controller.ts
-|   |   |   |   user.routes.ts
+|   |   |   +-- controllers
+|   |   |   |   |   user.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   user.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   user.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   user.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   user.service.ts
 |   |   +-- wrong-questions
-|   |   |   |   wrong-question.controller.ts
-|   |   |   |   wrong-question.routes.ts
-|   |   |   |   wrong-question.service.ts
+|   |   |   +-- controllers
+|   |   |   |   |   wrong-question.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   wq.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   wq.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   wrong-question.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   wrong-question.service.ts
 |   +-- routes
 |   |   |   index.ts
-|   +-- services
-|   |   |   logger.service.ts
 |   +-- types
 |   |   |   auth.ts
 |   |   |   express.d.ts
@@ -177,13 +295,15 @@
 |   |   app.ts
 +-- uploads
 |   +-- avatars
-|   |   |   avatar-1757179079331-7746723879422801.jpg
-|   |   |   avatar-1757179116674-08540409240457825.jpg
 |   .env
+|   add_more_paper_questions.sql
 |   backend-refactor.ps1
+|   create_paper_questions.sql
 |   Dockerfile
 |   EMAIL_SETUP.md
+|   insert_paper_questions.sql
 |   latest_menu_response.json
+|   learning_progress.sql
 |   package.json
 |   pnpm-lock.yaml
 |   tsconfig.json

@@ -1,10 +1,18 @@
-// apps/backend/src/common/middleware/auth.ts
-import { pool } from '@config/database.js'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// 让没有 @types/node 也能编译
+declare const process: any
+
+import { pool } from '@config/database'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
-import jwt from 'jsonwebtoken'
 import type { RowDataPacket } from 'mysql2/promise'
 
-const getJwtSecret = () => process.env.JWT_SECRET || 'dev-secret'
+// 动态加载 jsonwebtoken，避免类型“不是模块”的问题
+async function getJwt(): Promise<any> {
+  const mod: any = await import('jsonwebtoken')
+  return mod?.default ?? mod
+}
+
+const getJwtSecret = () => (process?.env?.JWT_SECRET as string) || 'dev-secret'
 
 async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
@@ -17,7 +25,7 @@ async function getPrimaryOrgId(userId: number): Promise<number | null> {
 export async function resolveOrgId(req: Request, userId: number): Promise<number | null> {
   const p = (req.params as any)?.orgId
   if (p != null && String(p).trim() !== '' && !Number.isNaN(Number(p))) return Number(p)
-  const hdr = req.header('x-org-id')
+  const hdr = req.get('x-org-id')
   if (hdr && hdr.trim() !== '' && !Number.isNaN(Number(hdr))) return Number(hdr)
   return getPrimaryOrgId(userId)
 }
@@ -54,16 +62,18 @@ declare global {
   }
 }
 
-/** 可选认证：有 token 就验证并挂载 user/roles；无 token 当匿名 */
+/** 可选认证：有 token 就验证；无 token 当匿名 */
 export const optionalAuth: RequestHandler = async (req, _res, next) => {
   try {
-    const token = (req.headers['authorization'] || '').split(' ')[1]
+    const authz = req.get('authorization') || ''
+    const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz.split(' ')[1]
     if (!token) {
       req.user = null
       req.auth = { userId: null, orgId: null, isAdminInOrg: false }
       return next()
     }
 
+    const jwt = await getJwt()
     const payload: any = jwt.verify(token, getJwtSecret())
     const uid = Number(payload?.id)
     if (!Number.isFinite(uid) || uid <= 0) {
@@ -89,7 +99,9 @@ export const optionalAuth: RequestHandler = async (req, _res, next) => {
       ? payload.role_ids.map((n: any) => Number(n)).filter(Number.isFinite)
       : []
 
-    const hasAdminCode = tokenRoles.some(r => r.code === 'admin' || r.code === 'super_admin' || r.code === 'superadmin')
+    const hasAdminCode = tokenRoles.some(
+      (r: any) => r.code === 'admin' || r.code === 'super_admin' || r.code === 'superadmin'
+    )
     const hasAdminId = tokenRoleIds.includes(1) || tokenRoleIds.includes(2)
 
     req.user = {
@@ -111,20 +123,20 @@ export const optionalAuth: RequestHandler = async (req, _res, next) => {
 
     next()
   } catch {
-    // 验签失败 → 匿名
     req.user = null
     req.auth = { userId: null, orgId: null, isAdminInOrg: false }
     next()
   }
 }
 
-/** 强制认证：需要登录 */
+/** 强制认证 */
 export const authenticateToken: RequestHandler = async (req, res, next) => {
-  const token = (req.headers['authorization'] || '').split(' ')[1]
+  const authz = req.get('authorization') || ''
+  const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz.split(' ')[1]
   if (!token) return res.status(401).json({ success: false, error: '访问令牌缺失' })
   try {
-    // 增加 30s 容错，避免轻微时钟漂移导致“刚好过期就掉线”
-    jwt.verify(token, getJwtSecret(), { clockTolerance: 30 })
+    const jwt = await getJwt()
+    jwt.verify(token, getJwtSecret(), { clockTolerance: 30 } as any)
     next()
   } catch (e: any) {
     if (e?.name === 'TokenExpiredError') {
@@ -134,21 +146,19 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
   }
 }
 
-/** ✅ 兼容旧路由所需的 requireRole（允许 admin/super_admin 或指定角色 code ） */
+/** 允许 admin/super_admin 或指定角色 code */
 export function requireRole(allowed: string[] = []): RequestHandler {
   const allow = new Set(allowed.map(s => String(s || '').toLowerCase()))
   return (req: Request, res: Response, next: NextFunction) => {
     const u: any = (req as any).user
     if (!u?.id) return res.status(401).json({ success: false, message: '请先登录' })
 
-    // 全局 admin 直通
     const isGlobalAdmin = !!(u.is_admin || u.isAdmin || u.is_super_admin || u.isSuperAdmin)
     const hasAdminCode =
       Array.isArray(u.roles) &&
       u.roles.some((r: any) => ['admin', 'super_admin', 'superadmin'].includes(String(r?.code || '').toLowerCase()))
     if (isGlobalAdmin || hasAdminCode) return next()
 
-    // 角色 code 命中
     const codes = new Set<string>()
     if (u.role) codes.add(String(u.role).toLowerCase())
     if (Array.isArray(u.roles)) u.roles.forEach((r: any) => r?.code && codes.add(String(r.code).toLowerCase()))
@@ -156,5 +166,23 @@ export function requireRole(allowed: string[] = []): RequestHandler {
     if (hit) return next()
 
     return res.status(403).json({ success: false, message: '权限不足，需要指定的角色权限' })
+  }
+}
+
+/** 允许 admin/super_admin 或命中任意一个 roleId */
+export function requireRoleByIds(roleIds: number[] = []): RequestHandler {
+  const ids = new Set<number>(roleIds.filter(n => Number.isFinite(n)))
+  return (req: Request, res: Response, next: NextFunction) => {
+    const u: any = (req as any).user
+    if (!u?.id) return res.status(401).json({ success: false, message: '请先登录' })
+
+    const isGlobalAdmin = !!(u.is_admin || u.isAdmin || u.is_super_admin || u.isSuperAdmin)
+    if (isGlobalAdmin) return next()
+
+    const userIds = new Set<number>((u.role_ids as number[] | undefined) || [])
+    const hit = Array.from(ids).some(id => userIds.has(id))
+    if (hit) return next()
+
+    return res.status(403).json({ success: false, message: '权限不足，需要指定的角色 ID' })
   }
 }

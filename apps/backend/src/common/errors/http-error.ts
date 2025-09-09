@@ -1,4 +1,3 @@
-﻿// apps/backend/src/common/errors/http-error.ts
 export class HttpError extends Error {
   status: number
   code?: string
@@ -12,7 +11,7 @@ export class HttpError extends Error {
     this.code = opts?.code
     this.details = opts?.details
     this.ctx = opts?.ctx
-    Error.captureStackTrace?.(this, HttpError)
+    ;(Error as any).captureStackTrace?.(this, HttpError)
   }
 
   static badRequest(message = 'Bad Request', details?: any) {
@@ -36,6 +35,8 @@ export class ValidationError extends HttpError {
   constructor(message = '请求参数验证失败', details?: string[]) {
     super(message, 400, { code: 'VALIDATION_FAILED', details })
     this.name = 'ValidationError'
-    Error.captureStackTrace?.(this, ValidationError)
+    ;(Error as any).captureStackTrace?.(this, ValidationError)
   }
 }
+
+export default HttpError
