@@ -1,7 +1,7 @@
 import { Button, Select, Space, Typography } from 'antd'
 import { Globe, Moon, Palette, Sun } from 'lucide-react'
 import React from 'react'
-import type { AppearanceSettings } from '../../../shared/types/settings'
+import type { AppearanceSettings } from '@/shared/types/settings'
 import { SettingRow } from './SettingRow'
 import { SettingSection } from './SettingSection'
 

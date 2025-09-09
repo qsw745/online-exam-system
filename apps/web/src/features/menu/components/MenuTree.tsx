@@ -1,8 +1,8 @@
 import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
-import type { MenuDTO } from '@shared/api/endpoints/menu'
+import type { MenuDTO } from '@/shared/api/endpoints/menu'
 import { Button, Popconfirm, Space, Tag, Tree } from 'antd'
 import type { DataNode, TreeProps } from 'antd/es/tree'
-import { buildTreeData } from '../../../shared/utils/tree'
+import { buildTreeData } from '@/shared/utils/tree'
 
 export default function MenuTree({
   menus,

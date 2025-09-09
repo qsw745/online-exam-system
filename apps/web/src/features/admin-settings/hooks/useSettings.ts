@@ -2,7 +2,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SystemSettings } from '../../../shared/types/admin-settings'
-import { settingsService } from '../services/settings'
+import { settingsApi } from '@/shared/api/http'
 import { settingsSchema } from '../validation/settings.schema'
 
 export function useSettings() {
@@ -14,7 +14,7 @@ export function useSettings() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await settingsService.get()
+      const data = await settingsApi.get()
       setInitial(data)
       setCurrent(data)
     } catch (e) {

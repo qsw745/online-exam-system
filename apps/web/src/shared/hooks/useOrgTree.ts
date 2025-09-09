@@ -1,6 +1,6 @@
 import { App } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import { api, isSuccess } from '@shared/api/http'
+import { api, isSuccess } from '@/shared/api/http'
 
 type TreeNode = { id: number; name: string; children?: TreeNode[] }
 type AntTreeNode = { key: number; title: string; children?: AntTreeNode[] }

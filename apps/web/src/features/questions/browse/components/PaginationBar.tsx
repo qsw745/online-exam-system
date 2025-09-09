@@ -1,7 +1,7 @@
 // components/PaginationBar.tsx
 import { Card, Pagination } from 'antd'
 import React from 'react'
-import { createPaginationConfig } from '@shared/constants/pagination'
+import { createPaginationConfig } from '@/shared/constants/pagination'
 
 export function PaginationBar({
   current,

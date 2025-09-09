@@ -1,6 +1,6 @@
 import { Card, Col, Row, Statistic } from 'antd'
 import { Award, Target, TrendingUp, Users } from 'lucide-react'
-import type { LeaderboardStats } from '@shared/api/endpoints/leaderboard'
+import type { LeaderboardStats } from '@/shared/api/endpoints/leaderboard'
 
 export default function LeaderboardStatsCards({ stats }: { stats: LeaderboardStats | null }) {
   return (

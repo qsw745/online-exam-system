@@ -2,7 +2,7 @@
 import { Button, Descriptions, Modal, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import React from 'react'
-import type { Role } from '../types'
+import type { Role } from '@/shared/types/index'
 
 export function PermissionModal({
   open,

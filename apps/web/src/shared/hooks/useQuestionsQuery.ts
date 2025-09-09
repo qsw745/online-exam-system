@@ -1,7 +1,7 @@
 // src/shared/hooks/useQuestionsQuery.ts
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { message } from 'antd'
-import { api, isSuccess, getErr, type ApiResult } from '@shared/api/http'
+import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
 import { useLocation } from 'react-router-dom'
 
 // —— 本地最小类型，避免依赖 @shared/types/question 名字不一致 —— //

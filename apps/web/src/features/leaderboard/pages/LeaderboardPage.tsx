@@ -1,6 +1,6 @@
 import { Card, Tabs } from 'antd'
 import { Trophy } from 'lucide-react'
-import { useLeaderboard } from '@shared/hooks/useLeaderboard'
+import { useLeaderboard } from '@/shared/hooks/useLeaderboard'
 import LeaderboardFilters from '../components/LeaderboardFilters'
 import LeaderboardStatsCards from '../components/LeaderboardStatsCards'
 import LeaderboardTable from '../components/LeaderboardTable'

@@ -1,7 +1,7 @@
 import { Select, Space, Switch } from 'antd'
 import { Bell, Eye, Trophy } from 'lucide-react'
 import React from 'react'
-import type { PrivacySettings, ProfileVisibility } from '../../../shared/types/settings'
+import type { PrivacySettings, ProfileVisibility } from '@/shared/types/settings'
 import { SettingRow } from './SettingRow'
 import { SettingSection } from './SettingSection'
 

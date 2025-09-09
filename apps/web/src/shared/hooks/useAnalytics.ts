@@ -1,6 +1,6 @@
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import dayjs from '@shared/utils/dayjs'
-import { api, isSuccess } from '@shared/api/http'
+import dayjs from '@/shared/utils/dayjs'
+import { api, isSuccess } from '@/shared/api/http'
 
 export type DateRange = [dayjs.Dayjs, dayjs.Dayjs] | null
 

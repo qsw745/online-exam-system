@@ -1,7 +1,7 @@
 import { Space, Switch } from 'antd'
 import { Mail, Smartphone, Volume2 } from 'lucide-react'
 import React from 'react'
-import type { NotificationSettings } from '../../../shared/types/settings'
+import type { NotificationSettings } from '@/shared/types/settings'
 import { SettingRow } from './SettingRow'
 import { SettingSection } from './SettingSection'
 

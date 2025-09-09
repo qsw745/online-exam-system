@@ -1,7 +1,7 @@
 import { Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
-import type { LogEntry } from '@shared/api/endpoints/logs'
+import type { LogEntry } from '@/shared/api/endpoints/logs'
 
 const { Text } = Typography
 

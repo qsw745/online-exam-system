@@ -3,10 +3,10 @@ import { EyeOutlined, PauseOutlined, SendOutlined } from '@ant-design/icons'
 import { Button, Space, Table, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 // ❗ 修复 dayjs 类型报错：使用项目内封装的 dayjs
-import dayjs from '@shared/utils/dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import React, { useMemo } from 'react'
 import { AssignedUsersCell } from './AssignedUsersCell'
-import { StatusTag } from './StatusTag'
+import  StatusTag  from './StatusTag'
 
 // ❗ 本地最小 Task 类型（避免找不到 ../types）
 export interface Task {

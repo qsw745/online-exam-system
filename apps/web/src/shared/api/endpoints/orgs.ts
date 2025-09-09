@@ -1,5 +1,5 @@
 // src/shared/api/endpoints/orgs.ts
-import { api, isSuccess } from '@shared/api/http'
+import { api, isSuccess } from '@/shared/api/http'
 
 export interface OrgNode {
   id: number

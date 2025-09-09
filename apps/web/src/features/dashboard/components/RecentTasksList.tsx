@@ -1,8 +1,8 @@
 import { Card, Empty, List, Space, Tag, Typography } from 'antd'
 import { BookmarkPlus, Calendar } from 'lucide-react'
 import React from 'react'
-import type { Task } from '../types'
-import dayjs from '@shared/utils/dayjs'
+import type { TaskStatus } from '@/shared/types/index'
+import dayjs from '@/shared/utils/dayjs'
 import { Link } from 'react-router-dom'
 
 const { Text } = Typography
@@ -11,7 +11,7 @@ export const RecentTasksList: React.FC<{
   title: string
   viewAllText: string
   emptyText: string
-  tasks: Task[]
+  tasks: TaskStatus[]
   locale: 'zh-CN' | 'en-US'
   label: { start: string; exam: string; practice: string }
 }> = ({ title, viewAllText, emptyText, tasks, locale, label }) => {

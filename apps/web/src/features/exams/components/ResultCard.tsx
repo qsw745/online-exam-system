@@ -2,7 +2,7 @@
 import { Card, Space, Tag, Typography } from 'antd'
 import { BookmarkPlus, Clock, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { ResultItem } from '@shared/api/endpoints/results'
+import type { ResultItem } from '@/shared/api/endpoints/results'
 
 const { Text } = Typography
 

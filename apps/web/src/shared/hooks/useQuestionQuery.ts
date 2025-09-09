@@ -1,7 +1,7 @@
 // src/shared/hooks/useQuestionQuery.ts
 import { message } from 'antd'
 import { useEffect, useState } from 'react'
-import { questionsApi, isSuccess } from '@shared/api/http'
+import { questionsApi, isSuccess } from '@/shared/api/http'
 
 // 最小化 Question 类型，避免依赖缺失
 export type Question = {

@@ -1,5 +1,5 @@
 import { Card, Spin } from 'antd'
-import { useUserNotifications } from '../../../shared/hooks/useUserNotifications'
+import { useUserNotifications } from '@/shared/hooks/useUserNotifications'
 import NotificationsList from '../components/NotificationsList'
 import NotificationsToolbar from '../components/NotificationsToolbar'
 

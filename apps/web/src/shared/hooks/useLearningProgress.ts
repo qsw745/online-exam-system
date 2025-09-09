@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import dayjs, { Dayjs } from 'dayjs'
 import { App } from 'antd'
-import { learningProgressApi, type LearningStats, type ProgressRecord } from '@shared/api/endpoints/learningProgress'
+import { learningProgressApi, type LearningStats, type ProgressRecord } from '@/shared/api/endpoints/learningProgress'
 
 export function useLearningProgress() {
   const { message } = App.useApp()

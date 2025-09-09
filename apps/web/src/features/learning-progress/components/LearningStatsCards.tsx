@@ -1,6 +1,6 @@
 import { Card, Col, Row, Statistic } from 'antd'
 import { BookOpen, Target, Clock, Award } from 'lucide-react'
-import type { LearningStats } from '@shared/api/endpoints/learningProgress'
+import type { LearningStats } from '@/shared/api/endpoints/learningProgress'
 
 const fmt = (minutes: number) => {
   const m = Math.max(0, Math.floor(Number(minutes) || 0))

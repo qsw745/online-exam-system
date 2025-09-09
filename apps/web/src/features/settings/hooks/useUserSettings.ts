@@ -1,10 +1,10 @@
 // features/settings/hooks/useUserSettings.ts
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { UserSettings } from '../../../shared/types/settings'
-import { api } from '@shared/api/http'
+import type { UserSettings } from '@/shared/types/settings'
+import { api } from '@/shared/api/http'
 
 // 轻量内联服务（避免缺失的 services/settings.service）
 const settingsEndpoint = '/settings/me'

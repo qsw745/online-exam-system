@@ -1,7 +1,7 @@
 import { Button, Checkbox, Form, Input, Modal, Select, Space } from 'antd'
 import { Send } from 'lucide-react'
-import type { CreateNotificationForm } from '../../../shared/hooks/useNotifications'
-import type { UserDTO } from '../api/users'
+import type { CreateNotificationForm } from '@/shared/hooks/useNotifications'
+import type { UserDTO } from '@/shared/api/http'
 const { TextArea } = Input
 const { Option } = Select
 

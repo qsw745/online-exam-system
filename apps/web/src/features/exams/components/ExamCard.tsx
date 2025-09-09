@@ -2,7 +2,7 @@
 import { Card, Button, Space, Typography, Tag } from 'antd'
 import { BookOpen, Clock, Play, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { Exam } from '@shared/api/endpoints/exams'
+import type { Exam } from '@/shared/api/http'
 const { Title, Paragraph } = Typography
 
 function formatDuration(minutes: number) {

@@ -1,4 +1,4 @@
-import { api } from '@shared/api/http'
+import { api } from '@/shared/api/http'
 
 export type NotificationType = 'system' | 'exam' | 'grade' | 'announcement'
 export interface NotificationDTO {

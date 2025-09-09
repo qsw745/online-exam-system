@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { forgotPassword } from '@shared/api/http' // 继续使用现有 http 模块
+import { forgotPassword } from '@/shared/api/http' // 继续使用现有 http 模块
 
 export function useForgotPassword() {
   const [loading, setLoading] = useState(false)

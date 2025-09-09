@@ -1,6 +1,6 @@
 // src/shared/hooks/useDashboard.ts
 import { useQueries } from '@tanstack/react-query'
-import { dashboard, tasksApi, resultsApi, isSuccess } from '@shared/api/http'
+import { dashboard, tasksApi, resultsApi, isSuccess } from '@/shared/api/http'
 
 // 本地声明最小类型，避免依赖 features 下的 types
 export interface Stats {

@@ -2,7 +2,7 @@
 import { EditOutlined, KeyOutlined, SaveOutlined } from '@ant-design/icons'
 import { Button, Form, Input, InputNumber, Space, Switch } from 'antd'
 import React, { useEffect } from 'react'
-import type { SystemSettings } from '../../../shared/types/admin-settings'
+import type { SystemSettings } from '@/shared/types/admin-settings'
 
 type Props = {
   value?: SystemSettings | null

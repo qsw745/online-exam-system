@@ -1,7 +1,7 @@
 // src/features/exams/hooks/useExams.ts
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
-import { exams, type exams, type ExamListParams } from '@shared/api/endpoints/exams'
+import { exams, type exams, type ExamListParams } from '@/shared/api/endpoints/exams'
 
 export function useExams(initial: ExamListParams = { page: 1, limit: 10, status: 'all' }) {
   const { message } = App.useApp()

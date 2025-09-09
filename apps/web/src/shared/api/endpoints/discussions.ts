@@ -1,5 +1,5 @@
 import { api, isSuccess } from '../http'
-import type { Discussion, DiscussionCategory, Reply } from '../../../features/discussions/types'
+import type { Discussion, DiscussionCategory, Reply } from '@/shared/types/index'
 
 function pickArray<T = any>(res: any, fallback: T[] = []): T[] {
   const d = res?.data

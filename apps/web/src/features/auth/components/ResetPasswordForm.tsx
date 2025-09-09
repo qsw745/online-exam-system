@@ -1,8 +1,8 @@
 import React from 'react'
 import { Form, Input, Button } from 'antd'
 import { LockOutlined, EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons'
-import type { ResetValues } from '../../auth/hooks/useResetPassword'
-import { PasswordStrengthBar } from '../../auth/components/PasswordStrengthBar' // 可选：如果已存在
+import type { ResetValues } from '../hooks/useResetPassword'
+import { PasswordStrengthBar } from './PasswordStrengthBar' // 可选：如果已存在
 
 type Props = {
   loading: boolean

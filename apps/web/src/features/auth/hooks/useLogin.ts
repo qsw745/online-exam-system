@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App } from 'antd'
-import { useAuth } from '@shared/contexts/AuthContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
 
 const STORAGE_FLAG_KEY = 'auth_storage' // 与 http.ts 中保持一致：'local' | 'session'
 

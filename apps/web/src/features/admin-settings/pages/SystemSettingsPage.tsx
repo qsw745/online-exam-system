@@ -4,7 +4,7 @@ import { Typography, Space, Row, Col } from 'antd'
 import { SettingOutlined } from '@ant-design/icons'
 import { useSettings } from '../hooks/useSettings'
 import { SettingsForm } from '../components/SettingsForm'
-import  SectionCard  from '@shared/components/SectionCard'
+import  SectionCard  from '@/shared/components/SectionCard'
 
 const { Title, Text } = Typography
 

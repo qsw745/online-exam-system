@@ -1,6 +1,6 @@
 import { Card, Timeline, Typography } from 'antd'
 import dayjs from 'dayjs'
-import type { ProgressRecord } from '@shared/api/endpoints/learningProgress'
+import type { ProgressRecord } from '@/shared/api/endpoints/learningProgress'
 import { Calendar } from 'lucide-react'
 const { Text } = Typography
 

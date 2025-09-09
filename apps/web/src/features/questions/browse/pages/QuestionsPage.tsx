@@ -1,10 +1,10 @@
 // src/features/questions/browse/pages/QuestionsPage.tsx
 import React from 'react'
 import { Card, Space, Spin, Typography, Input, Select, Row, Col } from 'antd'
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Link } from 'react-router-dom'
-import { useQuestionsQuery } from '@shared/hooks'
+import { useQuestionsQuery } from '@/shared/hooks'
 import { PageHeader } from '../components/PageHeader'
 import { QuestionGrid } from '../components/QuestionGrid'
 import { PaginationBar } from '../components/PaginationBar'

@@ -3,7 +3,7 @@ import React from 'react'
 import { FilterOutlined, SearchOutlined } from '@ant-design/icons'
 import { Button, Card, Col, Empty, Input, Pagination, Row, Select, Space, Typography } from 'antd'
 import { BookOpen } from 'lucide-react'
-import { createPaginationConfig } from '@shared/constants/pagination'
+import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useExams } from '../hooks/useExams'
 import { ExamCard } from '../components/ExamCard'
 const { Search } = Input

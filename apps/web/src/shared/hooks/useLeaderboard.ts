@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { leaderboardApi, type LeaderboardEntry, type LeaderboardStats } from '@shared/api/endpoints/leaderboard'
+import { leaderboardApi, type LeaderboardEntry, type LeaderboardStats } from '@/shared/api/endpoints/leaderboard'
 
 export type LeaderboardTab = 'overall' | 'study_time' | 'accuracy'
 

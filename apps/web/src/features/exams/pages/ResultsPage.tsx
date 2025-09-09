@@ -1,10 +1,10 @@
 // src/features/exams/pages/ResultsPage.tsx
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Col, Empty, Pagination, Row, Space, Spin, Typography } from 'antd'
 import { BookmarkPlus } from 'lucide-react'
-import { createPaginationConfig } from '@shared/constants/pagination'
-import { useResults } from '@shared/hooks/useResults'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+import { useResults } from '@/shared/hooks/useResults'
 import ResultsFilters from '../components/ResultsFilters'
 import ResultCard from '../components/ResultCard'
 

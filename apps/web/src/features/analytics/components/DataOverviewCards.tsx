@@ -1,5 +1,5 @@
 import React from 'react'
-import type { DataOverview } from '../dataTypes'
+import type { DataOverview } from '@/shared/hooks/useDataAnalytics'
 import { Users, TrendingUp, BookOpen, Target } from 'lucide-react'
 
 export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overview }) => {

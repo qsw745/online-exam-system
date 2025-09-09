@@ -1,5 +1,5 @@
 import React from 'react'
-import type { DifficultyDatum } from '../dataTypes'
+import type { DifficultyDatum } from '@/shared/hooks/useDataAnalytics'
 
 function labelOf(d: string) {
   if (d === 'easy') return '简单'

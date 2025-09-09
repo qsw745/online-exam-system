@@ -1,5 +1,5 @@
 // features/smart-paper/endpoints/smartPaper.ts
-import { api } from '@shared/api/http'
+import { api } from '@/shared/api/http'
 
 export type Difficulty = 'easy' | 'medium' | 'hard' | 'mixed'
 export type QTypeKey = 'single_choice' | 'multiple_choice' | 'true_false' | 'fill_blank' | 'essay'

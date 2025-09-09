@@ -1,4 +1,4 @@
-import { api } from '@shared/api/http'
+import { api } from '@/shared/api/http'
 import dayjs, { Dayjs } from 'dayjs'
 
 export type LogLevel = 'info' | 'warning' | 'error'

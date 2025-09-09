@@ -1,7 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DataNode } from 'antd/es/tree'
-import { orgs, type OrgNode } from '@shared/api/endpoints/orgs'
+import { orgs, type OrgNode } from '@/shared/api/endpoints/orgs'
 
 const sortAsc = (a: OrgNode, b: OrgNode) => (a.sort_order ?? 0) - (b.sort_order ?? 0)
 

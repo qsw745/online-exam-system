@@ -1,6 +1,6 @@
 // src/app/routing/ProtectedLayout.tsx
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
-import Layout from '@shared/components/Layout'
+import Layout from '@/shared/components/Layout'
 
 export default function ProtectedLayout() {
   const hasToken = !!localStorage.getItem('token')

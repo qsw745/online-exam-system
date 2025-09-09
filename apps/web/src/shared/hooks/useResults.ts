@@ -1,7 +1,7 @@
 // src/shared/hooks/useResults.ts
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
-import { resultsApi, type ResultItem, type ResultStatus } from '@shared/api/endpoints/results'
+import { resultsApi, type ResultItem, type ResultStatus } from '@/shared/api/endpoints/results'
 
 export function useResults(initialPageSize = 12) {
   const { message } = App.useApp()

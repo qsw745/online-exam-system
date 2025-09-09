@@ -1,8 +1,8 @@
 // src/features/menu/hooks/useMenus.ts
-import { menuApi, type MenuDTO } from '@shared/api/endpoints/menu'
+import { menuApi, type MenuDTO } from '@/shared/api/endpoints/menu'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { STEP, buildLayerUpdates, isInSubtree } from '../../../shared/utils/tree'
+import { STEP, buildLayerUpdates, isInSubtree } from '@/shared/utils/tree'
 
 export type MenuFormData = {
   name: string

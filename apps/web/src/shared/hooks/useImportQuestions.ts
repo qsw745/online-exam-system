@@ -1,9 +1,9 @@
 // src/shared/hooks/useImportQuestions.ts
-import { parseFile } from '@shared/utils/fileParser'
+import { parseFile } from '@/shared/utils/fileParser'
 import { message } from 'antd'
 import { useState } from 'react'
-import { api, isSuccess } from '@shared/api/http'
-import { ensureArrayFromMaybeCsv, pickField } from '@shared/api/normalizers/import-normalize'
+import { api, isSuccess } from '@/shared/api/http'
+import { ensureArrayFromMaybeCsv, pickField } from '@/shared/api/normalizers/import-normalize'
 
 // 兼容：本地声明导入文件里用到的字段结构（避免缺少 ParsedQuestion 类型）
 type ParsedQuestion = {

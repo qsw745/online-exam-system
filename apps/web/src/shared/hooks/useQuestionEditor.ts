@@ -2,7 +2,7 @@
 import { message } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { questionsApi } from '../api'
+import { questionsApi } from '@/shared/api/http'
 import type { OptionDTO, QuestionType } from '../types/question'
 import { buildPayload, normalizeFromServer } from '../utils/question-normalize'
 

@@ -1,4 +1,4 @@
-import { api, menuApi } from '@shared/api/http'
+import { api, menuApi } from '@/shared/api/http'
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
 
 import { useAuth } from './AuthContext'

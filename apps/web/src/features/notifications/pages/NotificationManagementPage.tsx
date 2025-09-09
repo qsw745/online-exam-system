@@ -1,5 +1,5 @@
 import { Card } from 'antd'
-import { useNotifications } from '../../../shared/hooks/useNotifications'
+import { useNotifications } from '@/shared/hooks/useNotifications'
 import NotificationFormModal from '../components/NotificationFormModal'
 import NotificationTable from '../components/NotificationTable'
 import NotificationToolbar from '../components/NotificationToolbar'

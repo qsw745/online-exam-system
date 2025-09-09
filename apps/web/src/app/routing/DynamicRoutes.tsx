@@ -1,9 +1,9 @@
 // src/app/routing/DynamicRoutes.tsx
 import React, { Suspense } from 'react'
 import { Route } from 'react-router-dom'
-import { useMenuPermissions } from '@shared/hooks/useMenuPermissions'
-import type { MenuItem as CtxMenuItem } from '@shared/contexts/MenuPermissionContext'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
+import { useMenuPermissions } from '@/shared/hooks/useMenuPermissions'
+import type { MenuItem as CtxMenuItem } from '@/shared/contexts/MenuPermissionContext'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { pageRegistry } from './pageRegistry'
 
 type MenuItem = CtxMenuItem

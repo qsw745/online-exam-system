@@ -1,6 +1,6 @@
 import { Descriptions, Modal, Typography } from 'antd'
 import dayjs from 'dayjs'
-import type { LogEntry } from '@shared/api/endpoints/logs'
+import type { LogEntry } from '@/shared/api/endpoints/logs'
 const { Text, Paragraph } = Typography
 
 const levelColor = (lv: string) =>

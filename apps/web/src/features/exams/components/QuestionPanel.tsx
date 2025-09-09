@@ -1,6 +1,6 @@
 // src/features/exams/components/QuestionPanel.tsx
 import { Flag } from 'lucide-react'
-import type { Question } from '../types'
+import type { Question } from '@/shared/api/http'
 
 export function QuestionPanel(props: {
   question: Question

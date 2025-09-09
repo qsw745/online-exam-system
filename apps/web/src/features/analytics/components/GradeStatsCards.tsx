@@ -1,4 +1,4 @@
-import type { GradeStats } from '@shared/types/grades'
+import type { GradeStats } from '@/shared/types/grades'
 import { Calendar, TrendingUp, Trophy, Users } from 'lucide-react'
 import React from 'react'
 

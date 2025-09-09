@@ -2,7 +2,7 @@ import { api } from '../core/httpClient'
 import { getAccessToken } from '../core/storage'
 import type { ApiSuccess } from '../core/types'
 
-export const settings = {
+export const settingsApi = {
   async get() {
     const token = getAccessToken()
     if (!token) {

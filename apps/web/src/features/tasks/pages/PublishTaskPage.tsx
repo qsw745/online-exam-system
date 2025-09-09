@@ -3,9 +3,9 @@ import React, { useMemo, useState, useCallback, useEffect } from 'react'
 import { Breadcrumb, Card, Space, App } from 'antd'
 import { PublishTaskForm } from '../components/PublishTaskForm'
 import { UsersTable, type User } from '../../users/components/UsersTable'
-import { users as usersApi } from '@shared/api/endpoints/users'
-import {  tasksApi } from '@shared/api/endpoints/tasks'
-import { isSuccess } from '@shared/api/http'
+import { users as usersApi } from '@/shared/api/endpoints/users'
+import {  tasksApi } from '@/shared/api/endpoints/tasks'
+import { isSuccess } from '@/shared/api/http'
 
 type ApiUser = Partial<User> & {
   id: number

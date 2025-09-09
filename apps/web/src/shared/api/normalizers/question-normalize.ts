@@ -1,5 +1,5 @@
 // features/questions/utils/question-normalize.ts
-import type { OptionDTO, QuestionDTO, QuestionType } from '../../../shared/types/question'
+import type { OptionDTO, QuestionDTO, QuestionType } from '@/shared/types/question'
 
 export const ensureArrayFromMaybeCsv = (input: unknown): string[] => {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)

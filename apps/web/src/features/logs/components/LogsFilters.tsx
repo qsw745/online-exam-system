@@ -1,6 +1,6 @@
 import { DatePicker, Input, Select, Button, Space, Typography } from 'antd'
 import { Filter, Search } from 'lucide-react'
-import type { LogFilters } from '@shared/api/endpoints/logs'
+import type { LogFilters } from '@/shared/api/endpoints/logs'
 const { RangePicker } = DatePicker
 const { Option } = Select
 const { Text } = Typography

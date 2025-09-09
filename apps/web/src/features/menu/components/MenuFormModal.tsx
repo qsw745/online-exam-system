@@ -1,5 +1,5 @@
 import { Modal, Form, Input, Select, Switch } from 'antd'
-import type { MenuDTO } from '@shared/api/endpoints/menu'
+import type { MenuDTO } from '@/shared/api/endpoints/menu'
 import { useEffect, useState } from 'react'
 import type { MenuFormData } from '../hooks/useMenus'
 

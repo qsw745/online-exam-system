@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App } from 'antd'
-import { validateResetToken, resetPassword as doResetPassword } from '@shared/api/http'
+import { validateResetToken, resetPassword as doResetPassword } from '@/shared/api/http'
 
 export type ResetValues = {
   password: string

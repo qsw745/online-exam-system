@@ -1,5 +1,5 @@
 import React from 'react'
-import type { KnowledgePoint } from '../dataTypes'
+import type { KnowledgePoint } from '@/shared/hooks/useDataAnalytics'
 
 export const KnowledgePointsPanel: React.FC<{ list: KnowledgePoint[] }> = ({ list }) => {
   return (

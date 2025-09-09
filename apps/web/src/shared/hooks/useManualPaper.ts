@@ -1,5 +1,5 @@
 // src/shared/hooks/useManualPaper.ts
-import { api, isSuccess, getErr, type ApiResult } from '@shared/api/http'
+import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'

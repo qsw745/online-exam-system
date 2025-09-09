@@ -1,5 +1,5 @@
 import React from 'react'
-import type { Period } from '../dataTypes'
+import type { Period } from '@/shared/hooks/useDataAnalytics'
 import { Filter } from 'lucide-react'
 
 type Props = {

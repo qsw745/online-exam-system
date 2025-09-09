@@ -1,5 +1,5 @@
 import React from 'react'
-import type { ActivityDatum } from '../dataTypes'
+import type { ActivityDatum } from '@/shared/hooks/useDataAnalytics'
 
 export const ActivityTrend: React.FC<{ list: ActivityDatum[]; totalUsers: number }> = ({ list, totalUsers }) => {
   return (

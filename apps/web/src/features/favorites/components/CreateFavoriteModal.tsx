@@ -1,6 +1,6 @@
 // src/features/favorites/components/CreateFavoriteModal.tsx
 import { Modal, Form, Input, Select } from 'antd'
-import type { FavoriteCategory } from '@shared/api/endpoints/favorites'
+import type { FavoriteCategory } from '@/shared/api/endpoints/favorites'
 const { TextArea } = Input
 const { Option } = Select
 

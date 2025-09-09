@@ -2,7 +2,7 @@ import { Modal, Space, Typography } from 'antd'
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core'
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import SortableMenuItem from './SortableMenuItem'
-import type { MenuDTO } from '@shared/api/endpoints/menu'
+import type { MenuDTO } from '@/shared/api/endpoints/menu'
 
 export default function BatchSortModal({
   open,

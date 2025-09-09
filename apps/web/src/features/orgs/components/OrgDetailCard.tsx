@@ -1,7 +1,7 @@
 import { Button, Card, Form, Input, InputNumber, Popconfirm, Space, Spin, Switch, Typography } from 'antd'
 import { DeleteOutlined, EditOutlined, SaveOutlined } from '@ant-design/icons'
 import { useState } from 'react'
-import type { OrgNode } from '@shared/api/endpoints/orgs'
+import type { OrgNode } from '@/shared/api/endpoints/orgs'
 
 const { Title, Text } = Typography
 

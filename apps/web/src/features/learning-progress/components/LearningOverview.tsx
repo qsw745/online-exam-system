@@ -1,5 +1,5 @@
 import { Card, Progress, Space, Typography } from 'antd'
-import type { LearningStats } from '@shared/api/endpoints/learningProgress'
+import type { LearningStats } from '@/shared/api/endpoints/learningProgress'
 const { Title, Text } = Typography
 
 const color = (v: number) => (v >= 80 ? '#52c41a' : v >= 60 ? '#faad14' : '#ff4d4f')

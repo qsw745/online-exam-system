@@ -1,10 +1,10 @@
 import { Button, Card, Pagination, Space, Typography } from 'antd'
 import { FileText, Download } from 'lucide-react'
-import { createPaginationConfig } from '@shared/constants/pagination'
-import { useLogs } from '@shared/hooks/useLogs'
-import LogsFilters from '@features/logs/components/LogsFilters'
-import LogsTable from '@features/logs/components/LogsTable'
-import LogDetailModal from '@features/logs/components/LogDetailModal'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+import { useLogs } from '@/shared/hooks/useLogs'
+import LogsFilters from '@/features/logs/components/LogsFilters'
+import LogsTable from '@/features/logs/components/LogsTable'
+import LogDetailModal from '@/features/logs/components/LogDetailModal'
 
 const { Title } = Typography
 // 日志组件

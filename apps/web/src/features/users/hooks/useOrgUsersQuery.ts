@@ -1,5 +1,6 @@
+// src/features/users/hooks/useOrgUsersQuery.ts
 import { useCallback, useEffect, useState } from 'react'
-import { api, isSuccess, getErr, type ApiResult } from '@shared/api/http'
+import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
 
 export function useOrgUsersQuery(orgId: number | null) {
   const [page, setPage] = useState(1)
@@ -13,14 +14,8 @@ export function useOrgUsersQuery(orgId: number | null) {
   const [loading, setLoading] = useState(false)
 
   const fetchList = useCallback(async () => {
-    if (!orgId) {
-      setRows([])
-      setTotal(0)
-      return
-    }
     setLoading(true)
     try {
-      // 优先走 org 维度列表（按你的后端实际调整）
       const params: any = {
         page,
         limit,
@@ -28,21 +23,40 @@ export function useOrgUsersQuery(orgId: number | null) {
         role: role || undefined,
         include_children: includeChildren || undefined,
       }
-      let r: ApiResult<any>
-      try {
-        r = await api.get(`/orgs/${orgId}/users`, { params })
-      } catch {
-        // 兼容回退：如果没有 org 专属路由，就用 /users?org_id=xxx
-        r = await api.get('/users', { params: { ...params, org_id: orgId } })
+
+      let r: ApiResult<any> | null = null
+
+      if (orgId) {
+        // ① 优先 /orgs/:id/users（如果后端支持）
+        // try {
+        //   r = await api.get(`/orgs/${orgId}/users`, { params })
+        // } catch {
+        //   r = null
+        // }
+        // ② 其次 /orgusers?org_id=xxx（当前后端实际挂载）
+        if (!r) {
+          try {
+            r = await api.get('/orgusers', { params: { ...params, orgId: orgId } })
+          } catch {
+            r = null
+          }
+        }
+        // ③ 兜底 /users?org_id=xxx（历史实现）
+        if (!r) {
+          r = await api.get('/users', { params: { ...params, orgId: orgId } })
+        }
+      } else {
+        // 没选机构：试图加载“全量用户”（方便一打开页面就有数据）
+        r = await api.get('/users', { params })
       }
+
       if (!isSuccess(r)) throw new Error(getErr(r, '加载用户失败'))
 
-      // 兼容 data 结构
       const payload = r.data as any
       const list = payload?.items ?? payload?.list ?? payload?.users ?? payload ?? []
       const t = payload?.total ?? payload?.count ?? list.length
-      setRows(list)
-      setTotal(t)
+      setRows(Array.isArray(list) ? list : [])
+      setTotal(Number(t) || 0)
     } finally {
       setLoading(false)
     }
@@ -52,14 +66,11 @@ export function useOrgUsersQuery(orgId: number | null) {
     fetchList()
   }, [fetchList])
 
-  // —— 行操作（统一由 hook 暴露给页面）——
+  // 行操作
   const resetPassword = (id: number | string) => api.put(`/users/${id}/reset-password`).then(r => r)
-
   const toggleStatus = (id: number | string, status: 'active' | 'disabled') =>
     api.put(`/users/${id}/status`, { status }).then(r => r)
-
   const unbind = (orgId: number, userId: number | string) => api.delete(`/orgs/${orgId}/users/${userId}`).then(r => r)
-
   const deleteUser = (id: number | string) => api.delete(`/users/${id}`).then(r => r)
 
   return {

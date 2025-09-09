@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
-import { logsApi, type LogEntry, type LogFilters } from '@shared/api/endpoints/logs'
+import { logsApi, type LogEntry, type LogFilters } from '@/shared/api/endpoints/logs'
 
 export function useLogs() {
   const { message } = App.useApp()

@@ -49,5 +49,5 @@ export * from './useQuestionsQuery'
 
 // —— 用户组织相关 ——
 // 修复：转发到 features 下实际实现，避免找不到本地文件
-export { default as useOrgUsersQuery } from '@features/users/hooks/useOrgUsersQuery'
-export * from '@features/users/hooks/useOrgUsersQuery'
+export { default as useOrgUsersQuery } from '@/features/users/hooks/useOrgUsersQuery'
+export * from '@/features/users/hooks/useOrgUsersQuery'

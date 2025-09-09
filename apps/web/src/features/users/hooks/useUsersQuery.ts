@@ -1,8 +1,8 @@
 // src/features/users/hooks/useUsersQuery.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
-import { isSuccess } from '@shared/api/http'
-import { usersApi } from '@shared/api/endpoints/users'
+import { isSuccess } from '@/shared/api/http'
+import { usersApi } from '@/shared/api/endpoints/users'
 
 export function useUsersQuery(initialPageSize = 10) {
   const { message } = App.useApp()

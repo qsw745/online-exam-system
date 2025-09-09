@@ -1,8 +1,8 @@
 import { Card, Empty, List, Space, Typography } from 'antd'
 import { BookmarkPlus, Calendar } from 'lucide-react'
 import React from 'react'
-import type { Result } from '../types'
-import dayjs from '@shared/utils/dayjs'
+import type { Result } from '@/shared/api/http'
+import dayjs from '@/shared/utils/dayjs'
 import { Link } from 'react-router-dom'
 
 const { Text } = Typography

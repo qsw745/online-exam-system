@@ -1,10 +1,10 @@
-import DynamicSidebar, { MobileSidebar } from '@app/routing/DynamicSidebar'
+import DynamicSidebar, { MobileSidebar } from '@/app/routing/DynamicSidebar'
 import { Layout as AntLayout } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { Outlet, useLocation } from 'react-router-dom'
 import Header from './Header'
 
-import { useAuth } from '@shared/contexts/AuthContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import LoadingSpinner from './LoadingSpinner'
 

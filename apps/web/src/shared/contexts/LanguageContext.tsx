@@ -1,5 +1,5 @@
-import importedTranslations from '@app/i18n'
-import { settings } from '@shared/api/http'
+import importedTranslations from '@/app/i18n'
+import { settingsApi } from '@/shared/api/http'
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useAuth } from './AuthContext'
 
@@ -49,7 +49,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (user?.id && !isNaN(Number(user.id))) {
       const loadLanguageSetting = async () => {
         try {
-          const res = (await settings.get()) as any
+          const res = (await settingsApi.get()) as any
           const data = res?.data ?? res
           const lang = data?.appearance?.language as Language | undefined
           if (lang) setLanguageState(lang)
@@ -78,10 +78,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (user?.id && !isNaN(Number(user.id))) {
       try {
         // 获取当前设置
-        const res = (await settings.get()) as any
+        const res = (await settingsApi.get()) as any
         const data = res?.data ?? res
         // 更新语言设置
-        await settings.save({
+        await settingsApi.save({
           ...(data ?? {}),
           appearance: {
             ...(data?.appearance ?? {}),

@@ -1,7 +1,7 @@
 // src/shared/hooks/useNotifications.ts
 import { App, Form } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, isSuccess, getErr, type ApiResult } from '@shared/api/http'
+import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
 
 // —— 最小类型定义，避免外部类型名不一致 —— //
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | string

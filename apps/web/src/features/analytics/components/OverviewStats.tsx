@@ -1,9 +1,9 @@
 import { Card, Col, Row, Statistic } from 'antd'
 import { Users, TrendingUp, BookOpen, Award, Target, PieChart } from 'lucide-react'
 import React from 'react'
-import type { Overview } from '../types'
+import type { DataOverview } from '@/shared/hooks/useDataAnalytics'
 
-export const OverviewStats: React.FC<{ overview: Overview }> = ({ overview }) => {
+export const OverviewStats: React.FC<{ overview: DataOverview }> = ({ overview }) => {
   return (
     <Row gutter={[16, 16]}>
       <Col xs={24} sm={12} lg={4}>

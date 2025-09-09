@@ -2,10 +2,10 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { App, Avatar, Card, Input, Pagination, Space, Table, Tag } from 'antd'
 import { UserOutlined, SearchOutlined, SettingOutlined } from '@ant-design/icons'
-import { rolesService } from '../services/roles.service'
-import { usersService } from '../services/users.service'
+import { rolesApi } from '@/shared/api/endpoints/roles'
+import { usersApi } from '@/shared/api/endpoints/users'
 import { ROLE_COLOR } from '../constants'
-import { RoleAssignModal } from '../components/RoleAssignModal'
+import { RoleAssignModal } from '../components/OrgTreePanel'
 
 const UserRoleManagementPage: React.FC = () => {
   const { message } = App.useApp()
@@ -24,15 +24,15 @@ const UserRoleManagementPage: React.FC = () => {
       setLoading(true)
       try {
         const [roleList, list] = await Promise.all([
-          rolesService.list(),
-          usersService.searchAll(search), // 可换成服务端分页接口
+          rolesApi.list(),
+          usersApi.searchAll(search), // 可换成服务端分页接口
         ])
         setRoles(roleList.filter((r: any) => !r.is_disabled))
         // 并行拉角色（如后端支持 include=roles 则不需要）：
         const withRoles = await Promise.all(
           list.map(async (u: any) => ({
             ...u,
-            roles: await rolesService.getUserRoles(u.id),
+            roles: await rolesApi.getUserRoles(u.id),
           }))
         )
         setUsers(withRoles)

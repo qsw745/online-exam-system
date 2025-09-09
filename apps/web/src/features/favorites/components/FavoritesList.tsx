@@ -1,6 +1,6 @@
 import { Button, List, Tag, Tooltip, Typography } from 'antd'
 import { Edit, Share2, Trash2, Eye } from 'lucide-react'
-import type { Favorite } from '@shared/api/endpoints/favorites'
+import type { Favorite } from '@/shared/api/endpoints/favorites'
 
 const { Text } = Typography
 

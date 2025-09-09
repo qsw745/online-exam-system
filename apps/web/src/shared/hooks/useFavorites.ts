@@ -1,7 +1,7 @@
 // src/shared/hooks/useFavorites.ts
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
-import { favoritesApi, type Favorite, type FavoriteCategory, type FavoriteItem } from '@shared/api/endpoints/favorites'
+import { favoritesApi, type Favorite, type FavoriteCategory, type FavoriteItem } from '@/shared/api/endpoints/favorites'
 
 export function useFavorites() {
   const { message } = App.useApp()

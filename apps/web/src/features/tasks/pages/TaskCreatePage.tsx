@@ -4,7 +4,7 @@ import { useNavigate, useParams, useLocation } from 'react-router-dom'
 import { App, Card, Space } from 'antd'
 import { TaskForm } from '../components/TaskForm'
 import { useTaskById } from '../hooks/useTaskById'
-import { tasksService } from '../services/tasks.service'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
 
 const TaskCreatePage: React.FC = () => {
   const { message } = App.useApp()
@@ -33,8 +33,8 @@ const TaskCreatePage: React.FC = () => {
   const submit = async (payload: any) => {
     try {
       setSubmitting(true)
-      if (mode === 'edit' && id) await tasksService.update(id, payload)
-      else await tasksService.create(payload)
+      if (mode === 'edit' && id) await tasksApi.update(id, payload)
+      else await tasksApi.create(payload)
       message.success(mode === 'edit' ? '更新成功' : '创建成功')
       nav('/admin/tasks')
     } catch (e: any) {

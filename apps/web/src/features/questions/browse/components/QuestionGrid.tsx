@@ -2,7 +2,7 @@
 import { Col, Empty, Row, Space, Typography } from 'antd'
 import React from 'react'
 import { BookmarkPlus } from 'lucide-react'
-import type { Question } from '../types/question'
+import type { Question } from '@/shared/api/endpoints/questions'
 import { QuestionCard } from './QuestionCard'
 
 const { Text } = Typography

@@ -1,7 +1,7 @@
 import { Avatar, Badge, Pagination, Spin, Table } from 'antd'
 import { Award, Medal, Trophy } from 'lucide-react'
-import { createPaginationConfig } from '@shared/constants/pagination'
-import type { LeaderboardEntry } from '@shared/api/endpoints/leaderboard'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+import type { LeaderboardEntry } from '@/shared/api/endpoints/leaderboard'
 
 function RankIcon({ rank }: { rank: number }) {
   switch (rank) {

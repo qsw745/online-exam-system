@@ -2,7 +2,7 @@
 import React from 'react'
 import { Tag } from 'antd'
 import { STATUS_COLOR, STATUS_LABEL } from '../constants'
-import type { TaskStatus } from '@shared/types/tasks'
+import type { TaskStatus } from '@/shared/types/tasks'
 
 export interface StatusTagProps {
   status?: string | TaskStatus

@@ -4,7 +4,7 @@ import { Button, Card, Space, Tag, Typography } from 'antd'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { diffColor, diffLabel, typeColor, typeLabel } from '../utils/labelMaps'
-import type { Question } from '../types/question'
+import type { Question } from '@/shared/api/endpoints/questions'
 
 const { Paragraph, Text } = Typography
 

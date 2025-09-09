@@ -1,8 +1,8 @@
 // apps/web/src/features/analytics/components/StudentsTable.tsx
 import { Card, Pagination, Progress, Table } from 'antd'
-import dayjs from '@shared/utils/dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import React, { useMemo } from 'react'
-import { createPaginationConfig } from '@shared/constants/pagination'
+import { createPaginationConfig } from '@/shared/constants/pagination'
 
 // ==== 本地最小类型与工具，去除对 ../types 与 ../utils 的依赖 ====
 export type StudentRow = {

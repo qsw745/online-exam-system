@@ -1,10 +1,10 @@
 // src/AppProviders.tsx
 import type { PropsWithChildren } from 'react'
-import { AntdThemeProvider } from '@app/providers/AntdThemeProvider'
+import { AntdThemeProvider } from '@/app/providers/AntdThemeProvider'
 
 // 全局样式：统一从 shared 引入
-import '@shared/styles/theme.css'
-import '@shared/styles/antd-override.css'
+import '@/shared/styles/theme.css'
+import '@/shared/styles/antd-override.css'
 
 export function AppProviders({ children }: PropsWithChildren) {
   // 以后还要加别的 Provider（SWR/Sentry/MSW 等），也放到这里包裹

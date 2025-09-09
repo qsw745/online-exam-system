@@ -1,6 +1,6 @@
 // src/shared/api/endpoints/roles.ts
-import { http } from '@shared/api/http'
-import type { ApiResult } from '@shared/api/core/types'
+import { http } from '@/shared/api/http'
+import type { ApiResult } from '@/shared/api/core/types'
 
 export interface Role {
   id: number

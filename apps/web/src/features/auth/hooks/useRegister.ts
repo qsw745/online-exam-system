@@ -1,7 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@shared/contexts/AuthContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
 
 export type RegisterValues = {
   email: string

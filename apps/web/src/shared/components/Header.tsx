@@ -1,5 +1,5 @@
-import { useTheme } from '@app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
-import { api } from '@shared/api/http'
+import { useTheme } from '@/app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
+import { api } from '@/shared/api/http'
 import { message } from 'antd'
 import { Bell, LogOut, Menu, Moon, Settings, Sun, User } from 'lucide-react'
 import React, { useEffect, useState } from 'react'

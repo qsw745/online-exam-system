@@ -2,7 +2,7 @@
 import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Pagination, Space } from 'antd'
 import { useEffect } from 'react'
-import { useOrgTree } from '../../../shared/hooks/useOrgTree'
+import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import OrgSelectModal from '../components/OrgSelectModal'
 import { PermissionModal } from '../components/PermissionModal'
 import RoleFormModal from '../components/RoleFormModal'

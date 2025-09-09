@@ -2,7 +2,7 @@ import React, { ReactNode, useEffect, useMemo, useState } from 'react'
 import { Button, Form, Input, Space, Tooltip } from 'antd'
 import { ReloadOutlined, SearchOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import type { FormInstance, FormProps } from 'antd'
-import { useDebounce } from '@shared/hooks'
+import { useDebounce } from '@/shared/hooks'
 
 export interface FiltersBarProps<FieldType extends object = any> {
   /** 组合式：可直接写 Form.Item 作为 children */

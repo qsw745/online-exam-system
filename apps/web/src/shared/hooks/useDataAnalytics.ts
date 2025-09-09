@@ -1,6 +1,6 @@
 // src/shared/hooks/useDataAnalytics.ts
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
-import { api, isSuccess } from '@shared/api/http'
+import { api, isSuccess } from '@/shared/api/http'
 
 // —— 最小类型 —— //
 export type Period = '7d' | '30d' | '90d' | 'custom' | string

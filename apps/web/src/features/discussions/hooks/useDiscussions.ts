@@ -1,8 +1,8 @@
 // src/features/discussions/hooks/useDiscussions.ts
 import { useCallback, useEffect, useState } from 'react'
 import { App, Form } from 'antd'
-import type { Discussion, DiscussionCategory, Reply, SortBy } from '../types'
-import { discussionsApi } from '@shared/api/endpoints/discussions'
+import type { Discussion, DiscussionCategory, Reply, SortBy } from '@/shared/api/http'
+import { discussionsApi } from '@/shared/api/endpoints/discussions'
 
 type CreateDiscussionDto = {
   title: string

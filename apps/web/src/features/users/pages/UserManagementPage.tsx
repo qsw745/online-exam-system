@@ -1,15 +1,21 @@
 // src/features/users/pages/UserManagementPage.tsx
-import { Layout, Card, Pagination, Typography, Space, App } from 'antd'
+import { Layout, Card, Pagination, Typography, App } from 'antd'
 import React from 'react'
 import { OrgTreePanel } from '../components/OrgTreePanel'
 import { UserFilterBar } from '../components/UserFilterBar'
-import { UsersTable } from '../components/UsersTable' // ✅ 改为具名导入
-import { useOrgTree } from '@shared/hooks'
+import { UsersTable } from '../components/UsersTable'
+import { useOrgTree } from '@/shared/hooks'
 import { useOrgPathMap } from '../hooks/useOrgPathMap'
-import { useOrgUsersQuery } from '@shared/hooks'
+import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 const { Sider, Content } = Layout
 const { Title, Paragraph } = Typography
+
+function pickFirstId(tree: any[]): number | null {
+  if (!tree || !tree.length) return null
+  const node = tree[0]
+  return node?.id ?? null
+}
 
 const UserManagementPage: React.FC = () => {
   const { message } = App.useApp()
@@ -17,6 +23,15 @@ const UserManagementPage: React.FC = () => {
 
   // 机构树
   const { tree, loading: treeLoading, expanded, setExpanded, refetch: refetchTree } = useOrgTree()
+
+  // 首次加载时自动选中第一个机构（若有）
+  React.useEffect(() => {
+    if (!treeLoading && selectedOrgId == null) {
+      const first = pickFirstId(tree)
+      if (first != null) setSelectedOrgId(first)
+    }
+  }, [treeLoading, tree, selectedOrgId])
+
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
@@ -27,7 +42,7 @@ const UserManagementPage: React.FC = () => {
     await refetchTree()
   }
 
-  // 行操作 —— 全部走 hook 暴露的方法
+  // 行操作
   const onView = async (_u: any) => {}
   const onEdit = async (_u: any) => {}
 
@@ -83,7 +98,7 @@ const UserManagementPage: React.FC = () => {
             用户管理
           </Title>
           <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
-            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '加载机构中…'}
+            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '（未选择机构，将显示全量用户）'}
           </Paragraph>
         </div>
 

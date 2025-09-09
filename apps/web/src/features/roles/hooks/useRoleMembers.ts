@@ -1,7 +1,7 @@
 // features/roles/hooks/useRoleMembers.ts
 import { useCallback, useState } from 'react'
 import { App } from 'antd'
-import { api } from '@shared/api/http'
+import { api } from '@/shared/api/http'
 
 // ===== 轻量类型 =====
 export type Role = { id: number; name: string }

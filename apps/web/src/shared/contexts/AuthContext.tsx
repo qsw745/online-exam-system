@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { auth, users } from '@shared/api/http'
+import { auth, users } from '@/shared/api/http'
 
 interface User {
   id: string

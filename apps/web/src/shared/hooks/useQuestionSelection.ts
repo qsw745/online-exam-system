@@ -1,7 +1,7 @@
 // src/shared/hooks/useQuestionSelection.ts
 import { useEffect, useState } from 'react'
 import { message } from 'antd'
-import { questionsApi, isSuccess } from '@shared/api/http'
+import { questionsApi, isSuccess } from '@/shared/api/http'
 
 export function useQuestionSelection(ids: string[], reload: () => void) {
   const [selected, setSelected] = useState<string[]>([])

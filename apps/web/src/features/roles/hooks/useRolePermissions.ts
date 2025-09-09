@@ -2,7 +2,7 @@
 import { useCallback, useMemo, useState } from 'react'
 import { App } from 'antd'
 import type { DataNode } from 'antd/es/tree'
-import { api } from '@shared/api/http'
+import { api } from '@/shared/api/http'
 
 // ===== 轻量类型 =====
 export type MenuItem = {

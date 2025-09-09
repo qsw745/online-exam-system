@@ -1,15 +1,15 @@
 // src/features/exams/hooks/useExamRunner.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { App } from 'antd'
-import { exams } from '@shared/api/endpoints/exams'
-import type { ExamPaper } from '../types'
+import { exams } from '@/shared/api/endpoints/exams'
+import type { ExamStatus } from '@/shared/api/http'
 
 export function useExamRunner(taskId: string) {
   const { message } = App.useApp()
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [exam, setExam] = useState<ExamPaper | null>(null)
+  const [exam, setExam] = useState<ExamStatus | null>(null)
   const [index, setIndex] = useState(0)
   const [answers, setAnswers] = useState<Record<string, number[]>>({})
   const [timeLeft, setTimeLeft] = useState(0) // 秒

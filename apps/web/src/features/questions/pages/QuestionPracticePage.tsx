@@ -17,9 +17,9 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 
 // ✅ 不再从 http 中导出 questions；改为使用 api + 轻量包装
-import { api, favoritesApi, isSuccess, wrongQuestions, type ApiResult } from '@shared/api/http'
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { api, favoritesApi, isSuccess, wrongQuestions, type ApiResult } from '@/shared/api/http'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { TextArea } = Input
 const { Title, Text } = Typography

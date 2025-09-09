@@ -1,9 +1,9 @@
 // src/features/questions/pages/QuestionManagementPage.tsx
 import { Card, Modal, Typography, message } from 'antd'
 import React from 'react'
-import { useImportQuestions } from '../../../shared/hooks/useImportQuestions'
-import { useQuestionQuery } from '../../../shared/hooks/useQuestionQuery'
-import { useQuestionSelection } from '../../../shared/hooks/useQuestionSelection'
+import { useImportQuestions } from '@/shared/hooks/useImportQuestions'
+import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
+import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
 import QuestionTable from '../components/QuestionTable'
 import QuestionToolbar from '../components/QuestionToolbar'
 
@@ -100,7 +100,7 @@ export default function QuestionManagementPage() {
         onCancel={() => setSingle(null)}
         onOk={async () => {
           if (!single) return
-          const r = await (await import('@shared/api/http')).questionsApi.remove(single.id)
+          const r = await (await import('@/shared/api/http')).questionsApi.remove(single.id)
           if ((r as any)?.success) {
             message.success('题目删除成功')
             q.reload()

@@ -1,6 +1,6 @@
 import { Row, Col, Space, Spin, Typography } from 'antd'
 import { TrendingUp } from 'lucide-react'
-import { useLearningProgress } from '@shared/hooks/useLearningProgress'
+import { useLearningProgress } from '@/shared/hooks/useLearningProgress'
 import LearningFilters from '../components/LearningFilters'
 import LearningStatsCards from '../components/LearningStatsCards'
 import LearningOverview from '../components/LearningOverview'

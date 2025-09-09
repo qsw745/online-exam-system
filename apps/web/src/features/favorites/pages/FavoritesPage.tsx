@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
 import { Heart, Plus, BookOpen, Star } from 'lucide-react'
-import { useFavorites } from '@shared/hooks/useFavorites'
+import { useFavorites } from '@/shared/hooks/useFavorites'
 import FavoritesList from '../components/FavoritesList'
 import FavoriteItems from '../components/FavoriteItems'
 import CreateFavoriteModal from '../components/CreateFavoriteModal'

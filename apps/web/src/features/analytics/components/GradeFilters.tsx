@@ -1,4 +1,4 @@
-import type { PaperLite } from '@shared/types/grades'
+import type { PaperLite } from '@/shared/types/grades'
 import { Download, Search } from 'lucide-react'
 import React, { FormEvent } from 'react'
 

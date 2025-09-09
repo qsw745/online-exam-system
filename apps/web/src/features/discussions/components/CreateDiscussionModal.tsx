@@ -1,6 +1,6 @@
 import React from 'react'
 import { Modal, Form, Input, Select } from 'antd'
-import type { DiscussionCategory } from '../types'
+import type { DiscussionCategory } from '@/shared/api/http'
 
 const { TextArea } = Input
 const { Option } = Select
