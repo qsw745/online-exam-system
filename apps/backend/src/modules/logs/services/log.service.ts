@@ -1,9 +1,10 @@
+// apps/backend/src/modules/logs/services/log.service.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Request } from 'express'
-import type { LogInput, LogQueryParams } from '../domain/log.model'
+import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
-import type { LogRow } from '../domain/log.model'
 
-/** 轻量 UA 解析（设备/OS/浏览器，给前端友好显示） */
+/** 轻量 UA 解析（设备/OS/浏览器）*/
 function parseUA(ua: string) {
   const s = ua || ''
   const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(s)
@@ -35,10 +36,8 @@ function parseUA(ua: string) {
   if (isMobile) {
     if (/iPhone/.test(s)) device = 'iPhone'
     else if (/iPad/.test(s)) device = 'iPad'
-    else if (/Android/.test(s)) {
-      const m = s.match(/Android.*; ([^;)]*)\)/)
-      device = m?.[1]?.trim() || 'Android'
-    } else device = 'Mobile'
+    else if (/Android/.test(s)) device = s.match(/Android.*; ([^;)]*)\)/)?.[1]?.trim() || 'Android'
+    else device = 'Mobile'
   }
   return { label: `${device} · ${os} · ${browser}`, os, browser, device }
 }
@@ -50,34 +49,37 @@ const metaFromReq = (req?: Pick<Request, 'ip' | 'get'> | null) => ({
   userAgent: req?.get('User-Agent') || undefined,
 })
 
-/** 自动判定日志级别（可被入参 level 覆盖） */
-function inferLevel(input: LogInput): LogInput['level'] {
+/** 自动推断 level（可被入参覆盖） */
+function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   if (input.level) return input.level
-  // 明确失败/错误
   if (typeof input.status === 'string' && /failed|error/i.test(input.status)) return 'error'
-  // action 语义
+  if (typeof input.status === 'string' && /warn/i.test(input.status)) return 'warn'
   if (input.action) {
     if (/delete|remove|reset|ban|disable/i.test(input.action)) return 'warn'
     if (/create|insert|register|login|update|upload|import|export/i.test(input.action)) return 'info'
   }
-  // system 默认 info
-  if (input.type === 'system') return 'info'
-  // 兜底
   return 'info'
 }
 
-/** —— Service：对外仅暴露一个“写日志”方法 + 若干“读日志”方法 —— */
 export class LogService {
-  /** ✅ 统一写日志入口：所有模块只调用这个 */
-  static async log(input: Omit<LogInput, 'ipAddress' | 'userAgent'>, req?: Request) {
+  /** ✅ 唯一写日志入口：所有模块只调用这个 */
+  static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
-    const normalized: LogInput = {
-      ...input,
+    await LogRepository.insert({
+      type: input.type || 'system',
       level: inferLevel(input),
-      ipAddress: meta.ipAddress,
-      userAgent: meta.userAgent,
-    }
-    await LogRepository.insert(normalized)
+      userId: input.userId,
+      username: input.username,
+      action: input.action,
+      message: input.message,
+      resourceType: input.resourceType,
+      resourceId: input.resourceId,
+      details: input.details,
+      status: input.status,
+      // 允许调用方传入覆盖；未传则使用 req 的值
+      ipAddress: input.ipAddress ?? meta.ipAddress,
+      userAgent: input.userAgent ?? meta.userAgent,
+    })
   }
 
   /** ✅ 列表查询（带权限范围） */
@@ -88,34 +90,22 @@ export class LogService {
   }
 
   async getSystemLogs(role: string | undefined, q: LogQueryParams) {
-    // 复用 queryLogs，传入 admin scope + module/level 等过滤
-    const { rows, total, page, limit } = await LogRepository.queryLogs(
-      { currentUserId: 0, role: role || 'admin' }, // 非 admin 也可以查，但控制器会做权限限制
-      q
-    )
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getAuditLogs(role: string | undefined, q: LogQueryParams) {
-    const merged: LogQueryParams = { ...q, module: q.module || undefined }
-    const { rows, total, page, limit } = await LogRepository.queryLogs(
-      { currentUserId: 0, role: role || 'admin' },
-      merged
-    )
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
-    // 仍用通用查询（角色限制在 repository where 中处理）
-    const { rows, total, page, limit } = await LogRepository.queryLogs(
-      { currentUserId: user.id, role: user.role },
-      { ...q, action: q.action ?? undefined }
-    )
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
-  /** 🔧 修复：补全 getExamLogs 给控制器调用 */
+  /** 给控制器用的考试日志查询 */
   async getExamLogs(user: { id?: number; role?: string } | undefined, examId: number, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
     return LogRepository.queryExamLogs({ currentUserId: user.id, role: user.role }, examId, q)

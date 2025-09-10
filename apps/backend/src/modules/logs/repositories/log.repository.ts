@@ -1,14 +1,14 @@
+// apps/backend/src/modules/logs/repositories/log.repository.ts
 import { pool } from '@/config/database'
 import type { ResultSetHeader } from 'mysql2/promise'
-import type { LogInput, LogQueryParams, LogRow, ExamLogRow } from '../domain/log.model'
+import type { ExamLogRow, LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import type { RowDataPacket } from 'mysql2'
 
-const J = (v: any) => (v === undefined ? null : JSON.stringify(v))
+const J = (v: any) => (v === undefined || v === null ? null : JSON.stringify(v))
 
-/** 尽量把 SQL 都放这里：写 + 通用查 + 考试日志查 */
 export const LogRepository = {
   /** 单表 logs 通用写入（统一口） */
-  async insert(input: LogInput) {
+  async insert(input: Required<Pick<LogInput, 'type'>> & Omit<LogInput, 'type'>) {
     const sql = `
       INSERT INTO logs
       (log_type, level, user_id, username, action, resource_type, resource_id,
@@ -16,7 +16,7 @@ export const LogRepository = {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
     const params = [
-      input.type,
+      input.type, // 永不为 NULL
       input.level ?? 'info',
       input.userId ?? null,
       input.username ?? null,
@@ -32,7 +32,7 @@ export const LogRepository = {
     await pool.query<ResultSetHeader>(sql, params)
   },
 
-  /** logs 通用分页查询（控制权限由上层传入 scope） */
+  /** logs 通用分页查询 */
   async queryLogs(scope: { currentUserId: number; role?: string }, q: LogQueryParams) {
     const { currentUserId, role } = scope
     const { page = 1, limit = 20, start_date, end_date, level, module, action, userId, username } = q || {}
@@ -154,7 +154,7 @@ export const LogRepository = {
     return rows as LogRow[]
   },
 
-  /** exam_logs 查询（JOIN 用户/题干），用于考试行为明细 */
+  /** exam_logs 查询（JOIN 用户/题干） */
   async queryExamLogs(scope: { currentUserId: number; role?: string }, examId: number, q: LogQueryParams) {
     const { currentUserId, role } = scope
     const { page = 1, limit = 20, start_date, end_date, action, userId } = q || {}

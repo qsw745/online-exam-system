@@ -1,7 +1,6 @@
 // src/features/users/components/UsersTable.tsx
 import { Popconfirm, Space, Table, Tag, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
 import React, { useMemo } from 'react'
 
 export interface User {
@@ -9,13 +8,14 @@ export interface User {
   username: string
   email: string
   status: 'active' | 'disabled' | string
-  created_at: string
+  // created_at: string  // 移除表格展示
+  orgId?: number
+  role?: string
 }
 
 export const UsersTable: React.FC<{
   data: User[]
   loading: boolean
-  getOrgPath?: (orgId?: number | null, fb?: string | null) => string | null
   selectedOrgId?: number | null
   onView?: (u: any) => void
   onEdit?: (u: any) => void
@@ -33,12 +33,6 @@ export const UsersTable: React.FC<{
         dataIndex: 'status',
         render: s => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? '正常' : '禁用'}</Tag>,
         width: 100,
-      },
-      {
-        title: '创建时间',
-        dataIndex: 'created_at',
-        render: t => (t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-'),
-        width: 170,
       },
     ]
 

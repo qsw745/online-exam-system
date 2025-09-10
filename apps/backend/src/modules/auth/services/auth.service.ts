@@ -1,18 +1,19 @@
 // apps/backend/src/modules/auth/services/auth.service.ts
-/* eslint-disable @/typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool } from '@/config/database'
 import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_IN, getJwtSecret, getRefreshJwtSecret } from '@/config/jwt'
 import { emailService } from '@/infrastructure/email/email.service'
-import { LogRepository } from '@/modules/logs/repositories/log.repository'
+import { LogService } from '@/modules/logs/services/log.service'
 import bcrypt from 'bcryptjs'
 import type { SignOptions } from 'jsonwebtoken'
 import type { RowDataPacket } from 'mysql2'
 import type { AuthResponseData, IRoleRow, IUser, JwtPayload, JwtRole } from '../domain/auth.model'
 import { TokenRepository, sha256 } from '../repositories/token.repository'
+import HttpError from '@/common/errors/http-error'
 
 declare const process: any
 
-// 动态加载 jsonwebtoken，避免类型“不是模块”的问题
+// 动态加载 jsonwebtoken（兼容 ESM/CJS）
 async function getJwt(): Promise<any> {
   const mod: any = await import('jsonwebtoken')
   return mod?.default ?? mod
@@ -117,55 +118,74 @@ export class AuthService {
       expiresAt: computeRefreshExpire(),
     })
 
+    // 记录中文操作日志
+    await LogService.log({
+      type: 'user',
+      status: 'success',
+      userId,
+      username: username || email,
+      action: '注册账号',
+      resourceType: 'user',
+      resourceId: userId,
+      details: { email },
+      message: '用户注册成功',
+    } as any)
+
     const [userRows] = await pool.query<IUser[]>(
       `SELECT id, username, email, status, created_at, updated_at FROM users WHERE id=?`,
       [userId]
     )
     const user = userRows[0]
-    // 返回 refresh，控制器负责写 Cookie
-    return { token: access, refresh, user: { ...user, org_id: orgId } } as AuthResponseData & {
-      refresh: string
-    }
+    return { token: access, refresh, user: { ...user, org_id: orgId } } as AuthResponseData & { refresh: string }
   }
 
   /** 登录：返回 access + refresh + user */
   async login(email: string, password: string, reqMeta: { ip?: string; ua?: string }) {
     const [users] = await pool.query<IUser[]>('SELECT * FROM users WHERE email = ?', [email])
     if (users.length === 0) {
-      await LogRepository.insertLoginLog({
-        username: email,
+      await LogService.log({
+        type: 'login',
         status: 'failed',
-        failureReason: '用户不存在',
+        username: email,
+        action: '登录',
+        message: '登录失败：用户不存在',
+        details: { reason: '用户不存在' },
         ipAddress: reqMeta.ip,
         userAgent: reqMeta.ua,
       } as any)
-      throw new Error('用户不存在')
+      throw new HttpError('用户不存在')
     }
 
     const user = users[0]
     if ((user.status || 'active').toLowerCase() !== 'active') {
-      await LogRepository.insertLoginLog({
+      await LogService.log({
+        type: 'login',
+        status: 'failed',
         userId: user.id,
         username: user.username || user.email,
-        status: 'failed',
-        failureReason: '账号已被禁用',
+        action: '登录',
+        message: '登录失败：账号被禁用',
+        details: { reason: '账号已被禁用' },
         ipAddress: reqMeta.ip,
         userAgent: reqMeta.ua,
       } as any)
-      throw new Error('账号已被禁用，请联系管理员')
+      throw new HttpError('账号已被禁用，请联系管理员')
     }
 
     const ok = bcrypt.compareSync(password, user.password)
     if (!ok) {
-      await LogRepository.insertLoginLog({
+      await LogService.log({
+        type: 'login',
+        status: 'failed',
         userId: user.id,
         username: user.username || user.email,
-        status: 'failed',
-        failureReason: '密码错误',
+        action: '登录',
+        message: '登录失败：密码错误',
+        details: { reason: '密码错误' },
         ipAddress: reqMeta.ip,
         userAgent: reqMeta.ua,
       } as any)
-      throw new Error('密码错误')
+      throw new HttpError('密码错误')
     }
 
     const [[primary]] = await pool.query<RowDataPacket[]>(
@@ -187,20 +207,21 @@ export class AuthService {
       expiresAt: computeRefreshExpire(),
     })
 
-    await LogRepository.insertLoginLog({
+    await LogService.log({
+      type: 'login',
+      status: 'success',
       userId: user.id,
       username: user.username || user.email,
-      status: 'success',
+      action: '登录',
+      message: '登录成功',
       ipAddress: reqMeta.ip,
       userAgent: reqMeta.ua,
     } as any)
 
     const { password: _omit, ...userWithoutPwd } = user
-    return {
-      token: access,
-      refresh,
-      user: { ...userWithoutPwd, org_id: orgId },
-    } as AuthResponseData & { refresh: string }
+    return { token: access, refresh, user: { ...userWithoutPwd, org_id: orgId } } as AuthResponseData & {
+      refresh: string
+    }
   }
 
   /** 刷新：校验 & 轮换 refresh，返回新的 access + refresh */
@@ -208,7 +229,7 @@ export class AuthService {
     const jwt = await getJwt()
     const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtPayload
     if (payload.type !== 'refresh' || !payload.jti || !payload.id) {
-      throw new Error('刷新令牌无效或已过期')
+      throw new HttpError('刷新令牌无效或已过期')
     }
 
     const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM refresh_tokens WHERE jti=? LIMIT 1`, [payload.jti])
@@ -216,20 +237,14 @@ export class AuthService {
     const row: any = rows[0]
     if (row.revoked) throw new Error('刷新令牌已吊销')
     if ((await sha256(rt)) !== row.token_hash) throw new Error('刷新令牌不匹配')
-    if (new Date(row.expires_at).getTime() <= Date.now()) throw new Error('刷新令牌已过期')
+    if (new Date(row.expires_at).getTime() <= Date.now()) throw new HttpError('刷新令牌已过期')
 
     const { roles, role_ids } = await fetchUserRoles(payload.id)
     const access = await signAccessToken({ id: payload.id, email: payload.email, role_ids, roles })
 
     // 轮换 refresh
     const newJti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
-    const newRefresh = await signRefreshToken({
-      id: payload.id,
-      email: payload.email,
-      role_ids,
-      roles,
-      jti: newJti,
-    })
+    const newRefresh = await signRefreshToken({ id: payload.id, email: payload.email, role_ids, roles, jti: newJti })
     await TokenRepository.rotate(payload.jti, {
       userId: payload.id,
       jti: newJti,
@@ -249,6 +264,7 @@ export class AuthService {
       const jwt = await getJwt()
       const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtPayload
       if ((payload as any)?.jti) await TokenRepository.revokeByJti((payload as any).jti)
+      await LogService.log({ type: 'user', action: '登出', status: 'success', message: '用户登出成功' } as any)
     } catch {
       // 忽略无效/过期
     }

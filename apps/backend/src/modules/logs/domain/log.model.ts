@@ -1,3 +1,4 @@
+// apps/backend/src/modules/logs/domain/log.model.ts
 import type { RowDataPacket } from 'mysql2'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'
@@ -20,6 +21,7 @@ export interface LogRow extends RowDataPacket {
   created_at: string
 }
 
+/** 列表/导出查询参数 */
 export interface LogQueryParams {
   page?: number
   limit?: number
@@ -34,22 +36,22 @@ export interface LogQueryParams {
 
 /** 写日志入参（统一口） */
 export type LogInput = {
-  type: LogType
-  action?: string
-  message?: string
-  details?: any
-  level?: LogLevel // 可选；未提供则自动推断
-  status?: 'success' | 'failed' | string
+  type?: LogType
+  status?: 'success' | 'failed' | 'warn' | string
+  level?: LogLevel
   userId?: number
   username?: string
+  action?: string
+  message?: string
   resourceType?: string
   resourceId?: number
+  details?: any
   ipAddress?: string
   userAgent?: string
 }
 
-/** 考试行为（读取 exam_logs 用） */
-export type ExamLogRow = RowDataPacket & {
+/** 考试行为日志行（exam_logs 联表查询结果） */
+export interface ExamLogRow extends RowDataPacket {
   id: number
   exam_id: number
   user_id: number

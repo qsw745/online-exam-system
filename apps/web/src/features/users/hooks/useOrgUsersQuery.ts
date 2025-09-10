@@ -1,13 +1,15 @@
 // src/features/users/hooks/useOrgUsersQuery.ts
 import { useCallback, useEffect, useState } from 'react'
-import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
+import { isSuccess, getErr, type ApiResult } from '@/shared/api/http'
+import { usersApi } from '@/shared/api/endpoints/users'
+import { orgsApi } from '@/shared/api/endpoints/orgs'
 
 export function useOrgUsersQuery(orgId: number | null) {
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [keyword, setKeyword] = useState('')
   const [role, setRole] = useState<string | undefined>(undefined)
-  const [includeChildren, setIncludeChildren] = useState(true)
+  const [includeChildren, setIncludeChildren] = useState(false)
 
   const [rows, setRows] = useState<any[]>([])
   const [total, setTotal] = useState(0)
@@ -16,45 +18,21 @@ export function useOrgUsersQuery(orgId: number | null) {
   const fetchList = useCallback(async () => {
     setLoading(true)
     try {
-      const params: any = {
+      const params = {
         page,
         limit,
-        keyword: keyword || undefined,
+        search: keyword || undefined,
         role: role || undefined,
+        orgId: orgId || undefined,
         include_children: includeChildren || undefined,
       }
-
-      let r: ApiResult<any> | null = null
-
-      if (orgId) {
-        // ① 优先 /orgs/:id/users（如果后端支持）
-        // try {
-        //   r = await api.get(`/orgs/${orgId}/users`, { params })
-        // } catch {
-        //   r = null
-        // }
-        // ② 其次 /orgusers?org_id=xxx（当前后端实际挂载）
-        if (!r) {
-          try {
-            r = await api.get('/orgusers', { params: { ...params, orgId: orgId } })
-          } catch {
-            r = null
-          }
-        }
-        // ③ 兜底 /users?org_id=xxx（历史实现）
-        if (!r) {
-          r = await api.get('/users', { params: { ...params, orgId: orgId } })
-        }
-      } else {
-        // 没选机构：试图加载“全量用户”（方便一打开页面就有数据）
-        r = await api.get('/users', { params })
-      }
-
+      const r = (await (usersApi as any).list?.(params)) as ApiResult<any>
       if (!isSuccess(r)) throw new Error(getErr(r, '加载用户失败'))
 
       const payload = r.data as any
-      const list = payload?.items ?? payload?.list ?? payload?.users ?? payload ?? []
-      const t = payload?.total ?? payload?.count ?? list.length
+      const list = payload?.items ?? payload?.list ?? payload?.users ?? payload?.data ?? payload ?? []
+      const t = payload?.total ?? payload?.count ?? payload?.pagination?.total ?? list.length
+
       setRows(Array.isArray(list) ? list : [])
       setTotal(Number(t) || 0)
     } finally {
@@ -66,19 +44,56 @@ export function useOrgUsersQuery(orgId: number | null) {
     fetchList()
   }, [fetchList])
 
-  // 行操作
-  const resetPassword = (id: number | string) => api.put(`/users/${id}/reset-password`).then(r => r)
+  // ✅ 解包为纯用户对象：兼容 {success,data:{...}} / {data:{...}} / {...}
+  const getUserDetail = async (id: number | string) => {
+    const r = await usersApi.getById(Number(id))
+    if (!isSuccess(r)) throw new Error(getErr(r, '加载用户详情失败'))
+    const d: any = r.data
+    return d?.data ?? d?.user ?? d?.record ?? d // ← 返回最里层
+  }
+
+  const update = (id: number | string, patch: any) =>
+    usersApi.update(id, patch).then(r => {
+      if (!isSuccess(r)) throw new Error(getErr(r, '更新用户失败'))
+      return r
+    })
+
+  // 返回新密码字符串（如果后端有返回）
+  const resetPassword = async (id: number | string) => {
+    const r = await usersApi.resetPassword(id)
+    if (!isSuccess(r)) throw new Error(getErr(r, '重置密码失败'))
+    const d: any = r?.data ?? {}
+    return d.password ?? d.newPassword ?? d.tempPassword ?? d.defaultPassword ?? null
+  }
+
   const toggleStatus = (id: number | string, status: 'active' | 'disabled') =>
-    api.put(`/users/${id}/status`, { status }).then(r => r)
-  const unbind = (orgId: number, userId: number | string) => api.delete(`/orgs/${orgId}/users/${userId}`).then(r => r)
-  const deleteUser = (id: number | string) => api.delete(`/users/${id}`).then(r => r)
+    usersApi.updateStatus(id, status).then(r => {
+      if (!isSuccess(r)) throw new Error(getErr(r, '更新状态失败'))
+      return r
+    })
+
+  const unbind = (orgId: number, userId: number | string) =>
+    orgsApi.removeUser(orgId, Number(userId)).then(r => {
+      if (!isSuccess(r)) throw new Error(getErr(r, '从机构移除失败'))
+      return r
+    })
+
+  const bind = (orgId: number, userId: number | string) =>
+    orgsApi.addUser(orgId, Number(userId)).then(r => {
+      if (!isSuccess(r)) throw new Error(getErr(r, '绑定失败'))
+      return r
+    })
+
+  const deleteUser = (id: number | string) =>
+    usersApi.delete(id).then(r => {
+      if (!isSuccess(r)) throw new Error(getErr(r, '删除失败'))
+      return r
+    })
 
   return {
-    // data
     rows,
     total,
     loading,
-    // paging & filters
     page,
     setPage,
     limit,
@@ -89,11 +104,13 @@ export function useOrgUsersQuery(orgId: number | null) {
     setRole,
     includeChildren,
     setIncludeChildren,
-    // actions
     refetch: fetchList,
+    getUserDetail,
+    update,
     resetPassword,
     toggleStatus,
     unbind,
+    bind,
     deleteUser,
   }
 }

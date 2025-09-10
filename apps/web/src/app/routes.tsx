@@ -47,7 +47,7 @@ const OrgManage = lazy(() => import('@/features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@/features/roles/pages/RoleManagementPage'))
 const MenuManagementPage = lazy(() => import('@/features/menu/pages/MenuManagementPage'))
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
-const UserRoleManagementPage = lazy(() => import('@/features/users/pages/UserRoleManagementPage'))
+
 const TaskManagementPage = lazy(() => import('@/features/tasks/pages/TaskManagementPage'))
 const TaskCreatePage = lazy(() => import('@/features/tasks/pages/TaskCreatePage'))
 const PaperManagementPage = lazy(() => import('@/features/papers/pages/PaperManagementPage'))
@@ -132,7 +132,7 @@ export const router = createBrowserRouter(
             { path: 'roles', element: withSuspense(<RoleManagementPage />) },
             { path: 'menus', element: withSuspense(<MenuManagementPage />) },
             { path: 'users', element: withSuspense(<UserManagementPage />) },
-            { path: 'users/roles', element: withSuspense(<UserRoleManagementPage />) },
+     
           
             // 任务 & 组卷
             { path: 'tasks', element: withSuspense(<TaskManagementPage />) },

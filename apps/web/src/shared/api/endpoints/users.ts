@@ -1,3 +1,4 @@
+// src/shared/api/endpoints/users.ts
 import { api } from '../core/httpClient'
 
 /** 根据你的实际返回再完善字段 */
@@ -8,6 +9,17 @@ export interface UserDTO {
   email?: string
   role?: string
   status?: 'active' | 'disabled'
+  orgId?: number | null
+  created_at?: string
+}
+
+type ListParams = {
+  page?: number
+  limit?: number
+  search?: string
+  role?: string
+  orgId?: number
+  include_children?: boolean
 }
 
 export const usersApi = {
@@ -17,13 +29,11 @@ export const usersApi = {
   /** 更新当前用户资料 */
   updateProfile: (userData: Partial<UserDTO>) => api.put<UserDTO>('/users/me', userData),
 
-  /** 列表（可分页） */
-  list: (params?: { page?: number; limit?: number; search?: string; role?: string }) =>
-    api.get<UserDTO[]>('/users', { params }),
+  /** 列表（可分页 + 可按机构过滤） */
+  list: (params?: ListParams) => api.get<UserDTO[]>('/users', { params }),
 
   /** 获取全部（如果后端是分页，这里等同 list） */
-  getAll: (params: { page: number; limit: number; search?: string; role?: string }) =>
-    api.get<UserDTO[]>('/users', { params }),
+  getAll: (params: ListParams) => api.get<UserDTO[]>('/users', { params }),
 
   getById: (id: number) => api.get<UserDTO>(`/users/${id}`),
 

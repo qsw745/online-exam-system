@@ -1,7 +1,7 @@
 // apps/backend/src/modules/users/controllers/user.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth.js'
-import type { ApiResponse } from 'types/response.js'
+import type { AuthRequest } from '@/types/auth.js'
+import type { ApiResponse } from '@/types/response.js'
 import { UserService } from '../services/user.service.js'
 
 const svc = new UserService()

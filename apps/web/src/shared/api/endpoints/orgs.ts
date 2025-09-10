@@ -16,7 +16,7 @@ export interface OrgNode {
   children?: OrgNode[]
 }
 
-export const orgs = {
+export const orgsApi = {
   async tree(): Promise<OrgNode[]> {
     const r = await api.get<{ data: OrgNode[] }>('/orgs/tree')
     if (isSuccess(r)) return (r.data as any)?.data ?? []
@@ -30,4 +30,8 @@ export const orgs = {
   create: (payload: Partial<OrgNode>) => api.post('/orgs', payload),
   update: (id: number, payload: Partial<OrgNode>) => api.put(`/orgs/${id}`, payload),
   remove: (id: number) => api.delete(`/orgs/${id}`),
+
+  // —— 新增：组织与用户绑定/移除 —— //
+  addUser: (orgId: number, userId: number) => api.post(`/orgs/${orgId}/users`, { userId }),
+  removeUser: (orgId: number, userId: number) => api.delete(`/orgs/${orgId}/users/${userId}`),
 }

@@ -1,3 +1,4 @@
+// apps/backend/src/modules/logs/controllers/log.controller.ts
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth'
 import type { ApiResponse } from '@/types/response'
@@ -25,7 +26,6 @@ export class LogController {
 
   static async getUserLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      // 这里直接复用 getLogs（前端可通过 action/username/userId 过滤）
       const data = await service.getLogs(pickUser(req.user), req.query as any)
       return res.json({ success: true, data })
     } catch (error: any) {
@@ -70,7 +70,7 @@ export class LogController {
     }
   }
 
-  /** 🔧 修复这里报错：LogService 上必须有 getExamLogs */
+  /** ✅ 修复：需要 service.getExamLogs */
   static async getExamLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const examId = Number(req.params.examId)

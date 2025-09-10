@@ -1,8 +1,9 @@
-// features/users/components/UserFilterBar.tsx
+// src/features/users/components/UserFilterBar.tsx
 import { FilterOutlined, SearchOutlined, UserAddOutlined } from '@ant-design/icons'
 import { Button, Input, Select, Space, Switch, Typography } from 'antd'
 const { Option } = Select
 const { Text } = Typography
+
 export const UserFilterBar: React.FC<{
   keyword: string
   setKeyword: (v: string) => void
@@ -25,7 +26,7 @@ export const UserFilterBar: React.FC<{
     />
     <Space align="center" wrap>
       <FilterOutlined style={{ color: '#8c8c8c' }} />
-      <Select value={role} onChange={setRole} style={{ width: 140 }} size="large" placeholder="选择角色">
+      <Select value={role} onChange={setRole} style={{ width: 140 }} size="large" placeholder="选择角色" allowClear>
         <Option value="">所有角色</Option>
         <Option value="student">学生</Option>
         <Option value="teacher">教师</Option>
