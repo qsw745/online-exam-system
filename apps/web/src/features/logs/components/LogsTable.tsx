@@ -1,4 +1,4 @@
-import { Table, Tag, Typography } from 'antd'
+import { Table, Tag, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
@@ -15,6 +15,9 @@ function brief(record: LogEntry) {
     (typeof record.details === 'string' ? record.details : record.details ? JSON.stringify(record.details) : '')
   return base || `${record.action} @ ${record.resource}`
 }
+
+const typeTagColor = (t?: string) =>
+  t === 'mobile' ? 'green' : t === 'tablet' ? 'gold' : t === 'desktop' ? 'blue' : t === 'bot' ? 'purple' : 'default'
 
 export default function LogsTable({
   data,
@@ -80,14 +83,25 @@ export default function LogsTable({
     },
     { title: 'IP地址', dataIndex: 'ip_address', width: 140 },
     {
-      title: '用户代理',
-      dataIndex: 'user_agent',
-      width: 240,
-      render: (ua: string) => (
-        <Text type="secondary" style={{ fontSize: 12 }} title={ua}>
-          {ua}
-        </Text>
-      ),
+      title: '客户端', // ⬅️ 重命名列
+      dataIndex: 'client',
+      width: 260,
+      render: (_: any, r) => {
+        const label =
+          r.client?.label || [r.client?.device, r.client?.os, r.client?.browser].filter(Boolean).join(' · ') || '-'
+        return (
+          <Tooltip title={r.user_agent}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <Text style={{ fontSize: 12 }}>{label}</Text>
+              <div>
+                <Tag size="small" color={typeTagColor(r.client?.type)} style={{ marginTop: 4 }}>
+                  {r.client?.type ?? 'unknown'}
+                </Tag>
+              </div>
+            </div>
+          </Tooltip>
+        )
+      },
     },
   ]
 
@@ -98,7 +112,7 @@ export default function LogsTable({
       rowKey="id"
       loading={loading}
       pagination={false}
-      scroll={{ x: 1200 }}
+      scroll={{ x: 1280 }}
       size="small"
       onRow={record => ({ onDoubleClick: () => onRowDblClick(record) })}
       rowClassName={r => (r.level === 'error' ? 'bg-red-50' : r.level === 'warning' ? 'bg-orange-50' : '')}

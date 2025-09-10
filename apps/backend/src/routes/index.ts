@@ -26,7 +26,7 @@ import * as leaderboardRoutesMod from '@/modules/leaderboard/routes/leaderboard.
 // analytics
 import * as analyticsRoutesMod from '@/modules/analytics/routes/analytics.routes'
 import * as dashboardRoutesMod from '@/modules/analytics/routes/dashboard.routes'
-import * as logRoutesMod from '@/modules/analytics/routes/log.routes'
+import * as logRoutesMod from '@/modules/logs/routes/log.routes'
 // notifications
 import * as notificationRoutesMod from '@/modules/notifications/routes/notification.routes'
 // discussions

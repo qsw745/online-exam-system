@@ -1,7 +1,7 @@
 // apps/backend/src/modules/orgs/services/org.service.ts
+import { LogRepository } from '@/modules/logs/repositories/log.repository'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
 import { OrgRepository } from '../repositories/org.repository'
-import { LogRepository } from '@/modules/analytics/repositories/log.repository'
 
 function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] {
   return rows

@@ -1,13 +1,13 @@
 // apps/backend/src/modules/auth/services/auth.service.ts
 /* eslint-disable @/typescript-eslint/no-explicit-any */
+import { pool } from '@/config/database'
+import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_IN, getJwtSecret, getRefreshJwtSecret } from '@/config/jwt'
+import { emailService } from '@/infrastructure/email/email.service'
+import { LogRepository } from '@/modules/logs/repositories/log.repository'
 import bcrypt from 'bcryptjs'
 import type { SignOptions } from 'jsonwebtoken'
 import type { RowDataPacket } from 'mysql2'
-import { pool } from '@/config/database'
-import { emailService } from '@/infrastructure/email/email.service'
-import { LogRepository } from '@/modules/analytics/repositories/log.repository'
-import { getJwtSecret, getRefreshJwtSecret, ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_IN } from '@/config/jwt'
-import type { IUser, IRoleRow, JwtPayload, JwtRole, AuthResponseData } from '../domain/auth.model'
+import type { AuthResponseData, IRoleRow, IUser, JwtPayload, JwtRole } from '../domain/auth.model'
 import { TokenRepository, sha256 } from '../repositories/token.repository'
 
 declare const process: any

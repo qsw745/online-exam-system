@@ -1,9 +1,9 @@
 // apps/backend/src/modules/questions/services/question.service.ts
+import HttpError from '@/common/errors/http-error'
+// ✅ 统一只用一个入口：LogService.log
+import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
-import { LogService } from '@/modules/analytics/services/log.service'
-
-const logger = new LogService()
 
 function ensureArrayFromMaybeCsv(input: any): string[] {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
@@ -91,7 +91,7 @@ export class QuestionService {
   async create(
     user: { id?: number; username?: string } | undefined,
     body: any,
-    reqMeta?: { ip?: string; ua?: string }
+    _reqMeta?: { ip?: string; ua?: string } // 这里不强依赖 reqMeta；LogService.log 内部可自动判级
   ): Promise<QuestionData> {
     const {
       title,
@@ -140,17 +140,23 @@ export class QuestionService {
       score,
     })
 
-    // 记录操作日志
-    await logger.logUserAction({
+    // ✅ 中文日志（统一入口）
+    await LogService.log({
+      type: 'audit',
       userId: user?.id || 0,
       username: user?.username,
-      action: 'create_question',
+      action: '创建题目',
+      message: '创建题目成功',
       resourceType: 'question',
       resourceId: id,
-      details: { questionType: question_type, title: questionTitle, difficulty, tags: ensureArrayFromMaybeCsv(tags) },
-      ipAddress: reqMeta?.ip,
-      userAgent: reqMeta?.ua,
-    } as any)
+      status: 'success',
+      details: {
+        题目类型: question_type,
+        标题: questionTitle,
+        难度: difficulty,
+        标签: ensureArrayFromMaybeCsv(tags),
+      },
+    })
 
     const q = await QuestionRepository.findById(id)
     return { question: q! }
@@ -160,7 +166,7 @@ export class QuestionService {
     user: { id?: number; username?: string } | undefined,
     id: number,
     body: any,
-    reqMeta?: { ip?: string; ua?: string }
+    _reqMeta?: { ip?: string; ua?: string }
   ): Promise<QuestionData> {
     const {
       title,
@@ -227,16 +233,18 @@ export class QuestionService {
     const affected = await QuestionRepository.update(id, sets, vals)
     if (!affected) throw new Error('问题不存在')
 
-    await logger.logUserAction({
+    // ✅ 中文日志（统一入口）
+    await LogService.log({
+      type: 'audit',
       userId: user?.id || 0,
       username: user?.username,
-      action: 'update_question',
+      action: '更新题目',
+      message: '更新题目成功',
       resourceType: 'question',
       resourceId: id,
-      details: { updatedFields: sets, questionId: id },
-      ipAddress: reqMeta?.ip,
-      userAgent: reqMeta?.ua,
-    } as any)
+      status: 'success',
+      details: { 更新字段: sets, 题目ID: id },
+    })
 
     const q = await QuestionRepository.findById(id)
     return { question: q! }
@@ -245,20 +253,24 @@ export class QuestionService {
   async remove(
     user: { id?: number; username?: string } | undefined,
     id: number,
-    reqMeta?: { ip?: string; ua?: string }
+    _reqMeta?: { ip?: string; ua?: string }
   ) {
     const affected = await QuestionRepository.delete(id)
     if (!affected) throw new Error('问题不存在')
-    await logger.logUserAction({
+
+    // ✅ 中文日志（统一入口）
+    await LogService.log({
+      type: 'audit',
       userId: user?.id || 0,
       username: user?.username,
-      action: 'delete_question',
+      action: '删除题目',
+      message: '删除题目成功',
       resourceType: 'question',
       resourceId: id,
-      details: { questionId: id },
-      ipAddress: reqMeta?.ip,
-      userAgent: reqMeta?.ua,
-    } as any)
+      status: 'success',
+      details: { 题目ID: id },
+    })
+
     return null
   }
 
@@ -266,11 +278,21 @@ export class QuestionService {
     user: { id?: number; username?: string } | undefined,
     body: any,
     query: any,
-    reqMeta?: { ip?: string; ua?: string }
+    _reqMeta?: { ip?: string; ua?: string; rid?: string }
   ) {
-    const { questions } = body
-    if (!questions || !Array.isArray(questions) || questions.length === 0) throw new Error('请提供有效的题目数据')
-    if (questions.length > 1000) throw new Error('单次导入题目数量不能超过1000道')
+    // ✅ 兼容两种入参：数组 或 { questions: [...] }
+    const questions: any[] = Array.isArray(body) ? body : body?.questions
+    const upsertFlag = String(query?.upsert ?? body?.upsert ?? '').toLowerCase() === 'true'
+
+    if (!Array.isArray(questions) || questions.length === 0) {
+      // eslint-disable-next-line no-console
+      console.warn('[bulk-import] invalid payload', {
+        shape: Array.isArray(body) ? 'array' : typeof body,
+        length: Array.isArray(body) ? body.length : body?.questions?.length ?? 0,
+      })
+      throw new HttpError('请提供有效的题目数据')
+    }
+    if (questions.length > 1000) throw new HttpError('单次导入题目数量不能超过1000道')
 
     let successCount = 0
     let failCount = 0
@@ -338,8 +360,7 @@ export class QuestionService {
 
         const dupId = await QuestionRepository.findDup(content, question_type)
         if (dupId) {
-          const doUpsert = query.upsert === 'true' || body?.upsert === true
-          if (doUpsert) {
+          if (upsertFlag) {
             await QuestionRepository.update(
               dupId,
               ['tags=?', 'knowledge_points=?', 'explanation=?', 'score=?', 'difficulty=?'],
@@ -374,15 +395,32 @@ export class QuestionService {
       }
     }
 
-    await logger.logUserAction({
+    // ✅ 中文摘要日志（统一入口）
+    await LogService.log({
+      type: 'audit',
       userId: user?.id || 0,
       username: user?.username,
-      action: 'bulk_import_questions',
+      action: '批量导入题目',
+      message: failCount > 0 ? '批量导入部分失败' : '批量导入成功',
       resourceType: 'question',
-      details: { totalQuestions: questions.length, successCount, failCount, errorCount: errors.length },
-      ipAddress: reqMeta?.ip,
-      userAgent: reqMeta?.ua,
-    } as any)
+      status: failCount > 0 ? 'failed' : 'success',
+      details: {
+        总数: questions.length,
+        成功: successCount,
+        失败: failCount,
+        错误条数: errors.length,
+        允许覆盖更新: upsertFlag,
+        示例错误: errors[0],
+      },
+    })
+
+    // eslint-disable-next-line no-console
+    console.warn('[bulk-import] completed', {
+      total: questions.length,
+      successCount,
+      failCount,
+      sampleError: errors[0],
+    })
 
     return { success_count: successCount, fail_count: failCount, errors }
   }

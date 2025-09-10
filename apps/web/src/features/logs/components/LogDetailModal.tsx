@@ -49,6 +49,19 @@ export default function LogDetailModal({
             <Descriptions.Item label="IP">{log.ip_address}</Descriptions.Item>
             <Descriptions.Item label="类型">{log.log_type}</Descriptions.Item>
             <Descriptions.Item label="状态">{log.status ?? '-'}</Descriptions.Item>
+
+            {/* 新增：客户端解析 */}
+            <Descriptions.Item label="客户端" span={2}>
+              {log.client?.label || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="系统">{log.client?.os || '-'}</Descriptions.Item>
+            <Descriptions.Item label="浏览器">{log.client?.browser || '-'}</Descriptions.Item>
+            <Descriptions.Item label="设备">{log.client?.device || '-'}</Descriptions.Item>
+            <Descriptions.Item label="User-Agent" span={2}>
+              <Text type="secondary" copyable>
+                {log.user_agent || '-'}
+              </Text>
+            </Descriptions.Item>
           </Descriptions>
 
           <Text strong>原始数据</Text>

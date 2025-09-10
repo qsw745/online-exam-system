@@ -2,6 +2,15 @@ import { api } from '@/shared/api/http'
 import dayjs, { Dayjs } from 'dayjs'
 
 export type LogLevel = 'info' | 'warning' | 'error'
+
+export type ClientInfo = {
+  device: string
+  os: string
+  browser: string
+  type: 'mobile' | 'tablet' | 'desktop' | 'bot' | 'unknown'
+  label: string
+}
+
 export type LogEntry = {
   id: number
   log_type: string
@@ -13,6 +22,7 @@ export type LogEntry = {
   details?: unknown
   ip_address: string
   user_agent: string
+  client?: ClientInfo // ⬅️ 新增
   level: LogLevel | string
   status?: string
   created_at: string
@@ -32,9 +42,11 @@ function parseList(payload: any): ListResult {
   if (data && typeof data === 'object' && 'success' in data) data = data.data
   if (data && typeof data === 'object' && 'data' in data && !Array.isArray(data)) data = data.data
 
-  if (Array.isArray(data)) return { items: data, total: Number(payload?.total ?? data.length) }
-  if (data && Array.isArray(data.items)) return { items: data.items, total: Number(data.total ?? data.items.length) }
-  if (data && Array.isArray(data.logs)) return { items: data.logs, total: Number(data.total ?? data.logs.length) }
+  if (Array.isArray(data)) return { items: data as LogEntry[], total: Number(payload?.total ?? data.length) }
+  if (data && Array.isArray(data.items))
+    return { items: data.items as LogEntry[], total: Number(data.total ?? data.items.length) }
+  if (data && Array.isArray(data.logs))
+    return { items: data.logs as LogEntry[], total: Number(data.total ?? data.logs.length) }
   return { items: [], total: 0 }
 }
 
@@ -61,7 +73,6 @@ export const logsApi = {
       params: { ...toQuery(filters), format: 'csv' },
       responseType: 'blob' as any,
     })
-    // 兼容封装：可能返回 { data: Blob } 或直接 Blob
     return (res as any)?.data ?? (res as unknown as Blob)
   },
 }

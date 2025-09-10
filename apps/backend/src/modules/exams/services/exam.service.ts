@@ -1,7 +1,6 @@
 // src/modules/exams/services/exam.service.ts
-import type { RowDataPacket } from 'mysql2/promise'
-import type { IExam, IQuestionRow, ExamListData, ExamDetailData } from '../domain/exam.model.js'
-import { LogService } from '@/modules/analytics/services/log.service'
+import { LogRepository } from '@/modules/logs/repositories/log.repository.js'
+import type { ExamDetailData } from '../domain/exam.model.js'
 import { ExamRepository } from '../repositories/exam.repository.js'
 
 export class ExamService {
@@ -15,7 +14,7 @@ export class ExamService {
 
   async create(userId: number, payload: any) {
     const exam = await ExamRepository.createExam(userId, payload)
-    await LogService.logUserAction({
+    await LogRepository.insertAuditLog({
       userId,
       username: undefined,
       action: 'create_exam',
@@ -28,7 +27,7 @@ export class ExamService {
 
   async update(userId: number, examId: number, payload: any) {
     const exam = await ExamRepository.updateExam(userId, examId, payload)
-    await LogService.logUserAction({
+    await LogRepository.insertAuditLog({
       userId,
       action: 'update_exam',
       resourceType: 'exam',
@@ -84,7 +83,7 @@ export class ExamService {
 
     setTimeout(async () => {
       try {
-        const mod = await import('../learning-progress/learning-progress.controller.js')
+        const mod = await import('@/modules/learning-progress/controllers/learning-progress.controller.js')
         const C = (mod as any).LearningProgressController ?? (mod as any).learningProgressController
         const total = questions.length
         const correct = questions.filter(q => answers[q.id] === q.answer).length
@@ -103,7 +102,7 @@ export class ExamService {
 
     setTimeout(async () => {
       try {
-        const { LeaderboardService } = await import('../leaderboard/leaderboard.service.js')
+        const { LeaderboardService } = await import('@/modules/leaderboard/services/leaderboard.service.js')
         const leaderboardService = new LeaderboardService()
         const total = questions.length
         const correct = questions.filter(q => answers[q.id] === q.answer).length

@@ -1,8 +1,8 @@
 // apps/backend/src/modules/analytics/routes/log.routes.ts
-import { Router, type RequestHandler, type Response } from 'express'
-import { LogController } from '../controllers/log.controller'
 import { authenticateToken, requireRole } from '@/common/middleware/auth'
-import type { AuthRequest } from 'types/auth'
+import { Router, type RequestHandler, type Response } from 'express'
+import type { AuthRequest } from '@/types/auth'
+import { LogController } from '../controllers/log.controller'
 
 const router = Router()
 const wrap =

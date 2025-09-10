@@ -1,10 +1,12 @@
-import React, { useMemo, useState } from 'react'
-import { Alert, Modal, Radio, Table, Upload, message, Progress, Space, Typography, Divider, Checkbox } from 'antd'
-import type { UploadProps } from 'antd'
-import { InboxOutlined } from '@ant-design/icons'
-import { parseFile, buildExportHeaders, ensureArrayFromMaybeCsv } from '@/shared/utils/fileParser'
+import type { UploadFile } from 'antd'
+import { useMemo, useState } from 'react'
+
 import { api, isSuccess } from '@/shared/api/http'
-import { compactObject, getMsg } from '@/shared/utils/q-helpers'
+import { ensureArrayFromMaybeCsv, parseFile } from '@/shared/utils/fileParser'
+import { buildExportHeaders, compactObject, exportToXlsx, getMsg } from '@/shared/utils/q-helpers'
+import { DownloadOutlined, InboxOutlined } from '@ant-design/icons'
+import type { UploadProps } from 'antd'
+import { Alert, App, Button, Checkbox, Divider, Modal, Progress, Radio, Space, Table, Typography, Upload } from 'antd'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -22,6 +24,7 @@ export default function ImportModal({
   onImported: () => void
   reloadTags: () => void
 }) {
+  const { message } = App.useApp()
   const [file, setFile] = useState<File | null>(null)
   const [parsed, setParsed] = useState<{ rows: Row[]; errors: string[]; total: number }>({
     rows: [],
@@ -32,6 +35,15 @@ export default function ImportModal({
   const [progress, setProgress] = useState(0)
   const [mode, setMode] = useState<'insert' | 'upsert'>('upsert')
   const [dedupe, setDedupe] = useState(true)
+
+  // 受控文件列表 + 强制重挂载 key（为了解决同名文件不触发 onChange 的问题）
+  const [fileList, setFileList] = useState<UploadFile<any>[]>([])
+  const [uploadKey, setUploadKey] = useState(0)
+  const resetUploader = () => {
+    setFile(null)
+    setFileList([])
+    setUploadKey(k => k + 1)
+  }
 
   const columns = useMemo(
     () =>
@@ -47,16 +59,25 @@ export default function ImportModal({
   const props: UploadProps = {
     multiple: false,
     accept: '.xlsx,.xls,.csv',
-    beforeUpload: () => false,
-    onRemove: () => {
-      setFile(null)
-      setParsed({ rows: [], errors: [], total: 0 })
+    fileList,
+    beforeUpload: f => {
+      setFileList([f])
+      const raw = (f as any).originFileObj ?? (f as unknown as File)
+      setFile(raw)
+      return false
     },
     onChange(info) {
-      const f = info.file as any
-      if (f?.originFileObj) {
-        setFile(f.originFileObj as File)
-      }
+      const latestList = info.fileList.slice(-1)
+      setFileList(latestList)
+      const latest = latestList[0]
+      const raw = (latest as any)?.originFileObj ?? (latest as unknown as File)
+      setFile(raw ?? null)
+    },
+    onRemove: () => {
+      resetUploader()
+      // 清空预览
+      setParsed({ rows: [], errors: [], total: 0 })
+      return true
     },
   }
 
@@ -68,14 +89,20 @@ export default function ImportModal({
       const r = await parseFile(file)
       setProgress(60)
       if (!r.success) throw new Error((r.errors || []).join('\n') || '文件解析失败')
-      setParsed({ rows: r.data || [], errors: r.errors || [], total: r.total || (r.data || []).length })
-      message.success(`解析完成：共 ${r.total} 行，预览 ${Math.min(50, r.data?.length || 0)} 行`)
+
+      // 预览前 50 行，并给每行稳定的 _idx 作为 rowKey
+      const rows = (r.data || []).map((x, i) => ({ _idx: i, ...x }))
+      setParsed({ rows, errors: r.errors || [], total: r.total ?? rows.length })
+      message.success(`解析完成：共 ${r.total ?? rows.length} 行，预览 ${Math.min(50, rows.length)} 行`)
       setProgress(80)
     } catch (e: any) {
       message.error(e?.message || '文件解析失败')
     } finally {
       setLoading(false)
       setProgress(0)
+      // ✅ 只重置上传控件，**不要清空 parsed**，否则预览会消失
+      resetUploader()
+      // ❌ 千万不要在这里 setParsed({ rows: [], ... })
     }
   }
 
@@ -120,23 +147,34 @@ export default function ImportModal({
       )
 
       setProgress(60)
-      const res: any = await api.post('/questions/bulk-import', payload, { params: { upsert: mode === 'upsert' } })
+      //   const res: any = await api.post('/questions/bulk-import', payload, { params: { upsert: mode === 'upsert' } })
+      // ✅ 修复点：后端期望 { questions: [...] }，不是数组本体
+      const res: any = await api.post(
+        '/questions/bulk-import',
+        { questions: payload },
+        { params: { upsert: mode === 'upsert' } }
+      )
       setProgress(90)
-      if (!isSuccess(res)) {
-        return message.error(getMsg(res, '批量导入失败'))
-      }
+      if (!isSuccess(res)) return message.error(getMsg(res, '批量导入失败'))
+
       const ok = Number(res.data?.success_count ?? res.data?.success ?? 0)
       const fail = Number(res.data?.fail_count ?? res.data?.failed ?? 0)
       message.success(`导入完成：成功 ${ok} 条${fail ? `，失败 ${fail} 条` : ''}`)
-      onImported()
-      reloadTags()
+
+      // 通知父组件刷新列表/标签，然后关闭弹窗
+      onImported?.()
+      reloadTags?.()
+      onClose?.()
+
+      // 清空本地状态
+      setFile(null)
+      setParsed({ rows: [], errors: [], total: 0 })
+      resetUploader()
     } catch (e: any) {
       message.error(e?.message || '批量导入失败')
     } finally {
       setLoading(false)
       setProgress(0)
-      setFile(null)
-      setParsed({ rows: [], errors: [], total: 0 })
     }
   }
 
@@ -152,13 +190,13 @@ export default function ImportModal({
       destroyOnHidden
     >
       <Space direction="vertical" style={{ width: '100%' }} size="middle">
-        <Dragger {...props} disabled={loading}>
+        <Dragger key={uploadKey} {...props} disabled={loading}>
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
           <p className="ant-upload-text">点击或拖拽文件到此处上传（支持 .xlsx / .xls / .csv）</p>
           <p className="ant-upload-hint">
-            建议使用提供的模板，表头会自动识别（题目内容、类型、选项A~F、正确答案、标签、知识点、解析、难度、分值）
+            建议使用模板，表头自动识别（题目内容、类型、选项A~F、正确答案、标签、知识点、解析、难度、分值）
           </p>
         </Dragger>
 
@@ -167,20 +205,26 @@ export default function ImportModal({
             <Radio.Button value="insert">仅新增</Radio.Button>
             <Radio.Button value="upsert">存在则更新（根据内容/类型）</Radio.Button>
           </Radio.Group>
+
           <Checkbox checked={dedupe} onChange={e => setDedupe(e.target.checked)} disabled={loading}>
             导入前去重
           </Checkbox>
-          <a
+
+          <Button
+            type="link"
+            icon={<DownloadOutlined />}
             onClick={async () => {
-              // 生成下载模板（只含表头）
-              const { exportToXlsx } = await import('@/shared/utils/q-helpers')
               const headers = buildExportHeaders()
               await exportToXlsx([{ content: '', question_type: 'single_choice' }], '题目导入模板.xlsx', headers)
             }}
           >
             下载导入模板
-          </a>
-          <a onClick={doParse}>解析文件预览</a>
+          </Button>
+
+          <Button type="link" onClick={doParse} disabled={!file}>
+            解析文件预览
+          </Button>
+
           {loading && <Progress percent={Math.round(progress)} style={{ width: 200 }} />}
         </Space>
 
@@ -207,7 +251,7 @@ export default function ImportModal({
         </Text>
         <Table
           size="small"
-          rowKey={(_, i) => String(i)}
+          rowKey="_idx"
           dataSource={parsed.rows.slice(0, 50)}
           columns={columns as any}
           pagination={false}

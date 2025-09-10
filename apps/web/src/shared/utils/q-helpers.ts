@@ -2,7 +2,6 @@
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 
-/** ----- 通用小工具 ----- */
 export const getMsg = (res: any, fallback = '请求失败') =>
   res?.error ||
   res?.message ||
@@ -12,7 +11,7 @@ export const getMsg = (res: any, fallback = '请求失败') =>
   fallback
 
 export const compactObject = <T extends Record<string, any>>(obj: T): T =>
-  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined && v !== null && v !== '')) as T
+  Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined && v !== null && v !== '')) as T
 
 export const ensureArrayFromMaybeCsv = (input: any): string[] => {
   if (Array.isArray(input))
@@ -33,61 +32,61 @@ export const ensureArrayFromMaybeCsv = (input: any): string[] => {
   return []
 }
 
-/** ----- 导出：表头 & 行构建 ----- */
-export type ExportHeader = { key: string; label: string }
+/** 统一的导出表头（人类可读表头 -> 字段 key） */
+export const buildExportHeaders = () => {
+  return [
+    { label: '题目内容', key: 'content' },
+    { label: '题目类型', key: 'question_type' }, // single_choice / multiple_choice / true_false / short_answer
+    { label: '难度', key: 'difficulty' }, // easy/medium/hard
+    { label: '分值', key: 'score' },
 
-/**
- * 导出表头（label 用中文友好名字，便于人看；再次导入时也能被解析器识别）
- * 和导入别名映射保持一致：题目内容/题目类型/难度/分值/选项A~F/正确答案/知识点/标签/解析
- */
-export const buildExportHeaders = (): ExportHeader[] => [
-  { key: 'content', label: '题目内容' },
-  { key: 'question_type', label: '题目类型' },
-  { key: 'difficulty', label: '难度' },
-  { key: 'score', label: '分值' },
-  { key: 'option_a', label: '选项A' },
-  { key: 'option_b', label: '选项B' },
-  { key: 'option_c', label: '选项C' },
-  { key: 'option_d', label: '选项D' },
-  { key: 'option_e', label: '选项E' },
-  { key: 'option_f', label: '选项F' },
-  { key: 'correct_answer', label: '正确答案' },
-  { key: 'knowledge_points', label: '知识点' },
-  { key: 'tags', label: '标签' },
-  { key: 'explanation', label: '解析' },
-]
+    { label: '选项A', key: 'option_a' },
+    { label: '选项B', key: 'option_b' },
+    { label: '选项C', key: 'option_c' },
+    { label: '选项D', key: 'option_d' },
+    { label: '选项E', key: 'option_e' },
+    { label: '选项F', key: 'option_f' },
 
-/** 从题目列表构建导出行（和 headers 的 key 一一对应） */
+    { label: '正确答案', key: 'correct_answer' }, // A 或 A,B；判断题 true/false；简答题文本
+    { label: '知识点', key: 'knowledge_points' }, // 多个用逗号
+    { label: '标签', key: 'tags' }, // 多个用逗号
+    { label: '解析', key: 'explanation' },
+  ] as Array<{ label: string; key: string }>
+}
+
+/** 从后端的题目结构构建导出行 */
 export const buildRowsForExport = (items: any[]) => {
+  const toLetters = (opts: any[]) =>
+    (opts || [])
+      .map((o, i) => (o?.is_correct ? String.fromCharCode(65 + i) : ''))
+      .filter(Boolean)
+      .join(',')
+
   return (items || []).map((q, idx) => {
     const t = String(q.question_type || q.type || '').toLowerCase()
     const isChoice = t === 'single_choice' || t === 'multiple_choice'
-    // 选项转 A~F
     const options = Array.isArray(q.options)
       ? q.options.map((o: any) => ({
           content: String(o?.content || o?.label || '').trim(),
           is_correct: !!o?.is_correct,
         }))
       : []
-    const pad = (i: number) => options[i]?.content || ''
-    // 正确答案（用 A,B,…）
-    const letters = options
-      .map((o, i) => (o.is_correct ? String.fromCharCode(65 + i) : ''))
-      .filter(Boolean)
-      .join(',')
+    const pad = (i: number) => (isChoice ? options[i]?.content || '' : '')
 
     return {
       content: String(q.content || q.title || '').trim() || `题目${idx + 1}`,
       question_type: t || 'single_choice',
       difficulty: q.difficulty || 'medium',
       score: Number.isFinite(+q.score) ? +q.score : 1,
-      option_a: isChoice ? pad(0) : '',
-      option_b: isChoice ? pad(1) : '',
-      option_c: isChoice ? pad(2) : '',
-      option_d: isChoice ? pad(3) : '',
-      option_e: isChoice ? pad(4) : '',
-      option_f: isChoice ? pad(5) : '',
-      correct_answer: isChoice ? letters : q.correct_answer ?? q.answer ?? '',
+
+      option_a: pad(0),
+      option_b: pad(1),
+      option_c: pad(2),
+      option_d: pad(3),
+      option_e: pad(4),
+      option_f: pad(5),
+
+      correct_answer: isChoice ? toLetters(options) : q.correct_answer ?? q.answer ?? '',
       knowledge_points: Array.isArray(q.knowledge_points) ? q.knowledge_points.join(',') : q.knowledge_points || '',
       tags: Array.isArray(q.tags) ? q.tags.join(',') : q.tags || '',
       explanation: q.explanation || '',
@@ -95,8 +94,7 @@ export const buildRowsForExport = (items: any[]) => {
   })
 }
 
-/** ----- 实际导出：CSV / XLSX ----- */
-export const exportToCsv = async (rows: any[], filename: string, headers: ExportHeader[]) => {
+export const exportToCsv = async (rows: any[], filename: string, headers: { key: string; label: string }[]) => {
   const data = rows.map(r => {
     const obj: Record<string, any> = {}
     headers.forEach(h => (obj[h.label] = r[h.key] ?? ''))
@@ -112,7 +110,7 @@ export const exportToCsv = async (rows: any[], filename: string, headers: Export
   link.remove()
 }
 
-export const exportToXlsx = async (rows: any[], filename: string, headers: ExportHeader[]) => {
+export const exportToXlsx = async (rows: any[], filename: string, headers: { key: string; label: string }[]) => {
   const arr = rows.map(r => {
     const obj: Record<string, any> = {}
     headers.forEach(h => (obj[h.label] = r[h.key] ?? ''))

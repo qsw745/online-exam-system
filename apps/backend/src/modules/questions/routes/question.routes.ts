@@ -6,9 +6,11 @@ import { QuestionController } from '../controllers/question.controller'
 const router = Router()
 
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>
+
 const wrap =
-  (fn: AnyAsyncController): RequestHandler =>
+  (fn: AnyAsyncController, name?: string): RequestHandler =>
   (req, res, next) => {
+    ;(req as any).__handlerName = name || fn.name || 'anonymous'
     Promise.resolve(fn(req, res)).catch(next)
   }
 

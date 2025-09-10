@@ -1,6 +1,10 @@
-import Papa from 'papaparse'
+// src/shared/utils/fileParser.ts
 import * as XLSX from 'xlsx'
+import Papa from 'papaparse'
 import { ensureArrayFromMaybeCsv } from './q-helpers'
+
+// 供 Import/Export 直接复用表头
+export { buildExportHeaders } from './q-helpers'
 
 export interface ParsedQuestion {
   title?: string
@@ -9,11 +13,12 @@ export interface ParsedQuestion {
   options?: { content: string; is_correct: boolean }[]
   correct_answer?: string
   answer?: string
-  knowledge_points?: string[]
-  tags?: string[]
+  knowledge_points?: string[] | string
+  tags?: string[] | string
   explanation?: string
   difficulty?: 'easy' | 'medium' | 'hard'
   score?: number
+  correct_answers?: string[]
 }
 
 export interface ParseResult {
@@ -31,7 +36,8 @@ const normalizeKey = (k: unknown) =>
     .replace(/[（）()]/g, '')
     .toLowerCase()
 
-const ALIAS: Array<[string, string]> = [
+/** 表头别名（规范化后） -> 标准字段 */
+const ALIAS_ENTRIES: Array<[string, string]> = [
   ['题目标题', 'title'],
   ['标题', 'title'],
   ['title', 'title'],
@@ -56,8 +62,8 @@ const ALIAS: Array<[string, string]> = [
 
   ['知识点', 'knowledge_points'],
   ['知識點', 'knowledge_points'],
-  ['knowledgepoints', 'knowledge_points'],
   ['knowledge points', 'knowledge_points'],
+  ['knowledgepoints', 'knowledge_points'],
   ['knowledge_points', 'knowledge_points'],
 
   ['标签', 'tags'],
@@ -101,114 +107,78 @@ const ALIAS: Array<[string, string]> = [
   ['option_f', 'option_f'],
 ]
 
-const MAP: Record<string, string> = ALIAS.reduce(
-  (m, [a, s]) => ((m[normalizeKey(a)] = s), m),
-  {} as Record<string, string>
-)
-export const mapHeaderToStd = (raw: string) => MAP[normalizeKey(raw)] ?? normalizeKey(raw)
+const ALIAS_MAP_NORM_TO_STD: Record<string, string> = ALIAS_ENTRIES.reduce((m, [alias, std]) => {
+  m[normalizeKey(alias)] = std
+  return m
+}, {} as Record<string, string>)
+
+const mapHeaderToStd = (rawHeader: string): string => {
+  const nk = normalizeKey(rawHeader)
+  return ALIAS_MAP_NORM_TO_STD[nk] ?? nk
+}
 
 const VALID_TYPES = ['single_choice', 'multiple_choice', 'true_false', 'short_answer'] as const
 type QType = (typeof VALID_TYPES)[number]
-const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F']
+
+/** 题型取值规范化（支持中文/别名） */
+const normalizeType = (t: any): QType | null => {
+  const s = String(t || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '')
+    .replace(/[-]/g, '')
+    .replace(/（|）/g, '')
+  const map: Record<string, QType> = {
+    single_choice: 'single_choice',
+    singlechoice: 'single_choice',
+    single: 'single_choice',
+    单选题: 'single_choice',
+    單選題: 'single_choice',
+
+    multiple_choice: 'multiple_choice',
+    multiplechoice: 'multiple_choice',
+    multiple: 'multiple_choice',
+    多选题: 'multiple_choice',
+    多選題: 'multiple_choice',
+
+    true_false: 'true_false',
+    truefalse: 'true_false',
+    tf: 'true_false',
+    判断题: 'true_false',
+    判斷題: 'true_false',
+    true: 'true_false', // 少数模板会写成 true/false 类型，这里也归到判断题
+
+    short_answer: 'short_answer',
+    shortanswer: 'short_answer',
+    short: 'short_answer',
+    essay: 'short_answer',
+    简答题: 'short_answer',
+    簡答題: 'short_answer',
+  }
+  return map[s] ?? (VALID_TYPES.includes(s as QType) ? (s as QType) : null)
+}
+
+/** 把 "AB" 这种紧凑写法转为数组；也兼容 "A,B" / "A;B" / "A B" */
+const parseLetters = (raw: string) => {
+  const s = String(raw || '')
+    .trim()
+    .toUpperCase()
+  if (!s) return [] as string[]
+  // 若是不含分隔符、且全是 A-F 字母，按字符拆分
+  if (!/[,\s;，；]/.test(s) && /^[A-F]+$/.test(s)) return s.split('')
+  // 否则按常见分隔符拆
+  return s
+    .replace(/[，；;]/g, ',')
+    .replace(/\s+/g, ',')
+    .split(',')
+    .map(x => x.trim())
+    .filter(Boolean)
+}
+
+const optionLabels = ['A', 'B', 'C', 'D', 'E', 'F'] as const
 const optionKeysStd = ['option_a', 'option_b', 'option_c', 'option_d', 'option_e', 'option_f'] as const
 
-const isNonEmpty = (v: any) => v !== undefined && v !== null && String(v).trim() !== ''
-const pick = (obj: any, keys: string[]) => {
-  for (const k of keys) if (isNonEmpty(obj[k])) return obj[k]
-  return undefined
-}
-
-function parseRow(row: any, headerSet: Set<string>): ParsedQuestion {
-  const content = String(pick(row, ['content']) ?? '').trim()
-  const t = String(pick(row, ['question_type', 'type']) ?? '').trim() as QType
-  if (!content) throw new Error('题目内容不能为空')
-  if (!VALID_TYPES.includes(t)) throw new Error(`无效的题目类型: ${t}`)
-
-  const out: ParsedQuestion = { content, question_type: t }
-
-  const has = (aliases: string[]) => {
-    const stdKeys = aliases.map(mapHeaderToStd)
-    return stdKeys.some(k => headerSet.has(k) || Object.prototype.hasOwnProperty.call(row, k))
-  }
-
-  if (has(['title'])) out.title = String(pick(row, ['title']) ?? '').trim() || undefined
-  if (has(['difficulty'])) {
-    const d = String(pick(row, ['difficulty']) ?? '')
-      .trim()
-      .toLowerCase()
-    if (['easy', 'medium', 'hard'].includes(d)) out.difficulty = d as any
-  }
-  if (has(['score'])) {
-    const s = Number(pick(row, ['score']))
-    if (!Number.isNaN(s)) out.score = s
-  }
-  if (has(['explanation'])) out.explanation = String(pick(row, ['explanation']) ?? '').trim() || undefined
-  if (has(['knowledge_points'])) {
-    const kp = ensureArrayFromMaybeCsv(pick(row, ['knowledge_points']))
-    if (kp.length) out.knowledge_points = kp
-  }
-  if (has(['tags'])) {
-    const tg = ensureArrayFromMaybeCsv(pick(row, ['tags']))
-    if (tg.length) out.tags = tg
-  }
-
-  if (t === 'single_choice' || t === 'multiple_choice') {
-    const opts: { content: string; is_correct: boolean }[] = []
-    const correctRaw =
-      pick(row, ['correct_answer']) ??
-      pick(row, ['answer']) ??
-      ((pick(row, ['correct_answers']) as any[]) || []).join(',')
-    const set = new Set(
-      ensureArrayFromMaybeCsv(correctRaw)
-        .map(s => s.toUpperCase())
-        .flatMap(s => s.split(','))
-        .map(s => s.trim())
-        .filter(Boolean)
-    )
-    optionKeysStd.forEach((k, i) => {
-      const v = row[k]
-      if (!isNonEmpty(v)) return
-      opts.push({ content: String(v).trim(), is_correct: set.has(optionLabels[i]) })
-    })
-    if (opts.length < 2) throw new Error('选择题至少需要 2 个选项')
-    if (!opts.some(o => o.is_correct)) throw new Error('选择题必须有正确答案')
-    out.options = opts
-    const letters = optionLabels.filter((_, i) => opts[i]?.is_correct)
-    out.correct_answer = letters.join(',')
-    out.answer = out.correct_answer
-  } else if (t === 'true_false') {
-    let ans = String(pick(row, ['correct_answer']) ?? pick(row, ['answer']) ?? '')
-      .trim()
-      .toLowerCase()
-    const truthy = ['true', '正确', '對', '对', '是', 'y', 'yes', '1']
-    const falsy = ['false', '错误', '錯', '错', '否', 'n', 'no', '0']
-    if (![...truthy, ...falsy].includes(ans)) throw new Error('判断题答案必须是 true/false 或 正确/错误/对/错/是/否')
-    out.correct_answer = truthy.includes(ans) ? 'true' : 'false'
-    out.answer = out.correct_answer
-  } else if (t === 'short_answer') {
-    const ans = String(pick(row, ['correct_answer']) ?? pick(row, ['answer']) ?? '').trim()
-    if (!ans) throw new Error('简答题必须提供参考答案')
-    out.correct_answer = ans
-    out.answer = ans
-  }
-
-  return out
-}
-
-const processRaw = (rows: any[], headers: string[]): { data: ParsedQuestion[]; errors: string[] } => {
-  const headerSet = new Set(headers)
-  const data: ParsedQuestion[] = []
-  const errors: string[] = []
-  rows.forEach((row, i) => {
-    try {
-      data.push(parseRow(row, headerSet))
-    } catch (e: any) {
-      errors.push(`第 ${i + 1} 行：${e?.message || '解析失败'}`)
-    }
-  })
-  return { data, errors }
-}
-
+/* -------------------- CSV / Excel 解析 -------------------- */
 export const parseCSVFile = (file: File): Promise<ParseResult> =>
   new Promise(resolve => {
     Papa.parse(file, {
@@ -219,13 +189,22 @@ export const parseCSVFile = (file: File): Promise<ParseResult> =>
       complete: results => {
         try {
           const fields: string[] = (results as any)?.meta?.fields ?? []
-          const { data, errors } = processRaw(results.data as any[], fields)
-          resolve({ success: true, data, errors, total: (results.data as any[])?.length ?? 0 })
+          const headerSet = new Set(fields.map(String))
+          const { validQuestions, errors } = processRawData(results.data as any[], headerSet)
+          resolve({
+            success: true,
+            data: validQuestions,
+            errors,
+            total: (results.data as any[])?.length ?? 0,
+          })
         } catch (error) {
-          resolve({ success: false, errors: ['CSV解析错误'] })
+          resolve({
+            success: false,
+            errors: [`CSV解析错误: ${error instanceof Error ? error.message : '未知错误'}`],
+          })
         }
       },
-      error: error => resolve({ success: false, errors: [`CSV文件读取失败: ${error.message}`] }),
+      error: err => resolve({ success: false, errors: [`CSV文件读取失败: ${err.message}`] }),
     })
   })
 
@@ -235,51 +214,183 @@ export const parseExcelFile = (file: File): Promise<ParseResult> =>
     reader.onload = e => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
-        const wb = XLSX.read(data, { type: 'array' })
-        const sheetName = wb.SheetNames[0]
-        const ws = wb.Sheets[sheetName]
-        const arr: any[][] = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][]
-        if (!arr.length) return resolve({ success: true, data: [], errors: [], total: 0 })
-        const rawHeaders = (arr[0] || []) as string[]
-        const stdHeaders = rawHeaders.map(mapHeaderToStd)
-        const rows = arr.slice(1).map(row => {
+        const workbook = XLSX.read(data, { type: 'array' })
+        const sheetName = workbook.SheetNames[0]
+        const worksheet = workbook.Sheets[sheetName]
+        const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
+        if (!jsonData.length) return resolve({ success: true, data: [], errors: [], total: 0 })
+
+        const rawHeaders = (jsonData[0] || []) as string[]
+        const stdHeaders = rawHeaders.map(h => mapHeaderToStd(h))
+        const headerSet = new Set(stdHeaders)
+
+        const rows = jsonData.slice(1)
+        const formattedData = rows.map(row => {
           const obj: Record<string, any> = {}
-          stdHeaders.forEach((h, i) => (obj[h] = (row as any[])[i] ?? ''))
+          stdHeaders.forEach((hdr, i) => (obj[hdr] = (row as any[])[i] ?? ''))
           return obj
         })
-        const { data: qs, errors } = processRaw(rows, stdHeaders)
-        resolve({ success: true, data: qs, errors, total: rows.length })
-      } catch {
-        resolve({ success: false, errors: ['Excel解析错误'] })
+
+        const { validQuestions, errors } = processRawData(formattedData, headerSet)
+        resolve({ success: true, data: validQuestions, errors, total: formattedData.length })
+      } catch (error) {
+        resolve({ success: false, errors: [`Excel解析错误: ${error instanceof Error ? error.message : '未知错误'}`] })
       }
     }
     reader.onerror = () => resolve({ success: false, errors: ['Excel文件读取失败'] })
     reader.readAsArrayBuffer(file)
   })
 
+/* -------------------- 行解析 -------------------- */
+const hasField = (headerSet: Set<string> | undefined, row: Record<string, any>, aliases: string[]) => {
+  const stdKeys = aliases.map(a => mapHeaderToStd(a))
+  const existsInHeader = headerSet ? stdKeys.some(k => headerSet.has(k)) : false
+  if (existsInHeader) return true
+  return stdKeys.some(k => Object.prototype.hasOwnProperty.call(row, k))
+}
+
+const isNonEmpty = (v: any) => v !== undefined && v !== null && String(v).trim() !== ''
+
+const pickFirst = (row: Record<string, any>, stdKeys: string[]) => {
+  for (const k of stdKeys.map(mapHeaderToStd)) if (k in row) return row[k]
+  return undefined
+}
+
+const pickFirstNonEmpty = (row: Record<string, any>, stdKeys: string[]) => {
+  for (const k of stdKeys.map(mapHeaderToStd)) {
+    const v = row[k]
+    if (isNonEmpty(v)) return v
+  }
+  return undefined
+}
+
+const processRawData = (
+  rawData: any[],
+  headerSet?: Set<string>
+): { validQuestions: ParsedQuestion[]; errors: string[] } => {
+  const validQuestions: ParsedQuestion[] = []
+  const errors: string[] = []
+
+  rawData.forEach((row, index) => {
+    try {
+      const q = parseQuestionRow(row, index + 1, headerSet)
+      if (q) validQuestions.push(q)
+    } catch (err) {
+      errors.push(`第${index + 1}行: ${err instanceof Error ? err.message : '解析失败'}`)
+    }
+  })
+
+  return { validQuestions, errors }
+}
+
+const parseQuestionRow = (
+  row: Record<string, any>,
+  _rowIndex: number,
+  headerSet?: Set<string>
+): ParsedQuestion | null => {
+  const content = pickFirstNonEmpty(row, ['content']) || ''
+  if (!String(content).trim()) throw new Error('题目内容不能为空')
+
+  const qtype0 = pickFirstNonEmpty(row, ['question_type', 'type'])
+  const qtype = normalizeType(qtype0)
+  if (!qtype) throw new Error(`无效的题目类型: ${qtype0}`)
+
+  const out: ParsedQuestion = { content: String(content).trim(), question_type: qtype }
+
+  // title
+  if (hasField(headerSet, row, ['title', '题目标题', '标题'])) {
+    const title = pickFirst(row, ['title'])
+    if (isNonEmpty(title)) out.title = String(title).trim()
+  }
+
+  // difficulty
+  if (hasField(headerSet, row, ['difficulty', '难度', '难度等级'])) {
+    const d = String(pickFirst(row, ['difficulty']) ?? '')
+      .trim()
+      .toLowerCase()
+    if (['easy', 'medium', 'hard'].includes(d)) out.difficulty = d as any
+  }
+
+  // score
+  if (hasField(headerSet, row, ['score', '分值', '分数'])) {
+    const s = Number(pickFirst(row, ['score']))
+    if (!Number.isNaN(s)) out.score = s
+  }
+
+  // explanation
+  if (hasField(headerSet, row, ['explanation', '解析'])) {
+    const exp = pickFirst(row, ['explanation'])
+    if (isNonEmpty(exp)) out.explanation = String(exp).trim()
+  }
+
+  // knowledge_points
+  if (hasField(headerSet, row, ['knowledge_points', '知识点', '知識點', 'knowledge points'])) {
+    const kpRaw = pickFirst(row, ['knowledge_points'])
+    const arr = ensureArrayFromMaybeCsv(kpRaw)
+    if (arr.length) out.knowledge_points = arr
+  }
+
+  // tags
+  if (hasField(headerSet, row, ['tags', '标签', '標籤', 'labels', '分类', '類別'])) {
+    const tagsRaw = pickFirst(row, ['tags'])
+    const arr = ensureArrayFromMaybeCsv(tagsRaw)
+    if (arr.length) out.tags = arr
+  }
+
+  if (qtype === 'single_choice' || qtype === 'multiple_choice') {
+    const opts: { content: string; is_correct: boolean }[] = []
+    const optCells = optionKeysStd.map(k => row[k])
+
+    // 正确答案：兼容 AB / A,B / A;B / A B
+    const correctRaw =
+      pickFirstNonEmpty(row, ['correct_answer']) ||
+      pickFirstNonEmpty(row, ['answer']) ||
+      pickFirstNonEmpty(row, ['correct_answers']) ||
+      ''
+    const letters = new Set(parseLetters(String(correctRaw || '')))
+
+    optionLabels.forEach((label, idx) => {
+      const cell = optCells[idx]
+      if (!isNonEmpty(cell)) return
+      opts.push({ content: String(cell).trim(), is_correct: letters.has(label) })
+    })
+
+    if (opts.length < 2) throw new Error('选择题至少需要2个选项')
+    if (!opts.some(o => o.is_correct)) throw new Error('选择题必须有正确答案')
+
+    out.options = opts
+    const ans = optionLabels.filter(l => letters.has(l)).join(',')
+    if (ans) {
+      out.correct_answer = ans
+      out.answer = ans
+    }
+  } else if (qtype === 'true_false') {
+    let ans = String(pickFirstNonEmpty(row, ['correct_answer']) || pickFirstNonEmpty(row, ['answer']) || '')
+      .trim()
+      .toLowerCase()
+    const truthy = ['true', '正确', '對', '对', '是', 'y', 'yes', '1']
+    const falsy = ['false', '错误', '錯', '错', '否', 'n', 'no', '0']
+    if (![...truthy, ...falsy].includes(ans)) throw new Error('判断题答案必须是: true/false 或 正确/错误/对/错/是/否')
+    const normalized = truthy.includes(ans) ? 'true' : 'false'
+    out.correct_answer = normalized
+    out.answer = normalized
+  } else if (qtype === 'short_answer') {
+    const ans = pickFirstNonEmpty(row, ['correct_answer']) || pickFirstNonEmpty(row, ['answer']) || ''
+    if (!isNonEmpty(ans)) throw new Error('简答题必须提供参考答案')
+    out.correct_answer = String(ans).trim()
+    out.answer = out.correct_answer
+  }
+
+  return out
+}
+
+/* -------------------- 主入口 -------------------- */
 export const parseFile = async (file: File): Promise<ParseResult> => {
-  const ext = file.name.toLowerCase().slice(file.name.lastIndexOf('.'))
-  if (ext === '.csv') return parseCSVFile(file)
-  if (ext === '.xlsx' || ext === '.xls') return parseExcelFile(file)
+  const lower = file.name.toLowerCase()
+  if (lower.endsWith('.csv')) return parseCSVFile(file)
+  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return parseExcelFile(file)
   return { success: false, errors: ['不支持的文件格式，请使用 .xlsx, .xls 或 .csv 文件'] }
 }
 
-/** 导出字段顺序（模板也用这个） */
-export const buildExportHeaders = () => [
-  { key: 'content', label: '题目内容' },
-  { key: 'question_type', label: '题目类型' },
-  { key: 'difficulty', label: '难度' },
-  { key: 'score', label: '分值' },
-  { key: 'option_a', label: '选项A' },
-  { key: 'option_b', label: '选项B' },
-  { key: 'option_c', label: '选项C' },
-  { key: 'option_d', label: '选项D' },
-  { key: 'option_e', label: '选项E' },
-  { key: 'option_f', label: '选项F' },
-  { key: 'correct_answer', label: '正确答案' },
-  { key: 'knowledge_points', label: '知识点' },
-  { key: 'tags', label: '标签' },
-  { key: 'explanation', label: '解析' },
-]
-
+// 也导出一次，方便旧代码从 fileParser 引用
 export { ensureArrayFromMaybeCsv }

@@ -4,17 +4,14 @@ declare const process: any
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import 'dotenv/config'
-import express, {
-  type ErrorRequestHandler,
-  type NextFunction,
-  type Request,
-  type RequestHandler,
-  type Response,
-} from 'express'
+import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response } from 'express'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
+
+// ⬇️ 新增：识别业务错误并透传状态码/错误码/详情
+import { HttpError } from '@/common/errors/http-error'
 
 // 中间件
 import { optionalAuth } from '@/common/middleware/auth'
@@ -38,6 +35,9 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
 const app = express()
 
+// 如在反向代理后（Nginx/Ingress），建议开启：可让 req.ip/secure 等更准确
+app.set('trust proxy', true)
+
 // 静态资源也挂在 /api 下，避免与前端路由冲突
 app.use('/api/uploads', express.static(UPLOADS_DIR))
 
@@ -54,6 +54,7 @@ app.use(
 
 app.use(cookieParser())
 app.use(express.json({ limit: '5mb' }))
+app.use(express.urlencoded({ extended: true, limit: '5mb' }))
 app.use(optionalAuth)
 app.use(httpLogger())
 
@@ -70,7 +71,20 @@ const api404: RequestHandler = (_req, res) => {
 /** —— 统一错误处理（必须在所有路由/404 之后） —— */
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const log = (req as any).log ?? console
-  const status = typeof (err as any)?.status === 'number' ? (err as any).status : 500
+
+  // 识别 HttpError/ValidationError
+  const isHttpErr =
+    err instanceof HttpError ||
+    (err && (err as any).name === 'HttpError') ||
+    (err && (err as any).name === 'ValidationError')
+
+  const status =
+    (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
+
+  const code = (isHttpErr && (err as any).code) || (err as any)?.code
+  const details = (isHttpErr && (err as any).details) || (err as any)?.details
+  const ctx = (isHttpErr && (err as any).ctx) || (err as any)?.ctx
+
   ;(req as any).onError?.(err)
 
   const top = pickTopBusinessFrame((err as any)?.stack)
@@ -93,18 +107,23 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       type: (err as any)?.name,
       message: String((err as any)?.message ?? err),
       stack: (err as any)?.stack,
-      code: (err as any)?.code,
+      code,
       status,
-      details: (err as any)?.details,
-      ctx: (err as any)?.ctx,
+      details,
+      ctx,
     },
     request: reqDump,
   })
 
+  // 对前端/网关友好的响应头
+  if (code) res.setHeader('X-Error-Code', String(code))
+  if ((req as any).id) res.setHeader('X-Request-Id', String((req as any).id))
+
   res.status(status).json({
     success: false,
     error: (err as any)?.message || '服务器内部错误',
-    ...((err as any)?.details ? { details: (err as any).details } : null),
+    ...(code ? { code } : null),
+    ...(details ? { details } : null),
   })
 }
 

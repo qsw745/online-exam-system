@@ -1,7 +1,7 @@
 // apps/backend/src/modules/questions/controllers/question.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth'
-import type { ApiResponse } from 'types/response'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response'
 import type { QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionService } from '../services/question.service'
 
@@ -90,14 +90,35 @@ export class QuestionController {
     req: AuthRequest,
     res: Response<ApiResponse<{ success_count: number; fail_count: number; errors: string[] }>>
   ) {
+    const rid = (req as any).id || req.headers['x-request-id'] || undefined
     try {
+      // 打点：记录请求形态，便于定位 400
+      // eslint-disable-next-line no-console
+      console.warn('[bulk-import] incoming', {
+        rid,
+        shape: Array.isArray(req.body) ? 'array' : typeof req.body,
+        length: Array.isArray(req.body) ? req.body.length : req.body?.questions?.length ?? 0,
+        upsert: req.query?.upsert,
+      })
+
       const data = await svc.bulkImport({ id: req.user?.id, username: req.user?.username }, req.body, req.query, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
+        rid,
       })
       return res.status(200).json({ success: true, data })
     } catch (e: any) {
       const code = /有效|超过/.test(e?.message) ? 400 : 500
+      // 更可读的错误日志
+      // eslint-disable-next-line no-console
+      console.warn('[bulk-import] failed', {
+        rid,
+        code,
+        msg: e?.message,
+        shape: Array.isArray(req.body) ? 'array' : typeof req.body,
+        length: Array.isArray(req.body) ? req.body.length : req.body?.questions?.length ?? 0,
+        upsert: req.query?.upsert,
+      })
       return res.status(code).json({ success: false, error: e?.message || '批量导入失败' })
     }
   }

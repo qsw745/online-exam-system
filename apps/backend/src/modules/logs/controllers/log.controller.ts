@@ -1,7 +1,6 @@
-// apps/backend/src/modules/analytics/controllers/log.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth'
-import type { ApiResponse } from 'types/response'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response'
 import type { LogQueryParams } from '../domain/log.model'
 import { LogService } from '../services/log.service'
 
@@ -13,7 +12,7 @@ const pickUser = (u: AuthRequest['user']) =>
 export class LogController {
   static async getLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const data = await service.getLogs(pickUser(req.user), req.query)
+      const data = await service.getLogs(pickUser(req.user), req.query as any)
       return res.json({ success: true, data })
     } catch (error: any) {
       const msg = error?.message || '获取日志失败'
@@ -26,7 +25,8 @@ export class LogController {
 
   static async getUserLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const data = await service.getUserLogs(pickUser(req.user), req.query as LogQueryParams)
+      // 这里直接复用 getLogs（前端可通过 action/username/userId 过滤）
+      const data = await service.getLogs(pickUser(req.user), req.query as any)
       return res.json({ success: true, data })
     } catch (error: any) {
       const msg = error?.message || '获取用户日志失败'
@@ -70,6 +70,7 @@ export class LogController {
     }
   }
 
+  /** 🔧 修复这里报错：LogService 上必须有 getExamLogs */
   static async getExamLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const examId = Number(req.params.examId)
@@ -98,20 +99,34 @@ export class LogController {
 
   static async exportLogs(req: AuthRequest, res: Response) {
     try {
-      const rows = await service.exportLogs(pickUser(req.user), req.query)
+      const rows = await service.exportLogs(pickUser(req.user), req.query as any)
       const fmt = (req.query as any)?.format || 'csv'
       if (fmt === 'csv') {
-        const header = 'ID,类型,级别,时间,用户,操作,资源,消息,详情,IP地址,状态\n'
+        const header = 'ID,类型,级别,时间,用户,操作,资源,客户端,User-Agent,消息,详情,IP地址,状态\n'
         const csv = rows
           .map((log: any) => {
             const details = typeof log.details === 'string' ? log.details : JSON.stringify(log.details ?? '')
             const message = typeof log.message === 'string' ? log.message : JSON.stringify(log.message ?? '')
-            const resource = log.resource ?? log.resource_type ?? ''
-            return `${log.id},${log.log_type},${log.level ?? ''},${log.created_at},${log.username ?? ''},${
-              log.action ?? ''
-            },${resource},"${message.replace(/"/g, '""')}","${details.replace(/"/g, '""')}",${log.ip_address ?? ''},${
-              log.status ?? ''
-            }`
+            const resource = log.resource_type ?? ''
+            const client = log.client?.label || ''
+            const ua = log.user_agent || ''
+            return [
+              log.id,
+              log.log_type,
+              log.level ?? '',
+              log.created_at,
+              log.username ?? '',
+              log.action ?? '',
+              resource,
+              client,
+              ua.replace(/"/g, '""'),
+              message.replace(/"/g, '""'),
+              details.replace(/"/g, '""'),
+              log.ip_address ?? '',
+              log.status ?? '',
+            ]
+              .map(v => (typeof v === 'string' ? `"${v}"` : v))
+              .join(',')
           })
           .join('\n')
         res.header('Content-Type', 'text/csv; charset=utf-8')
