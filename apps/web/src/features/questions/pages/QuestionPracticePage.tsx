@@ -203,7 +203,7 @@ export default function QuestionPracticePage() {
       // 已练习题目ID
       let practicedIds: number[] = []
       try {
-        const practicedResponse = await wrongQuestions.getPracticedQuestions()
+        const practicedResponse = await wrongQuestions.getPracticedQuestions(Number(id))
         if (isSuccess<any>(practicedResponse)) {
           const d = practicedResponse.data as any
           practicedIds = Array.isArray(d) ? d : d?.ids ?? []

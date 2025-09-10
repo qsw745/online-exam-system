@@ -1,4 +1,4 @@
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2'
 import type { IOverview, IKnowledgePoint, IDifficultyData, IActivityData } from '../domain/analytics.model.js'
 

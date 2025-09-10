@@ -1,6 +1,6 @@
-// features/questions/components/KnowledgePointsField.tsx
-import { Button, Input, Space, Tag } from 'antd'
 import React, { useState } from 'react'
+import { Button, Input, Space, Tag } from 'antd'
+
 export default function KnowledgePointsField({
   points,
   onChange,
@@ -11,12 +11,14 @@ export default function KnowledgePointsField({
   disabled?: boolean
 }) {
   const [kw, setKw] = useState('')
+
   const add = () => {
     const v = kw.trim()
     if (!v || points.includes(v)) return
     onChange([...points, v])
     setKw('')
   }
+
   return (
     <>
       <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
@@ -39,41 +41,5 @@ export default function KnowledgePointsField({
         ))}
       </Space>
     </>
-  )
-}
-
-// features/questions/components/TagsField.tsx
-import { Select, Space, Tag } from 'antd'
-export default function TagsField({
-  value,
-  all,
-  onChange,
-  readonly,
-}: {
-  value: string[]
-  all: string[]
-  onChange: (v: string[]) => void
-  readonly?: boolean
-}) {
-  return readonly ? (
-    value?.length ? (
-      <Space wrap>
-        {value.map((t, i) => (
-          <Tag key={i} color="geekblue">
-            {t}
-          </Tag>
-        ))}
-      </Space>
-    ) : (
-      <span style={{ color: '#999' }}>-</span>
-    )
-  ) : (
-    <Select
-      mode="tags"
-      value={value}
-      onChange={v => onChange(v as string[])}
-      options={all.map(t => ({ label: t, value: t }))}
-      placeholder="选择或输入标签后回车"
-    />
   )
 }

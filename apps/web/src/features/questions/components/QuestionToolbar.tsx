@@ -1,6 +1,7 @@
-import { Button, Input, Select, Space } from 'antd'
-import { Plus, Trash2, Upload } from 'lucide-react'
 import React from 'react'
+import { Button, Input, Select, Space } from 'antd'
+import { Download, Plus, Trash2, Upload } from 'lucide-react'
+
 const { Search } = Input
 
 export default function QuestionToolbar({
@@ -14,6 +15,7 @@ export default function QuestionToolbar({
   onBatchDelete,
   onOpenImport,
   onOpenAdd,
+  onOpenExport,
   selectedCount,
 }: {
   search: string
@@ -26,6 +28,7 @@ export default function QuestionToolbar({
   onBatchDelete: () => void
   onOpenImport: () => void
   onOpenAdd: () => void
+  onOpenExport: () => void
   selectedCount: number
 }) {
   return (
@@ -63,6 +66,9 @@ export default function QuestionToolbar({
         )}
         <Button icon={<Upload size={16} />} onClick={onOpenImport}>
           批量导入
+        </Button>
+        <Button icon={<Download size={16} />} onClick={onOpenExport}>
+          批量导出
         </Button>
         <Button type="primary" icon={<Plus size={16} />} onClick={onOpenAdd}>
           新增题目

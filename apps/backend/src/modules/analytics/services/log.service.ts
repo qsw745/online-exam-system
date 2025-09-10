@@ -1,4 +1,4 @@
-import { pool } from '@config/database'
+import { pool } from '@/config/database'
 import type { RowDataPacket } from 'mysql2'
 import type { LogQueryParams, LogRow } from '../domain/log.model'
 

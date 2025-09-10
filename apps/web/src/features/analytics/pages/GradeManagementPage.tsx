@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { App } from 'antd'
-import { useGrades } from '@features/analytics/hooks/useGrades'
-import { GradeStatsCards } from '@features/analytics/components/GradeStatsCards'
-import { GradeFilters } from '@features/analytics/components/GradeFilters'
-import { GradeTable } from '@features/analytics/components/GradeTable'
-import { GradePagination } from '@features/analytics/components/GradePagination'
+import { useGrades } from '@/features/analytics/hooks/useGrades'
+import { GradeStatsCards } from '@/features/analytics/components/GradeStatsCards'
+import { GradeFilters } from '@/features/analytics/components/GradeFilters'
+import { GradeTable } from '@/features/analytics/components/GradeTable'
+import { GradePagination } from '@/features/analytics/components/GradePagination'
 
 const GradeManagementPage: React.FC = () => {
   const { message } = App.useApp()

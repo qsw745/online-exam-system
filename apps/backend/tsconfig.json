@@ -7,16 +7,9 @@
     "rootDir": "./src",
     "outDir": "./dist",
 
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "paths": {
-      "@common/*": ["common/*"],
-      "@config/*": ["config/*"],
-      "@modules/*": ["modules/*"],
-      "@infrastructure/*": ["infrastructure/*"],
-    
-      "@types/*": ["@types/*"],
-      "@utils/*": ["utils/*"],
-      "@routes": ["routes/index.ts"]
+      "@/*": ["src/*"]
     },
 
     "types": ["node"],
@@ -31,7 +24,7 @@
     "strictNullChecks": true,
     "noImplicitAny": true,
 
-    "allowJs": true,
+    "allowJs": false,
     "checkJs": false,
     "sourceMap": true,
     "inlineSources": true

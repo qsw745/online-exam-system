@@ -1,8 +1,8 @@
 // apps/backend/src/modules/tasks/routes/task.routes.ts
 import { Router, type RequestHandler } from 'express'
-import { authenticateToken } from '@common/middleware/auth'
-import { requireRoleByIds } from '@common/middleware/role-auth'
-import { ROLE_IDS } from '@config/roles'
+import { authenticateToken } from '@/common/middleware/auth'
+import { requireRoleByIds } from '@/common/middleware/role-auth'
+import { ROLE_IDS } from '@/config/roles'
 import { TaskController } from '../controllers/task.controller.js'
 
 type AsyncCtrl = (req: any, res: any) => any | Promise<any>

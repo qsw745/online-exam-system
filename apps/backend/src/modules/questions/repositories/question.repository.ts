@@ -1,5 +1,5 @@
 // apps/backend/src/modules/questions/repositories/question.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IQuestion } from '../domain/question.model.js'
 

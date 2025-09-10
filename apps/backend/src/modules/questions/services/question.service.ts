@@ -1,7 +1,7 @@
 // apps/backend/src/modules/questions/services/question.service.ts
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
-import { LogService } from '@modules/analytics/services/log.service'
+import { LogService } from '@/modules/analytics/services/log.service'
 
 const logger = new LogService()
 

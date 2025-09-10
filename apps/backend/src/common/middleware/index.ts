@@ -10,6 +10,6 @@ export * from './upload'
 export * from './jwt-role-hydrator'
 export * from './rbac'
 
-// 兼容老路径（有人从 @modules/common/middleware/validation 引）
+// 兼容老路径（有人从 @/modules/common/middleware/validation 引）
 // NOTE: 也去掉 .js 后缀，避免解析失败
-export * from '@common/middleware/validation'
+export * from '@/common/middleware/validation'

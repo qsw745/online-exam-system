@@ -1,8 +1,8 @@
 // apps/backend/src/modules/notifications/routes/notification.routes.ts
 import { Router, type RequestHandler, type Response, type NextFunction } from 'express'
 import { NotificationController } from '../controllers/notification.controller'
-import { authenticateToken } from '@common/middleware/auth'
-import { requireRole } from '@common/middleware/role-auth'
+import { authenticateToken } from '@/common/middleware/auth'
+import { requireRole } from '@/common/middleware/role-auth'
 
 const router = Router()
 

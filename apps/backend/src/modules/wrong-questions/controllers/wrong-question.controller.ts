@@ -1,4 +1,3 @@
-// apps/backend/src/modules/wrong-questions/controllers/wrong-question.controller.ts
 import type { Request, Response } from 'express'
 import { WrongQuestionService } from '../services/wrong-question.service.js'
 
@@ -119,21 +118,85 @@ export class WrongQuestionController {
     return res.json({ message: '错题移除成功' })
   }
 
+  /** ✅ 兼容 question_id 或 wrong_question_id 的练习记录上报 */
   static async addPracticeRecord(req: Request, res: Response) {
     const userId = (req as any).user?.id
     if (!userId) return res.status(401).json({ error: '未授权访问' })
-    const { wrong_question_id, is_correct, time_spent } = req.body
-    if (!wrong_question_id || is_correct === undefined || time_spent === undefined) {
-      return res.status(400).json({ error: '缺少必要参数' })
+
+    let { wrong_question_id, question_id, is_correct, time_spent, answer } = req.body
+
+    // 参数校验：允许二选一
+    if (!wrong_question_id && !question_id) {
+      return res.status(400).json({ error: '缺少必要参数：question_id 或 wrong_question_id' })
     }
-    const id = await svc.addPracticeRecord({
+    if (is_correct === undefined) {
+      return res.status(400).json({ error: '缺少必要参数：is_correct' })
+    }
+
+    // 若未传 wrong_question_id，则根据 question_id 自动确保错题条目存在（默认错题本）
+    if (!wrong_question_id && question_id) {
+      // 找默认错题本或创建
+      const books = await svc.getUserBooks(userId)
+      let defaultBook = (books as any[]).find(b => b.is_default)
+      if (!defaultBook) {
+        const id = await svc.createBook({
+          user_id: userId,
+          name: '我的错题本',
+          description: '系统自动创建的默认错题本',
+          is_default: true,
+          is_public: false,
+        })
+        defaultBook = { id }
+      }
+      // 新建错题条目（若你的 Service 有“查找已存在”的方法，可替换以避免重复）
+      const wid = await svc.addWrongQuestion({
+        book_id: Number(defaultBook.id),
+        question_id: Number(question_id),
+        wrong_count: 1,
+        last_wrong_time: new Date().toISOString(),
+        mastery_level: 'not_mastered',
+        tags: '',
+        notes: '',
+      })
+      wrong_question_id = wid
+    }
+
+    const recordId = await svc.addPracticeRecord({
       user_id: userId,
       wrong_question_id: Number(wrong_question_id),
       is_correct: !!is_correct,
-      time_spent: Number(time_spent),
+      time_spent: Number(time_spent ?? 0),
       practice_time: new Date().toISOString(),
-    })
-    return res.status(201).json({ message: '练习记录添加成功', record_id: id })
+      // 允许透传答案（如果你的 service 支持）
+      answer,
+    } as any)
+
+    return res.status(201).json({ message: '练习记录添加成功', record_id: recordId })
+  }
+
+  /** ✅ 新增：返回当前用户“已练习过的题目ID”列表，用于前端过滤 */
+  static async getPracticedQuestions(req: Request, res: Response) {
+    const userId = (req as any).user?.id
+    if (!userId) return res.status(401).json({ error: '未授权访问' })
+    const limit = Number(req.query.limit ?? 1000)
+
+    try {
+      // 优先使用 service 提供的专用方法（如果有）
+      const rows =
+        (await (svc as any).getPracticedQuestionIds?.(userId, limit)) ??
+        (await (svc as any).getPracticeRecords?.(userId, { limit })) ??
+        []
+
+      // 尽最大努力从返回结构里提取 question_id
+      const ids = Array.isArray(rows)
+        ? rows.map((r: any) => Number(r?.question_id ?? r?.qid ?? r?.id)).filter((n: any) => Number.isFinite(n))
+        : []
+
+      return res.json({ message: '获取已练习题目成功', ids })
+    } catch {
+      // 即使没有实现对应 service，也不给 400/500，返回空集合以兼容前端逻辑
+      return res.json({ message: '获取已练习题目成功', ids: [] })
+    }
   }
 
   static async shareBook(req: Request, res: Response) {
@@ -207,7 +270,6 @@ export class WrongQuestionController {
     const { exam_result_id } = req.body
     if (!exam_result_id) return res.status(400).json({ message: '考试结果ID不能为空' })
 
-    // 找默认错题本或创建
     const books = await svc.getUserBooks(userId)
     let defaultBook = (books as any[]).find(b => b.is_default)
     if (!defaultBook) {

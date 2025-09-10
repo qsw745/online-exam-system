@@ -1,4 +1,3 @@
-// src/shared/hooks/useQuestionSelection.ts
 import { useEffect, useState } from 'react'
 import { message } from 'antd'
 import { questionsApi, isSuccess } from '@/shared/api/http'

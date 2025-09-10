@@ -1,11 +1,12 @@
-// src/features/questions/pages/QuestionManagementPage.tsx
-import { Card, Modal, Typography, message } from 'antd'
 import React from 'react'
-import { useImportQuestions } from '@/shared/hooks/useImportQuestions'
+import { Card, Modal, Typography, message } from 'antd'
 import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
 import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
 import QuestionTable from '../components/QuestionTable'
 import QuestionToolbar from '../components/QuestionToolbar'
+import AddQuestionModal from '../components/AddQuestionModal'
+import ImportModal from '../components/ImportModal'
+import ExportModal from '../components/ExportModal'
 
 const { Title, Paragraph } = Typography
 
@@ -15,12 +16,14 @@ export default function QuestionManagementPage() {
     q.list.map(i => i.id),
     q.reload
   )
-  const imp = useImportQuestions(q.reload, () => q.reload())
 
   // 单条删除
   const [single, setSingle] = React.useState<{ id: string; content: string } | null>(null)
-  // 新增题目弹窗开关（替换掉错误的模块级变量）
+
+  // 弹窗开关
   const [addOpen, setAddOpen] = React.useState(false)
+  const [importOpen, setImportOpen] = React.useState(false)
+  const [exportOpen, setExportOpen] = React.useState(false)
 
   return (
     <div style={{ padding: 24 }}>
@@ -52,8 +55,9 @@ export default function QuestionManagementPage() {
           }}
           allTags={q.allTags}
           onBatchDelete={() => sel.setDeleteModalVisible(true)}
-          onOpenImport={() => imp.setOpen(true)}
+          onOpenImport={() => setImportOpen(true)}
           onOpenAdd={() => setAddOpen(true)}
+          onOpenExport={() => setExportOpen(true)}
           selectedCount={sel.selected.length}
         />
       </Card>
@@ -100,7 +104,8 @@ export default function QuestionManagementPage() {
         onCancel={() => setSingle(null)}
         onOk={async () => {
           if (!single) return
-          const r = await (await import('@/shared/api/http')).questionsApi.remove(single.id)
+          const { questionsApi } = await import('@/shared/api/http')
+          const r = await questionsApi.remove(single.id)
           if ((r as any)?.success) {
             message.success('题目删除成功')
             q.reload()
@@ -115,35 +120,55 @@ export default function QuestionManagementPage() {
         确定要删除题目 {single?.content ?? ''}？此操作无法撤销。
       </Modal>
 
-      {/* 导入题目（用内联 Modal，避免 ImportModal 的 props 类型不匹配） */}
-      <Modal
-        title="导入题目"
-        open={imp.open}
-        onCancel={() => imp.setOpen(false)}
-        onOk={imp.startImport}
-        confirmLoading={imp.loading}
-        okText={imp.loading ? `导入中… ${Math.round(imp.progress)}%` : '开始导入'}
-      >
-        <div style={{ display: 'grid', gap: 12 }}>
-          <input type="file" accept=".xlsx,.xls,.csv,.json" onChange={e => imp.setFile(e.target.files?.[0] ?? null)} />
-          {imp.progress > 0 && <div>进度：{Math.round(imp.progress)}%</div>}
-          <div style={{ color: '#999' }}>请选择题目文件后点击「开始导入」。</div>
-        </div>
-      </Modal>
-
-      {/* 新增题目（简单占位） */}
-      <Modal
-        title="新增题目"
+      {/* 新增题目 */}
+      <AddQuestionModal
         open={addOpen}
-        onCancel={() => setAddOpen(false)}
-        onOk={() => {
+        onClose={() => setAddOpen(false)}
+        onSaved={() => {
           setAddOpen(false)
           q.reload()
         }}
-        okText="保存"
-      >
-        <div style={{ color: '#999' }}>这里可以放新增题目的表单（占位）。</div>
-      </Modal>
+        allTags={q.allTags}
+      />
+
+      {/* 批量导入（带预览与错误列表） */}
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => {
+          setImportOpen(false)
+          q.reload()
+        }}
+        reloadTags={q.reloadTags}
+      />
+
+      {/* 批量导出（选中/当前页/全部） */}
+      <ExportModal
+        open={exportOpen}
+        onClose={() => setExportOpen(false)}
+        itemsOnPage={q.list}
+        selectedIds={sel.selected}
+        total={q.total}
+        pageSize={q.pageSize}
+        /** 传入“按筛选导出全部”所需的加载函数（自动分页） */
+        fetchPage={async (page, limit) => {
+          const { questionsApi } = await import('@/shared/api/http')
+          const params: any = {
+            page,
+            limit,
+            keyword: q.search || undefined,
+            search: q.search || undefined,
+            type: q.type === 'all' ? undefined : q.type,
+            tags: q.selectedTags.length ? q.selectedTags.join(',') : undefined,
+          }
+          const r: any = await questionsApi.list(params)
+          // 返回 {items, total} 格式便于统一处理
+          const d = r?.data
+          const items = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
+          const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)
+          return { items, total }
+        }}
+      />
     </div>
   )
 }

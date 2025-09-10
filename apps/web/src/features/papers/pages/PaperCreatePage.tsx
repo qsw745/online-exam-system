@@ -1,7 +1,7 @@
-import LoadingSpinner from '@shared/components/LoadingSpinner'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { Button, Card, Form } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { usePaperEditor } from '../../../shared/hooks/usePaperEditor'
+import { usePaperEditor } from '@/shared/hooks/usePaperEditor'
 import PaperMetaForm from '../components/PaperMetaForm'
 import PaperQuestionList from '../components/PaperQuestionList'
 

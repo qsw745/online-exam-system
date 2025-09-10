@@ -5,31 +5,31 @@ import React, { useEffect, useState } from 'react'
 import { Link, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 // shared
-import LoadingSpinner from '@shared/components/LoadingSpinner'
-import { useAuth } from '@shared/contexts/AuthContext'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useAuth } from '@/shared/contexts/AuthContext'
 
 // ✅ 全部改为各自 feature 的路径
-import QuestionCreatePage from '@features/questions/pages/QuestionCreatePage'
-import QuestionManagementPage from '@features/questions/pages/QuestionManagementPage'
+import QuestionCreatePage from '@/features/questions/pages/QuestionCreatePage'
+import QuestionManagementPage from '@/features/questions/pages/QuestionManagementPage'
 
-import ManualPaperCreationPage from '@features/papers/pages/ManualPaperCreationPage'
-import PaperCreatePage from '@features/papers/pages/PaperCreatePage'
-import PaperManagementPage from '@features/papers/pages/PaperManagementPage'
-import SmartPaperCreatePage from '@features/papers/pages/SmartPaperCreatePage'
+import ManualPaperCreationPage from '@/features/papers/pages/ManualPaperCreationPage'
+import PaperCreatePage from '@/features/papers/pages/PaperCreatePage'
+import PaperManagementPage from '@/features/papers/pages/PaperManagementPage'
+import SmartPaperCreatePage from '@/features/papers/pages/SmartPaperCreatePage'
 
-import TaskCreatePage from '@features/tasks/pages/TaskCreatePage'
-import TaskManagementPage from '@features/tasks/pages/TaskManagementPage'
+import TaskCreatePage from '@/features/tasks/pages/TaskCreatePage'
+import TaskManagementPage from '@/features/tasks/pages/TaskManagementPage'
 
-import UserManagementPage from '@features/users/pages/UserManagementPage'
+import UserManagementPage from '@/features/users/pages/UserManagementPage'
 
-import DataAnalyticsPage from '@features/analytics/pages/AnalyticsDetailsPage'
-import GradeManagementPage from '@features/analytics/pages/GradeManagementPage'
+import DataAnalyticsPage from '@/features/analytics/pages/AnalyticsDetailsPage'
+import GradeManagementPage from '@/features/analytics/pages/GradeManagementPage'
 
-import MenuManagementPage from '@features/menu/pages/MenuManagementPage'
-import RoleManagementPage from '@features/roles/pages/RoleManagementPage'
+import MenuManagementPage from '@/features/menu/pages/MenuManagementPage'
+import RoleManagementPage from '@/features/roles/pages/RoleManagementPage'
 
-import NotificationManagementPage from '@features/notifications/pages/NotificationManagementPage'
-import SettingsPage from '@features/settings/pages/UserSettingsPage'
+import NotificationManagementPage from '@/features/notifications/pages/NotificationManagementPage'
+import SettingsPage from '@/features/settings/pages/UserSettingsPage'
 
 interface NavItem {
   name: string

@@ -1,7 +1,7 @@
 // features/tasks/hooks/useUsersGroupedTree.ts
 import { App } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import * as http from '@shared/api/http'
+import * as http from '@/shared/api/http'
 
 export function useUsersGroupedTree() {
   const { message } = App.useApp()

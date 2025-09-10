@@ -1,5 +1,5 @@
 // src/modules/exams/repositories/exam.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IExam, IQuestionRow, ExamListData, ExamDetailData } from '../domain/exam.model.js'
 

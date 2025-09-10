@@ -7,7 +7,7 @@ import {
   questions as questionsApi,
   wrongQuestions,
   type ApiResult,
-} from '@shared/api/http'
+} from '@/shared/api/http'
 import type { NormalizedQuestion, QuestionRaw } from '../types/question'
 import { normalizeQuestion } from '../utils/question-normalize'
 import type { PracticeFilters } from '../utils/url'

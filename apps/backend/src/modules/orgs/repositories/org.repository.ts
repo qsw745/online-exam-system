@@ -1,5 +1,5 @@
 // apps/backend/src/modules/orgs/repositories/org.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IOrg } from '../domain/org.model.js'
 

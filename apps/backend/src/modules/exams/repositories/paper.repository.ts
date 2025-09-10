@@ -1,5 +1,5 @@
 // src/modules/exams/repositories/paper.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IPaper, IPaperQuestion, PaperData, PaperListData, PaperQuestionData } from '../domain/paper.model.js'
 

@@ -1,7 +1,7 @@
 // apps/backend/src/modules/menus/routes/menus.routes.ts
 import { Router } from 'express'
 import { MenuController } from '../controllers/menu.controller.js'
-import { authenticateToken, optionalAuth } from '@common/middleware/auth.js'
+import { authenticateToken, optionalAuth } from '@/common/middleware/auth.js'
 
 const router = Router()
 

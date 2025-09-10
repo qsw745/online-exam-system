@@ -1,8 +1,8 @@
 // apps/backend/src/modules/orgs/services/org-user.service.ts
 import { OrgUserRepository, getOrgUserColumns, getUserCols } from '../repositories/org-user.repository'
 import type { OrgUserListData } from '../domain/org-user.model'
-import { pool } from '@config/database'
-import { LogRepository } from '@modules/analytics/repositories/log.repository'
+import { pool } from '@/config/database'
+import { LogRepository } from '@/modules/analytics/repositories/log.repository'
 
 export class OrgUserService {
   /** GET 列表（分页/搜索/角色筛选/递归） */

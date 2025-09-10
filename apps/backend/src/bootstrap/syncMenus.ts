@@ -1,6 +1,6 @@
 // apps/backend/src/bootstrap/syncMenus.ts
+/* eslint-disable @/typescript-eslint/no-explicit-any */
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
-
 import { pool } from '../config/database.js'
 import { MENU_TREE, type MenuSeed } from './menu.config.js'
 
@@ -30,14 +30,13 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
   try {
     await conn.beginTransaction()
 
-    // 用 DbMenuRow 做泛型即可
-  const [rows] = await conn.query<DbMenuRowFromDB[]>(
-    'SELECT id, name, path, parent_id, sort_order, level, is_system FROM menus'
-  )
+    const [rows] = await conn.query<DbMenuRowFromDB[]>(
+      'SELECT id, name, path, parent_id, sort_order, level, is_system FROM menus'
+    )
 
     const name2row = new Map<string, DbMenuRow>()
     const path2row = new Map<string, DbMenuRow>()
-    rows.forEach(r => {
+    rows.forEach((r: DbMenuRowFromDB) => {
       name2row.set(r.name, r)
       if (r.path) path2row.set(r.path, r)
     })
@@ -75,13 +74,13 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
 
       if (exists && (mode === 'patch' || mode === 'insertOnly')) {
         // 保留人工结构
-        parent_id = exists.parent_id
-        sort_order = exists.sort_order ?? sort_order
-        levelVal = exists.level ?? levelVal
+        parent_id = (exists as any).parent_id
+        sort_order = (exists as any).sort_order ?? sort_order
+        levelVal = (exists as any).level ?? levelVal
       }
 
       if (exists) {
-        if (mode === 'insertOnly') return exists.id
+        if (mode === 'insertOnly') return (exists as any).id as number
 
         await conn.query(
           `UPDATE menus SET
@@ -107,13 +106,12 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
             soft.permission_code,
             soft.redirect,
             soft.meta,
-            exists.id,
+            (exists as any).id,
           ]
         )
 
-        // 用普通对象更新到 map（现在类型是 DbMenuRow，安全）
         const nextRow: DbMenuRow = {
-          ...exists,
+          ...(exists as any),
           name: node.name,
           path: soft.path,
           parent_id,
@@ -122,7 +120,7 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
         }
         name2row.set(node.name, nextRow)
         if (soft.path) path2row.set(soft.path, nextRow)
-        return exists.id
+        return (exists as any).id as number
       } else {
         const [res] = await conn.query<ResultSetHeader>(
           `INSERT INTO menus
@@ -148,7 +146,7 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
             soft.meta,
           ]
         )
-        const newId = res.insertId
+        const newId = (res as any).insertId as number
         const newRow: DbMenuRow = {
           id: newId,
           name: node.name,
@@ -174,18 +172,18 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
     await walk(MENU_TREE, null, 1)
 
     if (options?.removeOrphans) {
-      const extra = rows.filter(r => !seenNames.has(r.name))
+      const extra = rows.filter((r: DbMenuRowFromDB) => !seenNames.has(r.name))
       if (extra.length) {
         await conn.query(
           `DELETE FROM menus WHERE id IN (${extra.map(() => '?').join(',')})`,
-          extra.map(e => e.id)
+          extra.map((e: DbMenuRowFromDB) => e.id)
         )
       }
     }
 
     await conn.commit()
     console.log(`[menu-sync] 完成：共同步 ${seenNames.size} 个菜单（mode=${options?.mode ?? 'patch'}）`)
-  } catch (e) {
+  } catch (e: unknown) {
     await conn.rollback()
     console.error('[menu-sync] 失败：', e)
     throw e

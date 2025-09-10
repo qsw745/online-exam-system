@@ -1,6 +1,6 @@
 // apps/backend/src/modules/users/services/user.service.ts
 import bcrypt from 'bcryptjs'
-import { LogService } from '@modules/analytics/services/log.service'
+import { LogService } from '@/modules/analytics/services/log.service'
 import type { UserDTO, UserRole, UserSettings, UserStatus } from '../domain/user.model'
 import { UserRepository } from '../repositories/user.repository.js'
 

@@ -1,9 +1,9 @@
 // apps/backend/src/modules/orgs/routes/org-user.routes.ts
 import { Router, type Request, type Response, type NextFunction, type RequestHandler } from 'express'
 import { OrgUserController } from '../controllers/org-user.controller'
-import { authenticateToken } from '@common/middleware/auth'
-import { requireRoleByIds } from '@common/middleware/role-auth'
-import { ROLE_IDS } from '@config/roles'
+import { authenticateToken } from '@/common/middleware/auth'
+import { requireRoleByIds } from '@/common/middleware/role-auth'
+import { ROLE_IDS } from '@/config/roles'
 import type { AuthRequest } from 'types/auth'
 
 const router = Router()

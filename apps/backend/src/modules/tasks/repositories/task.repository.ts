@@ -1,6 +1,6 @@
 // apps/backend/src/modules/tasks/repositories/task.repository.ts
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type {
   TaskDTO,
   TaskListQuery,

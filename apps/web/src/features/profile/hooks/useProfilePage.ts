@@ -1,10 +1,10 @@
 // features/profile/hooks/useProfilePage.ts
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { message } from 'antd'
-import { profileApi, type ProfileForm } from '@shared/api/endpoints/profile'
+import { profileApi, type ProfileForm } from '@/shared/api/endpoints/profile'
 import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export function useProfilePage() {
   const { user, ...authCtx } = useAuth()

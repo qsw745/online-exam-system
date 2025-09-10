@@ -1,16 +1,30 @@
 // apps/backend/src/common/middleware/jwt-role-hydrator.ts
+/* eslint-disable @/typescript-eslint/no-explicit-any */
+declare const Buffer: any
+
 import type { Request, Response, NextFunction } from 'express'
-import jwt from 'jsonwebtoken'
+
+function decodeJwtPayload(token: string): any {
+  try {
+    const part = token.split('.')[1]
+    if (!part) return null
+    const buf = typeof Buffer !== 'undefined' ? Buffer.from(part, 'base64') : part
+    const json = typeof buf === 'string' ? atob(buf) : buf.toString('utf8')
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
 
 /** 从 token 补齐 req.user.roles / req.user.role_ids / req.user.role（不校验签名，仅 decode） */
 export function jwtRoleHydrator() {
   return (req: Request, _res: Response, next: NextFunction) => {
     try {
-      const hdr = req.headers?.authorization
+      const hdr = req.get('authorization')
       const token = hdr && hdr.startsWith('Bearer ') ? hdr.slice(7) : null
       if (!token) return next()
 
-      const payload: any = jwt.decode(token) || {}
+      const payload: any = decodeJwtPayload(token) || {}
 
       // 兼容已有 req.user
       const u: any = (req as any).user ?? {}

@@ -2,9 +2,9 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { Card, Typography } from 'antd'
 import { BookOpen } from 'lucide-react'
-import { RegisterForm } from '../../auth/components/RegisterForm'
-import { useRegister } from '../../auth/hooks/useRegister'
-import { useLanguage } from '@shared/contexts/LanguageContext'
+import { RegisterForm } from '../components/RegisterForm'
+import { useRegister } from '../hooks/useRegister'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Title, Text } = Typography
 

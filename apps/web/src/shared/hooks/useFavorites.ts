@@ -53,14 +53,15 @@ export function useFavorites() {
     try {
       const list = await favoritesApi.categories()
       setCategories(list)
-    } catch (e) {
+    } catch {
       // 静默
     }
   }, [])
 
   const createFavorite = useCallback(
     async (payload: Partial<Favorite>) => {
-      const created = await favoritesApi.create(payload)
+      // 未选择分类时，确保传 null
+      const created = await favoritesApi.create({ ...payload, category_id: payload.category_id ?? null })
       if (!created) throw new Error('创建失败')
       setFavorites(prev => [created, ...prev])
       setSelectedId(created.id)
@@ -115,7 +116,6 @@ export function useFavorites() {
         await navigator.clipboard.writeText(link)
         message.success('分享链接已复制到剪贴板')
       } else {
-        // 降级
         window.open(link, '_blank')
       }
     },
@@ -126,27 +126,24 @@ export function useFavorites() {
     fetchFavorites()
     fetchCategories()
   }, [fetchFavorites, fetchCategories])
+
   useEffect(() => {
     if (selectedId) fetchItems(selectedId)
   }, [selectedId, fetchItems])
 
   return {
-    // data
     favorites,
     selected,
     selectedId,
     items,
     categories,
-    // ui
     loading,
     itemsLoading,
     createOpen,
     editOpen,
-    // setters
     setSelectedId,
     setCreateOpen,
     setEditOpen,
-    // actions
     createFavorite,
     updateFavorite,
     deleteFavorite,

@@ -1,5 +1,5 @@
 // apps/backend/src/modules/notifications/repositories/notification.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
 import type { INotification } from '../domain/notification.types.js'
 

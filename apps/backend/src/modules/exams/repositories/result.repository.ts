@@ -1,5 +1,5 @@
 // src/modules/exams/repositories/result.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
 import type { IResult, ResultListData } from '../domain/result.model.js'
 

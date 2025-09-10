@@ -1,13 +1,13 @@
 import { App, Spin } from 'antd'
-import dayjs from '@shared/utils/dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import { BarChart3 } from 'lucide-react'
 import React, { useMemo, useState } from 'react'
-import { useAnalytics, type DateRange } from '@shared/hooks/useAnalytics'
+import { useAnalytics, type DateRange } from '@/shared/hooks/useAnalytics'
 import { AnalyticsFilters } from '../components/AnalyticsFilters'
 import { OverviewStats } from '../components/OverviewStats'
 import { SubjectsTable } from '../components/SubjectsTable'
 import { StudentsTable } from '../components/StudentsTable'
-import type { StudentRow } from '../types'
+import type { StudentRow } from '../components/StudentsTable'
 
 export default function AnalyticsPage() {
   const { message } = App.useApp()

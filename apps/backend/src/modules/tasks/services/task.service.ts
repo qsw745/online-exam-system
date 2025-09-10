@@ -1,6 +1,6 @@
 // apps/backend/src/modules/tasks/services/task.service.ts
 import type { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import { TaskRepository } from '../repositories/task.repository.js'
 import type {
   CreateTaskInput,
@@ -8,7 +8,7 @@ import type {
   TaskListResult,
   TaskWithAssigned,
   UpdateTaskInput,
-} from '../domain/task.entity.js'
+} from '../domain/task.model'
 
 export class TaskService {
   private readonly repo: TaskRepository

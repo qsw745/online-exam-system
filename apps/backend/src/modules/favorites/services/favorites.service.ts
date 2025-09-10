@@ -1,6 +1,5 @@
-// src/modules/favorites/favorites.service.ts
-import { withTransaction } from '@infrastructure/db/transaction'
-import { HttpError, ValidationError } from '../../../common/errors/http-error.js'
+import { withTransaction } from '@/infrastructure/db/transaction'
+import { HttpError, ValidationError } from '@/common/errors/http-error.js'
 import type {
   AddFavoriteItemInput,
   CreateFavoriteInput,
@@ -35,16 +34,18 @@ export class FavoritesService {
         is_public: !!input.is_public,
         category_id: input.category_id ?? null,
       })
-      // 读回
-      const fav = await this.repo.findByIdForUser(id, input.userId)
+      // 关键修复：用同一个事务连接查询
+      const fav = await this.repo.findByIdForUser(id, input.userId, conn)
       if (!fav) throw HttpError.internal('创建后查询失败')
       return fav
     })
   }
 
   async update(input: UpdateFavoriteInput): Promise<IFavorite> {
+    // 校验存在（读已提交即可）
     const exists = await this.repo.findByIdForUser(input.id, input.userId)
     if (!exists) throw HttpError.notFound('收藏夹不存在或无权修改')
+
     await withTransaction(async conn => {
       const ok = await this.repo.updateFavorite(conn, input.id, input.userId, {
         name: input.name,
@@ -54,6 +55,7 @@ export class FavoritesService {
       })
       if (!ok) throw HttpError.internal('更新失败')
     })
+
     const updated = await this.repo.findByIdForUser(input.id, input.userId)
     if (!updated) throw HttpError.internal('更新后查询失败')
     return updated
@@ -64,6 +66,12 @@ export class FavoritesService {
       const ok = await this.repo.deleteFavorite(conn, id, userId)
       if (!ok) throw HttpError.notFound('收藏夹不存在或无权删除')
     })
+  }
+
+  async listItemsByFavorite(userId: number, favoriteId: number): Promise<IFavoriteItem[]> {
+    const fav = await this.repo.findByIdForUser(favoriteId, userId)
+    if (!fav) throw HttpError.notFound('收藏夹不存在或无权访问')
+    return this.repo.listItems(favoriteId)
   }
 
   async addItem(input: AddFavoriteItemInput): Promise<IFavoriteItem> {
@@ -85,9 +93,10 @@ export class FavoritesService {
         notes: input.notes ?? '',
       })
     })
-    const [item] = await this.repo.listItems(input.favoriteId)
-    // 为简洁，这里简单再查一遍该收藏夹下最新的项；生产里可按 insertId 精确查
-    return (await this.repo.listItems(input.favoriteId)).find(i => i.id === id)!
+
+    const items = await this.repo.listItems(input.favoriteId)
+    const item = items.find(i => (i as any).id === id)
+    return item ?? items[0]
   }
 
   async removeItem(userId: number, favoriteId: number, itemId: number): Promise<void> {

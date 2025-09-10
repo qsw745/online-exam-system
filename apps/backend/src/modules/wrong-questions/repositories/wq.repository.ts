@@ -1,6 +1,6 @@
 // apps/backend/src/modules/wrong-questions/repositories/wq.repository.ts
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.entity.js'
 
 export class WrongQuestionRepository {

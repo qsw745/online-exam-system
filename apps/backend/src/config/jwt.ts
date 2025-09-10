@@ -1,4 +1,7 @@
 // apps/backend/src/config/jwt.ts
+/* eslint-disable @/typescript-eslint/no-explicit-any */
+declare const process: any
+
 export function getJwtSecret(): string {
   const s = process.env.JWT_SECRET
   if (!s) {

@@ -1,8 +1,16 @@
+import React, { useMemo } from 'react'
 import { Button, Space, Table, Tag, Tooltip } from 'antd'
 import { Edit, Eye, Trash2 } from 'lucide-react'
-import React, { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import type { Question } from '../../../shared/types/question'
+
+export type Question = {
+  id: string
+  content: string
+  question_type: string
+  tags?: string[]
+  knowledge_points?: string[]
+  created_at?: string | number | Date
+}
 
 export default function QuestionTable({
   loading,
@@ -98,7 +106,7 @@ export default function QuestionTable({
         title: '创建时间',
         dataIndex: 'created_at',
         width: 180,
-        render: (d: string) => new Date(d).toLocaleString('zh-CN'),
+        render: (d: string | number | Date) => (d ? new Date(d).toLocaleString('zh-CN') : '-'),
       },
       {
         title: '操作',
@@ -126,7 +134,7 @@ export default function QuestionTable({
   return (
     <Table
       loading={loading}
-      columns={columns}
+      columns={columns as any}
       dataSource={data}
       rowKey="id"
       rowSelection={{ selectedRowKeys, onChange: onSelectChange }}

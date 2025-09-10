@@ -1,6 +1,6 @@
 // apps/backend/src/modules/users/repositories/user.repository.ts
 import type { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { UserDTO, UserRole, UserStatus, UserSettings } from '../domain/user.entity.js'
 
 export class UserRepository {

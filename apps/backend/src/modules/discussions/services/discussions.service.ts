@@ -1,61 +1,44 @@
 // apps/backend/src/modules/discussions/services/discussions.service.ts
-import { pool } from '@config/database.js'
-import type { RowDataPacket } from 'mysql2'
 import { DiscussionRepository } from '../repositories/discussion.repository.js'
 
 export class DiscussionsService {
   static async markAsSolution(replyId: number, discussionId: number, userId: number): Promise<boolean> {
-    const [owner] = await pool.query<RowDataPacket[]>('SELECT user_id FROM discussions WHERE id = ?', [discussionId])
-    if (owner.length === 0 || owner[0].user_id !== userId) return false
-    await pool.query('UPDATE discussion_replies SET is_solution = FALSE WHERE discussion_id = ?', [discussionId])
-    await pool.query('UPDATE discussion_replies SET is_solution = TRUE WHERE id = ? AND discussion_id = ?', [
-      replyId,
-      discussionId,
-    ])
-    const [replyRows] = await pool.query<RowDataPacket[]>('SELECT user_id FROM discussion_replies WHERE id = ?', [
-      replyId,
-    ])
-    if (replyRows.length > 0) {
-      await pool.query(
-        `INSERT INTO user_discussion_stats (user_id, solutions_count, reputation_score)
-         VALUES (?, 1, 10)
-         ON DUPLICATE KEY UPDATE solutions_count = solutions_count + 1, reputation_score = reputation_score + 10`,
-        [replyRows[0].user_id]
-      )
+    const owner = await DiscussionRepository.findOwner(discussionId)
+    if (!owner || owner.user_id !== userId) return false
+
+    // 取消当前讨论的所有解决标记、标记指定回复为解决方案
+    await DiscussionRepository.clearSolutions(discussionId)
+    const ok = await DiscussionRepository.markReplyAsSolution(replyId, discussionId)
+    if (!ok) return false
+
+    // 给被标记为解决方案的回复作者加积分/统计
+    const replyAuthorId = await DiscussionRepository.getReplyAuthorId(replyId)
+    if (replyAuthorId) {
+      await DiscussionRepository.incUserSolutionStats(replyAuthorId)
     }
     return true
   }
 
   static async togglePin(discussionId: number, userId: number): Promise<boolean> {
-    if (!(await this.isAdmin(userId))) return false
-    await pool.query('UPDATE discussions SET is_pinned = NOT is_pinned WHERE id = ?', [discussionId])
+    if (!(await DiscussionRepository.isAdmin(userId))) return false
+    await DiscussionRepository.togglePin(discussionId)
     return true
   }
 
   static async toggleLock(discussionId: number, userId: number): Promise<boolean> {
-    if (!(await this.isAdmin(userId))) return false
-    await pool.query('UPDATE discussions SET is_locked = NOT is_locked WHERE id = ?', [discussionId])
+    if (!(await DiscussionRepository.isAdmin(userId))) return false
+    await DiscussionRepository.toggleLock(discussionId)
     return true
   }
 
   static async toggleFeatured(discussionId: number, userId: number): Promise<boolean> {
-    if (!(await this.isAdmin(userId))) return false
-    await pool.query('UPDATE discussions SET is_featured = NOT is_featured WHERE id = ?', [discussionId])
+    if (!(await DiscussionRepository.isAdmin(userId))) return false
+    await DiscussionRepository.toggleFeatured(discussionId)
     return true
   }
 
   static async toggleFollow(discussionId: number, userId: number): Promise<{ is_followed: boolean }> {
-    const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_follows WHERE user_id = ? AND discussion_id = ?',
-      [userId, discussionId]
-    )
-    if (existing.length > 0) {
-      await pool.query('DELETE FROM discussion_follows WHERE user_id = ? AND discussion_id = ?', [userId, discussionId])
-      return { is_followed: false }
-    } else {
-      await pool.query('INSERT INTO discussion_follows (user_id, discussion_id) VALUES (?, ?)', [userId, discussionId])
-      return { is_followed: true }
-    }
+    return DiscussionRepository.toggleFollow(userId, discussionId)
   }
 
   static async reportContent(
@@ -65,20 +48,6 @@ export class DiscussionsService {
     reason: string,
     description?: string
   ): Promise<boolean> {
-    const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_reports WHERE user_id = ? AND target_type = ? AND target_id = ?',
-      [userId, targetType, targetId]
-    )
-    if (existing.length > 0) return false
-    await pool.query(
-      'INSERT INTO discussion_reports (user_id, target_type, target_id, reason, description) VALUES (?, ?, ?, ?, ?)',
-      [userId, targetType, targetId, reason, description ?? null]
-    )
-    return true
-  }
-
-  private static async isAdmin(userId: number) {
-    const [rows] = await pool.query<RowDataPacket[]>('SELECT role FROM users WHERE id = ?', [userId])
-    return rows[0]?.role === 'admin'
+    return DiscussionRepository.reportContent(userId, targetType, targetId, reason, description)
   }
 }

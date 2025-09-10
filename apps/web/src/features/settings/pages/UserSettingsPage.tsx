@@ -2,7 +2,7 @@
 import { Button, Space, Spin, Typography } from 'antd'
 import { Save } from 'lucide-react'
 import React from 'react'
-import { useTheme } from '@app/providers/AntdThemeProvider'
+import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { useUserSettings } from '../hooks/useUserSettings'
 import { NotificationsCard } from '../components/NotificationsCard'
 import { PrivacyCard } from '../components/PrivacyCard'

@@ -1,7 +1,7 @@
 // apps/backend/src/modules/analytics/routes/analytics.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
 import { AnalyticsController } from '../controllers/analytics.controller'
-import { authenticateToken, requireRole } from '@common/middleware/auth'
+import { authenticateToken, requireRole } from '@/common/middleware/auth'
 import type { AuthRequest } from 'types/auth'
 
 const router = Router()

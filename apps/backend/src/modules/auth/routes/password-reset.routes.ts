@@ -1,6 +1,6 @@
 import { Router, type RequestHandler } from 'express'
 import { PasswordResetController } from '../controllers/password-reset.controller.js'
-import { authenticateToken } from '@common/middleware/auth.js'
+import { authenticateToken } from '@/common/middleware/auth.js'
 import type { AuthRequest } from 'types/auth.js'
 
 const router = Router()

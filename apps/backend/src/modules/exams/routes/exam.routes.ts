@@ -1,6 +1,6 @@
 import { Router, type RequestHandler, type Response } from 'express'
 import { ExamController } from '../controllers/exam.controller.js'
-import { authenticateToken, requireRole } from '@common/middleware/auth.js'
+import { authenticateToken, requireRole } from '@/common/middleware/auth.js'
 import type { AuthRequest } from 'types/auth.js'
 
 const router = Router()

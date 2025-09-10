@@ -1,6 +1,6 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
-import { notificationsApi, type NotificationDTO } from '@shared/api/endpoints/notifications'
+import { notificationsApi, type NotificationDTO } from '@/shared/api/endpoints/notifications'
 
 export function useUserNotifications() {
   const { message } = App.useApp()

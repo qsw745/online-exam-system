@@ -3,40 +3,40 @@ import { Router } from 'express'
 
 // —— 统一用别名 & 不带 .js 后缀，并“容错”拾取默认/命名导出 ——
 // auth
-import * as authRoutesMod from '@modules/auth/routes/auth.routes'
-import * as pwdResetRoutesMod from '@modules/auth/routes/password-reset.routes'
+import * as authRoutesMod from '@/modules/auth/routes/auth.routes'
+import * as pwdResetRoutesMod from '@/modules/auth/routes/password-reset.routes'
 // users
-import * as userRoutesMod from '@modules/users/routes/user.routes'
+import * as userRoutesMod from '@/modules/users/routes/user.routes'
 // orgs
-import * as orgUserRoutesMod from '@modules/orgs/routes/org-user.routes'
-import * as orgRoutesMod from '@modules/orgs/routes/org.routes'
+import * as orgUserRoutesMod from '@/modules/orgs/routes/org-user.routes'
+import * as orgRoutesMod from '@/modules/orgs/routes/org.routes'
 // roles & menus
-import * as menusRoutesMod from '@modules/menus/routes/menus.routes'
-import * as roleRoutesMod from '@modules/roles/routes/role.routes'
+import * as menusRoutesMod from '@/modules/menus/routes/menus.routes'
+import * as roleRoutesMod from '@/modules/roles/routes/role.routes'
 // favorites
-import * as favoritesRoutesMod from '@modules/favorites/routes/favorites.routes'
+import * as favoritesRoutesMod from '@/modules/favorites/routes/favorites.routes'
 // questions
-import * as questionRoutesMod from '@modules/questions/routes/question.routes'
+import * as questionRoutesMod from '@/modules/questions/routes/question.routes'
 // exams
-import * as examRoutesMod from '@modules/exams/routes/exam.routes'
-import * as paperRoutesMod from '@modules/exams/routes/paper.routes'
-import * as resultRoutesMod from '@modules/exams/routes/result.routes'
+import * as examRoutesMod from '@/modules/exams/routes/exam.routes'
+import * as paperRoutesMod from '@/modules/exams/routes/paper.routes'
+import * as resultRoutesMod from '@/modules/exams/routes/result.routes'
 // leaderboard
-import * as leaderboardRoutesMod from '@modules/leaderboard/routes/leaderboard.routes'
+import * as leaderboardRoutesMod from '@/modules/leaderboard/routes/leaderboard.routes'
 // analytics
-import * as analyticsRoutesMod from '@modules/analytics/routes/analytics.routes'
-import * as dashboardRoutesMod from '@modules/analytics/routes/dashboard.routes'
-import * as logRoutesMod from '@modules/analytics/routes/log.routes'
+import * as analyticsRoutesMod from '@/modules/analytics/routes/analytics.routes'
+import * as dashboardRoutesMod from '@/modules/analytics/routes/dashboard.routes'
+import * as logRoutesMod from '@/modules/analytics/routes/log.routes'
 // notifications
-import * as notificationRoutesMod from '@modules/notifications/routes/notification.routes'
+import * as notificationRoutesMod from '@/modules/notifications/routes/notification.routes'
 // discussions
-import * as discussionsRoutesMod from '@modules/discussions/routes/discussions.routes'
+import * as discussionsRoutesMod from '@/modules/discussions/routes/discussions.routes'
 // learning-progress
-import * as learningProgressRoutesMod from '@modules/learning-progress/routes/learning-progress.routes'
+import * as learningProgressRoutesMod from '@/modules/learning-progress/routes/learning-progress.routes'
 // tasks
-import * as taskRoutesMod from '@modules/tasks/routes/task.routes'
+import * as taskRoutesMod from '@/modules/tasks/routes/task.routes'
 // wrong-questions
-import * as wrongQuestionRoutesMod from '@modules/wrong-questions/routes/wrong-question.routes'
+import * as wrongQuestionRoutesMod from '@/modules/wrong-questions/routes/wrong-question.routes'
 
 // —— 安全拾取工具：优先命名导出，其次 default ——
 // 允许模块导出形态：export const xxxRoutes = router  或 export default router

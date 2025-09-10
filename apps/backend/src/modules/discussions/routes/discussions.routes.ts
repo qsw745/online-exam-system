@@ -1,9 +1,8 @@
-// apps/backend/src/modules/discussions/routes/discussions.routes.ts
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
 import { DiscussionsController } from '../controllers/discussions.controller'
-import { authenticateToken } from '@common/middleware/auth'
-import { validateRequest } from '@common/middleware/validation'
+import { authenticateToken } from '@/common/middleware/auth'
+import { validateRequest } from '@/common/middleware/validation'
 import type { AuthRequest } from 'types/auth'
 
 const router = Router()
@@ -28,6 +27,12 @@ router.get(
   wrap(DiscussionsController.getDiscussions)
 )
 
+// ---- 分类列表（给前端 /discussions/categories/list 使用；一定放在 /:id 前）
+router.get('/categories/list', wrap(DiscussionsController.getCategories))
+
+// 详情
+router.get('/:id', [param('id').isInt({ min: 1 })], validateRequest, wrap(DiscussionsController.getDiscussionDetail))
+
 // 创建帖子
 router.post(
   '/',
@@ -39,9 +44,6 @@ router.post(
   validateRequest,
   wrap(DiscussionsController.createDiscussion)
 )
-
-// 详情
-router.get('/:id', [param('id').isInt({ min: 1 })], validateRequest, wrap(DiscussionsController.getDiscussionDetail))
 
 // 回复
 router.post(
@@ -74,9 +76,11 @@ router.post('/:id/pin', [param('id').isInt()], validateRequest, wrap(Discussions
 router.post('/:id/lock', [param('id').isInt()], validateRequest, wrap(DiscussionsController.toggleLock))
 router.post('/:id/featured', [param('id').isInt()], validateRequest, wrap(DiscussionsController.toggleFeatured))
 
-// 元数据 & 个人统计
+// ---- 兼容旧路径（/discussions/meta/categories），可保留
 router.get('/meta/categories', wrap(DiscussionsController.getCategories))
 router.get('/meta/popular-tags', wrap(DiscussionsController.getPopularTags))
+
+// 个人统计
 router.get('/me/stats', wrap(DiscussionsController.getUserStats))
 
 export { router as discussionsRoutes }

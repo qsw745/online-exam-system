@@ -1,7 +1,7 @@
-import { api, isSuccess } from '@shared/api/http'
-import { useDebounce } from '@shared/hooks/useDebounce'
+import { api, isSuccess } from '@/shared/api/http'
+import { useDebounce } from '@/shared/hooks/useDebounce'
 import { useCallback, useEffect, useState } from 'react'
-import type { GradeQuery, GradeStats, PaperLite, StudentResult } from '../../../shared/types/grades'
+import type { GradeQuery, GradeStats, PaperLite, StudentResult } from '@/shared/types/grades'
 
 type LoadResultsResp = {
   results: StudentResult[]

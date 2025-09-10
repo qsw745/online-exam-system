@@ -1,7 +1,7 @@
 // src/features/exams/pages/ExamPage.tsx
 import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useExamRunner } from '../hooks/useExamRunner'
 import { ExamTopBar } from '../components/ExamTopBar'
 import { QuestionPanel } from '../components/QuestionPanel'

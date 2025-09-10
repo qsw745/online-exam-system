@@ -1,6 +1,6 @@
 // apps/backend/src/modules/auth/repositories/token.repository.ts
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { pool } from '@config/database'
+import { pool } from '@/config/database'
 
 // WebCrypto 版 sha256，避免引入 'crypto' 模块类型
 export async function sha256(s: string): Promise<string> {

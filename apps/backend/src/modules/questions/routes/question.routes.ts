@@ -1,5 +1,5 @@
 // apps/backend/src/modules/questions/routes/question.routes.ts
-import { authenticateToken } from '@common/middleware/auth'
+import { authenticateToken } from '@/common/middleware/auth'
 import { Router, type RequestHandler } from 'express'
 import { QuestionController } from '../controllers/question.controller'
 

@@ -5,7 +5,6 @@ import { clearAuthAndRedirect, getAccessToken, setAccessToken } from './storage'
 export const API_URL = import.meta.env.VITE_API_URL || '/api'
 const baseURL = import.meta.env.DEV ? '/api' : API_URL
 
-// axios 实例
 export const http: AxiosInstance = axios.create({
   baseURL,
   timeout: 15000,
@@ -18,14 +17,24 @@ export const http: AxiosInstance = axios.create({
   withCredentials: true, // 携带 HttpOnly 刷新令牌
 })
 
-// 刷新令牌并发控制
+// ============= 刷新令牌并发控制 =============
 let isRefreshing = false
 let refreshPromise: Promise<string | null> | null = null
 
+function pickAccessToken(respData: any): string | null {
+  // 兼容多种返回形态：{success:true,data:{token}} / {token} / {access_token} / {data:{access_token}} ...
+  if (!respData) return null
+  const d = respData.data ?? respData
+  return d?.token ?? d?.access_token ?? d?.accessToken ?? d?.jwt ?? null
+}
+
 async function doRefreshAccessToken(): Promise<string | null> {
   try {
-    const resp = await http.post('/auth/refresh') // 后端从 Cookie 读取 refresh token
-    const token = resp?.data?.data?.token || resp?.data?.token
+    const resp = await http.post('/auth/refresh', null, {
+      // 很关键：刷新接口**不要**带 Authorization，否则后端可能按 access 逻辑校验
+      headers: { Authorization: '' },
+    })
+    const token = pickAccessToken(resp?.data)
     if (typeof token === 'string' && token) {
       setAccessToken(token)
       return token
@@ -46,33 +55,38 @@ function ensureRefresh(): Promise<string | null> {
   return refreshPromise as Promise<string | null>
 }
 
-// 请求拦截：加 Authorization
+// ============= 请求拦截：加 Authorization（但跳过刷新接口） =============
 http.interceptors.request.use(
   config => {
-    const token = getAccessToken()
-    if (token) {
-      if (!config.headers) config.headers = new AxiosHeaders()
-      ;(config.headers as AxiosHeaders).set('Authorization', `Bearer ${token}`)
+    const url = (config.url || '').toLowerCase()
+    const isRefresh = url.includes('/auth/refresh')
+    if (!isRefresh) {
+      const token = getAccessToken()
+      if (token) {
+        if (!config.headers) config.headers = new AxiosHeaders()
+        ;(config.headers as AxiosHeaders).set('Authorization', `Bearer ${token}`)
+      }
     }
     return config
   },
   error => Promise.reject(error)
 )
 
-// 响应拦截：401 自动刷新并重试
+// ============= 响应拦截：401 自动刷新并重试（非认证路由） =============
 http.interceptors.response.use(
   resp => resp,
   async (error: AxiosError) => {
     const original = error.config as (AxiosRequestConfig & { _retry?: boolean }) | undefined
     const status = error.response?.status
-
     const url = (original?.url || '').toLowerCase()
+
     const isAuthRoute =
       url.includes('/auth/refresh') ||
       url.includes('/auth/login') ||
       url.includes('/auth/register') ||
       url.includes('/password-reset')
 
+    // 只有非认证路由的 401 才会触发刷新
     if (status === 401 && original && !original._retry && !isAuthRoute) {
       original._retry = true
       const newToken = await ensureRefresh()
@@ -81,10 +95,12 @@ http.interceptors.response.use(
         ;(original.headers as AxiosHeaders).set('Authorization', `Bearer ${newToken}`)
         return http(original)
       }
+      // 刷新失败才清理并跳转
       clearAuthAndRedirect()
       return Promise.reject(error)
     }
 
+    // 非 auth 路由的 401，拦截器之外的情况也清理（比如没有 original）
     if (status === 401 && !isAuthRoute) {
       clearAuthAndRedirect()
     }
@@ -92,7 +108,7 @@ http.interceptors.response.use(
   }
 )
 
-// 统一“业务友好型” API：返回 ApiResult<T>
+// 统一 API（保持你的原有导出）
 export const api = {
   get<T = any>(url: string, config?: AxiosRequestConfig) {
     return normalize<T>(http.get(url, config))

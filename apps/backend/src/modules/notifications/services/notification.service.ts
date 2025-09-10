@@ -1,7 +1,7 @@
 // apps/backend/src/modules/notifications/services/notification.service.ts
 import type { INotification, NotificationListData } from '../domain/notification.types.js'
 import { NotificationRepository } from '../repositories/notification.repository.js'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2'
 
 export class NotificationService {

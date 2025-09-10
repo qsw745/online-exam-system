@@ -1,5 +1,5 @@
 // apps/backend/src/modules/roles/repositories/role.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { Role } from '../domain/role.model.js'
 

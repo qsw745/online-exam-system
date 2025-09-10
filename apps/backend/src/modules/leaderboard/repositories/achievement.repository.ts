@@ -1,4 +1,4 @@
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
 export class AchievementRepository {

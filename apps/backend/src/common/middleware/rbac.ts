@@ -1,8 +1,10 @@
+// apps/backend/src/common/middleware/rbac.ts
+/* eslint-disable @/typescript-eslint/no-explicit-any */
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
 import { resolveOrgId } from './auth.js'
-import { ROLE_IDS } from '@config/roles.js'
+import { ROLE_IDS } from '@/config/roles.js'
 
 function extractRoleIdsFromReq(req: Request): number[] {
   const u: any = (req as any).user || {}

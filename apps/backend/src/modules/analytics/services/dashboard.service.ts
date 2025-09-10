@@ -1,4 +1,4 @@
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ITaskStats, IScoreStats, DashboardStatsData } from '../domain/dashboard.model'
 
 export class DashboardService {

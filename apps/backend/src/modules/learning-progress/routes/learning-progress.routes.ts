@@ -2,8 +2,8 @@
 import { Router, type RequestHandler, type Response } from 'express'
 import { body, param, query } from 'express-validator'
 import { learningProgressController } from '../controllers/learning-progress.controller'
-import { validateRequest } from '@common/middleware/validation'
-import { authenticateToken } from '@common/middleware/auth'
+import { validateRequest } from '@/common/middleware/validation'
+import { authenticateToken } from '@/common/middleware/auth'
 import type { AuthRequest } from 'types/auth'
 
 const router = Router()

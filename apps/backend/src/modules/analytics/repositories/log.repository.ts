@@ -1,4 +1,4 @@
-import { pool } from '@config/database'
+import { pool } from '@/config/database'
 import type { ResultSetHeader } from 'mysql2/promise'
 
 export interface UserLogRow {

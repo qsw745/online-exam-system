@@ -1,9 +1,9 @@
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import type { ResultSetHeader } from 'mysql2/promise'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { IUser, IPasswordResetToken } from '../domain/auth.model.js'
-import { emailService } from '@infrastructure/email/email.service.js'
+import { emailService } from '@/infrastructure/email/email.service.js'
 
 export class PasswordResetService {
   async send(email: string) {
@@ -40,7 +40,7 @@ export class PasswordResetService {
     }
 
     const resetUrl = `${process.env.FRONTEND_URL || 'http://localhost:5173'}/reset-password?token=${token}`
-    await emailService.sendPasswordResetEmail(user.email, resetUrl, user.username || user.email.split('@')[0])
+    await emailService.sendPasswordResetEmail(user.email, resetUrl, user.username || user.email.split('@/')[0])
   }
 
   async validate(token: string) {

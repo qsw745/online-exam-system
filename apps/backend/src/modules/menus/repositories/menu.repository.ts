@@ -1,6 +1,6 @@
 // apps/backend/src/modules/menus/repositories/menu.repository.ts
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '@config/database'
+import { pool } from '@/config/database'
 import type {
   CreateMenuRequest,
   CreateRoleRequest,

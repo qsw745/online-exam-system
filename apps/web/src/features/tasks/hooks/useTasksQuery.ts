@@ -1,9 +1,9 @@
 // src/features/tasks/hooks/useTasksQuery.ts
 import { App } from 'antd'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { tasksApi } from '@shared/api/http'
-import { isSuccess } from '@shared/api/http'
+import { tasksApi } from '@/shared/api/http'
+import { isSuccess } from '@/shared/api/http'
 
 export type Task = {
   id: string

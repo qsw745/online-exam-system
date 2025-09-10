@@ -1,5 +1,5 @@
 // apps/backend/src/modules/orgs/repositories/org-user.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 
 /** —— 动态探测缓存 —— */

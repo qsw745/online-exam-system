@@ -2,15 +2,10 @@
 // 让没有 @types/node 也能编译
 declare const process: any
 
-import { pool } from '@config/database'
+import { pool } from '@/config/database'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
+import * as jwt from 'jsonwebtoken'
 import type { RowDataPacket } from 'mysql2/promise'
-
-// 动态加载 jsonwebtoken，避免类型“不是模块”的问题
-async function getJwt(): Promise<any> {
-  const mod: any = await import('jsonwebtoken')
-  return mod?.default ?? mod
-}
 
 const getJwtSecret = () => (process?.env?.JWT_SECRET as string) || 'dev-secret'
 
@@ -73,7 +68,6 @@ export const optionalAuth: RequestHandler = async (req, _res, next) => {
       return next()
     }
 
-    const jwt = await getJwt()
     const payload: any = jwt.verify(token, getJwtSecret())
     const uid = Number(payload?.id)
     if (!Number.isFinite(uid) || uid <= 0) {
@@ -135,7 +129,6 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
   const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz.split(' ')[1]
   if (!token) return res.status(401).json({ success: false, error: '访问令牌缺失' })
   try {
-    const jwt = await getJwt()
     jwt.verify(token, getJwtSecret(), { clockTolerance: 30 } as any)
     next()
   } catch (e: any) {

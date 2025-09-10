@@ -6,7 +6,7 @@ export interface Favorite {
   id: number
   name: string
   description?: string
-  category_id: number
+  category_id: number | null
   category_name?: string
   category_color?: string
   is_public: boolean
@@ -32,7 +32,7 @@ export interface FavoriteCategory {
   sort_order: number
 }
 
-// ---- 轻量归一化辅助 ----
+/* ---- 轻量归一化辅助 ---- */
 function pickArray<T = any>(res: any, fallback: T[] = []): T[] {
   const d = res?.data
   if (Array.isArray(d)) return d as T[]
@@ -59,11 +59,16 @@ export const favoritesApi = {
     return pickArray<FavoriteItem>(res, [])
   },
   async categories(): Promise<FavoriteCategory[]> {
+    // 后端已提供 /favorites/categories/list
     const res = await api.get('/favorites/categories/list')
     return pickArray<FavoriteCategory>(res, [])
   },
   async create(payload: Partial<Favorite>): Promise<Favorite | null> {
-    const res = await api.post('/favorites', payload)
+    // category_id 未选时，显式传 null，便于后端处理
+    const res = await api.post('/favorites', {
+      ...payload,
+      category_id: payload.category_id ?? null,
+    })
     return pickObject<Favorite>(res)
   },
   async update(id: number, payload: Partial<Favorite>): Promise<Favorite | null> {
@@ -78,8 +83,9 @@ export const favoritesApi = {
   },
   async share(id: number): Promise<string | null> {
     const res = await api.post(`/favorites/${id}/share`)
-    const data = pickObject<{ share_link?: string }>(res, {})
-    return data?.share_link ?? null
+    // 后端返回 { share_code, share_url }，这里统一取 share_url
+    const data = pickObject<{ share_url?: string }>(res, {})
+    return data?.share_url ?? null
   },
 }
 export default favoritesApi

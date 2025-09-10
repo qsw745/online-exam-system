@@ -1,7 +1,7 @@
 // apps/backend/src/modules/exams/routes/result.routes.ts
 import { Router, type RequestHandler, type NextFunction, type Response } from 'express'
 import { ResultController } from '../controllers/result.controller'
-import { authenticateToken } from '@common/middleware/auth'
+import { authenticateToken } from '@/common/middleware/auth'
 import type { AuthRequest } from 'types/auth'
 
 const router = Router()

@@ -5,7 +5,7 @@ import type { ApiResponse } from '../../types/response.js'
 import type { IDiscussion, IDiscussionReply, IDiscussionCategory, IDiscussionTag } from '../domain/discussion.types.js'
 import { DiscussionRepository } from '../repositories/discussion.repository.js'
 import { DiscussionsService } from '../services/discussions.service.js'
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 export class DiscussionsController {

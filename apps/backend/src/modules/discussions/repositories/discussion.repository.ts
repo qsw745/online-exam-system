@@ -1,9 +1,10 @@
 // apps/backend/src/modules/discussions/repositories/discussion.repository.ts
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
-import type { IDiscussion, IDiscussionReply, IDiscussionCategory, IDiscussionTag } from '../domain/discussion.types.js'
+import type { IDiscussion, IDiscussionReply, IDiscussionCategory } from '../domain/discussion.types.js'
 
 export class DiscussionRepository {
+  // ===== 列表 / 详情 =====
   static async increaseView(id: number) {
     await pool.query('UPDATE discussions SET view_count = view_count + 1 WHERE id = ?', [id])
   }
@@ -103,6 +104,7 @@ export class DiscussionRepository {
     return rows
   }
 
+  // ===== 写操作（讨论 / 回复）=====
   static async insertDiscussion(userId: number, payload: any) {
     const [ret] = await pool.query<ResultSetHeader>(
       `INSERT INTO discussions (user_id, category_id, title, content, tags, related_type, related_id, last_reply_at)
@@ -129,8 +131,8 @@ export class DiscussionRepository {
   }
 
   static async findOwner(id: number) {
-    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM discussions WHERE id = ?', [id])
-    return rows[0]
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT user_id FROM discussions WHERE id = ?', [id])
+    return rows[0] as { user_id: number } | undefined
   }
 
   static async deleteById(id: number) {
@@ -155,6 +157,7 @@ export class DiscussionRepository {
       await pool.query('UPDATE discussion_replies SET reply_count = reply_count + 1 WHERE id = ?', [parent_id])
   }
 
+  // ===== 点赞 / 收藏 =====
   static async toggleLike(userId: number, target_type: 'discussion' | 'reply', target_id: number) {
     const [exists] = await pool.query<RowDataPacket[]>(
       'SELECT id FROM discussion_likes WHERE user_id = ? AND target_type = ? AND target_id = ?',
@@ -178,7 +181,7 @@ export class DiscussionRepository {
       'SELECT COUNT(*) as like_count FROM discussion_likes WHERE target_type = ? AND target_id = ?',
       [target_type, target_id]
     )
-    const likeCount = Number(countRows[0]?.like_count ?? 0)
+    const likeCount = Number((countRows as any)[0]?.like_count ?? 0)
     await pool.query(`UPDATE ${tableName} SET like_count = ? WHERE id = ?`, [likeCount, target_id])
     return { is_liked: exists.length === 0, like_count: likeCount }
   }
@@ -201,5 +204,84 @@ export class DiscussionRepository {
       ])
       return { is_bookmarked: true }
     }
+  }
+
+  // ===== 关注（之前在 Service，这里下沉到 Repo）=====
+  static async toggleFollow(userId: number, discussionId: number): Promise<{ is_followed: boolean }> {
+    const [existing] = await pool.query<RowDataPacket[]>(
+      'SELECT id FROM discussion_follows WHERE user_id = ? AND discussion_id = ?',
+      [userId, discussionId]
+    )
+    if (existing.length > 0) {
+      await pool.query('DELETE FROM discussion_follows WHERE user_id = ? AND discussion_id = ?', [userId, discussionId])
+      return { is_followed: false }
+    } else {
+      await pool.query('INSERT INTO discussion_follows (user_id, discussion_id) VALUES (?, ?)', [userId, discussionId])
+      return { is_followed: true }
+    }
+  }
+
+  // ===== 举报（之前在 Service，这里下沉到 Repo）=====
+  static async reportContent(
+    userId: number,
+    targetType: 'discussion' | 'reply',
+    targetId: number,
+    reason: string,
+    description?: string
+  ): Promise<boolean> {
+    const [existing] = await pool.query<RowDataPacket[]>(
+      'SELECT id FROM discussion_reports WHERE user_id = ? AND target_type = ? AND target_id = ?',
+      [userId, targetType, targetId]
+    )
+    if (existing.length > 0) return false
+    await pool.query(
+      'INSERT INTO discussion_reports (user_id, target_type, target_id, reason, description) VALUES (?, ?, ?, ?, ?)',
+      [userId, targetType, targetId, reason, description ?? null]
+    )
+    return true
+  }
+
+  // ===== 管理辅助 =====
+  static async isAdmin(userId: number): Promise<boolean> {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT role FROM users WHERE id = ?', [userId])
+    return (rows[0] as any)?.role === 'admin'
+  }
+
+  static async clearSolutions(discussionId: number) {
+    await pool.query('UPDATE discussion_replies SET is_solution = FALSE WHERE discussion_id = ?', [discussionId])
+  }
+
+  static async markReplyAsSolution(replyId: number, discussionId: number): Promise<boolean> {
+    const [ret] = await pool.query<ResultSetHeader>(
+      'UPDATE discussion_replies SET is_solution = TRUE WHERE id = ? AND discussion_id = ?',
+      [replyId, discussionId]
+    )
+    return ret.affectedRows > 0
+  }
+
+  static async getReplyAuthorId(replyId: number): Promise<number | null> {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT user_id FROM discussion_replies WHERE id = ?', [replyId])
+    return rows[0] ? Number(rows[0].user_id) : null
+  }
+
+  static async incUserSolutionStats(userId: number) {
+    await pool.query(
+      `INSERT INTO user_discussion_stats (user_id, solutions_count, reputation_score)
+       VALUES (?, 1, 10)
+       ON DUPLICATE KEY UPDATE solutions_count = solutions_count + 1, reputation_score = reputation_score + 10`,
+      [userId]
+    )
+  }
+
+  static async togglePin(discussionId: number) {
+    await pool.query('UPDATE discussions SET is_pinned = NOT is_pinned WHERE id = ?', [discussionId])
+  }
+
+  static async toggleLock(discussionId: number) {
+    await pool.query('UPDATE discussions SET is_locked = NOT is_locked WHERE id = ?', [discussionId])
+  }
+
+  static async toggleFeatured(discussionId: number) {
+    await pool.query('UPDATE discussions SET is_featured = NOT is_featured WHERE id = ?', [discussionId])
   }
 }

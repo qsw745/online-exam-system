@@ -1,6 +1,9 @@
 // apps/backend/src/common/middleware/http-logger.ts
+/* eslint-disable @/typescript-eslint/no-explicit-any */
+declare const process: any
+
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
-import { reqLogger } from '@infrastructure/logging/logger'
+import { reqLogger } from '@/infrastructure/logging/logger'
 
 function formatTime(d = new Date()) {
   const pad = (n: number) => (n < 10 ? '0' + n : '' + n)
@@ -15,13 +18,13 @@ function formatTime(d = new Date()) {
 
 export function httpLogger(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const start = process.hrtime.bigint()
+    const start = Date.now()
     const rid = (req as any).id || cryptoRandomLike()
     const base = reqLogger({
       rid,
       method: req.method,
       url: req.originalUrl || req.url,
-      ip: (req.headers['x-forwarded-for'] as string) || req.socket?.remoteAddress,
+      ip: (req.get('x-forwarded-for') as string) || (req as any).socket?.remoteAddress,
       svc: 'backend',
       time: formatTime(),
     })
@@ -32,16 +35,15 @@ export function httpLogger(): RequestHandler {
         status: (err && err.status) || 500,
         code: err?.code,
         msg: err?.message,
-        stack: err?.stack, // ✅ 打完整堆栈
+        stack: err?.stack,
         details: err?.details,
       })
     }
-
-    res.on('finish', () => {
-      const ms = Number((process.hrtime.bigint() - start) / 1000000n)
-      const status = res.statusCode
+    ;(res as any).on?.('finish', () => {
+      const ms = Date.now() - start
+      const status = (res as any).statusCode as number
       const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'
-      const bytes = Number(res.getHeader('content-length') || 0)
+      const bytes = Number((res as any).getHeader?.('content-length') || 0)
       base.log(level as any, 'request completed', {
         statusCode: status,
         responseTime: ms,

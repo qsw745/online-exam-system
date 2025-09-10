@@ -1,5 +1,5 @@
 import { DatePicker, Select } from 'antd'
-import  '@shared/utils/dayjs'
+import  dayjs from  '@/shared/utils/dayjs'
 import React from 'react'
 import type { DateRange } from '@/shared/hooks/useAnalytics'
 

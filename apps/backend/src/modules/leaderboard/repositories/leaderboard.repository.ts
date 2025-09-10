@@ -1,4 +1,4 @@
-import { pool } from '@config/database.js'
+import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
 import type { Leaderboard, LeaderboardRecord } from '../domain/leaderboard.types.js'
 

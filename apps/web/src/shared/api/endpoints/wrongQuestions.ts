@@ -6,8 +6,8 @@ export const wrongQuestions = {
   recordPractice(payload: { question_id: number; is_correct: boolean; answer: any }): Promise<ApiResult<any>> {
     return api.post('/wrong-questions/records', payload)
   },
-  getPracticedQuestions(): Promise<ApiResult<{ ids: number[] } | number[]>> {
-    return api.post('/wrong-questions/practiced')
+  getPracticedQuestions(wrong_question_id?:number): Promise<ApiResult<{ ids: number[] } | number[]>> {
+    return api.post('/wrong-questions/practiced', { wrong_question_id })
   },
   getWrongQuestions: (params?: { page?: number; limit?: number; mastered?: boolean }) =>
     api.get('/questions/wrong-questions', { params }),

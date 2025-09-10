@@ -1,7 +1,7 @@
 // src/modules/exams/services/exam.service.ts
 import type { RowDataPacket } from 'mysql2/promise'
 import type { IExam, IQuestionRow, ExamListData, ExamDetailData } from '../domain/exam.model.js'
-import { LogService } from '@modules/analytics/services/log.service'
+import { LogService } from '@/modules/analytics/services/log.service'
 import { ExamRepository } from '../repositories/exam.repository.js'
 
 export class ExamService {

@@ -4,8 +4,8 @@ import { Breadcrumb, Card, Pagination, Space, message, Input, Select, DatePicker
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
-import { tasksApi } from '@shared/api/http'
-import { isSuccess } from '@shared/api/http'
+import { tasksApi } from '@/shared/api/http'
+import { isSuccess } from '@/shared/api/http'
 
 const { RangePicker } = DatePicker
 
