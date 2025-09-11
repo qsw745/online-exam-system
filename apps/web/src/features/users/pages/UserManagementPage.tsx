@@ -2,7 +2,7 @@
 import { useOrgTree } from '@/shared/hooks'
 import { App, Card, Layout, Pagination, Typography } from 'antd'
 import React from 'react'
-import { OrgTreePanel } from '../components/OrgTreePanel'
+import { OrgTreePanel } from '../components/OrgTreePanel1'
 import { UserFilterBar } from '../components/UserFilterBar'
 import { UsersTable } from '../components/UsersTable'
 import { useOrgPathMap } from '../hooks/useOrgPathMap'

@@ -1,28 +1,18 @@
-// src/pages/hooks/useOrgManage.ts
+// apps/web/src/features/orgs/hooks/useOrgManage.ts
 import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { App } from 'antd'
-import type { DataNode } from 'antd/es/tree'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-
-const sortAsc = (a: OrgNode, b: OrgNode) => (Number(a.sort_order ?? a.id) || 0) - (Number(b.sort_order ?? b.id) || 0)
 
 const safeName = (v?: string | null) => (v ?? '').toString()
 
-function toTreeData(nodes: OrgNode[]): DataNode[] {
-  return (nodes || []).sort(sortAsc).map(n => ({
-    key: n.id,
-    title: safeName(n.name) || `未命名（#${n.id}）`,
-    children: n.children && n.children.length ? toTreeData(n.children) : undefined,
-  }))
-}
-
-function filterTree(nodes: OrgNode[], kw: string): OrgNode[] {
-  if (!kw) return nodes
-  const lower = kw.toLowerCase()
+/** 仅做名称过滤；保持后端树形结构不变 */
+function filterTree(nodes: OrgNode[] = [], kw: string): OrgNode[] {
+  const lower = kw.trim().toLowerCase()
+  if (!lower) return nodes
   const keep: OrgNode[] = []
   for (const n of nodes) {
     const hit = safeName(n.name).toLowerCase().includes(lower)
-    const children = n.children ? filterTree(n.children, kw) : []
+    const children = n.children?.length ? filterTree(n.children, kw) : []
     if (hit || children.length) keep.push({ ...n, children })
   }
   return keep
@@ -34,6 +24,8 @@ function firstId(list: OrgNode[]): number | null {
 
 export function useOrgManage() {
   const { message } = App.useApp()
+
+  // 直接存放后端返回的树根数组
   const [tree, setTree] = useState<OrgNode[]>([])
   const [treeLoading, setTreeLoading] = useState(false)
 
@@ -43,26 +35,25 @@ export function useOrgManage() {
 
   const [search, setSearch] = useState('')
 
-  const filteredTreeData = useMemo(() => toTreeData(filterTree(tree, search.trim())), [tree, search])
+  // 左侧树直接用过滤后的“后端树结构”
+  const rawTree = useMemo(() => filterTree(tree, search), [tree, search])
 
   const loadTree = useCallback(
     async (keepSelection = true) => {
       setTreeLoading(true)
       try {
-        const list = await orgsApi.tree()
-        setTree(list)
+          const list = await orgsApi.tree()
+          console.log(list);
+        const arr = Array.isArray(list) ? list : []
+        setTree(arr)
 
-        if (keepSelection) {
-          const exists = (arr: OrgNode[], id: number): boolean =>
-            arr.some(x => x.id === id || (x.children?.length ? exists(x.children, id) : false))
-
-          if (selectedId != null && exists(list, selectedId)) {
-            // 保持当前选中
-          } else {
-            setSelectedId(firstId(list)) // 默认选中根
-          }
+        const rootId = firstId(arr)
+        if (keepSelection && selectedId != null) {
+          const exists = (arr2: OrgNode[], id: number): boolean =>
+            arr2.some(x => x.id === id || (x.children?.length ? exists(x.children, id) : false))
+          if (!exists(arr, selectedId)) setSelectedId(rootId)
         } else {
-          setSelectedId(firstId(list)) // 首次加载默认选中根
+          setSelectedId(rootId)
         }
       } catch (e: any) {
         setTree([])
@@ -95,7 +86,7 @@ export function useOrgManage() {
   )
 
   useEffect(() => {
-    loadTree(false) // 首次加载
+    loadTree(false) // 首次加载默认选中根
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -123,9 +114,10 @@ export function useOrgManage() {
 
   const removeOrg = useCallback(
     async (id: number) => {
-      await orgsApi.remove(id)
+      const ret = await orgsApi.remove(id) // { message }
       await loadTree(false)
       setDetail(null)
+      return ret
     },
     [loadTree]
   )
@@ -133,7 +125,7 @@ export function useOrgManage() {
   return {
     // state
     treeLoading,
-    filteredTreeData,
+    rawTree,
     search,
     selectedId,
     detail,

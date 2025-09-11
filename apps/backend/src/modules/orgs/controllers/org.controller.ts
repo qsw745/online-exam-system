@@ -1,7 +1,7 @@
 // apps/backend/src/modules/orgs/controllers/org.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth'
-import type { ApiResponse } from 'types/response'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
 import { OrgService } from '../services/org.service'
 

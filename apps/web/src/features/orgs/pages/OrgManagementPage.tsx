@@ -1,20 +1,12 @@
+// apps/web/src/features/orgs/pages/OrgManagementPage.tsx
 import { Input, Layout, message } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
-import { OrgTreePanel } from '../components/OrgTreePanel'
-import OrgDetailCard from '../components/OrgDetailCard'
 import AddOrgModal from '../components/AddOrgModal'
+import OrgDetailCard from '../components/OrgDetailCard'
+import { OrgTreePanel } from '../components/OrgTreePanel'
 import { useOrgManage } from '../hooks/useOrgManage'
 
 type RawNode = { id: number; name: string; children?: RawNode[] }
-
-// DataNode -> RawNode
-function toRawTree(nodes: any[] = []): RawNode[] {
-  return nodes.map(n => ({
-    id: Number(n.key),
-    name: String(n.title ?? ''),
-    children: n.children ? toRawTree(n.children) : [],
-  }))
-}
 
 const { Sider, Content } = Layout
 const { Search } = Input
@@ -22,7 +14,7 @@ const { Search } = Input
 export default function OrgManagementPage() {
   const {
     treeLoading,
-    filteredTreeData,
+    rawTree,
     search,
     setSearch,
     selectedId,
@@ -37,17 +29,19 @@ export default function OrgManagementPage() {
 
   const [addOpen, setAddOpen] = useState(false)
 
-  const rawTree = useMemo<RawNode[]>(() => toRawTree(filteredTreeData), [filteredTreeData])
+  // 直接使用“后端结构”的过滤结果
+  const treeForPanel = useMemo<RawNode[]>(() => (rawTree as unknown as RawNode[]) || [], [rawTree])
+
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
 
-  // 默认选中+展开根
+  // 树到位后默认选中并展开根（仅当没有展开项时设置）
   useEffect(() => {
-    if (!rawTree.length) return
-    const rootId = rawTree[0].id
+    if (!treeForPanel.length) return
+    const rootId = treeForPanel[0].id
     if (selectedId == null || !Number.isFinite(selectedId)) setSelectedId(rootId)
     setExpandedKeys(prev => (prev && prev.length ? prev : [rootId]))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawTree])
+  }, [treeForPanel])
 
   const handleSelect = (id: number) => {
     if (Number.isFinite(id)) setSelectedId(id)
@@ -67,14 +61,14 @@ export default function OrgManagementPage() {
         </div>
 
         <OrgTreePanel
-          tree={rawTree}
+          tree={treeForPanel}
           loading={treeLoading}
           expandedKeys={expandedKeys}
           setExpandedKeys={setExpandedKeys}
           selectedOrgId={selectedId}
           onSelect={handleSelect}
           onRefresh={() => loadTree(true)}
-          onAdd={() => setAddOpen(true)} // ← 新增机构入口
+          onAdd={() => setAddOpen(true)}
         />
       </Sider>
 
@@ -89,8 +83,12 @@ export default function OrgManagementPage() {
           }}
           onDelete={async () => {
             if (!detail) return
-            await removeOrg(detail.id)
-            message.success('删除成功')
+            try {
+              const m = await removeOrg(detail.id) // { message }
+              message.success(m?.message || '删除成功')
+            } catch (e: any) {
+              message.error(e?.message || '删除失败')
+            }
           }}
         />
       </Content>
@@ -100,8 +98,13 @@ export default function OrgManagementPage() {
         parentName={detail?.name}
         onCancel={() => setAddOpen(false)}
         onOk={async v => {
-          await createOrg({ ...v, parent_id: detail?.id ?? null, is_active: 1 })
-          setAddOpen(false)
+          try {
+            await createOrg({ ...v, parent_id: detail?.id ?? null, is_active: 1 })
+            setAddOpen(false)
+            message.success('创建成功')
+          } catch (e: any) {
+            message.error(e?.message || '创建失败')
+          }
         }}
       />
     </Layout>

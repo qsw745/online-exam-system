@@ -2,6 +2,7 @@
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
 import { OrgRepository } from '../repositories/org.repository'
+import HttpError from '@/common/errors/http-error'
 
 /** ---------- tree & cycle utils ---------- */
 function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] {
@@ -125,7 +126,7 @@ export class OrgService {
     if (patch.parent_id !== undefined) {
       const rows = await OrgRepository.allForCycleCheck()
       if (createsCycle(rows, id, patch.parent_id ?? null)) {
-        throw new Error('不能将组织移动到自身的子孙节点下')
+        throw new HttpError('不能将组织移动到自身的子孙节点下')
       }
     }
 
