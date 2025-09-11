@@ -1,12 +1,15 @@
 import React from 'react'
-import { Card, Modal, Typography, message } from 'antd'
+import { Card, Typography, message } from 'antd'
+import { ConfirmDialog, Modal, Form, Button, useNotice } from '@/shared/components/ui'
+
 import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
 import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
+
+import AddQuestionModal from '../components/AddQuestionModal'
+import ExportModal from '../components/ExportModal'
+import ImportModal from '../components/ImportModal'
 import QuestionTable from '../components/QuestionTable'
 import QuestionToolbar from '../components/QuestionToolbar'
-import AddQuestionModal from '../components/AddQuestionModal'
-import ImportModal from '../components/ImportModal'
-import ExportModal from '../components/ExportModal'
 
 const { Title, Paragraph } = Typography
 
@@ -17,10 +20,7 @@ export default function QuestionManagementPage() {
     q.reload
   )
 
-  // 单条删除
   const [single, setSingle] = React.useState<{ id: string; content: string } | null>(null)
-
-  // 弹窗开关
   const [addOpen, setAddOpen] = React.useState(false)
   const [importOpen, setImportOpen] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
@@ -86,21 +86,23 @@ export default function QuestionManagementPage() {
       </Card>
 
       {/* 批量删除 */}
-      <Modal
-        title="确认删除"
+      <ConfirmDialog
         open={sel.deleteModalVisible}
+        title="确认删除"
+        content={`确定要删除选中的 ${sel.selected.length} 道题目吗？此操作无法撤销。`}
+        okText="确认删除"
+        okDanger
         onCancel={() => sel.setDeleteModalVisible(false)}
         onOk={sel.batchDelete}
-        okButtonProps={{ danger: true }}
-        okText="确认删除"
-      >
-        确定要删除选中的 {sel.selected.length} 道题目吗？此操作无法撤销。
-      </Modal>
+      />
 
       {/* 单个删除 */}
-      <Modal
-        title="确认删除"
+      <ConfirmDialog
         open={!!single}
+        title="确认删除"
+        content={`确定要删除题目 ${single?.content ?? ''}？此操作无法撤销。`}
+        okText="确认删除"
+        okDanger
         onCancel={() => setSingle(null)}
         onOk={async () => {
           if (!single) return
@@ -114,11 +116,7 @@ export default function QuestionManagementPage() {
           }
           setSingle(null)
         }}
-        okButtonProps={{ danger: true }}
-        okText="确认删除"
-      >
-        确定要删除题目 {single?.content ?? ''}？此操作无法撤销。
-      </Modal>
+      />
 
       {/* 新增题目 */}
       <AddQuestionModal
@@ -131,7 +129,7 @@ export default function QuestionManagementPage() {
         allTags={q.allTags}
       />
 
-      {/* 批量导入（带预览与错误列表） */}
+      {/* 批量导入 */}
       <ImportModal
         open={importOpen}
         onClose={() => setImportOpen(false)}
@@ -142,7 +140,7 @@ export default function QuestionManagementPage() {
         reloadTags={q.reloadTags}
       />
 
-      {/* 批量导出（选中/当前页/全部） */}
+      {/* 批量导出 */}
       <ExportModal
         open={exportOpen}
         onClose={() => setExportOpen(false)}
@@ -150,7 +148,6 @@ export default function QuestionManagementPage() {
         selectedIds={sel.selected}
         total={q.total}
         pageSize={q.pageSize}
-        /** 传入“按筛选导出全部”所需的加载函数（自动分页） */
         fetchPage={async (page, limit) => {
           const { questionsApi } = await import('@/shared/api/http')
           const params: any = {
@@ -162,7 +159,6 @@ export default function QuestionManagementPage() {
             tags: q.selectedTags.length ? q.selectedTags.join(',') : undefined,
           }
           const r: any = await questionsApi.list(params)
-          // 返回 {items, total} 格式便于统一处理
           const d = r?.data
           const items = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
           const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)

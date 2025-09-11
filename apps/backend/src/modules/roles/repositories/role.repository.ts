@@ -4,6 +4,9 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { Role } from '../domain/role.model.js'
 
 export class RoleRepository {
+  // ===== 角色 ⇄ 机构 =====
+  private static __ORG_TABLE_CACHE: string | null = null
+  private static __ORG_NAME_COL_CACHE: string | null = null
   static async findAll(order = 'ORDER BY is_system DESC, created_at ASC'): Promise<Role[]> {
     const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM roles ${order}`)
     return rows as unknown as Role[]
@@ -179,6 +182,7 @@ export class RoleRepository {
   private static __ORG_TABLE_CACHE: string | null = null
   private static __ORG_NAME_COL_CACHE: string | null = null
 
+  /** 解析机构表名（优先 ORG_TABLE，否则自动探测） */
   private static async resolveOrgTable(): Promise<string> {
     if (this.__ORG_TABLE_CACHE) return this.__ORG_TABLE_CACHE
     const env = (process.env.ORG_TABLE || '').trim()
@@ -186,7 +190,7 @@ export class RoleRepository {
       this.__ORG_TABLE_CACHE = env
       return env
     }
-    const candidates = ['orgs', 'organizations', 'organization', 'dept', 'depts', 'departments', 'sys_org', 'sys_orgs']
+    const candidates = ['organizations', 'orgs', 'organization', 'dept', 'depts', 'departments', 'sys_org', 'sys_orgs']
     const [rows] = await pool.query<RowDataPacket[]>(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = DATABASE()
@@ -199,8 +203,17 @@ export class RoleRepository {
     return this.__ORG_TABLE_CACHE
   }
 
+  /** 解析机构名称列（优先 ORG_NAME_COL，否则从候选里挑存在的一个） */
   private static async resolveOrgNameCol(table: string): Promise<string | null> {
     if (this.__ORG_NAME_COL_CACHE) return this.__ORG_NAME_COL_CACHE
+
+    // ✅ 允许通过环境变量明确指定列名（如 name / org_name / title）
+    const envName = (process.env.ORG_NAME_COL || '').trim()
+    if (envName) {
+      this.__ORG_NAME_COL_CACHE = envName
+      return this.__ORG_NAME_COL_CACHE
+    }
+
     const prefer = ['name', 'title', 'org_name', 'label', 'orgTitle', 'orgLabel']
     const [cols] = await pool.query<RowDataPacket[]>(
       `SELECT column_name FROM information_schema.columns
@@ -212,16 +225,24 @@ export class RoleRepository {
     return this.__ORG_NAME_COL_CACHE
   }
 
+  /** 返回角色关联的机构（联表 organizations，把名称一并返回） */
   static async roleOrgs(roleId: number): Promise<Array<{ id: number; name?: string }>> {
-    const orgTable = await this.resolveOrgTable()
-    const nameCol = await this.resolveOrgNameCol(orgTable)
+    const orgTable = await this.resolveOrgTable() // e.g. organizations
+    const nameCol = await this.resolveOrgNameCol(orgTable) // e.g. name
+
     let sql = `SELECT o.id`
     if (nameCol) sql += `, o.\`${nameCol}\` AS name`
-    sql += ` FROM role_orgs ro JOIN \`${orgTable}\` o ON o.id = ro.org_id WHERE ro.role_id = ? ORDER BY o.id`
+    sql += `
+      FROM role_orgs ro
+      JOIN \`${orgTable}\` o ON o.id = ro.org_id
+      WHERE ro.role_id = ?
+      ORDER BY o.id
+    `
     const [rows] = await pool.query<RowDataPacket[]>(sql, [roleId])
     return rows as any
   }
 
+  /** 批量新增关联，先校验 org 存在再去重插入 */
   static async addRoleOrgs(roleId: number, orgIds: number[]): Promise<number> {
     const conn = await pool.getConnection()
     try {
@@ -233,6 +254,7 @@ export class RoleRepository {
         return 0
       }
 
+      // 只保留 organizations 中真实存在的 id
       const [existOrgRows] = await conn.query<RowDataPacket[]>(
         `SELECT id FROM \`${orgTable}\` WHERE id IN (${orgIds.map(() => '?').join(',')})`,
         orgIds
@@ -244,6 +266,7 @@ export class RoleRepository {
         return 0
       }
 
+      // 去重：排除已有关联
       const [existedLinks] = await conn.query<RowDataPacket[]>(
         `SELECT org_id FROM role_orgs WHERE role_id = ? AND org_id IN (${valid.map(() => '?').join(',')})`,
         [roleId, ...valid]
@@ -256,7 +279,7 @@ export class RoleRepository {
       }
 
       await conn.query(
-        `INSERT INTO role_orgs (role_id, org_id) VALUES ${toInsert.map(() => '(?,?)').join(',')}`,
+        `INSERT INTO role_orgs (role_id, org_id) VALUES ${toInsert.map(() => '(?, ?)').join(',')}`,
         toInsert.flatMap(id => [roleId, id])
       )
       await conn.commit()
@@ -269,6 +292,7 @@ export class RoleRepository {
     }
   }
 
+  /** 解除关联 */
   static async removeRoleOrg(roleId: number, orgId: number): Promise<void> {
     const [ret] = await pool.query<ResultSetHeader>(`DELETE FROM role_orgs WHERE role_id = ? AND org_id = ?`, [
       roleId,

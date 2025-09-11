@@ -122,7 +122,7 @@ const UserManagementPage: React.FC = () => {
     if (!currentUser) return
     await q.update(currentUser.id, payload)
     setEditOpen(false)
-    App.useApp().message.success('用户已更新')
+    message.success('用户已更新')
     q.refetch()
   }
 
@@ -130,7 +130,7 @@ const UserManagementPage: React.FC = () => {
   const handleBindSubmit = async (userId: number) => {
     if (!selectedOrgId) return
     await q.bind(selectedOrgId, Number(userId))
-    App.useApp().message.success('绑定成功')
+    message.success('绑定成功')
     setBindOpen(false)
     q.refetch()
   }

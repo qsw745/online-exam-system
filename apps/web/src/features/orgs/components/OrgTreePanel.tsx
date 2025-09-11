@@ -1,5 +1,4 @@
-// src/features/users/components/OrgTreePanel.tsx
-import { ApartmentOutlined, ReloadOutlined } from '@ant-design/icons'
+import { ApartmentOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button, Space, Tree, Typography } from 'antd'
 import React from 'react'
 const { Text } = Typography
@@ -23,17 +22,33 @@ export const OrgTreePanel: React.FC<{
   selectedOrgId: number | null
   onSelect: (id: number) => void
   onRefresh: () => void
-}> = ({ tree, loading, expandedKeys, setExpandedKeys, selectedOrgId, onSelect, onRefresh }) => {
+  onAdd?: () => void
+}> = ({ tree, loading, expandedKeys, setExpandedKeys, selectedOrgId, onSelect, onRefresh, onAdd }) => {
   const antTreeData = React.useMemo(() => toAntTreeData(tree), [tree])
 
   return (
     <>
-      <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
+      <div
+        style={{
+          padding: 16,
+          borderBottom: '1px solid #f0f0f0',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        }}
+      >
         <Space>
           <ApartmentOutlined />
           <Text strong>机构</Text>
         </Space>
-        <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh} />
+        <Space>
+          {onAdd ? (
+            <Button size="small" icon={<PlusOutlined />} onClick={onAdd}>
+              新增
+            </Button>
+          ) : null}
+          <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh} />
+        </Space>
       </div>
       <div style={{ padding: 12 }}>
         {loading ? (

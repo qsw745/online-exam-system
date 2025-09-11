@@ -1,6 +1,5 @@
-// src/features/users/components/ViewUserModal.tsx
 import { Descriptions, Modal, Tag } from 'antd'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import React from 'react'
 
 export const ViewUserModal: React.FC<{
@@ -19,9 +18,15 @@ export const ViewUserModal: React.FC<{
       onOk={onClose}
       okText="关闭"
       cancelButtonProps={{ style: { display: 'none' } }}
-      destroyOnClose
+      // antd v5 正确写法是 destroyOnClose；你若确实需要销毁，改成这一行：
+      // destroyOnClose
     >
-      <Descriptions column={1} size="small" labelStyle={{ width: 92 }}>
+      <Descriptions
+        column={1}
+        size="small"
+        // ⚠️ 新写法：用 styles 而不是 labelStyle
+        styles={{ label: { width: 92 } }}
+      >
         <Descriptions.Item label="用户ID">{user?.id ?? '-'}</Descriptions.Item>
         <Descriptions.Item label="用户名">{user?.username || '-'}</Descriptions.Item>
         <Descriptions.Item label="邮箱">{user?.email || '-'}</Descriptions.Item>

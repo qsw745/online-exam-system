@@ -1,9 +1,9 @@
+import { orgsApi } from '@/shared/api/http'
 import { App } from 'antd'
 import { useEffect, useMemo, useState } from 'react'
-import { api, isSuccess } from '@/shared/api/http'
 
 type TreeNode = { id: number; name: string; children?: TreeNode[] }
-type AntTreeNode = { key: number; title: string; children?: AntTreeNode[] }
+export type AntTreeNode = { key: number; title: string; children?: AntTreeNode[] }
 
 function toAnt(nodes: TreeNode[] = []): AntTreeNode[] {
   return nodes.map(n => ({
@@ -17,19 +17,20 @@ export function useOrgTree() {
   const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
   const [raw, setRaw] = useState<TreeNode[]>([])
-  const [expanded, setExpanded] = useState<React.Key[]>([])
 
   const tree = useMemo(() => toAnt(raw), [raw])
 
   const fetchTree = async () => {
     setLoading(true)
     try {
-      const r = await api.get<TreeNode[]>('/orgs/tree')
-      if (isSuccess(r)) {
-        const list = Array.isArray(r.data) ? r.data : []
+      //   const r = await api.get<TreeNode[]>('/orgs/tree')
+      const r: any = await orgsApi.tree()
+      console.log('rrrr', r)
+      if (r) {
+        // const list = Array.isArray(r.data) ? r.data : []
+        const list = r
+        console.log('list', list)
         setRaw(list)
-        // 初始全部展开（可按需精简）
-        setExpanded(list.map(n => n.id))
       } else {
         throw new Error((r as any).error || '加载机构树失败')
       }
@@ -43,9 +44,8 @@ export function useOrgTree() {
 
   useEffect(() => {
     fetchTree()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  return { tree, loading, expanded, setExpanded, refetch: fetchTree }
+  return { tree, loading, refetch: fetchTree }
 }
-
-export default useOrgTree

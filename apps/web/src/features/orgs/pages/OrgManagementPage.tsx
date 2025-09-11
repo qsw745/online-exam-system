@@ -1,14 +1,25 @@
-import { Layout, message } from 'antd'
-import React, { useState } from 'react'
-import OrgTreePanel from '../components/OrgTreePanel'
+import { Input, Layout, message } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { OrgTreePanel } from '../components/OrgTreePanel'
 import OrgDetailCard from '../components/OrgDetailCard'
 import AddOrgModal from '../components/AddOrgModal'
 import { useOrgManage } from '../hooks/useOrgManage'
-import type { DataNode, EventDataNode } from 'antd/es/tree'
+
+type RawNode = { id: number; name: string; children?: RawNode[] }
+
+// DataNode -> RawNode
+function toRawTree(nodes: any[] = []): RawNode[] {
+  return nodes.map(n => ({
+    id: Number(n.key),
+    name: String(n.title ?? ''),
+    children: n.children ? toRawTree(n.children) : [],
+  }))
+}
 
 const { Sider, Content } = Layout
+const { Search } = Input
 
-export default function OrgManage() {
+export default function OrgManagementPage() {
   const {
     treeLoading,
     filteredTreeData,
@@ -26,23 +37,44 @@ export default function OrgManage() {
 
   const [addOpen, setAddOpen] = useState(false)
 
-  const onSelect = (_: React.Key[], info: { node: EventDataNode<DataNode> }) => {
-    const id = Number(info.node.key)
+  const rawTree = useMemo<RawNode[]>(() => toRawTree(filteredTreeData), [filteredTreeData])
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+
+  // 默认选中+展开根
+  useEffect(() => {
+    if (!rawTree.length) return
+    const rootId = rawTree[0].id
+    if (selectedId == null || !Number.isFinite(selectedId)) setSelectedId(rootId)
+    setExpandedKeys(prev => (prev && prev.length ? prev : [rootId]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawTree])
+
+  const handleSelect = (id: number) => {
     if (Number.isFinite(id)) setSelectedId(id)
   }
 
   return (
     <Layout style={{ height: '100%', background: 'transparent' }}>
       <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
+        <div style={{ padding: 12 }}>
+          <Search
+            placeholder="搜索机构..."
+            allowClear
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onSearch={kw => setSearch(kw)}
+          />
+        </div>
+
         <OrgTreePanel
+          tree={rawTree}
           loading={treeLoading}
-          treeData={filteredTreeData}
-          selectedId={selectedId}
-          search={search}
-          onSearchChange={setSearch}
+          expandedKeys={expandedKeys}
+          setExpandedKeys={setExpandedKeys}
+          selectedOrgId={selectedId}
+          onSelect={handleSelect}
           onRefresh={() => loadTree(true)}
-          onAdd={() => setAddOpen(true)}
-          onSelect={onSelect}
+          onAdd={() => setAddOpen(true)} // ← 新增机构入口
         />
       </Sider>
 
@@ -68,7 +100,7 @@ export default function OrgManage() {
         parentName={detail?.name}
         onCancel={() => setAddOpen(false)}
         onOk={async v => {
-          await createOrg({ ...v, parent_id: detail?.id ?? null, is_enabled: true })
+          await createOrg({ ...v, parent_id: detail?.id ?? null, is_active: 1 })
           setAddOpen(false)
         }}
       />

@@ -1,8 +1,8 @@
-// components/PermissionModal.tsx
 import { Button, Descriptions, Modal, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import React from 'react'
-import type { Role } from '@/shared/types/index'
+
+export type Role = { id: number; name: string; code?: string; description?: string | null }
 
 export function PermissionModal({
   open,
@@ -20,7 +20,7 @@ export function PermissionModal({
   checkedKeys: number[]
   setCheckedKeys: (ks: number[]) => void
   onRefreshMenus: () => void
-  onOk: () => void
+  onOk: () => void | Promise<void>
   onCancel: () => void
 }) {
   return (
@@ -31,6 +31,7 @@ export function PermissionModal({
       onCancel={onCancel}
       width={800}
       okText="保存"
+      destroyOnHidden
     >
       {role && (
         <>

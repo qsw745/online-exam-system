@@ -1,11 +1,8 @@
-// src/features/questions/components/AddQuestionModal.tsx
-import React, { useMemo, useState } from 'react'
-import { Modal, Form, Input, Radio, Select, Divider, message } from 'antd'
-import { questionsApi } from '@/shared/api/http'
-import OptionsEditor from './OptionsEditor'
-import TagsField from './TagsField'
-import KnowledgePointsField from './KnowledgePointsField'
-import { compactObject } from '@/shared/utils/q-helpers'
+import React, { useMemo } from 'react'
+import { Select, Radio } from 'antd'
+import { Modal, Form, useNotice } from '@/shared/components/ui'
+import OptionsEditor, { ChoiceMode } from './OptionsEditor'
+import { questions as questionsApi } from '@/shared/api/endpoints/questions'
 
 type QType = 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
 
@@ -21,73 +18,63 @@ export default function AddQuestionModal({
   allTags: string[]
 }) {
   const [form] = Form.useForm()
-  const [submitting, setSubmitting] = useState(false)
-  const typ: QType = Form.useWatch('question_type', form) || 'single_choice'
-  const options = Form.useWatch('options', form) || []
+  const notice = useNotice()
 
+  const typ: QType = Form.useWatch('question_type', form) || 'single_choice'
+  const mode: ChoiceMode = typ === 'multiple_choice' ? 'multiple' : 'single'
   const isChoice = typ === 'single_choice' || typ === 'multiple_choice'
 
   const typeTitle = useMemo(
-    () =>
-      ({
-        single_choice: '单选题',
-        multiple_choice: '多选题',
-        true_false: '判断题',
-        short_answer: '简答题',
-      }[typ]),
+    () => ({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' }[typ]),
     [typ]
   )
 
   const submit = async () => {
     try {
       const v = await form.validateFields()
-      setSubmitting(true)
-
       // 组装 payload
-      let payload: any = {
+      const base: any = {
         content: String(v.content || '').trim(),
         question_type: v.question_type,
         difficulty: v.difficulty,
         score: Number(v.score) || 1,
-        explanation: v.explanation?.trim(),
-        tags: v.tags ?? [],
-        knowledge_points: v.knowledge_points ?? [],
+        explanation: v.explanation?.trim() || undefined,
+        tags: v.tags || [],
+        knowledge_points: v.knowledge_points || [],
+        source: v.source?.trim() || undefined,
       }
 
       if (isChoice) {
         const opts = (v.options || [])
           .map((o: any) => ({ content: String(o?.content || '').trim(), is_correct: !!o?.is_correct }))
           .filter((o: any) => o.content)
-
         if (opts.length < 2) throw new Error('选择题至少需要 2 个选项')
-        if (!opts.some((o: any) => o.is_correct)) throw new Error('请选择至少 1 个正确答案')
-
-        payload.options = opts
-        payload.correct_answer = opts
+        const correctCnt = opts.filter((o: any) => o.is_correct).length
+        if (correctCnt === 0) throw new Error('请选择至少 1 个正确答案')
+        if (typ === 'single_choice' && correctCnt > 1) throw new Error('单选题只能有 1 个正确答案')
+        base.options = opts
+        base.correct_answer = opts
           .map((o: any, i: number) => (o.is_correct ? String.fromCharCode(65 + i) : ''))
           .filter(Boolean)
           .join(',')
       } else if (typ === 'true_false') {
-        payload.correct_answer = v.tfAnswer // 'true' | 'false'
+        base.correct_answer = v.tfAnswer // 'true' | 'false'
       } else if (typ === 'short_answer') {
-        if (!v.shortAnswer || !String(v.shortAnswer).trim()) throw new Error('请填写参考答案')
-        payload.correct_answer = String(v.shortAnswer).trim()
+        const ans = (v.shortAnswer || '').trim()
+        if (!ans) throw new Error('请填写参考答案')
+        base.correct_answer = ans
       }
 
-      payload = compactObject(payload)
-
-      const r = await questionsApi.create(payload)
-      if ((r as any)?.success) {
-        message.success('新增题目成功')
-        onSaved()
+      const r: any = await questionsApi.create(base)
+      if (r?.success) {
+        notice.success('新增题目成功')
+        onSaved?.()
       } else {
-        message.error((r as any)?.error || '新增题目失败')
+        throw new Error(r?.error || r?.message || '新增题目失败')
       }
     } catch (e: any) {
-      if (e?.errorFields) return // antd 表单校验
-      message.error(e?.message || '新增题目失败')
-    } finally {
-      setSubmitting(false)
+      if (e?.errorFields) return // antd 校验
+      notice.error(e?.message || '新增题目失败')
     }
   }
 
@@ -97,20 +84,22 @@ export default function AddQuestionModal({
       open={open}
       onCancel={onClose}
       onOk={submit}
-      confirmLoading={submitting}
       okText="保存"
-      /** antd v5: 使用 destroyOnHidden 代替 destroyOnClose */
       destroyOnHidden
     >
       <Form
         form={form}
-        layout="vertical"
         initialValues={{
           question_type: 'single_choice',
           difficulty: 'medium',
           score: 1,
-          options: [{ content: '' }, { content: '' }],
+          options: [
+            { content: '', is_correct: false },
+            { content: '', is_correct: false },
+          ],
           tfAnswer: 'true',
+          tags: [],
+          knowledge_points: [],
         }}
       >
         <Form.Item name="question_type" label="题目类型" rules={[{ required: true }]}>
@@ -124,8 +113,8 @@ export default function AddQuestionModal({
           />
         </Form.Item>
 
-        <Form.Item name="content" label="题目内容" rules={[{ required: true, message: '请输入题目内容' }]}>
-          <Input.TextArea rows={4} placeholder="请输入题干" />
+        <Form.Item name="content" label="题干" rules={[{ required: true, message: '请输入题干' }]}>
+          <Form.Input.TextArea rows={4} placeholder="请输入题干" />
         </Form.Item>
 
         <Form.Item label="难度 / 分值" required style={{ marginBottom: 0 }}>
@@ -140,31 +129,15 @@ export default function AddQuestionModal({
               />
             </Form.Item>
             <Form.Item name="score" rules={[{ required: true, message: '请输入分值' }]} style={{ marginBottom: 0 }}>
-              <Input type="number" min={0} step={1} placeholder="分值" />
+              <Form.Input type="number" min={0} step={1} placeholder="分值" />
             </Form.Item>
           </div>
         </Form.Item>
 
         {isChoice && (
           <>
-            <Divider style={{ margin: '8px 0' }}>选项与答案</Divider>
-            <Form.Item shouldUpdate noStyle>
-              {() => (
-                <OptionsEditor
-                  options={options}
-                  onChange={(index, patch) => {
-                    const next = [...options]
-                    next[index] = { ...next[index], ...patch }
-                    form.setFieldsValue({ options: next })
-                  }}
-                  onAdd={() => form.setFieldsValue({ options: [...options, { content: '' }] })}
-                  onRemove={i => {
-                    const next = options.filter((_: any, idx: number) => idx !== i)
-                    form.setFieldsValue({ options: next })
-                  }}
-                />
-              )}
-            </Form.Item>
+            <Form.Divider style={{ margin: '12px 0' }}>选项与答案</Form.Divider>
+            <OptionsEditor mode={mode} />
           </>
         )}
 
@@ -179,28 +152,29 @@ export default function AddQuestionModal({
 
         {typ === 'short_answer' && (
           <Form.Item name="shortAnswer" label="参考答案" rules={[{ required: true, message: '请填写参考答案' }]}>
-            <Input.TextArea rows={3} placeholder="请填写参考答案" />
+            <Form.Input.TextArea rows={3} placeholder="请填写参考答案" />
           </Form.Item>
         )}
 
         <Form.Item name="explanation" label="解析">
-          <Input.TextArea rows={3} placeholder="可选" />
+          <Form.Input.TextArea rows={3} placeholder="可选" />
         </Form.Item>
 
-        <Form.Item label="知识点 / 标签" style={{ marginBottom: 0 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Form.Item label="知识点 / 标签 / 来源" style={{ marginBottom: 0 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
             <Form.Item name="knowledge_points" style={{ marginBottom: 0 }}>
-              <KnowledgePointsField
-                points={Form.useWatch('knowledge_points', form) || []}
-                onChange={v => form.setFieldsValue({ knowledge_points: v })}
-              />
+              <Select mode="multiple" allowClear placeholder="选择知识点" options={[]} />
             </Form.Item>
             <Form.Item name="tags" style={{ marginBottom: 0 }}>
-              <TagsField
-                value={Form.useWatch('tags', form) || []}
-                onChange={v => form.setFieldsValue({ tags: v })}
-                all={allTags}
+              <Select
+                mode="tags"
+                allowClear
+                placeholder="选择/创建标签"
+                options={(allTags || []).map(t => ({ label: t, value: t }))}
               />
+            </Form.Item>
+            <Form.Item name="source" style={{ marginBottom: 0 }}>
+              <Form.Input placeholder="题目来源（可选）" />
             </Form.Item>
           </div>
         </Form.Item>

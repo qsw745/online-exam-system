@@ -45,7 +45,7 @@ export const pageRegistry: Record<string, LazyExoticComponent<ComponentType<any>
   '/admin/menus': MenuManagementPage,
   '/admin/analytics': DataAnalyticsPage,
   '/admin/grades': GradeManagementPage,
-  '/orgs': OrgManagementPage,
+  '/admin/orgs': OrgManagementPage,
   // User / 顶层
   '/dashboard': DashboardPage,
   '/exams': ExamListPage,

@@ -1,6 +1,5 @@
 // apps/backend/src/modules/questions/services/question.service.ts
 import HttpError from '@/common/errors/http-error'
-// ✅ 统一只用一个入口：LogService.log
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
@@ -59,7 +58,6 @@ export class QuestionService {
       QuestionRepository.count(whereSql, values),
     ])
 
-    // 解析 JSON 字段
     const parsed = rows.map(q => {
       try {
         if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
@@ -91,7 +89,7 @@ export class QuestionService {
   async create(
     user: { id?: number; username?: string } | undefined,
     body: any,
-    _reqMeta?: { ip?: string; ua?: string } // 这里不强依赖 reqMeta；LogService.log 内部可自动判级
+    _reqMeta?: { ip?: string; ua?: string }
   ): Promise<QuestionData> {
     const {
       title,
@@ -140,7 +138,6 @@ export class QuestionService {
       score,
     })
 
-    // ✅ 中文日志（统一入口）
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
@@ -156,6 +153,9 @@ export class QuestionService {
         难度: difficulty,
         标签: ensureArrayFromMaybeCsv(tags),
       },
+      // 关键：写入 IP/UA
+      ipAddress: _reqMeta?.ip,
+      userAgent: _reqMeta?.ua,
     })
 
     const q = await QuestionRepository.findById(id)
@@ -233,7 +233,6 @@ export class QuestionService {
     const affected = await QuestionRepository.update(id, sets, vals)
     if (!affected) throw new Error('问题不存在')
 
-    // ✅ 中文日志（统一入口）
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
@@ -244,6 +243,8 @@ export class QuestionService {
       resourceId: id,
       status: 'success',
       details: { 更新字段: sets, 题目ID: id },
+      ipAddress: _reqMeta?.ip,
+      userAgent: _reqMeta?.ua,
     })
 
     const q = await QuestionRepository.findById(id)
@@ -258,7 +259,6 @@ export class QuestionService {
     const affected = await QuestionRepository.delete(id)
     if (!affected) throw new Error('问题不存在')
 
-    // ✅ 中文日志（统一入口）
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
@@ -269,6 +269,8 @@ export class QuestionService {
       resourceId: id,
       status: 'success',
       details: { 题目ID: id },
+      ipAddress: _reqMeta?.ip,
+      userAgent: _reqMeta?.ua,
     })
 
     return null
@@ -280,12 +282,10 @@ export class QuestionService {
     query: any,
     _reqMeta?: { ip?: string; ua?: string; rid?: string }
   ) {
-    // ✅ 兼容两种入参：数组 或 { questions: [...] }
     const questions: any[] = Array.isArray(body) ? body : body?.questions
     const upsertFlag = String(query?.upsert ?? body?.upsert ?? '').toLowerCase() === 'true'
 
     if (!Array.isArray(questions) || questions.length === 0) {
-      // eslint-disable-next-line no-console
       console.warn('[bulk-import] invalid payload', {
         shape: Array.isArray(body) ? 'array' : typeof body,
         length: Array.isArray(body) ? body.length : body?.questions?.length ?? 0,
@@ -395,7 +395,6 @@ export class QuestionService {
       }
     }
 
-    // ✅ 中文摘要日志（统一入口）
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
@@ -412,9 +411,10 @@ export class QuestionService {
         允许覆盖更新: upsertFlag,
         示例错误: errors[0],
       },
+      ipAddress: _reqMeta?.ip,
+      userAgent: _reqMeta?.ua,
     })
 
-    // eslint-disable-next-line no-console
     console.warn('[bulk-import] completed', {
       total: questions.length,
       successCount,

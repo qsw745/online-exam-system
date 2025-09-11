@@ -1,4 +1,3 @@
-// apps/backend/src/modules/questions/controllers/question.controller.ts
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth'
 import type { ApiResponse } from '@/types/response'
@@ -90,10 +89,8 @@ export class QuestionController {
     req: AuthRequest,
     res: Response<ApiResponse<{ success_count: number; fail_count: number; errors: string[] }>>
   ) {
-    const rid = (req as any).id || req.headers['x-request-id'] || undefined
+    const rid = (req as any).id || req.header('x-request-id') || undefined
     try {
-      // 打点：记录请求形态，便于定位 400
-      // eslint-disable-next-line no-console
       console.warn('[bulk-import] incoming', {
         rid,
         shape: Array.isArray(req.body) ? 'array' : typeof req.body,
@@ -109,8 +106,6 @@ export class QuestionController {
       return res.status(200).json({ success: true, data })
     } catch (e: any) {
       const code = /有效|超过/.test(e?.message) ? 400 : 500
-      // 更可读的错误日志
-      // eslint-disable-next-line no-console
       console.warn('[bulk-import] failed', {
         rid,
         code,
@@ -123,7 +118,7 @@ export class QuestionController {
     }
   }
 
-  // practice & wrong-questions
+  // 练习 / 错题本
   static async recordPractice(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id

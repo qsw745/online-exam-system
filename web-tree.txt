@@ -151,6 +151,7 @@
 |   |   |   |   |   useMenus.ts
 |   |   |   +-- pages
 |   |   |   |   |   MenuManagementPage.tsx
+|   |   |   +-- utils
 |   |   |   |   model.ts
 |   |   +-- notifications
 |   |   |   +-- components
@@ -297,19 +298,21 @@
 |   |   |   |   |   TasksPage.tsx
 |   |   +-- users
 |   |   |   +-- components
+|   |   |   |   |   BindUserModal.tsx
+|   |   |   |   |   EditUserModal.tsx
 |   |   |   |   |   OrgTreePanel.tsx
+|   |   |   |   |   ResetPasswordModal.tsx
 |   |   |   |   |   UserFilterBar.tsx
 |   |   |   |   |   UsersTable.tsx
+|   |   |   |   |   ViewUserModal.tsx
 |   |   |   +-- constants
 |   |   |   |   |   index.ts
 |   |   |   +-- hooks
 |   |   |   |   |   index.ts
 |   |   |   |   |   useOrgPathMap.ts
 |   |   |   |   |   useOrgUsersQuery.ts
-|   |   |   |   |   useUsersQuery.ts
 |   |   |   +-- pages
 |   |   |   |   |   UserManagementPage.tsx
-|   |   |   |   |   UserRoleManagementPage.tsx
 |   |   +-- wrong-questions
 |   |   |   +-- components
 |   |   |   |   |   WrongQuestionItem.tsx

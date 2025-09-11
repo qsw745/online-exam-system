@@ -37,7 +37,8 @@ export const OrgController = {
 
   async getById(req: AuthRequest, res: Response<ApiResponse<IOrg>>) {
     try {
-      const id = Number(req.query.orgId)
+      console.log('req.query', req.params)
+      const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: '无效的组织ID' })
       const data = await svc.getById(id)
       return res.json({ success: true, data })

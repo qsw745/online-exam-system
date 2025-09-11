@@ -94,7 +94,7 @@ function FormModal<T extends object = any>({
       cancelText={cancelText}
       width={width}
       confirmLoading={loading}
-      destroyOnClose={destroyOnClose}
+      destroyOnHidden={destroyOnClose}
       footer={footer}
       {...modalProps}
     >

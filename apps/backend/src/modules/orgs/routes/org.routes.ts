@@ -4,7 +4,7 @@ import { OrgController } from '../controllers/org.controller'
 import { authenticateToken } from '@/common/middleware/auth'
 import { requireRoleByIds } from '@/common/middleware/role-auth'
 import { ROLE_IDS } from '@/config/roles'
-import type { AuthRequest } from 'types/auth'
+import type { AuthRequest } from '@/types/auth'
 
 const router = Router()
 const wrap =
@@ -24,7 +24,7 @@ router.get(
 router.get('/', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER, ROLE_IDS.SUPER_ADMIN]), wrap(OrgController.list))
 
 router.get(
-  '/org',
+  '/:id',
   requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.TEACHER, ROLE_IDS.SUPER_ADMIN]),
   wrap(OrgController.getById)
 )

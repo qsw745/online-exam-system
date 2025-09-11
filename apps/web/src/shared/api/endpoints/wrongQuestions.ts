@@ -4,7 +4,7 @@ import type { ApiResult } from '../core/types'
 export const wrongQuestions = {
   /** 记录一次练习结果 */
   recordPractice(payload: { question_id: number; is_correct: boolean; answer: any }): Promise<ApiResult<any>> {
-    return api.post('/wrong-questions/records', payload)
+    return api.post('/wrong-questions/practice', payload)
   },
   getPracticedQuestions(wrong_question_id?:number): Promise<ApiResult<{ ids: number[] } | number[]>> {
     return api.post('/wrong-questions/practiced', { wrong_question_id })

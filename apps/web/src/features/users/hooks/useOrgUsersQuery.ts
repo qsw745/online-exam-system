@@ -29,10 +29,11 @@ export function useOrgUsersQuery(orgId: number | null) {
       const r = (await (usersApi as any).list?.(params)) as ApiResult<any>
       if (!isSuccess(r)) throw new Error(getErr(r, '加载用户失败'))
 
-      const payload = r.data as any
+        const payload = r.data as any
+        console.log('payload', payload)
       const list = payload?.items ?? payload?.list ?? payload?.users ?? payload?.data ?? payload ?? []
       const t = payload?.total ?? payload?.count ?? payload?.pagination?.total ?? list.length
-
+        console.log(t);
       setRows(Array.isArray(list) ? list : [])
       setTotal(Number(t) || 0)
     } finally {

@@ -33,7 +33,7 @@ export default function CreateFavoriteModal({ open, categories, onCancel, onSubm
       onOk={() => form.submit()}
       okText="创建"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form
         form={form}

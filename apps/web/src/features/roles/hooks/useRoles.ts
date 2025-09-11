@@ -1,54 +1,60 @@
-// features/roles/hooks/useRoles.ts
-import { useCallback, useState } from 'react'
+import { rolesApi } from '@/shared/api/http'
 import { App } from 'antd'
-import { api } from '@/shared/api/http'
+import { useCallback, useState } from 'react'
 
-// ===== 轻量类型 =====
 export type Role = {
   id: number
-  name: string
+  name?: string
   code?: string
   description?: string | null
   status?: string
 }
 
-// ===== 轻量工具 =====
 const ensureArray = <T>(input: any, fallback: T[] = []): T[] => {
   if (Array.isArray(input)) return input as T[]
   if (input == null) return fallback
   const maybe = (input.items ?? input.data ?? input.list ?? input.rows) as T[] | undefined
   return Array.isArray(maybe) ? maybe : fallback
 }
+
+// 把 total 抠出来并做数值兜底
 const pickTotal = (input: any, fallback = 0): number => {
-  if (!input) return fallback
-  return (
-    Number(input?.pagination?.total) ??
-    Number(input?.total) ??
-    Number(input?.count) ??
-    Number(input?.length) ??
+  const raw =
+    input?.pagination?.total ??
+    input?.total ??
+    input?.count ??
+    (Array.isArray(input) ? input.length : undefined) ??
     fallback
-  )
+  const n = Number(raw)
+  return Number.isFinite(n) && n >= 0 ? n : fallback
 }
 const isOk = (r: any) => r?.success !== false && !r?.error
 const getMsg = (r: any, fallback: string) => r?.message || r?.error || fallback
 const unwrap = (r: any) => (r && typeof r === 'object' && 'data' in r ? (r as any).data : r)
 
-// ===== API =====
 const roleService = {
   async list(params: { page?: number; limit?: number; keyword?: string }) {
-    const r = await api.get<any>('/roles', { params })
+    // const r = await api.get<any>('/roles', { params })
+    const r = await rolesApi.list(params)
     return unwrap(r)
   },
   async create(payload: Partial<Role>) {
-    const r = await api.post<any>('/roles', payload)
+    // const r = await api.post<any>('/roles', payload)
+    const r = await rolesApi.create(payload)
+    return unwrap(r)
+  },
+  async addRog(payload: number) {
+    const r = await rolesApi.addRogs(payload)
     return unwrap(r)
   },
   async update(id: number, payload: Partial<Role>) {
-    const r = await api.put<any>(`/roles/${id}`, payload)
+    // const r = await api.put<any>(`/roles/${id}`, payload)
+    const r = await rolesApi.update(id, payload)
     return unwrap(r)
   },
   async remove(id: number) {
-    const r = await api.delete<any>(`/roles/${id}`)
+    // const r = await api.delete<any>(`/roles/${id}`)
+    const r = await rolesApi.remove(id)
     return unwrap(r)
   },
 }
@@ -64,15 +70,23 @@ export function useRoles() {
 
   const load = useCallback(
     async (p = page, s = pageSize, k = keyword) => {
+      setLoading(true)
       try {
-        setLoading(true)
         const resp = await roleService.list({ page: p, limit: s, keyword: k || undefined })
         if (!isOk(resp)) throw new Error(getMsg(resp, '加载角色失败'))
+
+        // 1) 主数据
         const arr = ensureArray<Role>(resp, [])
         setList(arr)
-        setTotal(arr.length ? pickTotal(resp, arr.length) : pickTotal(resp, 0))
-        setPage(p)
-        setPageSize(s)
+
+        // 2) 分页数字兜底
+        const nextTotal = pickTotal(resp, arr.length)
+        const nextSize = Number(s)
+        const nextPage = Number(p)
+
+        setTotal(Number.isFinite(nextTotal) ? nextTotal : 0)
+        setPageSize(Number.isFinite(nextSize) && nextSize > 0 ? nextSize : 10)
+        setPage(Number.isFinite(nextPage) && nextPage > 0 ? nextPage : 1)
       } catch (e: any) {
         console.error(e)
         message.error(e?.message || '加载角色失败')
@@ -98,7 +112,13 @@ export function useRoles() {
   const remove = async (id: number) => {
     const r = await roleService.remove(id)
     if (!isOk(r)) throw new Error(getMsg(r, '删除失败'))
-    await load(page, pageSize, keyword)
+    // 如果当前页删空了，回退一页
+    const willLeft = total - 1 - (page - 1) * pageSize
+    if (willLeft <= 0 && page > 1) {
+      await load(page - 1, pageSize, keyword)
+    } else {
+      await load(page, pageSize, keyword)
+    }
   }
 
   return {

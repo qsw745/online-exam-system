@@ -12,7 +12,7 @@ export default function ProfilePage() {
   const { t, user, form, setForm, avatarSrc, onAvatarPick, loading, submit } = useProfilePage()
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', maxWidth: 800, margin: '0 auto', padding: 24 }}>
+    <Space direction="vertical" size="large" style={{ width: '100%',  margin: '0 auto', padding: 24 }}>
       <Title level={2}>{t('profile.title')}</Title>
 
       <Card>
