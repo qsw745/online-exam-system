@@ -1,4 +1,3 @@
-// apps/backend/src/modules/users/repositories/user.repository.ts
 import type { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import { pool } from '@/config/database.js'
 import type { UserDTO, UserRole, UserStatus, UserSettings } from '../domain/user.entity.js'
@@ -8,23 +7,58 @@ export class UserRepository {
 
   async getById(id: number): Promise<UserDTO | null> {
     const [rows] = await this.db.query<UserDTO[]>(
-      'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at FROM users WHERE id = ?',
-      [id]
+        'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at FROM users WHERE id = ?',
+        [id]
     )
     return rows[0] || null
   }
 
+  /**
+   * 查询用户主组织（来源：user_organizations）
+   * 规则：
+   *  1) 优先 is_primary = 1
+   *  2) 其次按 assigned_at、created_at 的最早记录
+   * 注意：关系表没有 id 列，因此不要使用 ou.id 排序
+   */
+  async getPrimaryOrgForUser(
+      userId: number
+  ): Promise<{ orgId: number | null; org_name: string | null }> {
+    const sql = `
+      SELECT
+        ou.org_id AS orgId,
+        o.name   AS org_name
+      FROM user_organizations ou
+      LEFT JOIN organizations o ON o.id = ou.org_id
+      WHERE ou.user_id = ?
+      ORDER BY
+        CASE WHEN ou.is_primary = 1 THEN 0 ELSE 1 END,
+        COALESCE(ou.assigned_at, ou.created_at, '1970-01-01 00:00:00') ASC
+      LIMIT 1
+    `
+    try {
+      const [rows] = await this.db.query<RowDataPacket[]>(sql, [userId])
+      const r = rows?.[0]
+      return {
+        orgId: r?.orgId != null ? Number(r.orgId) : null,
+        org_name: r?.org_name ?? null,
+      }
+    } catch {
+      // 表不存在或列缺失时，降级为无组织，避免 500
+      return { orgId: null, org_name: null }
+    }
+  }
+
   async statsOfUser(
-    userId: number
+      userId: number
   ): Promise<{ totalSubmissions: number; completedSubmissions: number; averageScore: number }> {
     const [rows] = await this.db.query<RowDataPacket[]>(
-      `SELECT 
+        `SELECT 
          COUNT(*) as totalSubmissions,
          SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as completedSubmissions,
          AVG(CASE WHEN score IS NOT NULL THEN score ELSE 0 END) as averageScore
        FROM exam_results 
       WHERE user_id = ?`,
-      [userId]
+        [userId]
     )
     return {
       totalSubmissions: Number(rows[0]?.totalSubmissions || 0),
@@ -52,11 +86,11 @@ export class UserRepository {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
 
     const [rows] = await this.db.query<UserDTO[]>(
-      `SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at
+        `SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at
          FROM users ${where}
      ORDER BY created_at DESC
         LIMIT ? OFFSET ?`,
-      [...values, limit, offset]
+        [...values, limit, offset]
     )
 
     const [cnt] = await this.db.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM users ${where}`, values)
@@ -65,8 +99,8 @@ export class UserRepository {
   }
 
   async updateUser(
-    id: number,
-    patch: Partial<Pick<UserDTO, 'username' | 'email' | 'role' | 'avatar_url' | 'nickname' | 'school' | 'class_name'>>
+      id: number,
+      patch: Partial<Pick<UserDTO, 'username' | 'email' | 'role' | 'avatar_url' | 'nickname' | 'school' | 'class_name'>>
   ): Promise<UserDTO | null> {
     const fields: string[] = []
     const values: any[] = []
@@ -81,8 +115,8 @@ export class UserRepository {
 
     values.push(id)
     const [ret] = await this.db.query<ResultSetHeader>(
-      `UPDATE users SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-      values
+        `UPDATE users SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
+        values
     )
     if (!ret.affectedRows) return null
     return this.getById(id)
@@ -98,8 +132,8 @@ export class UserRepository {
 
   async resetPassword(id: number, hashed: string): Promise<boolean> {
     const [ret] = await this.db.query<ResultSetHeader>(
-      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
-      [hashed, id]
+        'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+        [hashed, id]
     )
     return ret.affectedRows > 0
   }
@@ -109,8 +143,8 @@ export class UserRepository {
     try {
       await conn.beginTransaction()
       await conn.query(
-        'DELETE FROM answer_records WHERE exam_result_id IN (SELECT id FROM exam_results WHERE user_id = ?)',
-        [id]
+          'DELETE FROM answer_records WHERE exam_result_id IN (SELECT id FROM exam_results WHERE user_id = ?)',
+          [id]
       )
       await conn.query('DELETE FROM exam_results WHERE user_id = ?', [id])
       await conn.query('DELETE FROM tasks WHERE user_id = ?', [id])

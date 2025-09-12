@@ -1,6 +1,6 @@
-// apps/backend/src/modules/orgs/services/org-user.service.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool } from '@/config/database'
-import { LogRepository } from '@/modules/logs/repositories/log.repository'
+import { LogService } from '@/modules/logs/services/log.service' // ✅ 使用统一日志服务
 import type { OrgUserListData } from '../domain/org-user.model'
 import { OrgUserRepository, getOrgUserColumns, getUserCols } from '../repositories/org-user.repository'
 
@@ -24,14 +24,14 @@ export class OrgUserService {
     if (includeChildren) {
       try {
         const [rows] = await pool.query<any[]>(
-          `
-          WITH RECURSIVE c AS (
-            SELECT id FROM ${orgTable} WHERE id=?
-            UNION ALL
-            SELECT o.id FROM ${orgTable} o JOIN c ON o.parent_id = c.id
-          ) SELECT id FROM c
-        `,
-          [orgId]
+            `
+              WITH RECURSIVE c AS (
+                SELECT id FROM ${orgTable} WHERE id=?
+                UNION ALL
+                SELECT o.id FROM ${orgTable} o JOIN c ON o.parent_id = c.id
+              ) SELECT id FROM c
+            `,
+            [orgId]
         )
         const arr = (rows as any[]).map(r => Number(r.id)).filter(Boolean)
         if (arr.length) {
@@ -78,12 +78,12 @@ export class OrgUserService {
     if (role) {
       try {
         const [tableCheck] = await pool.query<any[]>(
-          `SELECT table_name FROM information_schema.tables 
-           WHERE table_schema = DATABASE() AND table_name = 'user_org_roles'`
+            `SELECT table_name FROM information_schema.tables
+             WHERE table_schema = DATABASE() AND table_name = 'user_org_roles'`
         )
         if ((tableCheck as any[]).length > 0) {
           whereParts.push(
-            `EXISTS (
+              `EXISTS (
               SELECT 1 FROM user_org_roles uor
               JOIN roles r ON r.id = uor.role_id
               WHERE uor.user_id = u.id
@@ -103,15 +103,15 @@ export class OrgUserService {
     const rows = await OrgUserRepository.listUsers(selectCols, whereSQL, whereVals, page, limit)
     const items = rows.map((r: any) => {
       const st: 'active' | 'disabled' =
-        typeof r.status === 'string'
-          ? r.status === 'disabled'
-            ? 'disabled'
-            : 'active'
-          : hasIsActive
-          ? Number(r.is_active) === 1
-            ? 'active'
-            : 'disabled'
-          : 'active'
+          typeof r.status === 'string'
+              ? r.status === 'disabled'
+                  ? 'disabled'
+                  : 'active'
+              : hasIsActive
+                  ? Number(r.is_active) === 1
+                      ? 'active'
+                      : 'disabled'
+                  : 'active'
       const base: any = {
         id: r.id,
         username: r.username,
@@ -132,36 +132,42 @@ export class OrgUserService {
     return { items, total, page, limit }
   }
 
+  /** 批量添加用户到组织 */
   async addUsers(
-    user: { id?: number; username?: string } | undefined,
-    orgId: number,
-    userIds: number[],
-    reqMeta?: { ip?: string; ua?: string }
+      user: { id?: number; username?: string } | undefined,
+      orgId: number,
+      userIds: number[],
+      reqMeta?: { ip?: string; ua?: string }
   ) {
     if (!(await OrgUserRepository.orgExists(orgId))) throw new Error('组织不存在')
     const validIds = await OrgUserRepository.userIdsExisting(userIds)
     if (!validIds.length) throw new Error('提供的用户不存在')
     const affected = await OrgUserRepository.insertIgnoreUserOrgs(orgId, validIds)
 
-    await LogRepository.insertUserLog({
+    // ✅ 统一日志（中文）
+    await LogService.log({
+      type: 'organization',
       userId: user?.id || 0,
-      username: user?.username || undefined,
-      action: 'add_users_to_org',
+      username: user?.username,
+      action: '批量添加用户到组织',
+      message: '批量添加用户到组织成功',
       resourceType: 'organization',
       resourceId: orgId,
-      details: { count: affected, user_ids: validIds },
+      details: { 新增数量: affected, 用户ID列表: validIds },
       ipAddress: reqMeta?.ip,
       userAgent: reqMeta?.ua,
+      status: 'success',
     })
 
     return { added: affected }
   }
 
+  /** 从组织移除用户（含主组织校验与重分配） */
   async removeUser(
-    user: { id?: number; username?: string } | undefined,
-    orgId: number,
-    targetUserId: number,
-    reqMeta?: { ip?: string; ua?: string }
+      user: { id?: number; username?: string } | undefined,
+      orgId: number,
+      targetUserId: number,
+      reqMeta?: { ip?: string; ua?: string }
   ) {
     const cols = await getOrgUserColumns()
     const rel = await OrgUserRepository.relOfUserInOrg(orgId, targetUserId)
@@ -181,25 +187,30 @@ export class OrgUserService {
       if (!del) throw new Error('移除失败')
     }
 
-    await LogRepository.insertUserLog({
+    // ✅ 统一日志（中文）
+    await LogService.log({
+      type: 'organization',
       userId: user?.id || 0,
-      username: user?.username || undefined,
-      action: 'remove_user_from_org',
+      username: user?.username,
+      action: '从组织移除用户',
+      message: '已从组织移除用户',
       resourceType: 'organization',
       resourceId: orgId,
-      details: { user_id: targetUserId },
+      details: { 被移除用户ID: targetUserId },
       ipAddress: reqMeta?.ip,
       userAgent: reqMeta?.ua,
+      status: 'success',
     })
 
     return { message: '移除成功' }
   }
 
+  /** 设置主组织（幂等） */
   async setPrimary(
-    user: { id?: number; username?: string } | undefined,
-    orgId: number,
-    targetUserId: number,
-    reqMeta?: { ip?: string; ua?: string }
+      user: { id?: number; username?: string } | undefined,
+      orgId: number,
+      targetUserId: number,
+      reqMeta?: { ip?: string; ua?: string }
   ) {
     if (!(await OrgUserRepository.orgExists(orgId))) throw new Error('组织或用户不存在')
     await OrgUserRepository.ensureRel(targetUserId, orgId)
@@ -207,28 +218,33 @@ export class OrgUserService {
     const ok = await OrgUserRepository.setPrimary(targetUserId, orgId)
     if (!ok) throw new Error('设置主组织失败')
 
-    await LogRepository.insertUserLog({
+    // ✅ 统一日志（中文）
+    await LogService.log({
+      type: 'organization',
       userId: user?.id || 0,
-      username: user?.username || undefined,
-      action: 'set_primary_org',
+      username: user?.username,
+      action: '设置用户主组织',
+      message: '已设置用户主组织',
       resourceType: 'organization',
       resourceId: orgId,
-      details: { user_id: targetUserId, org_id: orgId },
+      details: { 用户ID: targetUserId, 主组织ID: orgId },
       ipAddress: reqMeta?.ip,
       userAgent: reqMeta?.ua,
+      status: 'success',
     })
 
     return { user_id: targetUserId, org_id: orgId }
   }
 
+  /** 在组织之间迁移用户（并设置目标为主组织） */
   async moveUser(
-    user: { id?: number; username?: string } | undefined,
-    fromOrgId: number,
-    toOrgId: number,
-    targetUserId: number,
-    reqMeta?: { ip?: string; ua?: string }
+      user: { id?: number; username?: string } | undefined,
+      fromOrgId: number,
+      toOrgId: number,
+      targetUserId: number,
+      reqMeta?: { ip?: string; ua?: string }
   ) {
-    if (fromOrgId === toOrgId) throw new Error('源与目标机构相同')
+    if (fromOrgId === toOrgId) throw new Error('源与目标组织相同')
     if (!(await OrgUserRepository.orgExists(fromOrgId)) || !(await OrgUserRepository.orgExists(toOrgId))) {
       throw new Error('组织或用户不存在')
     }
@@ -239,15 +255,19 @@ export class OrgUserService {
     if (!ok) throw new Error('设置目标主组织失败')
     await OrgUserRepository.deleteRel(targetUserId, fromOrgId)
 
-    await LogRepository.insertUserLog({
+    // ✅ 统一日志（中文）
+    await LogService.log({
+      type: 'organization',
       userId: user?.id || 0,
-      username: user?.username || undefined,
-      action: 'move_user_org',
+      username: user?.username,
+      action: '迁移用户组织',
+      message: '已将用户从源组织迁移至目标组织',
       resourceType: 'organization',
       resourceId: toOrgId,
-      details: { user_id: targetUserId, from_org_id: fromOrgId, to_org_id: toOrgId },
+      details: { 用户ID: targetUserId, 源组织ID: fromOrgId, 目标组织ID: toOrgId },
       ipAddress: reqMeta?.ip,
       userAgent: reqMeta?.ua,
+      status: 'success',
     })
 
     return { user_id: targetUserId, from_org_id: fromOrgId, to_org_id: toOrgId }

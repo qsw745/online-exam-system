@@ -12,8 +12,15 @@ export class UserService {
     async getById(userId: number) {
         const user = await this.repo.getById(userId)
         if (!user) return null
+
+        // 统计信息（原有逻辑）
         const stats = await this.repo.statsOfUser(userId)
-        return { ...user, statistics: stats }
+
+        // ✅ 仅调用 repository（不写 SQL）
+        const { orgId, org_name } = await this.repo.getPrimaryOrgForUser(userId)
+
+        // 同时兼容 orgId / org_id
+        return { ...user, statistics: stats, orgId, org_id: orgId, org_name }
     }
 
     async getMe(userId: number) {
@@ -24,7 +31,7 @@ export class UserService {
         return this.repo.list(params)
     }
 
-    /** 新增：按组织查询用户（转调 OrgUserService），返回 {items,total} */
+    /** 按组织查询用户（转调 OrgUserService），返回 {items,total} */
     async listByOrg(params: {
         orgId: number; page: number; limit: number; role?: string; search?: string; includeChildren?: boolean
     }) {
@@ -176,40 +183,33 @@ export class UserService {
         return settings
     }
 
-    /** 新增：当 /users/:id 接收到 orgId|org_id 字段时，统一在业务层编排 org 关系 */
+    /** 当 /users/:id 接收到 orgId|org_id 字段时，统一在业务层编排 org 关系 */
     async setUserOrg(
         targetUserId: number,
         nextOrgId: number | null, // null=移除主组织；number=设置/迁移为该组织
         actor?: { id?: number; username?: string }
     ) {
-        // 如果没带列，直接忽略（交由 controller 控制 hasOrgField）
         if (!(nextOrgId === null || Number.isFinite(nextOrgId))) return
 
-        // 查询当前主组织（若无 is_primary 列，则取最近一条关系）
         const prevOrgId = await OrgUserRepository.currentPrimaryOrgId(targetUserId)
 
         if (nextOrgId === null) {
-            // 仅当存在主组织才需要移除（OrgUserService.removeUser 会处理“只剩一个组织不允许移除主组织”等规则）
             if (prevOrgId != null) {
                 await this.orgSvc.removeUser(actor, prevOrgId, targetUserId)
             }
             return
         }
 
-        // 目标为某组织
         if (prevOrgId == null) {
-            // 没有主组织：直接设为主组织（内部会 ensure 关系并清空其他主标记）
             await this.orgSvc.setPrimary(actor, nextOrgId, targetUserId)
             return
         }
 
         if (prevOrgId !== nextOrgId) {
-            // 从 prev → next 迁移
             await this.orgSvc.moveUser(actor, prevOrgId, nextOrgId, targetUserId)
             return
         }
 
-        // prev == next：确保存在关系并标记为主（幂等）
         await this.orgSvc.setPrimary(actor, nextOrgId, targetUserId)
     }
 }

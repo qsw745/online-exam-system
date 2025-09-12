@@ -5,11 +5,11 @@ const { Option } = Select
 // 过滤掉没有 id 的节点，避免 TreeSelect 报 value=undefined
 function toTreeOptions(tree: any[] = []): any[] {
   const dfs = (n: any): any | null => {
-    if (n == null || n.id == null) return null // 关键：过滤无 id
+    if (n == null || n.id == null) return null
     const children = Array.isArray(n.children) ? n.children.map(dfs).filter(Boolean) : undefined
-    return { value: n.id, label: n.name, children }
+    return { value: Number(n.id), label: n.name, children }
   }
-  return tree.map(dfs).filter(Boolean) as any[]
+  return (tree || []).map(dfs).filter(Boolean) as any[]
 }
 
 export const EditUserModal: React.FC<{
@@ -27,21 +27,22 @@ export const EditUserModal: React.FC<{
 }> = ({ open, user, tree, onCancel, onSubmit }) => {
   const [form] = Form.useForm()
 
-  // 统一映射
+  // —— 统一映射（回显所需字段）——
   const mapped = React.useMemo(() => {
     if (!user) return undefined
+    const originalOrgId =
+      typeof user.orgId === 'number' ? user.orgId : typeof user.org_id === 'number' ? user.org_id : undefined
     return {
       username: user.username ?? user.name ?? '',
       email: user.email ?? '',
       status: (user.status as 'active' | 'disabled') ?? 'active',
       role: user.role ?? (Array.isArray(user.roles) ? user.roles[0] : undefined),
-      // TreeSelect 的受控值建议用 undefined 表示“空”，避免某些版本对 null 的警告
-      orgId: user.orgId ?? user.org_id ?? undefined,
+      orgId: originalOrgId, // 回显用
+      __originalOrgId: originalOrgId, // 提交时比对
     }
   }, [user])
 
-  // 关键点 1：让 Modal 先把内容渲染出来（即使没打开），这样 useForm 一定已连接到 <Form>
-  // 关键点 2：用 afterOpenChange 在「完全打开」后再灌值，避免 “useForm 未连接” 警告
+  // 让内容提前挂载，确保 form 已连接；完全打开后再灌值，保证回显稳定
   const handleAfterOpenChange = (opened: boolean) => {
     if (opened && mapped) {
       form.setFieldsValue(mapped)
@@ -53,14 +54,38 @@ export const EditUserModal: React.FC<{
 
   const handleOk = async () => {
     const v = await form.validateFields()
-    await onSubmit({
+    // 原始 orgId（入参用户携带的机构）
+    const originalOrgId: number | undefined = form.getFieldValue('__originalOrgId')
+
+    // 用户表单里当前的 orgId
+    let nextOrgId: number | null | undefined =
+      typeof v.orgId === 'number' ? v.orgId : v.orgId == null ? undefined : Number(v.orgId)
+
+    /**
+     * 关键修复：
+     * - 如果用户“没有改动”orgId（TreeSelect 没选、也没清空），Form 值会是 undefined，
+     *   这种情况我们“保留原值”，避免把 undefined 变成 null 导致后端把组织移除。
+     * - 只有用户明确选择了新机构（number）时才提交这个新值。
+     * - 如果你未来需要“允许显式移除机构”，应该做一个单独的“移除所属机构”的确认操作，
+     *   这里不把 undefined 自动当作移除。
+     */
+    if (typeof nextOrgId === 'undefined') {
+      nextOrgId = typeof originalOrgId === 'number' ? originalOrgId : undefined
+    }
+
+    const payload: any = {
       username: v.username,
       email: v.email || undefined,
       status: v.status,
       role: v.role || undefined,
-      // 允许为空
-      orgId: v.orgId ?? null,
-    })
+    }
+
+    // 仅在我们有明确的机构值时才带上 orgId 字段（避免无意触发移除）
+    if (typeof nextOrgId !== 'undefined') {
+      payload.orgId = nextOrgId // 可能是 number（保持/修改），也可能是 null（未来若你允许清空时再放开）
+    }
+
+    await onSubmit(payload)
   }
 
   return (
@@ -70,22 +95,11 @@ export const EditUserModal: React.FC<{
       onCancel={onCancel}
       onOk={handleOk}
       okText="保存"
-      // ⚠️ 你控制台提示要求使用 destroyOnHidden
       destroyOnHidden
-      // 让内容提前挂载，确保 form 已连接，避免 setFieldsValue 报警告
       forceRender
-      // 打开后统一 setFieldsValue，这个时机最稳
       afterOpenChange={handleAfterOpenChange}
     >
-      {/* 用 key 在切换不同用户时强制重建一次内部状态，确保 initialValues 生效 */}
-      <Form
-        key={user?.id ?? 'new'}
-        form={form}
-        layout="vertical"
-        preserve={false}
-        // 备用：初次挂载也给一份初始值（如果 forceRender 导致先挂载，再 open）
-        initialValues={mapped}
-      >
+      <Form key={user?.id ?? 'new'} form={form} layout="vertical" preserve={false} initialValues={mapped}>
         <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }]}>
           <Input autoFocus />
         </Form.Item>
@@ -109,11 +123,16 @@ export const EditUserModal: React.FC<{
           </Select>
         </Form.Item>
 
+        {/* 保存一个隐藏字段用于记录原始 orgId，避免误清空 */}
+        <Form.Item name="__originalOrgId" hidden>
+          <Input />
+        </Form.Item>
+
         <Form.Item label="所属机构" name="orgId">
           <TreeSelect
             allowClear
             treeData={toTreeOptions(tree)}
-            placeholder="选择所属机构（可留空）"
+            placeholder="选择所属机构（不改则保留原有）"
             treeDefaultExpandAll={false}
             showSearch
           />
@@ -122,3 +141,5 @@ export const EditUserModal: React.FC<{
     </Modal>
   )
 }
+
+export default EditUserModal
