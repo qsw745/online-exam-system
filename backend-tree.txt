@@ -1,4 +1,10 @@
-﻿+-- database
+﻿+-- .idea
+|   |   .gitignore
+|   |   backend.iml
+|   |   modules.xml
+|   |   vcs.xml
+|   |   workspace.xml
++-- database
 |   |   migrate_discussions.js
 +-- db
 |   +-- migrations
@@ -58,6 +64,8 @@
 |   |   2025-09-10-error.log
 |   |   2025-09-11.log
 |   |   2025-09-11-error.log
+|   |   2025-09-12.log
+|   |   2025-09-12-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -124,7 +132,9 @@
 |   |   |   +-- domain
 |   |   |   |   |   auth.model.ts
 |   |   |   +-- repositories
+|   |   |   |   |   password-reset.repository.ts
 |   |   |   |   |   token.repository.ts
+|   |   |   |   |   user.repository.ts
 |   |   |   +-- routes
 |   |   |   |   |   auth.routes.ts
 |   |   |   |   |   password-reset.routes.ts

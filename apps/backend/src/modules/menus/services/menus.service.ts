@@ -9,7 +9,11 @@ import type {
   UpdateRoleRequest,
   UserMenuPermission,
 } from '../domain/menu.model.js'
+import { UnitRepo } from '../repositories/unit-menu.repository.js'
+
 import { MenuRepository, type MenuUpdate } from '../repositories/menu.repository.js'
+import httpError from "@/common/errors/http-error";
+type ScopeArgs = { scope?: '' | 'system' | 'unit'; unitId?: number }
 
 // 规范化 meta：对象->JSON；空/非法->null；字符串若是 JSON -> 规范化，否则 null
 function normalizeMeta(value: any): any | null {
@@ -34,10 +38,21 @@ function normalizeMeta(value: any): any | null {
 }
 
 export class MenuService {
+
   // ---- Menus
-  static async getAllMenus(): Promise<Menu[]> {
+  static async getAllMenus(args: ScopeArgs = {}): Promise<Menu[]> {
+    const { scope, unitId } = args
+    if (scope === 'system') return MenuRepository.findMenusByFilter({ is_system: 1 })
+
+    if (scope === 'unit') {
+      if (!unitId) throw new Error('unitId required')
+      // 关键：只看单位“覆盖项”，没有就返回空
+      return UnitRepo.findOverridesAsMenus(unitId)
+    }
+
     return MenuRepository.findAllMenus()
   }
+
 
   private static buildMenuTree(menus: Menu[], parentId: number | null = null): MenuTreeNode[] {
     const nodes: MenuTreeNode[] = []
@@ -50,8 +65,8 @@ export class MenuService {
     return nodes.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
   }
 
-  static async getMenuTree(): Promise<MenuTreeNode[]> {
-    const menus = await this.getAllMenus()
+  static async getMenuTree(args: ScopeArgs = {}): Promise<MenuTreeNode[]> {
+    const menus = await this.getAllMenus(args)
     return this.buildMenuTree(menus)
   }
 
@@ -59,70 +74,53 @@ export class MenuService {
     return MenuRepository.findMenuById(id)
   }
 
-  static async createMenu(data: CreateMenuRequest): Promise<number> {
-    const parent = data.parent_id ? await MenuRepository.findMenuById(data.parent_id) : null
-    const level = parent ? parent.level + 1 : 1
-    const insertData = {
-      ...data,
-      level,
-      is_system: false,
-      meta: normalizeMeta(data.meta),
-    }
-    return MenuRepository.insertMenu(insertData)
+  /** 单位菜单的“新增/编辑/删除”，不改系统表，只写覆盖 */
+  static async createMenu(data: CreateMenuRequest & { unitId?: number; sys_menu_id?: number }): Promise<number> {
+    // 单位页的“新增”本质是：对某个系统菜单做覆盖；因此必须带 sys_menu_id
+    if (!data.unitId || !data.sys_menu_id) throw new Error('unitId/sys_menu_id required')
+    await UnitRepo.upsertUnitOverride(data.unitId, data.sys_menu_id, data as any)
+    return data.sys_menu_id!  // 仍使用系统ID作为逻辑主键
   }
 
-  static async updateMenu(data: UpdateMenuRequest): Promise<boolean> {
-    const patch: UpdateMenuRequest = {
-      ...data,
-      meta: data.meta !== undefined ? normalizeMeta(data.meta) : undefined,
-    } as any
-    return MenuRepository.updateMenu(patch)
-  }
 
-  static async deleteMenu(id: number): Promise<boolean> {
-    const cur = await MenuRepository.findMenuById(id)
-    if (!cur || cur.is_system) return false
-    const childCount = await MenuRepository.countChildren(id)
-    if (childCount > 0) throw new Error('无法删除包含子菜单的菜单项')
-    return MenuRepository.deleteMenu(id)
-  }
-
-  static async batchUpdateMenuSort(updates: MenuUpdate[]): Promise<boolean> {
-    if (!updates?.length) return true
-
-    // 防自环/拖入子树
-    const ids = Array.from(
-      new Set([
-        ...updates.map(u => u.id),
-        ...updates.map(u => u.parent_id).filter((v): v is number => typeof v === 'number'),
-      ])
-    )
-    if (ids.length) {
-      const map = new Map<number, { id: number; parent_id: number | null }>()
-      const menus = await MenuRepository.findAllMenus()
-      menus.forEach(m => map.set(m.id, { id: m.id, parent_id: m.parent_id }))
-      const isInSubtree = (ancestor: number, cand: number | null | undefined) => {
-        if (cand == null) return false
-        let cur = map.get(cand)
-        while (cur) {
-          if (cur.parent_id === ancestor) return true
-          if (cur.parent_id == null) break
-          cur = map.get(cur.parent_id)
-        }
-        return false
-      }
-      for (const u of updates) {
-        if (u.parent_id !== undefined) {
-          if (u.parent_id === u.id) throw new Error('不能把节点设为自己的父级')
-          if (isInSubtree(u.id, u.parent_id)) throw new Error('不能拖到自己的子级里')
-        }
-      }
-    }
-
-    await MenuRepository.batchUpdateSort(updates)
+  static async updateMenu(data: UpdateMenuRequest & { unitId?: number; sys_menu_id?: number }): Promise<boolean> {
+    if (!data.unitId || !data.sys_menu_id) throw new Error('unitId/sys_menu_id required')
+    await UnitRepo.upsertUnitOverride(data.unitId, data.sys_menu_id, data as any)
     return true
   }
 
+
+  static async deleteMenu(id: number, unitId?: number, asUnit = false): Promise<boolean> {
+    if (asUnit) {
+      if (!unitId) throw new Error('unitId required')
+      await UnitRepo.deleteUnitOverride(unitId, id) // 这里的 id 就是 sys_menu_id
+      return true
+    }
+    // 系统菜单删除（功能菜单页才用）
+    const cur = await MenuRepository.findMenuById(id)
+    if (!cur || cur.is_system === false) return false
+    const childCount = await MenuRepository.countChildren(id)
+    if (childCount > 0) throw new Error('无法删除包含子菜单的系统菜单')
+    return MenuRepository.deleteMenu(id)
+  }
+
+  static async batchUpdateMenuSort(updates: MenuUpdate[], args?: { scope?: 'system'|'unit'; unitId?: number }) {
+    if (!updates?.length) return true
+    if (args?.scope === 'unit') {
+      if (!args.unitId) throw new Error('unitId required')
+      // 将 {id,parent_id,sort_order} 转成覆盖的 {sys_menu_id,parent_sys_id,sort_order}
+      const mapped = updates.map(u => ({
+        sys_menu_id: u.id,
+        sort_order: u.sort_order,
+        parent_sys_id: u.parent_id ?? null,
+      }))
+      await UnitRepo.batchUpsertSort(args.unitId, mapped)
+      return true
+    }
+    // 系统树排序（谨慎）
+    await MenuRepository.batchUpdateSort(updates)
+    return true
+  }
   // ---- Roles
   static async getAllRoles(): Promise<Role[]> {
     return MenuRepository.findAllRoles()

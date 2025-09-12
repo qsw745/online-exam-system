@@ -47,14 +47,41 @@ export async function getUserCols(): Promise<Set<string>> {
   cachedUserCols = new Set((cols as any[]).map(c => String(c.Field)))
   return cachedUserCols
 }
-
+export async function findUserIdsByEmailsRaw(emails: string[]) {
+  if (!emails.length) return []
+  const lowers = emails.map(e => e.toLowerCase())
+  const placeholders = lowers.map(() => '?').join(',')
+  const [rows] = await pool.query<RowDataPacket[]>(
+      `SELECT id, LOWER(email) AS email FROM users WHERE LOWER(email) IN (${placeholders})`,
+      lowers
+  )
+  return (rows as any[]).map(r => ({ id: Number(r.id), email: String(r.email) }))
+}
 export const OrgUserRepository = {
+  /** 新增：获取用户当前主组织（若无 is_primary 列，则取最近一条关系） */
+  async currentPrimaryOrgId(userId: number): Promise<number | null> {
+    const table = await getOrgUserTable()
+    const cols = await getOrgUserColumns()
+    const orgIdField = await this.orgIdField()
+    const orderParts: string[] = []
+    if (cols.has('is_primary')) orderParts.push('is_primary DESC')
+    if (cols.has('updated_at')) orderParts.push('updated_at DESC')
+    if (cols.has('created_at')) orderParts.push('created_at DESC')
+    const orderBy = orderParts.length ? ` ORDER BY ${orderParts.join(', ')}` : ''
+    const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT ${orgIdField} AS org_id FROM ${table} WHERE user_id=?${orderBy} LIMIT 1`,
+        [userId]
+    )
+    return (rows as any[])[0]?.org_id ?? null
+  },
   async orgExists(orgId: number): Promise<boolean> {
     const orgTable = await getOrgTable()
     const [[org]] = await pool.query<RowDataPacket[]>(`SELECT id FROM ${orgTable} WHERE id=? LIMIT 1`, [orgId])
     return !!org
   },
-
+  async findUserIdsByEmails(emails: string[]): Promise<Array<{ id: number; email: string }>> {
+    return findUserIdsByEmailsRaw(emails)
+  },
   async userIdsExisting(userIds: number[]): Promise<number[]> {
     if (!userIds.length) return []
     const [validUsers] = await pool.query<RowDataPacket[]>(

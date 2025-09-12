@@ -1,38 +1,42 @@
-// apps/backend/db/migrations/XXXXXXXXXXXX_add_logs_defaults.js
-/**
- * MySQL 的 ALTER 支持 .raw()，比链式 .alter() 更稳
- */
-exports.up = async function (knex) {
-  // 回填空值，避免 NOT NULL 失败
-  await knex.raw(`UPDATE logs SET log_type='system' WHERE log_type IS NULL OR log_type=''`)
-  await knex.raw(`UPDATE logs SET level='info' WHERE level IS NULL OR level=''`)
+// 20250910134113_add_logs_defaults.js
+exports.config = { transaction: false };
 
-  // 统一默认值/约束（按你的表字段名调整；无此列时请去掉相应行）
-  await knex.raw(`
-    ALTER TABLE logs
-      MODIFY COLUMN log_type VARCHAR(20) NOT NULL DEFAULT 'system' COMMENT 'user/system/audit/login/exam',
-      MODIFY COLUMN level VARCHAR(10) NOT NULL DEFAULT 'info' COMMENT 'debug/info/warn/error/fatal',
-      MODIFY COLUMN created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-  `)
+exports.up = async function up(knex) {
+  const hasLogs = await knex.schema.hasTable('logs');
+  if (!hasLogs) return; // 如果你确定一定有 logs，也可以 throw
 
-  // details 如果你要改为 JSON （确保现有数据可转 JSON；否则保持 TEXT）
-  // await knex.raw(`ALTER TABLE logs MODIFY COLUMN details JSON NULL`);
+  // 看看索引是否已存在
+  const idx = await knex('information_schema.statistics')
+      .whereRaw('table_schema = DATABASE()')
+      .andWhere('table_name', 'logs')
+      .andWhere('index_name', 'idx_logs_created_at')
+      .first();
 
-  // 索引（若不存在）
-  await knex.raw(`CREATE INDEX IF NOT EXISTS idx_logs_created_at ON logs(created_at)`)
-  await knex.raw(`CREATE INDEX IF NOT EXISTS idx_logs_type_level ON logs(log_type, level)`)
-  await knex.raw(`CREATE INDEX IF NOT EXISTS idx_logs_user ON logs(user_id)`)
-}
+  if (!idx) {
+    await knex.schema.alterTable('logs', (t) => {
+      t.index(['created_at'], 'idx_logs_created_at');
+    });
+  }
 
-exports.down = async function (knex) {
-  // 保守回滚：去掉默认值（按需）
-  await knex.raw(`
-    ALTER TABLE logs
-      MODIFY COLUMN log_type VARCHAR(20) NULL DEFAULT NULL,
-      MODIFY COLUMN level VARCHAR(10) NULL DEFAULT NULL
-  `)
-  // 索引回滚（可选）
-  // await knex.raw(`DROP INDEX idx_logs_created_at ON logs`);
-  // await knex.raw(`DROP INDEX idx_logs_type_level ON logs`);
-  // await knex.raw(`DROP INDEX idx_logs_user ON logs`);
-}
+  // 如你还要改默认值等，也放在这里，记得用 alter()：
+  // await knex.schema.alterTable('logs', (t) => {
+  //   t.timestamp('created_at', { useTz: false }).notNullable().defaultTo(knex.fn.now()).alter();
+  // });
+};
+
+exports.down = async function down(knex) {
+  const hasLogs = await knex.schema.hasTable('logs');
+  if (!hasLogs) return;
+
+  const idx = await knex('information_schema.statistics')
+      .whereRaw('table_schema = DATABASE()')
+      .andWhere('table_name', 'logs')
+      .andWhere('index_name', 'idx_logs_created_at')
+      .first();
+
+  if (idx) {
+    await knex.schema.alterTable('logs', (t) => {
+      t.dropIndex(['created_at'], 'idx_logs_created_at');
+    });
+  }
+};

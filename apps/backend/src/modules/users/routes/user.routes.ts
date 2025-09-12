@@ -1,19 +1,16 @@
-// apps/backend/src/modules/users/routes/user.routes.ts
 import { Router, type RequestHandler } from 'express'
 import { authenticateToken, requireRole } from '@/common/middleware/auth'
 import { UserController } from '@/modules/users/controllers/user.controller'
 import { avatarUpload } from '@/common/middleware/upload'
 
-// 小工具：把 async 控制器包装成标准 Express 处理器
 type AsyncCtrl = (req: any, res: any) => any | Promise<any>
 const wrap =
-  (fn: AsyncCtrl): RequestHandler =>
-  (req, res, next) =>
-    Promise.resolve(fn(req, res)).catch(next)
+    (fn: AsyncCtrl): RequestHandler =>
+        (req, res, next) =>
+            Promise.resolve(fn(req, res)).catch(next)
 
 const router = Router()
 
-// 全部接口需要已登录
 router.use(authenticateToken)
 
 // me

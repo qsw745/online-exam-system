@@ -1,3 +1,4 @@
+// apps/backend/src/bootstrap/menu.config.ts
 // --- 统一：component 采用“前端注册表里的 key” ---
 export type MenuSeed = {
   name: string
@@ -37,7 +38,7 @@ export const MENU_TREE: MenuSeed[] = [
     path: '/exam',
     icon: 'file-text',
     menu_type: 'menu',
-    sort_order: 10,
+    sort_order: 20,
     meta: { requireAuth: true },
     permission_code: 'exam:view',
     children: [
@@ -79,7 +80,6 @@ export const MENU_TREE: MenuSeed[] = [
     name: 'question',
     title: '题库管理',
     path: '/questions',
-    component: 'questions',
     icon: 'question-circle',
     menu_type: 'menu',
     sort_order: 30,
@@ -87,28 +87,22 @@ export const MENU_TREE: MenuSeed[] = [
     permission_code: 'question:view',
     children: [
       {
-        name: 'question-maintain',
-        title: '题库维护',
-        path: '/admin/questions',
-        component: 'questions',
+        name: 'question-browse',
+        title: '题库浏览',
+        path: '/questions',
+        component: 'questions', // 前台浏览题库页
         menu_type: 'page',
         sort_order: 1,
-        meta: { requireAuth: true },
+      },
+      {
+        name: 'question-maintain',
+        title: '题库维护（后台）',
+        path: '/admin/questions',
+        component: 'question-manage', // ← 管理端页
+        menu_type: 'page',
+        sort_order: 2,
       },
     ],
-  },
-
-  // ===== 用户管理（后台）=====
-  {
-    name: 'user',
-    title: '用户管理',
-    path: '/admin/users',
-    component: 'user-manage',
-    icon: 'user',
-    menu_type: 'menu',
-    sort_order: 40,
-    meta: { requireAuth: true },
-    permission_code: 'user:view',
   },
 
   // ===== 学习中心 =====
@@ -118,7 +112,7 @@ export const MENU_TREE: MenuSeed[] = [
     path: '/learning',
     icon: 'book',
     menu_type: 'menu',
-    sort_order: 120,
+    sort_order: 40,
     meta: { requireAuth: true },
     permission_code: 'learning:view',
     children: [
@@ -182,8 +176,8 @@ export const MENU_TREE: MenuSeed[] = [
     path: '/analytics',
     component: 'analytics',
     icon: 'bar-chart',
-    menu_type: 'menu',
-    sort_order: 130,
+    menu_type: 'page',
+    sort_order: 50,
     meta: { requireAuth: true },
     permission_code: 'analytics:view',
   },
@@ -195,8 +189,8 @@ export const MENU_TREE: MenuSeed[] = [
     path: '/profile',
     component: 'profile',
     icon: 'user',
-    menu_type: 'menu',
-    sort_order: 140,
+    menu_type: 'page',
+    sort_order: 60,
     meta: { requireAuth: true },
     permission_code: 'profile:view',
   },
@@ -209,12 +203,13 @@ export const MENU_TREE: MenuSeed[] = [
     icon: 'setting',
     menu_type: 'menu',
     sort_order: 100,
-    is_system: false,
+    is_system: true,
+    meta: { requireAuth: true },
     children: [
       {
         name: 'admin-org',
         title: '组织管理',
-        path: '/orgs',
+        path: '/admin/orgs',          // ← 加 /admin 前缀
         component: 'admin-org',
         menu_type: 'page',
         sort_order: 1,
@@ -230,8 +225,8 @@ export const MENU_TREE: MenuSeed[] = [
       {
         name: 'system-settings',
         title: '系统设置',
-        path: '/settings',
-        component: 'settings',
+        path: '/admin/settings',      // ← 加 /admin 前缀
+        component: 'system-settings', // ← 对应注册表里的 SystemSettingsPage
         icon: 'setting',
         menu_type: 'page',
         sort_order: 3,
@@ -241,7 +236,7 @@ export const MENU_TREE: MenuSeed[] = [
       {
         name: 'system-logs',
         title: '系统日志',
-        path: '/logs',
+        path: '/admin/logs',          // ← 加 /admin 前缀
         component: 'logs',
         icon: 'file-text',
         menu_type: 'page',
@@ -250,11 +245,11 @@ export const MENU_TREE: MenuSeed[] = [
         permission_code: 'system:logs',
       },
 
-      // ✅ 任务管理 → 改为“菜单”，并新增两个子菜单
+      // 任务管理（后台）
       {
         name: 'system-tasks',
         title: '任务管理',
-        path: '/tasks',
+        path: '/admin/tasks',         // ← 加 /admin 前缀
         icon: 'calendar',
         menu_type: 'menu',
         sort_order: 70,
@@ -264,8 +259,8 @@ export const MENU_TREE: MenuSeed[] = [
           {
             name: 'task-my',
             title: '我的任务',
-            path: '/tasks/my',
-            component: 'task-my', // 前端注册表里映射到“我的任务”页面
+            path: '/admin/tasks/my',
+            component: 'task-my',
             menu_type: 'page',
             sort_order: 1,
             meta: { requireAuth: true },
@@ -274,8 +269,8 @@ export const MENU_TREE: MenuSeed[] = [
           {
             name: 'task-publish',
             title: '发布任务',
-            path: '/tasks/publish',
-            component: 'task-publish', // 前端注册表里映射到“发布任务”页面
+            path: '/admin/tasks/publish',
+            component: 'task-publish',
             menu_type: 'page',
             sort_order: 2,
             meta: { requireAuth: true },
@@ -288,25 +283,46 @@ export const MENU_TREE: MenuSeed[] = [
         name: 'system-menus',
         title: '菜单管理',
         path: '/admin/menus',
-        component: 'menu-manage',
         icon: 'menu',
-        menu_type: 'page',
+        menu_type: 'menu',
         sort_order: 110,
         meta: { requireAuth: true },
         permission_code: 'system:menus',
+        children: [
+          {
+            name: 'system-menus-functional',
+            title: '功能菜单',
+            path: '/admin/menus/functional',
+            component: 'menu-functions',   // ✅ 修正：与注册表一致
+            menu_type: 'page',
+            sort_order: 1,
+            meta: { requireAuth: true },
+            permission_code: 'system:menus:functional',
+            is_system: true,
+          },
+          {
+            name: 'system-menus-unit',
+            title: '单位菜单',
+            path: '/admin/menus/unit',
+            component: 'menu-units',       // ✅ 修正：与注册表一致
+            menu_type: 'page',
+            sort_order: 2,
+            meta: { requireAuth: true },
+            permission_code: 'system:menus:unit',
+          },
+        ],
       },
     ],
   },
 
-  // ===== 错误页管理 =====
+  // ===== 错误页（父级为目录，不绑定 component）=====
   {
     name: 'error-management',
     title: '错误页面管理',
     path: '/errors',
-    component: 'errors',
     icon: 'warning',
     menu_type: 'menu',
-    sort_order: 50,
+    sort_order: 200,
     is_system: true,
     children: [
       {

@@ -1,11 +1,17 @@
-import { Card } from 'antd'
+import { Card, Empty } from 'antd'
 import MenuToolbar from '../components/MenuToolbar'
 import MenuTree from '../components/MenuTree'
 import MenuFormModal from '../components/MenuFormModal'
 import BatchSortModal from '../components/BatchSortModal'
+import PickSystemMenuModal from '../components/PickSystemMenuModal'
 import { useMenus } from '../hooks/useMenus'
 
-export default function MenuManagementPage() {
+type Props = {
+  mode?: 'system' | 'unit'
+  unitId?: number | null
+}
+
+export default function MenuManagementPage({ mode = 'unit', unitId = null }: Props) {
   const {
     loading,
     menus,
@@ -14,7 +20,6 @@ export default function MenuManagementPage() {
     editing,
     openCreate,
     openEdit,
-    copyToCreate,
     save,
     remove,
     onTreeDrop,
@@ -27,28 +32,50 @@ export default function MenuManagementPage() {
     parentOptions,
     exportJSON,
     importJSON,
-  } = useMenus()
+    // 多选选择器
+    pickOpen,
+    setPickOpen,
+    sysLoading,
+    sysTreeData,
+    onPickSystemOk,
+  } = useMenus({ mode, unitId: unitId ?? undefined })
+
+  const title = mode === 'system' ? '功能菜单（系统内置，只读）' : '单位菜单（可维护）'
+  const emptyDesc = mode === 'unit' ? (unitId == null ? '请在左侧选择组织' : '当前单位暂无覆盖项') : '暂无系统菜单'
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Card
-        title="菜单管理"
+        title={title}
+        variant="filled"
+        styles={{ body: { paddingTop: 16 } }}
         extra={
-          <MenuToolbar onCreate={openCreate} onBatchSort={openBatchSort} onExport={exportJSON} onImport={importJSON} />
+          mode === 'unit' ? (
+            <MenuToolbar
+              onCreate={openCreate} // 弹多选对话框
+              onBatchSort={openBatchSort}
+              onExport={exportJSON}
+              onImport={importJSON}
+            />
+          ) : null
         }
+        style={{ flex: 1, overflow: 'hidden' }}
       >
-        <MenuTree
-          menus={menus}
-          loading={loading}
-          onEdit={openEdit}
-          onCopy={m => {
-            setFormOpen(true) /* 预填 */
-          }}
-          onDelete={remove}
-          onDrop={onTreeDrop}
-        />
+        {!loading && (!menus || menus.length === 0) ? (
+          <Empty description={emptyDesc} />
+        ) : (
+          <MenuTree
+            menus={menus}
+            loading={loading}
+            onEdit={openEdit}
+            onCopy={() => setFormOpen(true)}
+            onDelete={id => remove(id)}
+            onDrop={onTreeDrop}
+          />
+        )}
       </Card>
 
+      {/* 编辑（仅修改覆盖或系统菜单属性时使用） */}
       <MenuFormModal
         open={formOpen}
         editing={editing}
@@ -63,6 +90,15 @@ export default function MenuManagementPage() {
         setItems={setSortItems}
         onOk={saveBatchSort}
         onCancel={() => setSortOpen(false)}
+      />
+
+      {/* 系统菜单多选选择器（仅 unit 模式） */}
+      <PickSystemMenuModal
+        open={mode === 'unit' && pickOpen}
+        loading={sysLoading}
+        treeData={sysTreeData}
+        onOk={onPickSystemOk} // <- 现在返回 number[]
+        onCancel={() => setPickOpen(false)}
       />
     </div>
   )

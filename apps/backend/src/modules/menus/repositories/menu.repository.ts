@@ -13,6 +13,28 @@ import type {
 export type MenuUpdate = { id: number; parent_id?: number | null; sort_order?: number }
 
 export class MenuRepository {
+// menu.repository.ts 内增补
+  static async findMenusByFilter(filter: { is_system?: 0 | 1; unit_id?: number }): Promise<Menu[]> {
+    const where: string[] = []
+    const vals: any[] = []
+    if (filter.is_system !== undefined) { where.push('is_system=?'); vals.push(filter.is_system) }
+    if (filter.unit_id !== undefined)   { where.push('unit_id=?');   vals.push(filter.unit_id) }
+    const sql =
+        'SELECT * FROM menus' +
+        (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+        ' ORDER BY sort_order ASC, id ASC'
+    const [rows] = await pool.query<RowDataPacket[]>(sql, vals)
+    return rows as unknown as Menu[]
+  }
+
+  static async menuExistsAndEnabled(menuId: number): Promise<boolean> {
+    const [[row]] = await pool.query<RowDataPacket[]>(
+        'SELECT 1 FROM menus WHERE id=? AND is_disabled=0 LIMIT 1',
+        [menuId]
+    )
+    return !!row
+  }
+
   // --- menus ---
   static async findAllMenus(): Promise<Menu[]> {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM menus ORDER BY sort_order ASC, id ASC')

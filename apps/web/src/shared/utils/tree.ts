@@ -1,5 +1,5 @@
 import type { DataNode } from 'antd/es/tree'
-import type { MenuDTO } from '@shared/api/endpoints/menu'
+import type { MenuDTO } from '@/shared/api/endpoints/menu'
 
 export const STEP = 10 // sort_order 步长
 

@@ -1,14 +1,11 @@
-// apps/backend/src/routes/index.ts
 import { Router } from 'express'
 
-// —— 统一用别名 & 不带 .js 后缀，并“容错”拾取默认/命名导出 ——
 // auth
 import * as authRoutesMod from '@/modules/auth/routes/auth.routes'
 import * as pwdResetRoutesMod from '@/modules/auth/routes/password-reset.routes'
 // users
 import * as userRoutesMod from '@/modules/users/routes/user.routes'
-// orgs
-import * as orgUserRoutesMod from '@/modules/orgs/routes/org-user.routes'
+// orgs（已合并 org-user 子路由）
 import * as orgRoutesMod from '@/modules/orgs/routes/org.routes'
 // roles & menus
 import * as menusRoutesMod from '@/modules/menus/routes/menus.routes'
@@ -38,14 +35,11 @@ import * as taskRoutesMod from '@/modules/tasks/routes/task.routes'
 // wrong-questions
 import * as wrongQuestionRoutesMod from '@/modules/wrong-questions/routes/wrong-question.routes'
 
-// —— 安全拾取工具：优先命名导出，其次 default ——
-// 允许模块导出形态：export const xxxRoutes = router  或 export default router
 const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
 
 const authRoutes = pick(authRoutesMod, 'authRoutes')
 const passwordResetRoutes = pick(pwdResetRoutesMod, 'passwordResetRoutes')
 const userRoutes = pick(userRoutesMod, 'userRoutes')
-const orgUserRoutes = pick(orgUserRoutesMod, 'orgUserRoutes')
 const orgRoutes = pick(orgRoutesMod, 'orgRoutes')
 const menusRoutes = pick(menusRoutesMod, 'menusRoutes')
 const roleRoutes = pick(roleRoutesMod, 'roleRoutes')
@@ -66,13 +60,11 @@ const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
 
 const router = Router()
 
-// 统一挂载表
 const mounts: Array<[string, any]> = [
   ['/auth', authRoutes],
   ['/auth/password-reset', passwordResetRoutes],
   ['/users', userRoutes],
   ['/orgs', orgRoutes],
-  ['/orgusers', orgUserRoutes],
   ['/roles', roleRoutes],
   ['/menus', menusRoutes],
   ['/favorites', favoritesRoutes],
@@ -91,7 +83,6 @@ const mounts: Array<[string, any]> = [
   ['/wrong-questions', wrongQuestionRoutes],
 ]
 
-// 逐一挂载（判定是否为 Router 实例）
 let ok = 0
 for (const [base, r] of mounts) {
   const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
@@ -103,7 +94,5 @@ for (const [base, r] of mounts) {
   }
 }
 console.log(`[routes] ✅ mounted ${ok}/${mounts.length} modules`)
-
 router.get('/', (_req, res) => res.json({ ok: true, mounted: mounts.map(m => m[0]) }))
-
 export default router

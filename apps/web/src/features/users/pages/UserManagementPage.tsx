@@ -1,14 +1,15 @@
-// src/features/users/pages/UserManagementPage.tsx
+import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import { App, Card, Layout, Pagination, Typography } from 'antd'
 import React from 'react'
-import { OrgTreePanel } from '../components/OrgTreePanel1'
+
 import { UserFilterBar } from '../components/UserFilterBar'
 import { UsersTable } from '../components/UsersTable'
 import { useOrgPathMap } from '../hooks/useOrgPathMap'
 import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 // 弹窗组件
+import { orgsApi } from '@/shared/api/endpoints/orgs'
 import { BindUserModal } from '../components/BindUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
@@ -18,61 +19,58 @@ const { Sider, Content } = Layout
 const { Title, Paragraph } = Typography
 
 function pickFirstId(tree: any[]): number | null {
-  if (!tree || !tree.length) return null
-  return tree[0]?.id ?? null
+  if (!Array.isArray(tree) || tree.length === 0) return null
+  const first = tree.find(n => n && typeof n.id === 'number')
+  return first ? first.id : null
 }
 
 const UserManagementPage: React.FC = () => {
   const { message } = App.useApp()
   const [selectedOrgId, setSelectedOrgId] = React.useState<number | null>(null)
 
-  // —— 机构树 —— //
-  const { tree, loading: treeLoading, expanded, setExpanded, refetch: refetchTree } = useOrgTree()
+  const { tree, loading: treeLoading, refetch: refetchTree } = useOrgTree()
+  const [expandedKeys, setExpandedKeys] = React.useState<React.Key[]>([])
 
-  // ✅ 首次加载：默认选中根 + 展开根
   React.useEffect(() => {
-    if (!treeLoading) {
-      const first = pickFirstId(tree)
-      if (first != null) {
-        // 展开根
-        if (!expanded.includes(first)) setExpanded([first])
-        // 选中根
-        if (selectedOrgId == null) setSelectedOrgId(first)
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [treeLoading])
+    void refetchTree()
+  }, [refetchTree])
+
+  React.useEffect(() => {
+    if (treeLoading) return
+    const first = pickFirstId(tree || [])
+    if (first == null) return
+    setExpandedKeys(prev => (Array.isArray(prev) && prev.includes(first) ? prev : [first]))
+    setSelectedOrgId(prev => (prev == null ? first : prev))
+  }, [treeLoading, tree])
 
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
-  // —— 列表数据 —— //
   const q = useOrgUsersQuery(selectedOrgId)
 
   const refreshTree = async () => {
-    await refetchTree()
-    const first = pickFirstId(tree)
+    const next = await refetchTree()
+    const first = pickFirstId(next || [])
     if (first != null) {
-      setExpanded([first]) // 保持根展开
+      setExpandedKeys([first])
       setSelectedOrgId(first)
+    } else {
+      setExpandedKeys([])
+      setSelectedOrgId(null)
     }
   }
 
-  // =========================
   // 弹窗状态
-  // =========================
   const [viewOpen, setViewOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [bindOpen, setBindOpen] = React.useState(false)
   const [resetOpen, setResetOpen] = React.useState(false)
   const [resetPwd, setResetPwd] = React.useState<string | null>(null)
-
   const [currentUser, setCurrentUser] = React.useState<any | null>(null)
 
-  // —— 行操作 —— //
+  // 行操作
   const onView = async (u: any) => {
     const detail = await q.getUserDetail(u.id).catch(() => u)
-    console.log('detail', detail)
     setCurrentUser(detail || u)
     setViewOpen(true)
   }
@@ -80,12 +78,11 @@ const UserManagementPage: React.FC = () => {
   const onEdit = async (u: any) => {
     const detail = await q.getUserDetail(u.id).catch(() => u)
     setCurrentUser(detail || u)
-    // 关键：等 state 落地后再开弹窗
-    queueMicrotask(() => setEditOpen(true)) // 或者 setTimeout(() => setEditOpen(true))
+    queueMicrotask(() => setEditOpen(true))
   }
 
   const onReset = async (u: any) => {
-    const pwd = await q.resetPassword(u.id) // ✅ 取回新密码
+    const pwd = await q.resetPassword(u.id)
     setResetPwd(pwd || null)
     setResetOpen(true)
     q.refetch()
@@ -113,23 +110,23 @@ const UserManagementPage: React.FC = () => {
   }
 
   const openBindModal = () => {
-    if (!selectedOrgId) return
+    if (!selectedOrgId) {
+      message.warning('请先在左侧选择一个机构')
+      return
+    }
     setBindOpen(true)
   }
 
-  // —— 编辑确认 —— //
-  const handleEditSubmit = async (payload: any) => {
-    if (!currentUser) return
-    await q.update(currentUser.id, payload)
-    setEditOpen(false)
-    message.success('用户已更新')
-    q.refetch()
-  }
-
-  // —— 绑定确认 —— //
-  const handleBindSubmit = async (userId: number) => {
+  // —— 新版绑定提交：支持 emails 或 userIds —— //
+  const handleBindSubmit = async (payload: { emails?: string[]; userIds?: number[] }) => {
     if (!selectedOrgId) return
-    await q.bind(selectedOrgId, Number(userId))
+    if (payload.emails?.length) {
+      await orgsApi.addUsersByEmail(selectedOrgId, payload.emails)
+    } else if (payload.userIds?.length) {
+      await orgsApi.addUsers(selectedOrgId, payload.userIds)
+    } else {
+      return
+    }
     message.success('绑定成功')
     setBindOpen(false)
     q.refetch()
@@ -141,8 +138,8 @@ const UserManagementPage: React.FC = () => {
         <OrgTreePanel
           tree={tree}
           loading={treeLoading}
-          expandedKeys={expanded}
-          setExpandedKeys={setExpanded}
+          expandedKeys={Array.isArray(expandedKeys) ? expandedKeys : []}
+          setExpandedKeys={setExpandedKeys}
           selectedOrgId={selectedOrgId}
           onSelect={id => {
             if (!id) return
@@ -187,7 +184,7 @@ const UserManagementPage: React.FC = () => {
 
         <Card>
           <UsersTable
-            data={q.rows}
+            data={q.rows} // UsersTable 内部已做去重修复
             loading={q.loading}
             selectedOrgId={selectedOrgId}
             onView={onView}
@@ -225,17 +222,30 @@ const UserManagementPage: React.FC = () => {
         onClose={() => setViewOpen(false)}
       />
 
-      {/* —— 编辑（已修复回显） —— */}
+      {/* —— 编辑 —— */}
       <EditUserModal
         open={editOpen}
         user={currentUser}
         tree={tree}
         onCancel={() => setEditOpen(false)}
-        onSubmit={handleEditSubmit}
+        onSubmit={async v => {
+          if (!currentUser) return
+          await q.update(currentUser.id, v)
+          setEditOpen(false)
+          message.success('用户已更新')
+          q.refetch()
+        }}
       />
 
-      {/* —— 绑定 —— */}
-      <BindUserModal open={bindOpen} onCancel={() => setBindOpen(false)} onSubmit={handleBindSubmit} />
+      {/* —— 新增到机构 —— */}
+      {bindOpen && selectedOrgId != null && (
+        <BindUserModal
+          open={bindOpen}
+          targetOrgId={selectedOrgId}
+          onCancel={() => setBindOpen(false)}
+          onSubmit={handleBindSubmit}
+        />
+      )}
 
       {/* —— 重置密码结果 —— */}
       <ResetPasswordModal open={resetOpen} password={resetPwd} onClose={() => setResetOpen(false)} />

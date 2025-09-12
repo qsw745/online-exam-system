@@ -4,7 +4,8 @@ import type { AuthRequest } from 'types/auth'
 import type { ApiResponse } from 'types/response'
 import type { OrgUserListData } from '../domain/org-user.model'
 import { OrgUserService } from '../services/org-user.service'
-
+// ✅ 补上仓库导入
+import { OrgUserRepository } from '../repositories/org-user.repository'
 const svc = new OrgUserService()
 
 export const OrgUserController = {
@@ -39,7 +40,46 @@ export const OrgUserController = {
       return res.status(500).json({ success: false, error: e?.message || '批量添加机构用户失败' })
     }
   },
+  // ✅ 新增：按邮箱批量添加
+  async addUsersByEmail(req: AuthRequest, res: Response<ApiResponse<{ added: number; matched: number; not_found: string[] }>>) {
+    try {
+      const orgId = Number(req.params.orgId)
+      if (!Number.isFinite(orgId)) return res.status(400).json({ success: false, error: '无效的组织ID' })
+      let emails: string[] = []
 
+      const raw = (req.body?.emails ?? req.body?.email ?? req.body) as any
+      if (Array.isArray(raw)) {
+        emails = raw
+      } else if (typeof raw === 'string') {
+        emails = raw.split(/[\s,;]/)
+      } else if (raw && typeof raw === 'object' && Array.isArray(raw.emails)) {
+        emails = raw.emails
+      }
+
+      emails = emails.map(s => String(s || '').trim().toLowerCase()).filter(Boolean)
+      emails = Array.from(new Set(emails))
+      if (!emails.length) return res.status(400).json({ success: false, error: 'emails 不能为空' })
+
+      const pairs = await OrgUserRepository.findUserIdsByEmails(emails)
+      const foundIds = pairs.map(p => p.id)
+      const matched = pairs.length
+      const foundEmailsSet = new Set(pairs.map(p => p.email?.toLowerCase()))
+      const not_found = emails.filter(e => !foundEmailsSet.has(e))
+
+      if (!foundIds.length) {
+        return res.status(404).json({ success: false, error: '未找到任何邮箱对应的用户', data: { added: 0, matched: 0, not_found } as any })
+      }
+
+      const data = await svc.addUsers({ id: req.user?.id, username: req.user?.username }, orgId, foundIds, {
+        ip: req.ip,
+        ua: req.get('User-Agent') || undefined,
+      })
+
+      return res.status(201).json({ success: true, data: { added: data.added, matched, not_found } as any })
+    } catch (e: any) {
+      return res.status(500).json({ success: false, error: e?.message || '按邮箱添加机构用户失败' })
+    }
+  },
   async removeUser(req: AuthRequest, res: Response<ApiResponse<{ message: string }>>) {
     try {
       const orgId = Number(req.params.orgId)

@@ -1,4 +1,3 @@
-// apps/backend/src/modules/menus/controllers/menu.controller.ts
 import { Request, Response } from 'express'
 import { MenuService } from '../services/menus.service.js'
 import type {
@@ -8,13 +7,16 @@ import type {
   UpdateRoleRequest,
 } from '../domain/menu.model.js'
 
+/** 同时支持 ?unitId 和请求头 x-org-id 作为单位上下文 */
 function pickOrgId(req: Request): number | undefined {
+  const q = req.query.unitId
+  if (q != null && q !== '' && !Number.isNaN(Number(q))) return Number(q)
   const h = req.header('x-org-id')
   return h ? Number(h) : undefined
 }
 
 export class MenuController {
-  // 极简前端路由树
+  // 极简前端路由树（系统层）
   static async getRouteTreeForFrontend(_req: Request, res: Response): Promise<void> {
     try {
       const menus = await MenuService.getAllMenus()
@@ -60,9 +62,15 @@ export class MenuController {
     }
   }
 
-  static async getAllMenus(_req: Request, res: Response): Promise<void> {
+  // ---- 菜单（读）
+  static async getAllMenus(req: Request, res: Response): Promise<void> {
     try {
-      const menus = await MenuService.getAllMenus()
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      const unitId = pickOrgId(req)
+      if (scope === 'unit' && !unitId) {
+        return void res.status(400).json({ success: false, message: '缺少 unitId（可用 ?unitId 或 x-org-id 请求头）' })
+      }
+      const menus = await MenuService.getAllMenus({ scope, unitId })
       res.json({ success: true, data: menus })
     } catch (error) {
       console.error('获取菜单列表失败:', error)
@@ -70,9 +78,14 @@ export class MenuController {
     }
   }
 
-  static async getMenuTree(_req: Request, res: Response): Promise<void> {
+  static async getMenuTree(req: Request, res: Response): Promise<void> {
     try {
-      const menuTree = await MenuService.getMenuTree()
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      const unitId = pickOrgId(req)
+      if (scope === 'unit' && !unitId) {
+        return void res.status(400).json({ success: false, message: '缺少 unitId（可用 ?unitId 或 x-org-id 请求头）' })
+      }
+      const menuTree = await MenuService.getMenuTree({ scope, unitId })
       res.json({ success: true, data: menuTree })
     } catch (error) {
       console.error('获取菜单树失败:', error)
@@ -82,8 +95,11 @@ export class MenuController {
 
   static async getMenuById(req: Request, res: Response): Promise<void> {
     try {
-      const { id } = req.params
-      const menu = await MenuService.getMenuById(parseInt(id, 10))
+      const idNum = Number.parseInt(req.params.id, 10)
+      if (Number.isNaN(idNum)) {
+        return void res.status(400).json({ success:false, message:'非法的菜单ID' })
+      }
+      const menu = await MenuService.getMenuById(idNum)
       if (!menu) return void res.status(404).json({ success: false, message: '菜单不存在' })
       res.json({ success: true, data: menu })
     } catch (error) {
@@ -92,45 +108,54 @@ export class MenuController {
     }
   }
 
-  static async createMenu(req: Request, res: Response): Promise<void> {
+  // ---- 菜单（写）—单位覆盖：必须有单位上下文
+  static async createMenu(req: Request, res: Response) {
     try {
-      const menuData: CreateMenuRequest = req.body
-      if (!menuData.name || !menuData.title) {
-        res.status(400).json({ success: false, message: '菜单名称和标题不能为空' })
-        return
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      if (scope !== 'unit') {
+        return void res.status(403).json({ success:false, message:'系统菜单不可在此创建' })
       }
-      const menuId = await MenuService.createMenu(menuData)
-      res.status(201).json({ success: true, data: { id: menuId }, message: '菜单创建成功' })
-    } catch (error) {
-      console.error('创建菜单失败:', error)
-      const msg = error instanceof Error ? error.message : '创建菜单失败'
-      res.status(500).json({ success: false, message: msg })
+      const unitId = pickOrgId(req)
+      const { sys_menu_id, ...patch } = req.body
+      if (!unitId || !sys_menu_id) {
+        return void res.status(400).json({ success:false, message:'缺少 unitId 或 sys_menu_id' })
+      }
+      await MenuService.createMenu({ ...(patch||{}), unitId, sys_menu_id })
+      return void res.status(201).json({ success:true, message:'已保存单位覆盖' })
+    } catch (e:any) {
+      res.status(500).json({ success:false, message:e?.message || '创建失败' })
     }
   }
 
-  static async updateMenu(req: Request, res: Response): Promise<void> {
+  static async updateMenu(req: Request, res: Response) {
     try {
-      const { id } = req.params
-      const updateData: Omit<UpdateMenuRequest, 'id'> = req.body
-      const success = await MenuService.updateMenu({ id: parseInt(id, 10), ...updateData })
-      if (!success) return void res.status(404).json({ success: false, message: '菜单不存在或更新失败' })
-      res.json({ success: true, message: '菜单更新成功' })
-    } catch (error) {
-      console.error('更新菜单失败:', error)
-      res.status(500).json({ success: false, message: '更新菜单失败' })
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      if (scope !== 'unit') {
+        return void res.status(403).json({ success:false, message:'系统菜单不可在此修改' })
+      }
+      const unitId = pickOrgId(req)
+      const id = Number(req.params.id) // sys_menu_id
+      if (!unitId) return void res.status(400).json({ success:false, message:'缺少 unitId（?unitId 或 x-org-id）' })
+      await MenuService.updateMenu({ id, unitId, sys_menu_id: id, ...req.body })
+      return void res.json({ success:true, message:'已保存单位覆盖' })
+    } catch (e:any) {
+      res.status(500).json({ success:false, message:e?.message || '更新失败' })
     }
   }
 
-  static async deleteMenu(req: Request, res: Response): Promise<void> {
+  static async deleteMenu(req: Request, res: Response) {
     try {
-      const { id } = req.params
-      const success = await MenuService.deleteMenu(parseInt(id, 10))
-      if (!success) return void res.status(404).json({ success: false, message: '菜单不存在或无法删除' })
-      res.json({ success: true, message: '菜单删除成功' })
-    } catch (error) {
-      console.error('删除菜单失败:', error)
-      const msg = error instanceof Error ? error.message : '删除菜单失败'
-      res.status(500).json({ success: false, message: msg })
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      const id = Number(req.params.id)
+      if (scope === 'unit') {
+        const unitId = pickOrgId(req)
+        if (!unitId) return void res.status(400).json({ success:false, message:'缺少 unitId（?unitId 或 x-org-id）' })
+        await MenuService.deleteMenu(id, unitId, true)
+        return void res.json({ success:true, message:'已移除单位覆盖' })
+      }
+      return void res.status(403).json({ success:false, message:'系统菜单不可在此删除' })
+    } catch (e:any) {
+      res.status(500).json({ success:false, message:e?.message || '删除失败' })
     }
   }
 
@@ -141,7 +166,13 @@ export class MenuController {
         res.status(400).json({ success: false, message: '请提供有效的菜单更新数据' })
         return
       }
-      await MenuService.batchUpdateMenuSort(menuUpdates)
+      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
+      const unitId = pickOrgId(req)
+
+      if (scope === 'unit' && !unitId) {
+        return void res.status(400).json({ success:false, message:'缺少 unitId（?unitId 或 x-org-id）' })
+      }
+      await MenuService.batchUpdateMenuSort(menuUpdates, { scope: scope || undefined, unitId })
       res.json({ success: true, message: '批量更新排序成功' })
     } catch (error) {
       console.error('批量更新菜单排序失败:', error)
@@ -150,7 +181,7 @@ export class MenuController {
     }
   }
 
-  // ---- Roles
+  // ---- Roles & Users（保持不变）
   static async getAllRoles(_req: Request, res: Response): Promise<void> {
     try {
       const roles = await MenuService.getAllRoles()
@@ -248,7 +279,6 @@ export class MenuController {
     }
   }
 
-  // ---- User
   static async assignUserRoles(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params
@@ -282,8 +312,8 @@ export class MenuController {
       const { userId } = req.params
       const orgId = pickOrgId(req) || Number(req.query.orgId)
       const data = orgId
-        ? await MenuService.getUserMenuPermissionsInOrg(Number(userId), orgId)
-        : await MenuService.getUserMenuPermissions(Number(userId))
+          ? await MenuService.getUserMenuPermissionsInOrg(Number(userId), orgId)
+          : await MenuService.getUserMenuPermissions(Number(userId))
       res.json({ success: true, data })
     } catch (error) {
       console.error('获取用户菜单权限失败:', error)
@@ -308,8 +338,8 @@ export class MenuController {
       if (!userId) return void res.status(401).json({ success: false, message: '用户未登录' })
       const orgIdHeader = pickOrgId(req)
       const tree = orgIdHeader
-        ? await MenuService.getUserMenuTreeInOrg(userId, orgIdHeader)
-        : await MenuService.getUserMenuTree(userId)
+          ? await MenuService.getUserMenuTreeInOrg(userId, orgIdHeader)
+          : await MenuService.getUserMenuTree(userId)
       res.json({ success: true, data: tree })
     } catch (error) {
       console.error('获取当前用户菜单树失败:', error)
@@ -339,9 +369,9 @@ export class MenuController {
         return
       }
       const success = await MenuService.setUserMenuPermission(
-        parseInt(userId, 10),
-        parseInt(menuId, 10),
-        permissionType
+          parseInt(userId, 10),
+          parseInt(menuId, 10),
+          permissionType
       )
       if (!success) return void res.status(500).json({ success: false, message: '设置权限失败' })
       res.json({ success: true, message: '权限设置成功' })

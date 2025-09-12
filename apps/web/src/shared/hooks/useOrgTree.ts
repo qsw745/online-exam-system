@@ -1,51 +1,71 @@
-import { orgsApi } from '@/shared/api/http'
+import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { App } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 
-type TreeNode = { id: number; name: string; children?: TreeNode[] }
-export type AntTreeNode = { key: number; title: string; children?: AntTreeNode[] }
+const safe = (v?: string | null) => (v ?? '').toString()
 
-function toAnt(nodes: TreeNode[] = []): AntTreeNode[] {
-  return nodes.map(n => ({
-    key: n.id,
-    title: n.name,
-    children: n.children?.length ? toAnt(n.children) : undefined,
-  }))
+/** 仅做名称过滤，保持层级 */
+function filterTree(nodes: OrgNode[] = [], kw: string): OrgNode[] {
+  const q = kw.trim().toLowerCase()
+  if (!q) return nodes
+  const keep: OrgNode[] = []
+  for (const n of nodes) {
+    const hit = safe(n.name).toLowerCase().includes(q)
+    const children = filterTree(n.children || [], kw)
+    if (hit || children.length) keep.push({ ...n, children })
+  }
+  return keep
 }
 
+function exists(nodes: OrgNode[] = [], id: number): boolean {
+  return nodes.some(n => n.id === id || exists(n.children || [], id))
+}
+
+function firstId(list: OrgNode[]): number | null {
+  return list && list.length ? (typeof list[0].id === 'number' ? list[0].id : null) : null
+}
+
+/** 公共组织树 Hook：获取/搜索/工具函数（不再管理 expanded） */
 export function useOrgTree() {
   const { message } = App.useApp()
+
   const [loading, setLoading] = useState(false)
-  const [raw, setRaw] = useState<TreeNode[]>([])
+  const [tree, setTree] = useState<OrgNode[]>([])
+  const [search, setSearch] = useState('')
 
-  const tree = useMemo(() => toAnt(raw), [raw])
+  const filteredTree = useMemo(() => filterTree(tree, search), [tree, search])
 
-  const fetchTree = async () => {
+  /** 拉取组织树；返回最新列表，便于调用方基于返回值更新本地状态 */
+  const refetch = useCallback(async () => {
     setLoading(true)
     try {
-      //   const r = await api.get<TreeNode[]>('/orgs/tree')
-      const r: any = await orgsApi.tree()
-      console.log('rrrr', r)
-      if (r) {
-        // const list = Array.isArray(r.data) ? r.data : []
-        const list = r
-        console.log('list', list)
-        setRaw(list)
-      } else {
-        throw new Error((r as any).error || '加载机构树失败')
-      }
+      const list = await orgsApi.tree()
+      const next = Array.isArray(list) ? list : []
+      setTree(next)
+      return next
     } catch (e: any) {
-      message.error(e?.message || '加载机构树失败')
-      setRaw([])
+      message.error(e?.message || '加载组织树失败')
+      setTree([])
+      return []
     } finally {
       setLoading(false)
     }
+  }, [message])
+
+  return {
+    // 数据
+    tree,
+    loading,
+    // 搜索
+    search,
+    setSearch,
+    filteredTree,
+    // 动作
+    refetch,
+    // 工具
+    exists,
+    firstId,
   }
-
-  useEffect(() => {
-    fetchTree()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  return { tree, loading, refetch: fetchTree }
 }
+
+export default useOrgTree

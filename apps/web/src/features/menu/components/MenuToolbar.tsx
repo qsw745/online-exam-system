@@ -15,7 +15,7 @@ export default function MenuToolbar({
   return (
     <Space>
       <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
-        新增菜单
+        添加菜单
       </Button>
       <Button icon={<DragOutlined />} onClick={onBatchSort}>
         批量排序

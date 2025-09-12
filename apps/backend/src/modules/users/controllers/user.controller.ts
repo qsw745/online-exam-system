@@ -1,4 +1,3 @@
-// apps/backend/src/modules/users/controllers/user.controller.ts
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import type { ApiResponse } from '@/types/response.js'
@@ -61,12 +60,26 @@ export class UserController {
     }
   }
 
+  /** 列表：若带 orgId 则走组织下用户；否则走全量用户 */
   static async list(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
       const limit = Math.max(1, parseInt(String(req.query.limit ?? '10')) || 10)
-      const role = req.query.role as any
+      const role = (req.query.role as any) || undefined
       const search = (req.query.search as string) || undefined
+      const orgIdRaw = (req.query.orgId as any) ?? (req.query.org_id as any)
+      const includeChildren = req.query.include_children === '1' || req.query.include_children === 'true'
+
+      if (orgIdRaw !== undefined && orgIdRaw !== null && String(orgIdRaw) !== '') {
+        const orgId = Number(orgIdRaw)
+        if (!Number.isFinite(orgId)) {
+          return res.status(400).json({ success: false, error: '无效的组织ID' })
+        }
+        const r = await svc.listByOrg({ orgId, page, limit, role, search, includeChildren })
+        // 为兼容原前端，这里仍返回 { users, total, page, limit }
+        return res.json({ success: true, data: { users: r.items, total: r.total, page, limit } })
+      }
+
       const r = await svc.list({ page, limit, role, search })
       return res.json({ success: true, data: { ...r, page, limit } })
     } catch (e: any) {
@@ -75,23 +88,40 @@ export class UserController {
     }
   }
 
+  /** 管理员更新：若 body 携带 orgId|org_id，则在业务层转调 OrgUserService 完成迁移/设置主组织/移除 */
   static async update(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.status(400).json({ success: false, error: '无效的用户ID' })
+
       const updated = await svc.adminUpdate(
-        id,
-        {
-          username: req.body?.username,
-          email: req.body?.email,
-          role: req.body?.role,
-          avatar_url: req.body?.avatar_url,
-          nickname: req.body?.nickname,
-          school: req.body?.school,
-          class_name: req.body?.class_name,
-        },
-        { id: req.user?.id, username: req.user?.username }
+          id,
+          {
+            username: req.body?.username,
+            email: req.body?.email,
+            role: req.body?.role,
+            avatar_url: req.body?.avatar_url,
+            nickname: req.body?.nickname,
+            school: req.body?.school,
+            class_name: req.body?.class_name,
+          },
+          { id: req.user?.id, username: req.user?.username }
       )
+
+      // —— 组织归属（可选）——
+      const hasOrgField =
+          Object.prototype.hasOwnProperty.call(req.body || {}, 'orgId') ||
+          Object.prototype.hasOwnProperty.call(req.body || {}, 'org_id')
+      if (hasOrgField) {
+        const raw = (req.body?.orgId ?? req.body?.org_id) as any
+        const nextOrgId =
+            raw === null || raw === '' || typeof raw === 'undefined' ? null : Number(raw)
+        if (!(nextOrgId === null || Number.isFinite(nextOrgId))) {
+          return res.status(400).json({ success: false, error: '无效的组织ID' })
+        }
+        await svc.setUserOrg(id, nextOrgId, { id: req.user?.id, username: req.user?.username })
+      }
+
       return res.json({ success: true, data: updated })
     } catch (e: any) {
       console.error('更新用户信息错误:', e)
@@ -108,7 +138,6 @@ export class UserController {
         return res.status(400).json({ success: false, error: '无效的状态值' })
       }
 
-      // 保护 admin 禁用在 controller 里需要先查角色
       const u = await svc.getById(id)
       if (!u) return res.status(404).json({ success: false, error: '用户不存在' })
       if (u.role === 'admin' && status === 'disabled') {

@@ -1,4 +1,3 @@
-// src/features/users/components/UsersTable.tsx
 import { Popconfirm, Space, Table, Tag, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import React, { useMemo } from 'react'
@@ -8,7 +7,6 @@ export interface User {
   username: string
   email: string
   status: 'active' | 'disabled' | string
-  // created_at: string  // 移除表格展示
   orgId?: number
   role?: string
 }
@@ -24,13 +22,26 @@ export const UsersTable: React.FC<{
   onUnbind?: (u: any) => void
   onDelete?: (u: any) => void
 }> = ({ data, loading, onView, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId }) => {
+  // —— 关键修复：按 id 去重，保留“最后一次出现”的那条 —— //
+  const dedupedData = useMemo(() => {
+    const map = new Map<number, User>()
+    for (let i = data.length - 1; i >= 0; i--) {
+      const row = data[i]
+      if (row && typeof row.id === 'number' && !map.has(row.id)) {
+        map.set(row.id, row)
+      }
+    }
+    return Array.from(map.values()).reverse()
+  }, [data])
+
   const columns: ColumnsType<User> = useMemo(() => {
     const base: ColumnsType<User> = [
-      { title: '用户名', dataIndex: 'username' },
-      { title: '邮箱', dataIndex: 'email' },
+      { title: '用户名', dataIndex: 'username', key: 'username' },
+      { title: '邮箱', dataIndex: 'email', key: 'email' },
       {
         title: '状态',
         dataIndex: 'status',
+        key: 'status',
         render: s => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? '正常' : '禁用'}</Tag>,
         width: 100,
       },
@@ -92,5 +103,5 @@ export const UsersTable: React.FC<{
     return base
   }, [onView, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId])
 
-  return <Table<User> rowKey="id" loading={loading} dataSource={data} columns={columns} pagination={false} />
+  return <Table<User> rowKey="id" loading={loading} dataSource={dedupedData} columns={columns} pagination={false} />
 }
