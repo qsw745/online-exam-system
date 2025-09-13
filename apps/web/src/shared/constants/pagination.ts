@@ -8,14 +8,14 @@ export const PAGINATION_CONFIG = {
   
   // 显示总数的格式化函数
   SHOW_TOTAL: (total: number, range: [number, number]) => 
-    `显示第 ${range[0]} - ${range[1]} 条，共 ${total} 条记录`,
+    `显示第 ${range[0]} - ${range[1]} 条，共 ${total} 条数据`,
   
   // 默认分页配置
   DEFAULT_CONFIG: {
     showSizeChanger: true,
     showQuickJumper: true,
     showTotal: (total: number, range: [number, number]) => 
-      `显示第 ${range[0]} - ${range[1]} 条，共 ${total} 条记录`,
+      `显示第 ${range[0]} - ${range[1]} 条，共 ${total} 条数据`,
     pageSizeOptions: ['10', '20', '50', '100'],
     size: 'default' as const
   }

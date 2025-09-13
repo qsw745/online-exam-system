@@ -1,4 +1,3 @@
-// apps/web/src/features/roles/pages/RoleManagementPage.tsx
 import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Pagination, Space } from 'antd'
 import React, { useEffect, useState } from 'react'
@@ -12,7 +11,7 @@ import UserSelectModal from '../components/UserSelectModal'
 import { useRoleMembers } from '../hooks/useRoleMembers'
 import { useRolePermissions } from '../hooks/useRolePermissions'
 import { useRoles } from '../hooks/useRoles'
-import { rolesApi } from '@/shared/api/endpoints/roles' // ✅ 使用封装好的 API
+import { rolesApi } from '@/shared/api/endpoints/roles'
 
 export default function RoleManagementPage() {
   const { message } = App.useApp()
@@ -24,16 +23,14 @@ export default function RoleManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 权限
+  // 权限、成员
   const perms = useRolePermissions()
-
-  // 成员
   const members = useRoleMembers()
 
-  // 机构树（仅提供树数据）
+  // 机构树
   const orgsTree = useOrgTree()
 
-  // —— 新建/编辑角色 —— //
+  // 新建/编辑
   const [formOpen, setFormOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<null | {
     id?: number
@@ -42,29 +39,24 @@ export default function RoleManagementPage() {
     description?: string
   }>(null)
 
-  // —— 按机构添加用户 —— //
+  // 按机构添加
   const [orgOpen, setOrgOpen] = useState(false)
   const [orgChecked, setOrgChecked] = useState<React.Key[]>([])
 
   const handleOrgOk = async (): Promise<void> => {
     if (!members.role) return
-    // React.Key[] -> number[]
     const orgIds = orgChecked.map(n => Number(n)).filter(n => Number.isFinite(n)) as number[]
     if (orgIds.length === 0) {
       message.warning('请选择要关联的机构')
       return
     }
     try {
-      // ✅ 调后端：POST /roles/:id/orgs  Body: { orgIds: number[] }
       const resp = await rolesApi.addRoleOrgs(members.role.id, orgIds)
-      if ((resp as any)?.success === false) {
-        throw new Error((resp as any)?.message || '关联机构失败')
-      }
+      if ((resp as any)?.success === false) throw new Error((resp as any)?.message || '关联机构失败')
       message.success((resp as any)?.message || `成功关联 ${orgIds.length} 个机构`)
       setOrgOpen(false)
       setOrgChecked([])
-      // 业务需要的话，可以在这里刷新角色-机构或成员：
-      if (members.role) await members.openFor(members.role)
+      if (members.role) await members.reloadOrgs()
     } catch (e: any) {
       message.error(e?.message || '关联机构失败')
     }
@@ -72,10 +64,19 @@ export default function RoleManagementPage() {
 
   const openOrgSelect = async (): Promise<void> => {
     setOrgChecked([])
-    setOrgOpen(true)
+    const ensure = (orgsTree as any).ensureFetched || orgsTree.refetch
+    const hide = message.loading('正在加载机构...', 0)
+    try {
+      await ensure()
+      setOrgOpen(true)
+    } catch (e: any) {
+      message.error(e?.message || '加载组织树失败')
+    } finally {
+      hide()
+    }
   }
 
-  // —— 分页兜底，避免 NaN —— //
+  // 分页兜底
   const safeTotal = Number.isFinite(Number(roles.total)) ? Number(roles.total) : 0
   const safePageSize = Math.max(1, Number(roles.pageSize) || 10)
   const safePage = Math.max(1, Number(roles.page) || 1)
@@ -146,12 +147,14 @@ export default function RoleManagementPage() {
         onCancel={() => perms.setOpen(false)}
       />
 
-      {/* 成员管理 */}
+      {/* 成员管理（✅ 传入机构数据） */}
       <RoleMembersModal
         open={members.open}
         role={members.role}
         loading={members.loading}
         members={members.members}
+        roleOrgs={members.roleOrgs}
+        orgsLoading={members.orgsLoading}
         onClose={() => members.setOpen(false)}
         onRemove={async (userId: number) => {
           await members.remove(userId)
@@ -160,7 +163,10 @@ export default function RoleManagementPage() {
           await members.openUserSelect()
         }}
         onOpenOrgSelect={openOrgSelect}
-        onRefresh={() => (members.role ? members.openFor(members.role) : null)}
+        onRemoveOrg={async (orgId: number) => {
+          await members.removeOrg(orgId)
+        }}
+        onRefresh={() => (members.role ? members.openFor(members.role) : undefined)}
       />
 
       {/* 选人弹窗 */}
@@ -176,7 +182,7 @@ export default function RoleManagementPage() {
         }}
       />
 
-      {/* 机构选择（按机构添加用户） */}
+      {/* 机构选择 */}
       <OrgSelectModal
         open={orgOpen}
         loading={orgsTree.loading}
@@ -187,17 +193,14 @@ export default function RoleManagementPage() {
         onOk={handleOrgOk}
       />
 
-      {/* 新建/编辑 角色 */}
+      {/* 新建/编辑角色 */}
       <RoleFormModal
         open={formOpen}
         role={editingRole}
         onCancel={() => setFormOpen(false)}
         onOk={async payload => {
-          if (editingRole?.id) {
-            await roles.update(editingRole.id, payload)
-          } else {
-            await roles.create(payload)
-          }
+          if (editingRole?.id) await roles.update(editingRole.id, payload)
+          else await roles.create(payload)
           setFormOpen(false)
         }}
       />

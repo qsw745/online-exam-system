@@ -6,14 +6,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserSettings } from '@/shared/types/settings'
 import { api } from '@/shared/api/http'
 
-// 轻量内联服务（避免缺失的 services/settings.service）
+// 轻量内联服务
 const settingsEndpoint = '/settings/me'
 const settingsService = {
   async get(): Promise<UserSettings | null> {
     try {
       const r = await api.get<any>(settingsEndpoint)
       const d = (r as any)?.data ?? r
-      // 兼容 { data: {...} } / 直接 {...}
       return (d?.data ?? d ?? null) as UserSettings | null
     } catch {
       return null
@@ -22,7 +21,6 @@ const settingsService = {
   async save(payload: UserSettings): Promise<boolean> {
     try {
       const r = await api.put<any>(settingsEndpoint, payload)
-      // 兼容 { success } / axios 响应
       const ok = (r as any)?.success
       return ok !== false
     } catch {
@@ -44,7 +42,10 @@ export function useUserSettings() {
 
   const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(false)
+
+  // 当前设置 & 原始设置
   const [settings, setSettings] = useState<UserSettings>(DEFAULTS)
+  const [initial, setInitial] = useState<UserSettings>(DEFAULTS)
 
   // 初始加载
   const load = useCallback(async () => {
@@ -54,12 +55,13 @@ export function useUserSettings() {
         const data = await settingsService.get()
         const merged = { ...DEFAULTS, ...(data ?? {}) }
         setSettings(merged)
-        // 同步语言给全局
+        setInitial(merged)
         if (merged.appearance?.language) setLanguage(merged.appearance.language)
       } else {
-        // 未登录：使用本地语言回填
         const localLang = (localStorage.getItem('language') as any) || language || 'zh-CN'
-        setSettings({ ...DEFAULTS, appearance: { language: localLang } })
+        const merged = { ...DEFAULTS, appearance: { language: localLang } }
+        setSettings(merged)
+        setInitial(merged)
         setLanguage(localLang)
       }
     } finally {
@@ -71,16 +73,21 @@ export function useUserSettings() {
     load()
   }, [load])
 
-  const isDirty = useMemo(() => {
-    // 简单对比（必要时可定制忽略字段）
-    return (
-      JSON.stringify(settings) !==
-      JSON.stringify({
-        ...DEFAULTS,
-        ...settings,
-      })
-    )
-  }, [settings])
+  // 语言选择变化 → 立即生效 & 持久化 & 通知 antd 切换 locale
+  useEffect(() => {
+    const lang = settings?.appearance?.language || 'zh-CN'
+    setLanguage(lang)
+    try {
+      localStorage.setItem('language', lang)
+    } catch {}
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-language-changed', { detail: lang }))
+      document.documentElement.lang = lang
+    }
+  }, [settings?.appearance?.language, setLanguage])
+
+  // 和“原始值”做深比较
+  const isDirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(initial), [settings, initial])
 
   const save = useCallback(async () => {
     setLoading(true)
@@ -92,6 +99,7 @@ export function useUserSettings() {
         // 未登录：只持久化语言
         localStorage.setItem('language', settings.appearance.language)
       }
+      setInitial(settings) // ✅ 保存成功后刷新基准
       message.success(t('settings.success'))
     } catch (e: any) {
       console.error(e)
@@ -103,8 +111,9 @@ export function useUserSettings() {
   }, [settings, user?.id, message, t])
 
   const reset = useCallback(() => {
-    setSettings(s => ({ ...DEFAULTS, appearance: { language: s.appearance.language } }))
-  }, [])
+    // 恢复到“当前初始值”，而不是 DEFAULTS
+    setSettings(initial)
+  }, [initial])
 
   return {
     t,

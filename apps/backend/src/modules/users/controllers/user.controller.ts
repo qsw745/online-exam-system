@@ -159,8 +159,9 @@ export class UserController {
       const u = await svc.getById(id)
       if (!u) return res.status(404).json({ success: false, error: '用户不存在' })
 
-      await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username })
-      return res.json({ success: true, data: { message: '密码已重置为系统默认密码' } })
+     const password:string= await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username })
+
+      return res.json({ success: true, data: { message: '密码已重置为系统默认密码' , password } })
     } catch (e: any) {
       console.error('重置用户密码错误:', e)
       return res.status(500).json({ success: false, error: '重置密码失败' })

@@ -1,6 +1,9 @@
-// 统一对外导出（保持与旧版 http.ts 的导出一致）
+// 统一对外导出（避免重复导出 ApiResult）
 export { api, http } from './core/httpClient'
-export * from './core/types'
 
-// 业务端点
+// 显式导出类型与工具，避免 “*” 造成重复导出冲突，并供端点直接使用
+export type { ApiResult, ApiSuccess, ApiFailure } from './core/types'
+export { isSuccess } from './core/types'
+
+// 业务端点聚合
 export * from './endpoints'

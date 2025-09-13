@@ -14,19 +14,13 @@ const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswo
 const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'))
 
 export const router = createBrowserRouter([
-  // 公开页
   { path: '/login', element: withSuspense(<LoginPage />) },
   { path: '/register', element: withSuspense(<RegisterPage />) },
   { path: '/forgot-password', element: withSuspense(<ForgotPasswordPage />) },
   { path: '/reset-password', element: withSuspense(<ResetPasswordPage />) },
 
-  // 受保护区 + 所有动态业务路由
-  {
-    path: '/*',
-    element: <DynamicRoutes />,
-    errorElement: <ServerError500 />,
-  },
+  // ⚠️ 必须用 /* 承接 /dashboard、/exam/list 等所有子路径
+  { path: '/*', element: <DynamicRoutes />, errorElement: <ServerError500 /> },
 
-  // 顶层兜底
   { path: '*', element: <NotFound404 /> },
 ])

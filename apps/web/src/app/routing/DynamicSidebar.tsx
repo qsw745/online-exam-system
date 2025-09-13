@@ -12,9 +12,21 @@ interface DynamicSidebarProps {
 }
 
 const LS_OPEN_KEYS = 'sidebar.openKeys.v1'
+// 读取后端 redirect（若存在优先使用）
+const getRedirect = (menu: MenuItem): string | undefined => (menu as any)?.redirect || undefined
 
 /** 动态段判定，如 /exams/:id 或 /foo/[id] 或包含 {} */
 const hasDynamicSegment = (p?: string) => !!p && /[:\[\{]/.test(p)
+
+/** 过滤：隐藏项 + 动态段路径（比如 /exam/:id）一律不出现在菜单 */
+function pruneMenus(list: MenuItem[]): MenuItem[] {
+  const walk = (ms: MenuItem[]): MenuItem[] =>
+    ms
+      .filter(m => !m.is_hidden && !hasDynamicSegment(m.path))
+      .map(m => ({ ...m, children: m.children ? walk(m.children) : [] }))
+      .filter(m => !!m.path || (m.children && m.children.length > 0))
+  return walk(list)
+}
 
 /** 根据当前路径判断菜单或后代是否命中 */
 function isActiveByPath(menu: MenuItem, pathname: string): boolean {
@@ -32,8 +44,6 @@ function collectActiveAncestors(menus: MenuItem[], pathname: string, stack: numb
   }
   return Array.from(new Set(out))
 }
-
-/** 获取第一个有效子菜单 path */
 function firstValidChildPath(menu: MenuItem): string | undefined {
   if (!menu.children?.length) return undefined
   for (const c of menu.children) {
@@ -44,17 +54,18 @@ function firstValidChildPath(menu: MenuItem): string | undefined {
   return undefined
 }
 
-/** 计算父级点击时应该跳到哪里 */
+
 function resolveParentTarget(menu: MenuItem): string | undefined {
-  // 先跳子级的第一个有效 path
+  // ★ 优先用后端 redirect
+  const r = getRedirect(menu)
+  if (r && !hasDynamicSegment(r)) return r
   const child = firstValidChildPath(menu)
   if (child) return child
-  // 父级自身 path 仅当不是动态段时可用
   if (menu.path && !hasDynamicSegment(menu.path)) return menu.path
   return undefined
 }
 
-/** 使整行命中：无子菜单时把整行包成 NavLink */
+
 function RowLink({
   to,
   children,
@@ -101,6 +112,9 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
   const location = useLocation()
   const navigate = useNavigate()
 
+  /** 过滤后的菜单（隐藏 + 动态段剔除） */
+  const visibleMenus = useMemo(() => pruneMenus(menus), [menus])
+
   /** 展开项（持久化） */
   const [openKeys, setOpenKeys] = useState<Set<number>>(() => {
     try {
@@ -113,7 +127,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     }
   })
 
-  /** 点击节流，防止误触与重复跳转 */
   const lockRef = useRef(false)
   const throttled = useCallback((fn: () => void) => {
     if (lockRef.current) return
@@ -124,7 +137,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     }, 200)
   }, [])
 
-  /** 展开/收起并持久化 */
   const toggleOpen = (id: number) => {
     const next = new Set(openKeys)
     next.has(id) ? next.delete(id) : next.add(id)
@@ -134,19 +146,18 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
 
   /** 路由变化：自动展开命中祖先 */
   useEffect(() => {
-    const ancestors = collectActiveAncestors(menus, location.pathname)
+    const ancestors = collectActiveAncestors(visibleMenus, location.pathname)
     if (ancestors.length) {
       const merged = new Set([...openKeys, ...ancestors])
       setOpenKeys(merged)
       localStorage.setItem(LS_OPEN_KEYS, JSON.stringify(Array.from(merged)))
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname, menus])
+  }, [location.pathname, visibleMenus])
 
-  /** 路由变化：如果当前正落在“仅父级 path（或动态段父级）”，自动跳到其第一个有效子菜单 */
+  /** 如果当前正落在“仅父级 path（或动态段父级）”，自动跳到其第一个有效子菜单 */
   useEffect(() => {
-    // 深度优先查找与 pathname 完全相等的菜单
-    const stack: MenuItem[] = [...menus]
+    const stack: MenuItem[] = [...visibleMenus]
     while (stack.length) {
       const m = stack.shift()!
       if (m.path === location.pathname && m.children?.length) {
@@ -158,7 +169,7 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
       }
       if (m.children?.length) stack.push(...m.children)
     }
-  }, [location.pathname, menus, navigate])
+  }, [location.pathname, visibleMenus, navigate])
 
   const isActiveMemo = useCallback((m: MenuItem) => isActiveByPath(m, location.pathname), [location.pathname])
 
@@ -223,7 +234,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
               type="button"
               onClick={() => {
                 if (!safeTarget) {
-                  // 没有可跳的目标则只展开
                   throttled(() => toggleOpen(menu.id))
                   return
                 }
@@ -305,9 +315,9 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
         </div>
       )
     }
-    return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{menus.map(m => renderRow(m))}</div>
+    return <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>{visibleMenus.map(m => renderRow(m))}</div>
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, error, menus, openKeys, collapsed, location.pathname])
+  }, [loading, error, visibleMenus, openKeys, collapsed, location.pathname])
 
   return (
     <aside
@@ -358,7 +368,7 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
   )
 }
 
-/* ===================== 移动端抽屉 ===================== */
+/* ===================== 移动端抽屉（同样过滤） ===================== */
 
 interface MobileSidebarProps {
   isOpen: boolean
@@ -368,6 +378,7 @@ interface MobileSidebarProps {
 export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
   const { menus, loading } = useMenuPermissions()
   const location = useLocation()
+  const visible = useMemo(() => pruneMenus(menus), [menus])
 
   const renderItem = (menu: MenuItem) => {
     const active = isActiveByPath(menu, location.pathname)
@@ -419,7 +430,7 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
               <LoadingSpinner size="sm" />
             </div>
           ) : (
-            menus.filter(m => !m.parent_id).map(renderItem)
+            visible.filter(m => !m.parent_id).map(renderItem)
           )}
         </nav>
       </div>

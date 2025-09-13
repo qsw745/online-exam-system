@@ -24,18 +24,16 @@ const cardStyle: React.CSSProperties = {
 
 const ResetPasswordPage: React.FC = () => {
   const [sp] = useSearchParams()
-  const token = sp.get('token')
-  const { status, error, loading, submit, countdown, clearError } = useResetPassword(token)
+  const rawToken = sp.get('token') // 只取原始值
+  const { status, error, loading, submit, countdown, clearError } = useResetPassword(rawToken)
 
   return (
     <div style={shellStyle}>
       <Card style={cardStyle}>
-        {/* 三种“非表单”状态：校验中 / 无效 / 成功 */}
         {status === 'validating' && <ResetStatusCard variant="validating" />}
         {status === 'invalid' && <ResetStatusCard variant="invalid" message={error || undefined} />}
         {status === 'success' && <ResetStatusCard variant="success" countdown={countdown} />}
 
-        {/* 表单状态 */}
         {status === 'form' && (
           <>
             <div style={{ textAlign: 'center', marginBottom: 32 }}>

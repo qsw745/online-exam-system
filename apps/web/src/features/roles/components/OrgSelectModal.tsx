@@ -1,8 +1,17 @@
-import { Button, Modal, Skeleton, Tree } from 'antd'
-import type { DataNode } from 'antd/es/tree'
 import React from 'react'
+import { Button, Modal, Spin, Tree, Typography } from 'antd'
+import type { TreeProps } from 'antd'
 
-export type AntTreeNode = { key: number; title: string; children?: AntTreeNode[] }
+const { Text } = Typography
+
+// 兼容各种机构节点结构
+export type OrgNode = {
+  id: number | string
+  name?: string
+  title?: string
+  code?: string
+  children?: OrgNode[]
+}
 
 export default function OrgSelectModal({
   open,
@@ -15,40 +24,54 @@ export default function OrgSelectModal({
 }: {
   open: boolean
   loading: boolean
-  treeData: AntTreeNode[]
+  treeData: OrgNode[]
   checked: React.Key[]
   onCheck: (keys: React.Key[]) => void
   onCancel: () => void
   onOk: () => void | Promise<void>
 }) {
+  // antd Tree 在 check 且未开启 checkStrictly 时，onCheck 的第一个参数可能是数组或对象
+  const handleCheck: TreeProps['onCheck'] = ck => {
+    const keys = Array.isArray(ck) ? ck : (ck as any)?.checked
+    onCheck(Array.isArray(keys) ? (keys as React.Key[]) : [])
+  }
+
   return (
     <Modal
       title="选择机构"
       open={open}
       onCancel={onCancel}
+      destroyOnClose
       footer={[
         <Button key="cancel" onClick={onCancel}>
-          取消
+          取 消
         </Button>,
-        <Button key="ok" type="primary" onClick={onOk} disabled={!checked.length}>
+        <Button key="ok" type="primary" disabled={!checked.length} onClick={onOk}>
           确定（{checked.length}）
         </Button>,
       ]}
-      width={600}
-      destroyOnHidden
+      width={720}
     >
-      {loading ? (
-        <Skeleton active paragraph={{ rows: 6 }} />
-      ) : (
-        <Tree
-          checkable
-          selectable={false}
-          defaultExpandAll
-          treeData={treeData as unknown as DataNode[]}
-          checkedKeys={checked}
-          onCheck={k => onCheck((Array.isArray(k) ? k : (k as any).checked) as React.Key[])}
-        />
-      )}
+      <div style={{ minHeight: 320 }}>
+        {loading ? (
+          <div style={{ display: 'grid', placeItems: 'center', height: 320 }}>
+            <Spin />
+          </div>
+        ) : (
+          <Tree
+            checkable
+            blockNode
+            selectable={false}
+            // ✅ 关键：把后端的 { id, name, children } 映射给 Tree
+            fieldNames={{ key: 'id', title: 'name', children: 'children' }}
+            treeData={treeData as any}
+            checkedKeys={checked}
+            onCheck={handleCheck}
+            defaultExpandAll
+            titleRender={(node: any) => <Text>{node.name ?? node.title ?? node.code ?? '（未命名）'}</Text>}
+          />
+        )}
+      </div>
     </Modal>
   )
 }

@@ -1,86 +1,79 @@
-// apps/web/src/features/roles/hooks/useRoleMembers.ts
-import { App } from 'antd'
-import { useCallback, useState } from 'react'
-import { http } from '@/shared/api/http'
 import type { ApiResult } from '@/shared/api/core/types'
 import { rolesApi, type Role as ApiRole, type UserBrief as ApiUser, type RoleOrg } from '@/shared/api/endpoints/roles'
+import { api } from '@/shared/api/http'
+import { App } from 'antd'
+import { useCallback, useState } from 'react'
 
-// ===== 类型定义（兼容原组件的使用）=====
 export type Role = { id: number; name: string }
 export type User = ApiUser & { status?: string }
 export type RoleUser = User
 
-// 用户列表（用于“添加成员”选择器）的简单封装；如果你有独立的 usersApi，可替换为 import
 const usersApi = {
   list(params?: { limit?: number }) {
-    // 期望后端返回：{ success, data: { users: User[] } } 或 { success, data: User[] }
-    return http.get<ApiResult<{ users: User[] } | User[]>>('/users', { params })
+    return api.get<ApiResult<{ users: User[] } | User[]>>('/users', { params })
   },
 }
 
-// ===== 工具函数 =====
+// —— 工具 —— //
 const ensureArray = <T>(input: any, fallback: T[] = []): T[] => {
   if (Array.isArray(input)) return input as T[]
   if (input == null) return fallback
   const maybe = (input.items ?? input.data ?? input.list ?? input.rows ?? input.users) as T[] | undefined
   return Array.isArray(maybe) ? maybe : fallback
 }
-const unwrap = <T>(r: ApiResult<T>): T => (r && typeof r === 'object' && 'data' in r ? (r as any).data : (r as any))
+const unwrap = <T>(r: ApiResult<T> | any): T =>
+  r && typeof r === 'object' && 'success' in r ? (r.success ? (r.data as T) : ([] as any)) : (r as T)
 const isOk = (r: any) => r?.success !== false && !r?.error
 const getMsg = (r: any, fallback: string) => r?.message || r?.error || fallback
 
-// ===== 角色成员/机构相关服务（统一走封装好的 rolesApi）=====
+// —— 服务 —— //
 const roleService = {
   async roleUsers(roleId: number) {
     const r = await rolesApi.getRoleUsers(roleId)
-    return unwrap(r) // User[]
+    return unwrap(r) as RoleUser[]
   },
   async removeUser(roleId: number, userId: number) {
-    const r = await rolesApi.removeUserFromRole(roleId, userId)
-    return r
+    return rolesApi.removeUserFromRole(roleId, userId)
   },
   async addUsers(roleId: number, userIds: number[]) {
-    const r = await rolesApi.addUsersToRole(roleId, userIds)
-    return r
+    return rolesApi.addUsersToRole(roleId, userIds)
   },
   async roleOrgs(roleId: number) {
     const r = await rolesApi.getRoleOrgs(roleId)
     return unwrap(r) as RoleOrg[]
   },
+  async removeOrg(roleId: number, orgId: number) {
+    return rolesApi.removeRoleOrg(roleId, orgId)
+  },
   async allUsers() {
     const r = await usersApi.list({ limit: 1000 })
     const data = unwrap(r)
-    // 兼容两种 data 结构：{ users: [] } 或 []
     const list = Array.isArray((data as any)?.users) ? (data as any).users : (data as any)
     return ensureArray<User>(list, [])
   },
 }
 
-// ===== Hook =====
+// —— Hook —— //
 export function useRoleMembers() {
   const { message } = App.useApp()
 
-  // 弹窗/上下文
   const [role, setRole] = useState<Role | null>(null)
   const [open, setOpen] = useState(false)
 
-  // 用户成员
   const [loading, setLoading] = useState(false)
   const [members, setMembers] = useState<RoleUser[]>([])
 
-  // 机构（新增）
   const [orgsLoading, setOrgsLoading] = useState(false)
   const [roleOrgs, setRoleOrgs] = useState<RoleOrg[]>([])
 
-  // 选人弹窗
   const [userOpen, setUserOpen] = useState(false)
   const [candidateUsers, setCandidateUsers] = useState<User[]>([])
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [userLoading, setUserLoading] = useState(false)
 
-  // 加载成员（用户）
+  // 用户
   const loadMembers = useCallback(
-    async (roleId: number): Promise<void> => {
+    async (roleId: number) => {
       setLoading(true)
       try {
         const arr = await roleService.roleUsers(roleId)
@@ -95,9 +88,9 @@ export function useRoleMembers() {
     [message]
   )
 
-  // 加载机构（新增）
+  // 机构
   const loadOrgs = useCallback(
-    async (roleId: number): Promise<void> => {
+    async (roleId: number) => {
       setOrgsLoading(true)
       try {
         const arr = await roleService.roleOrgs(roleId)
@@ -112,8 +105,8 @@ export function useRoleMembers() {
     [message]
   )
 
-  // 打开当前角色的成员&机构
-  const openFor = async (r: Role | ApiRole): Promise<void> => {
+  // 打开
+  const openFor = async (r: Role | ApiRole) => {
     const rid = Number((r as any).id)
     setRole({ id: rid, name: (r as any).name })
     await Promise.all([loadMembers(rid), loadOrgs(rid)])
@@ -121,7 +114,7 @@ export function useRoleMembers() {
   }
 
   // 从角色移除用户
-  const remove = async (userId: number): Promise<void> => {
+  const remove = async (userId: number) => {
     if (!role) return
     const r = await roleService.removeUser(role.id, userId)
     if (!isOk(r)) {
@@ -131,15 +124,25 @@ export function useRoleMembers() {
     await loadMembers(role.id)
   }
 
-  // 打开“添加成员”选择器
-  const openUserSelect = async (): Promise<void> => {
+  // 从角色移除机构
+  const removeOrg = async (orgId: number) => {
+    if (!role) return
+    const r = await roleService.removeOrg(role.id, orgId)
+    if (!isOk(r)) {
+      message.error(getMsg(r, '移除机构失败'))
+      return
+    }
+    await loadOrgs(role.id)
+  }
+
+  // 选人弹窗
+  const openUserSelect = async () => {
     if (!role) return
     setSelectedIds([])
     setUserLoading(true)
     try {
       const allList = await roleService.allUsers()
       const cur = await roleService.roleUsers(role.id)
-
       const curIds = new Set(ensureArray<RoleUser>(cur, []).map(u => u.id))
       setCandidateUsers(allList.filter(u => !curIds.has(u.id) && (u.status ?? 'active') === 'active'))
       setUserOpen(true)
@@ -152,7 +155,7 @@ export function useRoleMembers() {
   }
 
   // 提交添加成员
-  const addUsers = async (): Promise<void> => {
+  const addUsers = async () => {
     if (!role || selectedIds.length === 0) return
     const r = await roleService.addUsers(role.id, selectedIds)
     if (!isOk(r)) {
@@ -165,23 +168,22 @@ export function useRoleMembers() {
   }
 
   return {
-    // 成员弹窗
+    // 弹窗
     role,
     open,
     setOpen,
-
-    // 用户成员
+    // 用户
     members,
     loading,
     openFor,
     remove,
-
-    // 机构（新增）
+    addUsers,
+    // 机构
     roleOrgs,
     orgsLoading,
+    removeOrg,
     reloadOrgs: async () => role && (await loadOrgs(role.id)),
-
-    // 选人弹窗
+    // 选人
     userOpen,
     setUserOpen,
     userLoading,
@@ -189,6 +191,5 @@ export function useRoleMembers() {
     selectedIds,
     setSelectedIds,
     openUserSelect,
-    addUsers,
   }
 }

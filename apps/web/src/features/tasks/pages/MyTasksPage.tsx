@@ -1,11 +1,9 @@
-// src/features/tasks/pages/MyTasksPage.tsx
 import React from 'react'
 import { Breadcrumb, Card, Pagination, Space, message, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
-import { tasksApi } from '@/shared/api/http'
-import { isSuccess } from '@/shared/api/http'
+import { tasksApi, isSuccess } from '@/shared/api/http'
 
 const { RangePicker } = DatePicker
 
@@ -23,7 +21,7 @@ const MyTasksPage: React.FC = () => {
     const next: TaskFilters = {
       keyword: kw || undefined,
       status: st || 'all',
-      range: rg && rg.length === 2 ? rg : null,
+      range: rg && (rg as any)?.length === 2 ? (rg as any) : null,
     }
     search(next)
   }
@@ -54,9 +52,9 @@ const MyTasksPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Breadcrumb items={[{ title: '任务管理', href: '/tasks' }, { title: '我的任务' }]} />
+      <Breadcrumb items={[{ title: '任务管理', href: '/tasks' }, { title: '发布任务' }]} />
 
-      <Card title="我的任务" variant="outlined">
+      <Card title="发布任务" variant="outlined">
         <Space wrap>
           <Input
             placeholder="关键词"
@@ -100,7 +98,7 @@ const MyTasksPage: React.FC = () => {
         <TasksTable
           data={rows as any}
           loading={loading}
-          onView={(id: string) => nav(`/admin/task-detail/${id}`)}
+          onView={(id: string) => nav(`/admin/task/detail/${id}`)}
           onPublish={handlePublish}
           onUnpublish={handleUnpublish}
         />

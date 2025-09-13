@@ -1,4 +1,3 @@
-// apps/web/src/app/routing/pageRegistry.ts
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 
 // ===== Admin / System =====
@@ -6,8 +5,8 @@ const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage'))
 const OrgManagementPage = lazy(() => import('@/features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@/features/roles/pages/RoleManagementPage'))
 const MenuManagementPage = lazy(() => import('@/features/menu/pages/MenuManagementPage'))
-const FunctionMenusPage = lazy(() => import('@/features/menu/pages/FunctionMenusPage')) // 功能菜单（只读树）
-const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage')) // 单位菜单（可维护）
+const FunctionMenusPage = lazy(() => import('@/features/menu/pages/FunctionMenusPage'))
+const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage'))
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
 const LogsPage = lazy(() => import('@/features/logs/pages/LogsPage'))
 const SystemSettingsPage = lazy(() => import('@/features/admin-settings/pages/SystemSettingsPage'))
@@ -26,6 +25,8 @@ const ManualPaperCreationPage = lazy(() => import('@/features/papers/pages/Manua
 const SmartPaperCreatePage = lazy(() => import('@/features/papers/pages/SmartPaperCreatePage'))
 const QuestionManagementPage = lazy(() => import('@/features/questions/pages/QuestionManagementPage'))
 const QuestionCreatePage = lazy(() => import('@/features/questions/pages/QuestionCreatePage'))
+const QuestionDetailPage = lazy(() => import('@/features/questions/pages/QuestionDetailPage'))
+const QuestionEditPage = lazy(() => import('@/features/questions/pages/QuestionEditPage'))
 
 // ===== Top-level user features =====
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'))
@@ -51,9 +52,6 @@ const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
 const NotFound404 = lazy(() => import('@/app/errors/NotFound404'))
 const ServerError500 = lazy(() => import('@/app/errors/ServerError500'))
 
-/**
- * 组件注册表（key 必须与后端 MENU_TREE 的 `component` 一致）
- */
 export const componentRegistry: Record<string, LazyExoticComponent<ComponentType<any>>> = {
   // 顶层
   dashboard: DashboardPage,
@@ -79,9 +77,10 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-org': OrgManagementPage,
   'admin-role': RoleManagementPage,
   'menu-manage': MenuManagementPage,
-  'menu-functions': FunctionMenusPage, // ✅ 和种子一致
-  'menu-units': UnitMenusPage, // ✅ 和种子一致
+  'menu-functions': FunctionMenusPage,
+  'menu-units': UnitMenusPage,
   'user-manage': UserManagementPage,
+  'admin-user': UserManagementPage, // ← 兼容后端可能使用的 key
   logs: LogsPage,
   'system-settings': SystemSettingsPage,
 
@@ -99,6 +98,8 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'paper-create-smart': SmartPaperCreatePage,
   'question-manage': QuestionManagementPage,
   'question-create': QuestionCreatePage,
+  'question-detail': QuestionDetailPage,
+  'question-edit': QuestionEditPage,
 
   // Errors
   'errors-403': Forbidden403,

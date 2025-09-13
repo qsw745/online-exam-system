@@ -1,4 +1,4 @@
-import { useTheme } from '@/app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
+import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { api } from '@/shared/api/http'
 import { message } from 'antd'
 import { Bell, LogOut, Menu, Moon, Settings, Sun, User } from 'lucide-react'
@@ -6,26 +6,18 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
-
 import LoadingSpinner from './LoadingSpinner'
 
-// ===== 统一 ApiResult 类型与守卫，避免直接 .data 取值导致 TS2339 =====
 type ApiSuccess<T = any> = { success: true; data: T; message?: string }
 type ApiFailure = { success: false; error?: string; message?: string }
 type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
-
-/** 从常见返回形态中“捞”出数据：
- *  - 我方拦截器：{ success, data }
- *  - 直出：{ data: {...} } 或 { data: { data: ... } }
- */
 function pickData<T>(resp: any, fallback: T): T {
   if (isSuccess<T>(resp)) return (resp.data as T) ?? fallback
   const d = resp?.data
   if (d?.data !== undefined) return (d.data as T) ?? fallback
   return (d as T) ?? fallback
 }
-// ===================================================================
 
 interface Notification {
   id: string
@@ -44,7 +36,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { mode, toggle } = useTheme()
-
   const { t } = useLanguage()
 
   const [showNotifications, setShowNotifications] = useState(false)
@@ -53,47 +44,69 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const [notificationsLoading, setNotificationsLoading] = useState(false)
   const notificationRef = React.useRef<HTMLDivElement>(null)
 
+  // ===== 统一的按钮/图标样式（解决不在一条线的问题） =====
+  const hoverBg = mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)'
+
+  // 36×36 点击区，grid 完全居中；fontSize/lineHeight/verticalAlign 统一消除基线影响
+  const iconBtnBase: React.CSSProperties = {
+    width: 36,
+    height: 36,
+    display: 'grid',
+    placeItems: 'center',
+    padding: 0,
+    border: 'none',
+    backgroundColor: 'transparent',
+    borderRadius: 8,
+    cursor: 'pointer',
+    transition: 'background-color .2s',
+    color: 'var(--app-colorText, inherit)',
+    outline: 'none',
+    fontSize: 0, // ✅ 防止基线抬高
+    lineHeight: 0, // ✅ 防止基线抬高
+    verticalAlign: 'middle', // ✅ 保证与同列其他元素一条线
+  }
+  // svg 设为块级，避免内联 svg 的基线缝隙
+  const iconSvgStyle: React.CSSProperties = { width: 20, height: 20, display: 'block' }
+
+  const hoverHandlers = {
+    onMouseEnter: (e: React.MouseEvent<HTMLButtonElement>) => {
+      ;(e.currentTarget.style as any).backgroundColor = hoverBg
+    },
+    onMouseLeave: (e: React.MouseEvent<HTMLButtonElement>) => {
+      ;(e.currentTarget.style as any).backgroundColor = 'transparent'
+    },
+  }
+  // ======================================================
+
   useEffect(() => {
-    if (showNotifications) {
-      loadNotifications()
-    }
+    if (showNotifications) loadNotifications()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showNotifications])
 
   useEffect(() => {
     if (user) {
       loadUnreadCount()
-      // 每分钟更新一次未读数量
       const timer = setInterval(loadUnreadCount, 60000)
       return () => clearInterval(timer)
     }
   }, [user])
 
-  // 添加点击外部关闭通知栏的功能
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
         setShowNotifications(false)
       }
     }
-
-    if (showNotifications) {
-      document.addEventListener('mousedown', handleClickOutside)
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-    }
+    if (showNotifications) document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [showNotifications])
 
   const loadNotifications = async () => {
     try {
       setNotificationsLoading(true)
-      // 直接使用 api.get 替代 api.notifications.list
       const resp: ApiResult<{ notifications?: Notification[]; unreadCount?: number }> | any = await api.get(
         '/notifications'
       )
-
       const data = pickData<{ notifications?: Notification[]; unreadCount?: number }>(resp, {})
       setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
       setUnreadCount(Number(data.unreadCount ?? 0))
@@ -107,7 +120,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
   const loadUnreadCount = async () => {
     try {
-      // 直接使用 api.get 替代 api.notifications.unreadCount
       const resp: ApiResult<{ unreadCount: number }> | any = await api.get('/notifications/unread-count')
       const data = pickData<{ unreadCount?: number }>(resp, {})
       setUnreadCount(Number(data.unreadCount ?? 0))
@@ -120,11 +132,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
   const markAsRead = async (notificationId: string) => {
     try {
-      // 直接使用 api.put 替代 api.notifications.markAsRead
       await api.put(`/notifications/${notificationId}/read`)
-
-      // 更新本地状态
-      setNotifications(prev => prev.map(notif => (notif.id === notificationId ? { ...notif, read: true } : notif)))
+      setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, read: true } : n)))
       setUnreadCount(prev => Math.max(0, prev - 1))
     } catch (error: any) {
       console.error('标记通知为已读错误:', error)
@@ -148,7 +157,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         top: 0,
         zIndex: 50,
         width: '100%',
-        // 用 antd 变量，跟随主题
         borderBottom: '1px solid var(--app-colorSplit, #e5e7eb)',
         backgroundColor: 'var(--app-colorBgElevated, rgba(255,255,255,.95))',
         color: 'var(--app-colorText, #111827)',
@@ -163,11 +171,12 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
           height: 69,
           alignItems: 'center',
           padding: '0 16px',
-          overflow: 'hidden',
+          overflow: 'visible',
         }}
       >
         <div style={{ marginRight: 16, display: 'flex' }}>
           <a
+            href="/"
             style={{
               marginRight: 24,
               display: 'flex',
@@ -176,7 +185,6 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               textDecoration: 'none',
               color: 'var(--app-colorText, inherit)',
             }}
-            href="/"
           >
             <span style={{ fontWeight: 700 }}>{t('app.title')}</span>
           </a>
@@ -187,87 +195,45 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             {onMobileMenuToggle && (
               <button
                 onClick={onMobileMenuToggle}
-                style={{
-                  display: window.innerWidth < 768 ? 'block' : 'none',
-                  padding: 8,
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  transition: 'background-color .2s',
-                  color: 'var(--app-colorText, inherit)',
-                }}
-                onMouseEnter={e =>
-                  (e.currentTarget.style.backgroundColor =
-                    mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-                }
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+                style={{ ...iconBtnBase, display: window.innerWidth < 768 ? 'grid' : 'none' }}
+                {...hoverHandlers}
               >
-                <Menu style={{ height: 20, width: 20 }} />
+                <Menu style={iconSvgStyle} />
                 <span style={{ position: 'absolute', left: -9999 }}>打开菜单</span>
               </button>
             )}
           </div>
 
-          <nav style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {/* 主题切换 */}
+          {/* 一排图标用 grid 水平流布局，所有项天然在同一水平线 */}
+          <nav style={{ display: 'grid', gridAutoFlow: 'column', alignItems: 'center', gap: 12 }}>
             <button
               onClick={toggle}
-              style={{
-                padding: 8,
-                border: 'none',
-                backgroundColor: 'transparent',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background-color .2s',
-                color: 'var(--app-colorText, inherit)', // 关键：让图标继承文本色
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.backgroundColor = mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-              }
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
+              style={iconBtnBase}
+              {...hoverHandlers}
               aria-label={mode === 'dark' ? t('theme.toggle_light') : t('theme.toggle_dark')}
               title={mode === 'dark' ? t('theme.toggle_light') : t('theme.toggle_dark')}
             >
-              {mode === 'dark' ? <Sun style={{ height: 20, width: 20 }} /> : <Moon style={{ height: 20, width: 20 }} />}
+              {mode === 'dark' ? <Sun style={iconSvgStyle} /> : <Moon style={iconSvgStyle} />}
             </button>
 
-            {/* 通知 */}
             <div style={{ position: 'relative' }} ref={notificationRef}>
-              <button
-                onClick={() => setShowNotifications(!showNotifications)}
-                style={{
-                  position: 'relative',
-                  padding: 8,
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  borderRadius: 8,
-                  cursor: 'pointer',
-                  transition: 'background-color .2s',
-                  color: 'var(--app-colorText, inherit)',
-                }}
-                onMouseEnter={e =>
-                  (e.currentTarget.style.backgroundColor =
-                    mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-                }
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-              >
-                <Bell style={{ height: 20, width: 20 }} />
+              <button onClick={() => setShowNotifications(s => !s)} style={iconBtnBase} {...hoverHandlers}>
+                <Bell style={iconSvgStyle} />
                 {unreadCount > 0 && (
                   <span
                     style={{
                       position: 'absolute',
-                      top: 4,
-                      right: 4,
-                      display: 'flex',
+                      top: 2,
+                      right: 2,
+                      display: 'grid',
+                      placeItems: 'center',
                       height: 16,
                       width: 16,
-                      alignItems: 'center',
-                      justifyContent: 'center',
                       borderRadius: '50%',
                       backgroundColor: 'var(--app-colorError, #ef4444)',
                       fontSize: 10,
                       color: '#fff',
+                      lineHeight: 1,
                     }}
                   >
                     {unreadCount}
@@ -287,6 +253,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                     color: 'var(--app-colorText, #374151)',
                     boxShadow: '0 10px 15px -3px rgba(0,0,0,.1), 0 4px 6px -2px rgba(0,0,0,.05)',
                     border: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))',
+                    zIndex: 1000,
                   }}
                 >
                   <div style={{ padding: 16 }}>
@@ -347,64 +314,16 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               )}
             </div>
 
-            {/* 设置 */}
-            <button
-              onClick={() => navigate('/settings')}
-              style={{
-                padding: 8,
-                border: 'none',
-                backgroundColor: 'transparent',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background-color .2s',
-                color: 'var(--app-colorText, inherit)',
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.backgroundColor = mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-              }
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              <Settings style={{ height: 20, width: 20 }} />
+            <button onClick={() => navigate('/settings')} style={iconBtnBase} {...hoverHandlers}>
+              <Settings style={iconSvgStyle} />
             </button>
 
-            {/* 个人中心 */}
-            <button
-              onClick={() => navigate('/profile')}
-              style={{
-                padding: 8,
-                border: 'none',
-                backgroundColor: 'transparent',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background-color .2s',
-                color: 'var(--app-colorText, inherit)',
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.backgroundColor = mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-              }
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              <User style={{ height: 20, width: 20 }} />
+            <button onClick={() => navigate('/profile')} style={iconBtnBase} {...hoverHandlers}>
+              <User style={iconSvgStyle} />
             </button>
 
-            {/* 退出 */}
-            <button
-              onClick={handleLogout}
-              style={{
-                padding: 8,
-                border: 'none',
-                backgroundColor: 'transparent',
-                borderRadius: 8,
-                cursor: 'pointer',
-                transition: 'background-color .2s',
-                color: 'var(--app-colorText, inherit)',
-              }}
-              onMouseEnter={e =>
-                (e.currentTarget.style.backgroundColor = mode === 'dark' ? 'rgba(255,255,255,.10)' : 'rgba(0,0,0,.06)')
-              }
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
-            >
-              <LogOut style={{ height: 20, width: 20 }} />
+            <button onClick={handleLogout} style={iconBtnBase} {...hoverHandlers}>
+              <LogOut style={iconSvgStyle} />
             </button>
           </nav>
         </div>

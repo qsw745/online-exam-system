@@ -1,6 +1,8 @@
+// app/providers/AntdThemeProvider.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
+import enUS from 'antd/locale/en_US'
 
 type Mode = 'light' | 'dark'
 type ThemeCtx = { mode: Mode; toggle: () => void; setMode: (m: Mode) => void }
@@ -25,6 +27,24 @@ export const useTheme = () => {
 
 export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [mode, setMode] = useState<Mode>(detectInitialMode)
+
+  // ← 语言（驱动 antd locale）
+  const [lang, setLang] = useState<string>(() => {
+    try {
+      return localStorage.getItem('language') || 'zh-CN'
+    } catch {
+      return 'zh-CN'
+    }
+  })
+
+  useEffect(() => {
+    const onLang = (e: Event) => {
+      const detail = (e as CustomEvent<string>).detail
+      setLang(detail || localStorage.getItem('language') || 'zh-CN')
+    }
+    window.addEventListener('app-language-changed', onLang as EventListener)
+    return () => window.removeEventListener('app-language-changed', onLang as EventListener)
+  }, [])
 
   useEffect(() => {
     try {
@@ -78,14 +98,15 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
     [mode]
   )
 
+  const antdLocale = lang === 'en-US' ? enUS : zhCN
+
   return (
     <ThemeContext.Provider value={{ mode, toggle, setMode }}>
-      <ConfigProvider locale={zhCN} theme={themeConfig}>
+      <ConfigProvider locale={antdLocale} theme={themeConfig}>
         <AntdApp>{children}</AntdApp>
       </ConfigProvider>
     </ThemeContext.Provider>
   )
 }
 
-// 兼容旧命名
 export const ThemeProvider = AntdThemeProvider

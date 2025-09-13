@@ -4,7 +4,7 @@ import { Card, Space, Spin, Typography, Input, Select, Row, Col } from 'antd'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Link } from 'react-router-dom'
-import { useQuestionsQuery } from '@/shared/hooks'
+import { useQuestionsQuery } from '@/shared/hooks/useQuestionsQuery'
 import { PageHeader } from '../components/PageHeader'
 import { QuestionGrid } from '../components/QuestionGrid'
 import { PaginationBar } from '../components/PaginationBar'
@@ -18,15 +18,14 @@ export default function QuestionsPage() {
   const { t } = useLanguage()
   const q = useQuestionsQuery(user || null)
 
-  // 本页最简收藏占位（避免与现有 useFavorites 类型不匹配导致 TS 报错）
   const emptyFavSet = React.useMemo(() => new Set<string>(), [])
 
-  // 未登录/加载态
   if (authLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <Spin size="large" tip="正在验证登录状态..." />
-        <div style={{ minHeight: 200 }} />
+        <Spin size="large" tip="正在验证登录状态..." spinning>
+          <div style={{ width: 1, height: 1 }} />
+        </Spin>
       </div>
     )
   }
@@ -44,7 +43,7 @@ export default function QuestionsPage() {
         <Space direction="vertical" align="center" size="large">
           <Title level={2}>请先登录</Title>
           <Text type="secondary">您需要登录后才能查看题目列表</Text>
-          <Link to="/auth/login">
+          <Link to="/login">
             <span className="ant-btn ant-btn-primary ant-btn-lg">前往登录</span>
           </Link>
         </Space>
@@ -52,7 +51,6 @@ export default function QuestionsPage() {
     )
   }
 
-  // 标题与描述
   const title =
     q.viewType === 'favorites'
       ? '收藏题目'
@@ -63,6 +61,7 @@ export default function QuestionsPage() {
       : q.viewType === 'manage'
       ? '题目管理'
       : t('questions.title')
+
   const desc =
     q.viewType === 'favorites'
       ? '查看您收藏的题目'
@@ -74,12 +73,13 @@ export default function QuestionsPage() {
       ? '管理和维护题目'
       : t('questions.description')
 
+  // ✅ 练习入口链接：只带筛选参数，不带题目 id
   const practiceHref =
-    q.viewType === 'all' && q.items.length > 0
-      ? buildPracticeLink(q.items[0].id, {
-          type: q.filters.filterType,
-          difficulty: q.filters.filterDifficulty,
-          search: q.filters.searchTerm,
+    q.viewType === 'all'
+      ? buildPracticeLink({
+          type: q.filters.type,
+          difficulty: q.filters.difficulty,
+          search: q.filters.search,
         })
       : undefined
 
@@ -98,48 +98,41 @@ export default function QuestionsPage() {
 
       {q.viewType === 'all' && (
         <Card>
-          {/* 自绘筛选条（避免 @shared/components/FiltersBar 的 props 不兼容） */}
           <Row gutter={[12, 12]} align="middle">
             <Col xs={24} md={10}>
               <Input.Search
                 allowClear
                 placeholder={t('questions.search_placeholder')}
-                value={q.filters.searchTerm}
+                value={q.filters.search}
                 onChange={e => q.setSearch(e.target.value)}
-                onSearch={v => q.setSearch(v)}
+                onSearch={v => q.setSearch(v, { immediate: true })}
               />
             </Col>
             <Col xs={12} md={7}>
               <Select
                 style={{ width: '100%' }}
-                value={q.filters.filterType}
+                value={q.filters.type}
                 onChange={(v: string) => q.setFilter('type', v)}
-                options={Object.entries(typeLbl as any).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(typeLbl as Record<string, string>).map(([value, label]) => ({ value, label }))}
               />
             </Col>
             <Col xs={12} md={7}>
               <Select
                 style={{ width: '100%' }}
-                value={q.filters.filterDifficulty}
+                value={q.filters.difficulty}
                 onChange={(v: string) => q.setFilter('difficulty', v)}
-                options={Object.entries(diffLbl as any).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(diffLbl as Record<string, string>).map(([value, label]) => ({ value, label }))}
               />
             </Col>
           </Row>
         </Card>
       )}
 
-      {q.loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-          <Spin size="large" tip={t('app.loading_questions')} />
+      <Spin spinning={q.loading} size="large" tip={t('app.loading_questions')}>
+        <div style={{ minHeight: 400 }}>
+          <QuestionGrid items={q.items} favorites={emptyFavSet} onFavorite={() => {}} />
         </div>
-      ) : (
-        <QuestionGrid
-          items={q.items}
-          favorites={emptyFavSet} // ✅ 传 Set<string>
-          onFavorite={() => {}} // ✅ 占位，无副作用
-        />
-      )}
+      </Spin>
 
       {q.viewType === 'all' && q.items.length > 0 && (
         <PaginationBar

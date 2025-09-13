@@ -34,14 +34,15 @@ const PublishTaskPage: React.FC = () => {
   const fetchUsers = useCallback(async () => {
     try {
       setLoading(true)
-      const r: any = await (usersApi as any).list?.({ page, limit: pageSize })
-      if (!isSuccess(r)) {
+        const r: any = await (usersApi as any).list?.({ page, limit: pageSize })
+        console.log('fetchUsers',r)
+      if (r.users.legnth<=0) {
         message.error(r?.error || r?.message || '加载用户失败')
         setRows([])
         setTotal(0)
         return
       }
-      const d = r.data
+      const d = r.users
       if (Array.isArray(d)) {
         const list = (d as ApiUser[]).map(normalizeUser)
         setRows(list)
@@ -97,9 +98,9 @@ const PublishTaskPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Breadcrumb items={[{ title: '任务管理', href: '/tasks' }, { title: '发布任务' }]} />
+      <Breadcrumb items={[{ title: '任务管理', href: '/tasks' }, { title: '创建任务' }]} />
 
-      <Card title="发布任务" variant="outlined">
+      <Card title="创建任务" variant="outlined">
         <PublishTaskForm usersForSelect={options} loading={submitting} onSubmit={onSubmit} />
       </Card>
 

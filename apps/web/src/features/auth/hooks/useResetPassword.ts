@@ -1,23 +1,39 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { App } from 'antd'
-import { validateResetToken, resetPassword as doResetPassword } from '@/shared/api/http'
+import { validateResetToken as apiValidate, resetPassword as apiReset } from '@/shared/api/endpoints/auth'
 
-export type ResetValues = {
-  password: string
-  confirmPassword: string
-}
+export type ResetValues = { password: string; confirmPassword: string }
 
 function pickError(err: any, fallback: string) {
   if (!err) return fallback
-  // 兼容 ApiResult { success:false, error } 和 axios 错误
   if (typeof err === 'string') return err
   if (err.error) return err.error
   if (err.message) return err.message
   return err?.response?.data?.message || fallback
 }
 
-export function useResetPassword(token: string | null) {
+/** 把被“套娃”的 token 还原成真正的 64位 hex 令牌 */
+function normalizeToken(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  try {
+    const v = decodeURIComponent(raw)
+    // 如果是完整 URL，再从里面取 token
+    if (/^https?:\/\//i.test(v)) {
+      const inner = new URL(v).searchParams.get('token')
+      if (inner) return normalizeToken(inner)
+    }
+    // 直接提取 64 位十六进制片段
+    const m = v.match(/\b[0-9a-fA-F]{64}\b/)
+    return m ? m[0] : v
+  } catch {
+    return raw ?? null
+  }
+}
+
+export function useResetPassword(rawToken: string | null) {
+  const token = useMemo(() => normalizeToken(rawToken), [rawToken])
+
   const { message } = App.useApp()
   const navigate = useNavigate()
 
@@ -29,7 +45,7 @@ export function useResetPassword(token: string | null) {
   const [countdown, setCountdown] = useState(3)
   const timerRef = useRef<number | null>(null)
 
-  // 校验 token（进入页面或 token 变化时）
+  // 校验 token
   useEffect(() => {
     let mounted = true
     ;(async () => {
@@ -42,13 +58,12 @@ export function useResetPassword(token: string | null) {
       }
       try {
         setValidating(true)
-        const res = await validateResetToken(token)
-        if (res?.success) {
-          if (!mounted) return
+        const res = await apiValidate(token)
+        if (!mounted) return
+        if (res?.success && res?.data?.valid) {
           setTokenValid(true)
           setError(null)
         } else {
-          if (!mounted) return
           setTokenValid(false)
           setError(pickError(res, '重置链接无效或已过期'))
         }
@@ -106,7 +121,7 @@ export function useResetPassword(token: string | null) {
       setLoading(true)
       setError(null)
       try {
-        const res = await doResetPassword(token, values.password, values.confirmPassword)
+        const res = await apiReset(token, values.password, values.confirmPassword)
         if (res?.success) {
           setSuccess(true)
         } else {
@@ -142,3 +157,5 @@ export function useResetPassword(token: string | null) {
     clearError,
   }
 }
+
+export default useResetPassword

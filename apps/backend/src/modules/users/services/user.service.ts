@@ -122,7 +122,11 @@ export class UserService {
         const defaultPassword = '123456'
         const hashed = await bcrypt.hash(defaultPassword, 10)
         const ok = await this.repo.resetPassword(targetUserId, hashed)
-        if (!ok) throw new Error('重置密码失败')
+        if (!ok) {
+            throw new Error('重置密码失败')
+        }else {
+            return defaultPassword
+        }
 
         await LogService.log(
             {

@@ -1,5 +1,4 @@
-// src/app/routing/ProtectedLayout.tsx
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import Layout from '@/shared/components/Layout'
 
 export default function ProtectedLayout() {
@@ -10,10 +9,6 @@ export default function ProtectedLayout() {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  // 登录后使用你的全局 Layout 包裹所有受保护页面
-  return (
-    <Layout>
-      <Outlet />
-    </Layout>
-  )
+  // ✅ 这里不要再传 children；你的 Layout 组件内部已经包含 <Outlet />
+  return <Layout />
 }
