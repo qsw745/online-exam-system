@@ -1,12 +1,11 @@
-// apps/web/src/features/wrong-questions/components/WrongQuestionItem.tsx
 import { Button, Card, Space, Tag, Typography } from 'antd'
 import { CheckCircle, Eye, Trash2 } from 'lucide-react'
 import React from 'react'
 
 const { Text } = Typography
 
-// 本地声明所需的最小类型，避免依赖已删除的 service
 export type WrongQuestion = {
+  id?: number
   question_id: number
   question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
   is_mastered: boolean
@@ -20,6 +19,12 @@ const getLabel = (type: string) =>
   (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[
     type
   ] || type)
+
+const fmtDate = (s: string) => {
+  // 兼容 "YYYY-MM-DD HH:mm:ss" 字符串
+  const d = new Date(/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(s) ? s.replace(' ', 'T') : s)
+  return isNaN(d.getTime()) ? s : d.toLocaleString()
+}
 
 export const WrongQuestionItem: React.FC<{
   item: WrongQuestion
@@ -38,7 +43,7 @@ export const WrongQuestionItem: React.FC<{
         <Space size="large">
           <Text type="secondary">错误次数: {item.wrong_count}</Text>
           <Text type="secondary">正确次数: {item.correct_count}</Text>
-          <Text type="secondary">最后练习: {new Date(item.last_practice_time).toLocaleDateString()}</Text>
+          <Text type="secondary">最后练习: {fmtDate(item.last_practice_time)}</Text>
         </Space>
       </div>
       <Space style={{ marginLeft: 16 }}>

@@ -1,11 +1,13 @@
-// apps/web/src/features/wrong-questions/hooks/useWrongQuestions.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { api, isSuccess, wrongQuestions as wqApi } from '@/shared/api/http'
 
-// ====== 本地最小类型，避免依赖已删除的 service ======
 export type WQFilter = 'unmastered' | 'mastered' | 'all'
 
 export type WrongQuestion = {
+  /** 错题记录ID（后端返回的 id，可选） */
+  id?: number
+  /** 题目ID */
   question_id: number
   question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
   is_mastered: boolean
@@ -18,33 +20,22 @@ export type WrongQuestion = {
 export type PracticeStats = {
   wrongQuestions: number
   masteredQuestions: number
+  /** 正确率，0-100（从 correctRate 兼容为 number） */
   accuracy?: number
+  /** 总练习次数（兼容 totalPractice 与 totalPractices） */
   totalPractices?: number
 }
 
-// ====== 轻量工具函数 ======
-const qs = (obj: Record<string, any>) =>
-  Object.entries(obj)
-    .filter(([, v]) => v !== undefined && v !== null && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as any)}`)
-    .join('&')
-
-const toJson = async (res: Response) => {
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  // 兼容某些接口返回空
-  try {
-    return await res.json()
-  } catch {
-    return {}
-  }
-}
-
+/** ====== 解析工具（容错） ====== */
 const normalizeList = (payload: any): WrongQuestion[] => {
   const d = payload?.data ?? payload
-  const raw = (Array.isArray(d) ? d : d?.items ?? d?.list ?? d?.rows ?? d?.questions ?? d?.data) ?? []
+  // 关键修复：加入 d.wrongQuestions
+  const raw = d?.wrongQuestions ?? d?.items ?? d?.list ?? d?.rows ?? d?.questions ?? d?.data ?? []
   const arr: any[] = Array.isArray(raw) ? raw : []
   return arr.map(q => ({
-    question_id: Number(q?.question_id ?? q?.id ?? 0),
+    id: q?.id !== undefined ? Number(q.id) : undefined, // 记录ID（可用于某些删除接口）
+    // 题目ID优先用 question_id；如果后端没给，再回退 id
+    question_id: Number(q?.question_id ?? q?.qid ?? q?.question?.id ?? q?.id ?? 0),
     question_type: q?.question_type ?? q?.type ?? 'single_choice',
     is_mastered: !!(q?.is_mastered ?? q?.mastered ?? false),
     content: q?.content ?? '',
@@ -56,72 +47,106 @@ const normalizeList = (payload: any): WrongQuestion[] => {
 
 const normalizeTotal = (payload: any, fallback = 0) => {
   const d = payload?.data ?? payload
-  return Number(d?.total ?? d?.pagination?.total ?? fallback)
+  return Number(d?.total ?? d?.pagination?.total ?? d?.totalCount ?? fallback)
 }
 
 const normalizeStats = (payload: any): PracticeStats => {
   const d = payload?.data ?? payload ?? {}
+  const accuracy =
+    typeof d?.accuracy === 'number'
+      ? d.accuracy
+      : d?.correctRate !== undefined
+      ? Number(d.correctRate) // "78.2" -> 78.2
+      : undefined
   return {
     wrongQuestions: Number(d?.wrongQuestions ?? d?.wrong_questions ?? 0),
     masteredQuestions: Number(d?.masteredQuestions ?? d?.mastered_questions ?? 0),
-    accuracy: typeof d?.accuracy === 'number' ? d.accuracy : undefined,
-    totalPractices: typeof d?.totalPractices === 'number' ? d.totalPractices : undefined,
+    accuracy,
+    totalPractices:
+      typeof d?.totalPractices === 'number'
+        ? d.totalPractices
+        : typeof d?.totalPractice === 'number'
+        ? d.totalPractice
+        : undefined,
   }
 }
 
-// ====== 直接用 fetch 调后端（不依赖 service/SDK） ======
-const api = {
+/** ====== 使用封装好的 axios 请求（带后备路径的兼容） ====== */
+const svc = {
   async list(params: { page?: number; limit?: number; filter?: WQFilter }) {
-    const url = `/wrong-questions?${qs(params)}`
-    const res = await fetch(url, { credentials: 'include' })
-    const data = await toJson(res)
-    const list = normalizeList(data)
-    const total = normalizeTotal(data, list.length)
-    return { list, total }
+    const { page, limit, filter } = params
+    const p: any = { page, limit }
+    if (filter === 'mastered') p.mastered = true
+    if (filter === 'unmastered') p.mastered = false
+
+    try {
+      // 首选新路由：/questions/wrong-questions
+      const res = await wqApi.getWrongQuestions(p as any)
+      const payload = (res as any)?.data ?? res
+      const list = normalizeList(payload)
+      const total = normalizeTotal(payload, list.length)
+      return { list, total }
+    } catch {
+      // 兼容老路由：/wrong-questions?filter=...
+      const fallbackParams: any = { page, limit }
+      if (filter && filter !== 'all') fallbackParams.filter = filter
+      const r2 = await api.get('/wrong-questions', { params: fallbackParams })
+      const payload2 = (r2 as any)?.data ?? r2
+      const list = normalizeList(payload2)
+      const total = normalizeTotal(payload2, list.length)
+      return { list, total }
+    }
   },
+
   async stats(): Promise<PracticeStats> {
-    const res = await fetch('/wrong-questions/stats', { credentials: 'include' })
-    const data = await toJson(res)
-    return normalizeStats(data)
+    try {
+      const res = await wqApi.getPracticeStats()
+      const payload = (res as any)?.data ?? res
+      return normalizeStats(payload)
+    } catch {
+      // 兼容老路由
+      const r2 = await api.get('/wrong-questions/stats')
+      const payload2 = (r2 as any)?.data ?? r2
+      return normalizeStats(payload2)
+    }
   },
-  async markMastered(qid: number) {
-    // 优先新接口；失败则尝试兼容老接口
+
+  async markMastered(qidOrRid: number) {
+    // 有的后端要“记录ID”，有的要“题目ID”；依次尝试
     try {
-      const r = await fetch('/wrong-questions/mark-mastered', {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_id: qid }),
-      })
-      if (r.ok) return true
+      const r = await wqApi.markAsMastered(qidOrRid) // PUT /questions/wrong-questions/:id/mastered
+      if (isSuccess(r)) return true
     } catch {}
     try {
-      const r2 = await fetch(`/wrong-questions/${qid}/mastered`, {
-        method: 'PUT',
-        credentials: 'include',
-      })
-      if (r2.ok) return true
+      await api.post('/wrong-questions/mark-mastered', { question_id: qidOrRid })
+      return true
     } catch {}
-    const r3 = await fetch('/wrong-questions/mark', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id: qid, mastered: true }),
-    })
-    return r3.ok
+    try {
+      await api.put(`/wrong-questions/${qidOrRid}/mastered`)
+      return true
+    } catch {}
+    try {
+      await api.post('/wrong-questions/mark', { question_id: qidOrRid, mastered: true })
+      return true
+    } catch {}
+    return false
   },
-  async remove(qid: number) {
+
+  async remove(qidOrRid: number) {
+    // 先按记录ID删；失败再按题目ID删
     try {
-      const r = await fetch(`/wrong-questions/${qid}`, { method: 'DELETE', credentials: 'include' })
-      if (r.ok) return true
+      const r = await wqApi.removeFromWrongQuestions(qidOrRid) // DELETE /questions/wrong-questions/:id
+      if (isSuccess(r)) return true
     } catch {}
-    const r2 = await fetch('/wrong-questions/remove', {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question_id: qid }),
-    })
-    return r2.ok
+    try {
+      await api.delete(`/wrong-questions/${qidOrRid}`)
+      return true
+    } catch {}
+    try {
+      await api.post('/wrong-questions/remove', { question_id: qidOrRid })
+      return true
+    } catch {}
+    return false
   },
 }
 
@@ -142,7 +167,7 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
     async (p = 1) => {
       setLoading(true)
       try {
-        const { list, total } = await api.list({ page: p, limit: pageSize, filter })
+        const { list, total } = await svc.list({ page: p, limit: pageSize, filter })
         setList(list)
         setTotal(total)
         setPage(p)
@@ -160,7 +185,7 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
 
   const loadStats = useCallback(async () => {
     try {
-      const s = await api.stats()
+      const s = await svc.stats()
       setStats(s)
     } catch {
       // 静默
@@ -179,23 +204,22 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
     message.success('数据已刷新')
   }, [loadList, loadStats, page, message])
 
-  // 乐观：标记已掌握
   const markMastered = useCallback(
-    async (qid: number) => {
+    async (qidOrRid: number) => {
       const prev = list
-      const next = prev.map(q => (q.question_id === qid ? { ...q, is_mastered: true } : q))
+      const next = prev.map(q => (q.question_id === qidOrRid || q.id === qidOrRid ? { ...q, is_mastered: true } : q))
       setList(next)
       const prevStats = stats
       if (prevStats) {
+        const wasUnmastered = prev.some(q => (q.question_id === qidOrRid || q.id === qidOrRid) && !q.is_mastered)
         setStats({
           ...prevStats,
-          masteredQuestions:
-            prevStats.masteredQuestions + (prev.find(q => q.question_id === qid && !q.is_mastered) ? 1 : 0),
+          masteredQuestions: prevStats.masteredQuestions + (wasUnmastered ? 1 : 0),
           wrongQuestions: Math.max(0, prevStats.wrongQuestions - 0),
         })
       }
       try {
-        const ok = await api.markMastered(qid)
+        const ok = await svc.markMastered(qidOrRid)
         if (!ok) throw new Error('failed')
       } catch (e: any) {
         setList(prev) // 回滚
@@ -206,25 +230,22 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
     [list, stats, message]
   )
 
-  // 乐观：移除
   const remove = useCallback(
-    async (qid: number) => {
+    async (qidOrRid: number) => {
       const prev = list
-      const next = prev.filter(q => q.question_id !== qid)
+      const next = prev.filter(q => q.question_id !== qidOrRid && q.id !== qidOrRid)
       setList(next)
       const prevStats = stats
       if (prevStats) {
+        const removed = prev.find(q => q.question_id === qidOrRid || q.id === qidOrRid)
         setStats({
           ...prevStats,
-          wrongQuestions: Math.max(0, prevStats.wrongQuestions - 1),
-          masteredQuestions: Math.max(
-            0,
-            prevStats.masteredQuestions - (prev.find(q => q.question_id === qid)?.is_mastered ? 1 : 0)
-          ),
+          wrongQuestions: Math.max(0, prevStats.wrongQuestions - (removed ? 1 : 0)),
+          masteredQuestions: Math.max(0, prevStats.masteredQuestions - (removed?.is_mastered ? 1 : 0)),
         })
       }
       try {
-        const ok = await api.remove(qid)
+        const ok = await svc.remove(qidOrRid)
         if (!ok) throw new Error('failed')
         message.success('已从错题本移除')
         if (next.length === 0 && page > 1) loadList(page - 1)
@@ -238,7 +259,6 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
   )
 
   const onPageChange = useCallback((p: number) => loadList(p), [loadList])
-
   const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
 
   return {

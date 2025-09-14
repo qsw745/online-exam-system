@@ -1,14 +1,59 @@
 // apps/backend/src/modules/discussions/repositories/discussion.repository.ts
 import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
-import type { IDiscussion, IDiscussionReply, IDiscussionCategory } from '../domain/discussion.types.js'
+import type { IDiscussion, IDiscussionCategory, IDiscussionReply } from '../domain/discussion.model.js'
 
 export class DiscussionRepository {
   // ===== 列表 / 详情 =====
   static async increaseView(id: number) {
     await pool.query('UPDATE discussions SET view_count = view_count + 1 WHERE id = ?', [id])
   }
+  /**
+   * 视图去重锁：同一个 viewer_key 在 TTL(秒) 内只允许统计一次
+   * 返回 true 表示“应当 +1”，false 表示“TTL 未过，不加”
+   */
+  static async acquireViewLock(discussionId: number, viewerKey: string, ttlSeconds: number): Promise<boolean> {
+    // 1) 已存在且过期 -> 刷新过期时间，允许 +1
+    const [upd] = await pool.query<ResultSetHeader>(
+      `UPDATE discussion_view_locks
+         SET expires_at = DATE_ADD(NOW(), INTERVAL ? SECOND)
+       WHERE discussion_id = ? AND viewer_key = ? AND expires_at < NOW()`,
+      [ttlSeconds, discussionId, viewerKey]
+    )
+    if (upd.affectedRows > 0) return true
 
+    // 2) 不存在 -> 插入（首次），允许 +1
+    const [ins] = await pool.query<ResultSetHeader>(
+      `INSERT IGNORE INTO discussion_view_locks (discussion_id, viewer_key, expires_at)
+       VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
+      [discussionId, viewerKey, ttlSeconds]
+    )
+    if (ins.affectedRows > 0) return true
+
+    // 3) 存在且未过期 -> 不允许 +1
+    return false
+  }
+  // 扁平获取某讨论下的全部回复（含作者 & 是否已点赞），按创建时间升序
+  static async getRepliesFlat(userId: number | null, discussionId: number) {
+    const sql = `
+    SELECT dr.*, u.username, u.avatar_url as avatar,
+           ${
+             userId
+               ? `EXISTS(
+                    SELECT 1 FROM discussion_likes dl
+                    WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id
+                  ) as is_liked`
+               : 'FALSE as is_liked'
+           }
+    FROM discussion_replies dr
+    LEFT JOIN users u ON dr.user_id = u.id
+    WHERE dr.discussion_id = ?
+    ORDER BY dr.created_at ASC
+  `
+    const params = userId ? [userId, discussionId] : [discussionId]
+    const [rows] = await pool.query<IDiscussionReply[]>(sql, params)
+    return rows
+  }
   static async queryList(userId: number | null, whereSql: string, params: any[], limit: number, offset: number) {
     const sql = `
       SELECT d.*, u.username, u.avatar_url as avatar, dc.name as category_name, dc.color as category_color,

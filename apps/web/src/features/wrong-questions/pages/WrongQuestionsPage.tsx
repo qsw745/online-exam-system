@@ -1,4 +1,4 @@
-// src/features/wrong-questions/pages/WrongQuestionsPage.tsx
+// apps/web/src/features/wrong-questions/pages/WrongQuestionsPage.tsx
 import { Button, Empty, Pagination, Space, Spin, Typography, Card, Segmented } from 'antd'
 import { RefreshCw, BookOpen } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -6,6 +6,16 @@ import { useWrongQuestions } from '../hooks/useWrongQuestions'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
 
 const { Title, Text } = Typography
+
+// 小工具：统一中文展示
+function StatBox({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div style={{ minWidth: 140 }}>
+      <div style={{ fontSize: 12, color: '#999' }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 600 }}>{value}</div>
+    </div>
+  )
+}
 
 export default function WrongQuestionsPage() {
   const navigate = useNavigate()
@@ -36,6 +46,14 @@ export default function WrongQuestionsPage() {
     )
   }
 
+  // 从 hook 里拿到的 stats 已做兼容归一（accuracy、totalPractices）
+  const zhStats = stats && {
+    总练习次数: stats.totalPractices ?? 0,
+    正确率: `${(stats.accuracy ?? 0).toFixed(1)}%`,
+    错题数量: stats.wrongQuestions ?? 0,
+    已掌握数量: stats.masteredQuestions ?? 0,
+  }
+
   return (
     <Space direction="vertical" size="large" style={{ width: '100%', padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -55,21 +73,19 @@ export default function WrongQuestionsPage() {
         </Button>
       </div>
 
-      {/* 简单统计展示（避免 StatsCard props 不匹配） */}
-      {stats && (
+      {/* 统计：中文展示 */}
+      {zhStats && (
         <Card>
           <Space size="large" wrap>
-            {Object.entries(stats).map(([k, v]) => (
-              <div key={k} style={{ minWidth: 120 }}>
-                <div style={{ fontSize: 12, color: '#999' }}>{k}</div>
-                <div style={{ fontSize: 22, fontWeight: 600 }}>{String(v)}</div>
-              </div>
-            ))}
+            <StatBox label="总练习次数" value={zhStats.总练习次数} />
+            <StatBox label="正确率" value={zhStats.正确率} />
+            <StatBox label="错题数量" value={zhStats.错题数量} />
+            <StatBox label="已掌握数量" value={zhStats.已掌握数量} />
           </Space>
         </Card>
       )}
 
-      {/* 过滤条（避免 FiltersBar 泛型不匹配） */}
+      {/* 过滤条 */}
       <Card>
         <Space align="center">
           <div style={{ color: '#666' }}>筛选：</div>
@@ -114,7 +130,7 @@ export default function WrongQuestionsPage() {
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           {list.map(item => (
             <WrongQuestionItem
-              key={item.id}
+              key={item.question_id ?? (item as any).id}
               item={item}
               onView={qid => navigate(`/questions/${qid}`)}
               onMark={markMastered}

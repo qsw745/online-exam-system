@@ -3,7 +3,7 @@ import type { ColumnsType } from 'antd/es/table'
 import dayjs from 'dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
 
-const { Text } = Typography
+const { Text, Paragraph } = Typography
 
 const levelColor = (lv: string) =>
   lv === 'info' ? 'blue' : lv === 'warning' ? 'orange' : lv === 'error' ? 'red' : undefined
@@ -19,101 +19,148 @@ function brief(record: LogEntry) {
 const typeTagColor = (t?: string) =>
   t === 'mobile' ? 'green' : t === 'tablet' ? 'gold' : t === 'desktop' ? 'blue' : t === 'bot' ? 'purple' : 'default'
 
-export default function LogsTable({
-  data,
-  loading,
-  onRowDblClick,
-}: {
+type Props = {
   data: LogEntry[]
   loading: boolean
   onRowDblClick: (record: LogEntry) => void
-}) {
+}
+
+/**
+ * 统一的单行省略文本（带 Tooltip）
+ */
+function OneLine({ text, title, className }: { text?: React.ReactNode; title?: React.ReactNode; className?: string }) {
+  const content = <span className={`cell-clip ${className || ''}`}>{text ?? '-'}</span>
+  return title ? <Tooltip title={title}>{content}</Tooltip> : content
+}
+
+export default function LogsTable({ data, loading, onRowDblClick }: Props) {
   const columns: ColumnsType<LogEntry> = [
     {
       title: '时间',
       dataIndex: 'created_at',
       width: 180,
-      render: (t: string) => dayjs(t).format('YYYY-MM-DD HH:mm:ss'),
+      ellipsis: true,
+      render: (t: string) => <OneLine text={dayjs(t).format('YYYY-MM-DD HH:mm:ss')} />,
+      fixed: 'left',
     },
     {
       title: '级别',
       dataIndex: 'level',
-      width: 90,
-      render: l => <Tag color={levelColor(String(l))}>{levelText(String(l))}</Tag>,
+      width: 92,
+      ellipsis: true,
+      render: l => (
+        <span className="nowrap">
+          <Tag color={levelColor(String(l))} style={{ marginRight: 0 }}>
+            {levelText(String(l))}
+          </Tag>
+        </span>
+      ),
+      fixed: 'left',
     },
     {
       title: '用户',
       dataIndex: 'username',
-      width: 160,
+      width: 180,
       render: (username: string, r) =>
         username ? (
-          <div>
-            <Text strong>{username}</Text>
-            <br />
-            <Text type="secondary" style={{ fontSize: 12 }}>
+          <div className="cell-user">
+            <OneLine text={<Text strong>{username}</Text>} title={`ID: ${r.user_id} · ${username}`} />
+            <Text type="secondary" className="cell-sub">
               ID: {r.user_id}
             </Text>
           </div>
         ) : (
           <Text type="secondary">系统</Text>
         ),
+      ellipsis: true,
     },
-    { title: '操作', dataIndex: 'action', width: 150, render: (a: string) => <Tag color="purple">{a}</Tag> },
-    { title: '资源', dataIndex: 'resource', width: 160 },
+    {
+      title: '操作',
+      dataIndex: 'action',
+      width: 140,
+      ellipsis: true,
+      render: (a: string) => (
+        <OneLine
+          text={
+            <Tag color="purple" className="tag-tight">
+              {a}
+            </Tag>
+          }
+          title={a}
+        />
+      ),
+    },
+    {
+      title: '资源',
+      dataIndex: 'resource',
+      width: 180,
+      ellipsis: true,
+      render: (v?: string) => <OneLine text={v} title={v} />,
+      responsive: ['md'],
+    },
     {
       title: '详情',
       key: 'details',
-      render: (_: unknown, r) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span
-            title={brief(r)}
-            style={{
-              flex: 1,
-              minWidth: 0,
-              color: 'rgba(0,0,0,0.65)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            {brief(r)}
-          </span>
-        </div>
-      ),
+      // 给详情更多空间，并做**两行**省略，防止拉高
+      width: 360,
+      render: (_: unknown, r) => {
+        const text = brief(r)
+        return (
+          <Tooltip title={<pre className="pre-wrap">{text}</pre>}>
+            <Paragraph className="cell-clip-2" ellipsis={{ rows: 2 }}>
+              {text}
+            </Paragraph>
+          </Tooltip>
+        )
+      },
     },
-    { title: 'IP地址', dataIndex: 'ip_address', width: 140 },
     {
-      title: '客户端', // ⬅️ 重命名列
+      title: 'IP地址',
+      dataIndex: 'ip_address',
+      width: 140,
+      ellipsis: true,
+      render: (v?: string) => <OneLine text={v} title={v} />,
+      responsive: ['lg'],
+    },
+    {
+      title: '客户端',
       dataIndex: 'client',
-      width: 260,
+      width: 280,
+      ellipsis: true,
       render: (_: any, r) => {
         const label =
           r.client?.label || [r.client?.device, r.client?.os, r.client?.browser].filter(Boolean).join(' · ') || '-'
         return (
           <Tooltip title={r.user_agent}>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <Text style={{ fontSize: 12 }}>{label}</Text>
-              <div>
-                <Tag size="small" color={typeTagColor(r.client?.type)} style={{ marginTop: 4 }}>
+            <div className="cell-client">
+              <OneLine text={<Text className="client-label">{label}</Text>} title={r.user_agent} />
+              <span className="nowrap">
+                <Tag className="tag-tight" color={typeTagColor(r.client?.type)}>
                   {r.client?.type ?? 'unknown'}
                 </Tag>
-              </div>
+              </span>
             </div>
           </Tooltip>
         )
       },
+      responsive: ['lg'],
     },
   ]
 
   return (
     <Table<LogEntry>
+      className="logs-table"
       columns={columns}
       dataSource={data}
       rowKey="id"
       loading={loading}
       pagination={false}
-      scroll={{ x: 1280 }}
+      // 关键：固定表格布局，避免被长内容撑爆
+      tableLayout="fixed"
+      // 视口宽度不足时横向滚动
+      scroll={{ x: 1320 }}
       size="small"
+      sticky
       onRow={record => ({ onDoubleClick: () => onRowDblClick(record) })}
       rowClassName={r => (r.level === 'error' ? 'bg-red-50' : r.level === 'warning' ? 'bg-orange-50' : '')}
     />

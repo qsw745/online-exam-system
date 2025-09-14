@@ -1,14 +1,99 @@
 // apps/backend/src/modules/discussions/controllers/discussions.controller.ts
+import { pool } from '@/config/database.js'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response.js'
 import type { Response } from 'express'
-import type { AuthRequest } from '../../types/auth.js'
-import type { ApiResponse } from '../../types/response.js'
-import type { IDiscussion, IDiscussionReply, IDiscussionCategory, IDiscussionTag } from '../domain/discussion.types.js'
+import type { RowDataPacket } from 'mysql2'
+import type { IDiscussion, IDiscussionCategory, IDiscussionReply, IDiscussionTag } from '../domain/discussion.model.js'
 import { DiscussionRepository } from '../repositories/discussion.repository.js'
 import { DiscussionsService } from '../services/discussions.service.js'
-import { pool } from '@/config/database.js'
-import type { RowDataPacket, ResultSetHeader } from 'mysql2'
 
 export class DiscussionsController {
+  // ------ 浏览 +1（带 TTL 去重） ------
+  static async viewed(req: AuthRequest, res: Response<ApiResponse<{ increased: boolean }>>) {
+    try {
+      const discussionId = Number(req.params.id)
+      if (Number.isNaN(discussionId)) {
+        return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      }
+
+      // 同一 viewer 在 10 分钟内只统计一次
+      const shouldIncrease = await DiscussionsService.ensureViewOnce(req, discussionId, 600)
+      if (shouldIncrease) {
+        await DiscussionRepository.increaseView(discussionId)
+      }
+      return res.json({ success: true, data: { increased: shouldIncrease } })
+    } catch (e) {
+      console.error('记录浏览错误:', e)
+      return res.status(500).json({ success: false, error: '记录浏览失败' })
+    }
+  }
+
+  // ------ 替换：获取某个讨论的回复列表（GET /discussions/:id/replies） ------
+  static async getReplies(req: AuthRequest, res: Response<ApiResponse<any[]>>) {
+    try {
+      const userId = req.user?.id ?? null
+      const discussionId = Number(req.params.id)
+      if (Number.isNaN(discussionId)) {
+        return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      }
+      const list = await DiscussionRepository.getRepliesFlat(userId, discussionId)
+      return res.json({ success: true, data: list })
+    } catch (e) {
+      console.error('获取回复列表错误:', e)
+      return res.status(500).json({ success: false, error: '获取回复列表失败' })
+    }
+  }
+
+  // ------ 替换：点赞帖子 & 兼容两种调用方式 ------
+  // 1) POST /discussions/:id/like              （前端当前用法，无 body）
+  // 2) POST /discussions/like {target_type,target_id}（保留向后兼容，可选）
+  static async toggleLike(req: AuthRequest, res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>) {
+    try {
+      const userId = req.user?.id
+      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+
+      // 方式 A：从 URL param 推断为 discussion
+      const urlId = Number(req.params.id)
+      if (!Number.isNaN(urlId)) {
+        const result = await DiscussionRepository.toggleLike(userId, 'discussion', urlId)
+        return res.json({ success: true, data: result })
+      }
+
+      // 方式 B：走 body（保留兼容）
+      const { target_type, target_id } = (req.body ?? {}) as {
+        target_type?: 'discussion' | 'reply'
+        target_id?: any
+      }
+      if (!target_type || Number.isNaN(Number(target_id))) {
+        return res.status(400).json({ success: false, error: '缺少或无效的目标参数' })
+      }
+      const result = await DiscussionRepository.toggleLike(userId, target_type, Number(target_id))
+      return res.json({ success: true, data: result })
+    } catch (e) {
+      console.error('点赞操作错误:', e)
+      return res.status(500).json({ success: false, error: '点赞操作失败' })
+    }
+  }
+
+  // ------ 替换：点赞回复（POST /discussions/replies/:replyId/like） ------
+  static async toggleReplyLike(
+    req: AuthRequest,
+    res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>
+  ) {
+    try {
+      const userId = req.user?.id
+      const replyId = Number(req.params.replyId)
+      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (Number.isNaN(replyId)) return res.status(400).json({ success: false, error: '无效的回复ID' })
+      const result = await DiscussionRepository.toggleLike(userId, 'reply', replyId)
+      return res.json({ success: true, data: result })
+    } catch (e) {
+      console.error('点赞回复错误:', e)
+      return res.status(500).json({ success: false, error: '点赞回复失败' })
+    }
+  }
+
   static async getDiscussions(
     req: AuthRequest,
     res: Response<ApiResponse<{ discussions: IDiscussion[]; total: number; categories: IDiscussionCategory[] }>>
@@ -107,15 +192,16 @@ export class DiscussionsController {
       // 用户统计与标签
       await pool.query(
         `INSERT INTO user_discussion_stats (user_id, discussions_count, last_active_at)
-         VALUES (?, 1, NOW())
-         ON DUPLICATE KEY UPDATE discussions_count = discussions_count + 1, last_active_at = NOW()`,
+                 VALUES (?, 1, NOW()) ON DUPLICATE KEY
+                UPDATE discussions_count = discussions_count + 1, last_active_at = NOW()`,
         [userId]
       )
       const tags: string[] = Array.isArray(req.body?.tags) ? req.body.tags : []
       for (const tag of tags) {
         await pool.query(
-          `INSERT INTO discussion_tags (name, usage_count) VALUES (?, 1)
-           ON DUPLICATE KEY UPDATE usage_count = usage_count + 1`,
+          `INSERT INTO discussion_tags (name, usage_count)
+                     VALUES (?, 1) ON DUPLICATE KEY
+                    UPDATE usage_count = usage_count + 1`,
           [tag]
         )
       }
@@ -159,9 +245,9 @@ export class DiscussionsController {
 
       await DiscussionRepository.deleteById(id)
       await pool.query(
-        `UPDATE user_discussion_stats 
-         SET discussions_count = GREATEST(discussions_count - 1, 0)
-         WHERE user_id = ?`,
+        `UPDATE user_discussion_stats
+                 SET discussions_count = GREATEST(discussions_count - 1, 0)
+                 WHERE user_id = ?`,
         [d.user_id]
       )
       return res.json({ success: true, data: null })
@@ -190,30 +276,14 @@ export class DiscussionsController {
       await DiscussionRepository.bumpReplyMeta(discussionId, userId, parent_id ?? null)
       await pool.query(
         `INSERT INTO user_discussion_stats (user_id, replies_count, last_active_at)
-         VALUES (?, 1, NOW())
-         ON DUPLICATE KEY UPDATE replies_count = replies_count + 1, last_active_at = NOW()`,
+                 VALUES (?, 1, NOW()) ON DUPLICATE KEY
+                UPDATE replies_count = replies_count + 1, last_active_at = NOW()`,
         [userId]
       )
       return res.json({ success: true, data: { reply_id: id } })
     } catch (e) {
       console.error('创建回复错误:', e)
       return res.status(500).json({ success: false, error: '创建回复失败' })
-    }
-  }
-
-  static async toggleLike(req: AuthRequest, res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>) {
-    try {
-      const userId = req.user?.id
-      const { target_type, target_id } = req.body
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (!['discussion', 'reply'].includes(target_type)) {
-        return res.status(400).json({ success: false, error: '无效的目标类型' })
-      }
-      const result = await DiscussionRepository.toggleLike(userId, target_type, Number(target_id))
-      return res.json({ success: true, data: result })
-    } catch (e) {
-      console.error('点赞操作错误:', e)
-      return res.status(500).json({ success: false, error: '点赞操作失败' })
     }
   }
 

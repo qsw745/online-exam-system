@@ -1,12 +1,13 @@
 import DynamicSidebar, { MobileSidebar } from '@/app/routing/DynamicSidebar'
 import { Layout as AntLayout } from 'antd'
 import React, { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import Header from './Header'
 
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import LoadingSpinner from './LoadingSpinner'
+import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 
 const { Sider, Content } = AntLayout
 
@@ -22,10 +23,8 @@ const Layout: React.FC = () => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768)
     }
-
     checkMobile()
     window.addEventListener('resize', checkMobile)
-
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
@@ -35,7 +34,7 @@ const Layout: React.FC = () => {
     // 考试页面使用简洁布局
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
-        <Outlet />
+        <RefreshableOutlet />
       </div>
     )
   }
@@ -123,7 +122,7 @@ const Layout: React.FC = () => {
               width: '100%',
             }}
           >
-            <Outlet />
+            <RefreshableOutlet />
           </div>
         </Content>
       </AntLayout>

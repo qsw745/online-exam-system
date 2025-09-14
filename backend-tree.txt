@@ -44,6 +44,7 @@
 |   |   |   20250910_add_logs_defaults.ts
 |   |   |   20250910134113_add_logs_defaults.js
 |   |   |   20250912_add_is_system_and_unit_to_menus.ts
+|   |   |   20250914_create_discussion_view_locks.ts
 |   |   |   add_task_publish_status.sql
 |   |   |   database.sql
 |   |   |   init.sql
@@ -73,6 +74,8 @@
 |   |   2025-09-12-error.log
 |   |   2025-09-13.log
 |   |   2025-09-13-error.log
+|   |   2025-09-14.log
+|   |   2025-09-14-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts

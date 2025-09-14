@@ -237,18 +237,24 @@
 |   |   |   |   |   QuestionPracticePage.tsx
 |   |   |   +-- practice
 |   |   |   |   +-- components
+|   |   |   |   |   |   BulkPracticeView.tsx
 |   |   |   |   |   |   ExplanationCard.tsx
 |   |   |   |   |   |   KnowledgePointsCard.tsx
 |   |   |   |   |   |   OptionsList.tsx
+|   |   |   |   |   |   PracticeFilters.tsx
 |   |   |   |   |   |   PracticeFooter.tsx
 |   |   |   |   |   |   PracticeHeader.tsx
+|   |   |   |   |   |   QuestionCardGrid.tsx
 |   |   |   |   |   |   ShortAnswerBox.tsx
+|   |   |   |   |   |   SinglePracticeView.tsx
 |   |   |   |   +-- hooks
 |   |   |   |   |   |   useAnswerState.ts
 |   |   |   |   |   |   usePracticeController.ts
+|   |   |   |   |   |   usePracticeList.ts
 |   |   |   |   +-- pages
 |   |   |   |   +-- utils
 |   |   |   |   |   |   answer.ts
+|   |   |   |   |   |   practiceApi.ts
 |   |   |   |   |   |   url.ts
 |   |   +-- roles
 |   |   |   +-- components
@@ -404,9 +410,12 @@
 |   |   |   |   useQuestionSelection.ts
 |   |   |   |   useQuestionsQuery.ts
 |   |   |   |   useResults.ts
+|   |   |   |   useRouteRefresh.ts
 |   |   |   |   useSmartPaper.ts
 |   |   |   |   useTheme.tsx
 |   |   |   |   useUserNotifications.ts
+|   |   +-- router
+|   |   |   |   RefreshableOutlet.tsx
 |   |   +-- styles
 |   |   |   |   antd-override.css
 |   |   |   |   antd-theme.ts
@@ -422,6 +431,7 @@
 |   |   |   |   dayjs.ts
 |   |   |   |   fileParser.ts
 |   |   |   |   q-helpers.ts
+|   |   |   |   route-refresh.ts
 |   |   |   |   tree.ts
 |   +-- types
 |   |   |   global.d.ts

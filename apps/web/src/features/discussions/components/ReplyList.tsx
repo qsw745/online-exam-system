@@ -1,56 +1,84 @@
 import React from 'react'
-import { Empty, List, Spin, Button, Avatar } from 'antd'
+import { Avatar, Button, Empty, List, Skeleton, Tooltip } from 'antd'
 import { ThumbsUp } from 'lucide-react'
 import dayjs from 'dayjs'
-import type { Reply } from '../types'
+
+type ReplyVM = {
+  id: number
+  content: string
+  author_name?: string
+  author_avatar?: string
+  created_at?: string
+  is_liked?: boolean | 0 | 1
+  likes_count?: number
+}
 
 type Props = {
   loading: boolean
-  replies: Reply[]
+  replies: any[]
   onLike: (replyId: number) => void
 }
 
+const toVM = (r: any): ReplyVM => ({
+  id: Number(r.id),
+  content: r.content ?? '',
+  author_name: r.author_name ?? r.username ?? '匿名用户',
+  author_avatar: r.author_avatar ?? r.avatar ?? undefined,
+  created_at: r.created_at ?? r.createdAt ?? undefined,
+  is_liked: !!(r.is_liked ?? 0),
+  likes_count: Number(r.likes_count ?? 0),
+})
+
 export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
+  const data = Array.isArray(replies) ? replies.map(toVM) : []
+
+  if (!loading && data.length === 0) {
+    return <Empty description="暂无回复" />
+  }
+
   return (
-    <div>
-      <h3 className="text-lg font-semibold mb-3">回复 ({replies.length})</h3>
-      <Spin spinning={loading}>
-        {replies.length === 0 ? (
-          <Empty description="暂无回复" />
+    <List
+      dataSource={loading ? [1, 2, 3] : data}
+      renderItem={(item: any) =>
+        loading ? (
+          <List.Item>
+            <Skeleton active avatar title paragraph={{ rows: 2 }} />
+          </List.Item>
         ) : (
-          <List
-            dataSource={replies}
-            renderItem={r => (
-              <List.Item className="border-b border-gray-100 last:border-b-0">
-                <div className="w-full">
-                  <div className="flex items-start space-x-3">
-                    <Avatar src={r.author_avatar} size={32} className="bg-green-500">
-                      {r.author_name.charAt(0)}
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="font-medium">{r.author_name}</div>
-                        <div className="flex items-center space-x-2">
-                          <Button
-                            type={r.is_liked ? 'primary' : 'text'}
-                            size="small"
-                            icon={<ThumbsUp className="w-3 h-3" />}
-                            onClick={() => onLike(r.id)}
-                          >
-                            {r.likes_count}
-                          </Button>
-                          <span className="text-xs text-gray-500">{dayjs(r.created_at).fromNow()}</span>
-                        </div>
-                      </div>
-                      <p className="whitespace-pre-wrap text-gray-700">{r.content}</p>
-                    </div>
-                  </div>
+          <List.Item
+            key={item.id}
+            actions={[
+              <Tooltip key="like" title={item.is_liked ? '取消点赞' : '点赞'}>
+                <Button
+                  size="small"
+                  type={item.is_liked ? 'primary' : 'default'}
+                  icon={<ThumbsUp className="w-4 h-4" />}
+                  onClick={() => onLike(item.id)}
+                >
+                  {item.likes_count}
+                </Button>
+              </Tooltip>,
+            ]}
+          >
+            <List.Item.Meta
+              avatar={
+                <Avatar src={item.author_avatar} className="bg-blue-500">
+                  {(item.author_name ?? '匿').charAt(0)}
+                </Avatar>
+              }
+              title={
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{item.author_name}</span>
+                  {item.created_at && (
+                    <span className="text-xs text-gray-500">{dayjs(item.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                  )}
                 </div>
-              </List.Item>
-            )}
-          />
-        )}
-      </Spin>
-    </div>
+              }
+              description={<div className="whitespace-pre-wrap">{item.content}</div>}
+            />
+          </List.Item>
+        )
+      }
+    />
   )
 }

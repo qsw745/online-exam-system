@@ -1,6 +1,7 @@
 import { IconRenderer } from '@/shared/components/IconRenderer'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { MenuItem, useMenuPermissions } from '@/shared/hooks/useMenuPermissions'
+import { refreshRoute } from '@/shared/utils/route-refresh'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
@@ -12,13 +13,9 @@ interface DynamicSidebarProps {
 }
 
 const LS_OPEN_KEYS = 'sidebar.openKeys.v1'
-// 读取后端 redirect（若存在优先使用）
 const getRedirect = (menu: MenuItem): string | undefined => (menu as any)?.redirect || undefined
-
-/** 动态段判定，如 /exams/:id 或 /foo/[id] 或包含 {} */
 const hasDynamicSegment = (p?: string) => !!p && /[:\[\{]/.test(p)
 
-/** 过滤：隐藏项 + 动态段路径（比如 /exam/:id）一律不出现在菜单 */
 function pruneMenus(list: MenuItem[]): MenuItem[] {
   const walk = (ms: MenuItem[]): MenuItem[] =>
     ms
@@ -28,14 +25,12 @@ function pruneMenus(list: MenuItem[]): MenuItem[] {
   return walk(list)
 }
 
-/** 根据当前路径判断菜单或后代是否命中 */
 function isActiveByPath(menu: MenuItem, pathname: string): boolean {
   if (menu.path && (pathname === menu.path || pathname.startsWith(menu.path + '/'))) return true
   if (Array.isArray(menu.children)) return menu.children.some(c => isActiveByPath(c, pathname))
   return false
 }
 
-/** 找到所有命中的祖先 id，用于自动展开 */
 function collectActiveAncestors(menus: MenuItem[], pathname: string, stack: number[] = [], out: number[] = []) {
   for (const m of menus) {
     const next = [...stack, m.id]
@@ -44,6 +39,7 @@ function collectActiveAncestors(menus: MenuItem[], pathname: string, stack: numb
   }
   return Array.from(new Set(out))
 }
+
 function firstValidChildPath(menu: MenuItem): string | undefined {
   if (!menu.children?.length) return undefined
   for (const c of menu.children) {
@@ -54,9 +50,7 @@ function firstValidChildPath(menu: MenuItem): string | undefined {
   return undefined
 }
 
-
 function resolveParentTarget(menu: MenuItem): string | undefined {
-  // ★ 优先用后端 redirect
   const r = getRedirect(menu)
   if (r && !hasDynamicSegment(r)) return r
   const child = firstValidChildPath(menu)
@@ -64,7 +58,6 @@ function resolveParentTarget(menu: MenuItem): string | undefined {
   if (menu.path && !hasDynamicSegment(menu.path)) return menu.path
   return undefined
 }
-
 
 function RowLink({
   to,
@@ -112,10 +105,8 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
   const location = useLocation()
   const navigate = useNavigate()
 
-  /** 过滤后的菜单（隐藏 + 动态段剔除） */
   const visibleMenus = useMemo(() => pruneMenus(menus), [menus])
 
-  /** 展开项（持久化） */
   const [openKeys, setOpenKeys] = useState<Set<number>>(() => {
     try {
       const raw = localStorage.getItem(LS_OPEN_KEYS)
@@ -127,14 +118,13 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     }
   })
 
+  // 小节级节流，避免按钮抖动；真正的防刷靠 refreshRoute 的全局冷却
   const lockRef = useRef(false)
   const throttled = useCallback((fn: () => void) => {
     if (lockRef.current) return
     lockRef.current = true
     fn()
-    setTimeout(() => {
-      lockRef.current = false
-    }, 200)
+    setTimeout(() => (lockRef.current = false), 200)
   }, [])
 
   const toggleOpen = (id: number) => {
@@ -144,7 +134,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     localStorage.setItem(LS_OPEN_KEYS, JSON.stringify(Array.from(next)))
   }
 
-  /** 路由变化：自动展开命中祖先 */
   useEffect(() => {
     const ancestors = collectActiveAncestors(visibleMenus, location.pathname)
     if (ancestors.length) {
@@ -155,7 +144,6 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname, visibleMenus])
 
-  /** 如果当前正落在“仅父级 path（或动态段父级）”，自动跳到其第一个有效子菜单 */
   useEffect(() => {
     const stack: MenuItem[] = [...visibleMenus]
     while (stack.length) {
@@ -199,7 +187,17 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
     if (!hasChildren) {
       const to = menu.path || '/'
       return (
-        <RowLink key={menu.id} to={to} onClick={() => throttled(() => {})} style={{ paddingLeft: 12 + indent }}>
+        <RowLink
+          key={menu.id}
+          to={to}
+          onClick={e => {
+            if (to === location.pathname) {
+              e.preventDefault()
+              throttled(() => refreshRoute(to)) // 全局冷却已内置
+            }
+          }}
+          style={{ paddingLeft: 12 + indent }}
+        >
           {Icon}
           {!collapsed && <span style={{ fontSize: 14, fontWeight: 500, flex: 1 }}>{menu.title}</span>}
         </RowLink>
@@ -237,13 +235,22 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
                   throttled(() => toggleOpen(menu.id))
                   return
                 }
-                throttled(() => navigate(safeTarget))
+                if (safeTarget === location.pathname) {
+                  throttled(() => refreshRoute(safeTarget))
+                } else {
+                  throttled(() => navigate(safeTarget))
+                }
               }}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault()
-                  if (!safeTarget) throttled(() => toggleOpen(menu.id))
-                  else throttled(() => navigate(safeTarget))
+                  if (!safeTarget) {
+                    throttled(() => toggleOpen(menu.id))
+                  } else if (safeTarget === location.pathname) {
+                    throttled(() => refreshRoute(safeTarget))
+                  } else {
+                    throttled(() => navigate(safeTarget))
+                  }
                 }
               }}
               title={menu.title}
@@ -368,7 +375,7 @@ export default function DynamicSidebar({ className = '', collapsed = false, onTo
   )
 }
 
-/* ===================== 移动端抽屉（同样过滤） ===================== */
+/* ===================== 移动端抽屉 ===================== */
 
 interface MobileSidebarProps {
   isOpen: boolean
@@ -387,7 +394,15 @@ export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
       <NavLink
         key={menu.id}
         to={to}
-        onClick={onClose}
+        onClick={e => {
+          if (to === location.pathname) {
+            e.preventDefault()
+            refreshRoute(to)
+            onClose()
+          } else {
+            onClose()
+          }
+        }}
         style={({ isActive }) => ({
           display: 'flex',
           alignItems: 'center',

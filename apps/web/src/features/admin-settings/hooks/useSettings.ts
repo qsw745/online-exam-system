@@ -1,8 +1,7 @@
-// features/admin-settings/hooks/useSettings.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { SystemSettings } from '../../../shared/types/admin-settings'
-import { settingsApi } from '@/shared/api/http'
+import type { SystemSettings } from '@/shared/types/admin-settings'
+import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { settingsSchema } from '../validation/settings.schema'
 
 export function useSettings() {
@@ -14,13 +13,12 @@ export function useSettings() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await settingsApi.get()
+      const data = await adminSettingsApi.get()
       setInitial(data)
       setCurrent(data)
     } catch (e) {
       console.error(e)
       message.error('加载系统设置失败')
-      // 提供兜底默认
       const fallback: SystemSettings = {
         systemName: '在线考试系统',
         allowUserRegistration: true,
@@ -36,12 +34,16 @@ export function useSettings() {
   const save = useCallback(
     async (values: SystemSettings) => {
       try {
-        // 校验
         const parsed = settingsSchema.parse(values)
         setLoading(true)
-        await settingsService.update(parsed)
-        setInitial(prev => ({ ...(prev as SystemSettings), ...parsed, defaultPassword: undefined }))
-        setCurrent(prev => ({ ...(prev as SystemSettings), ...parsed, defaultPassword: undefined }))
+        await adminSettingsApi.update(parsed)
+
+        // 保存成功后，写回状态并清除写入型字段
+        const sanitized: SystemSettings = { ...parsed }
+        delete (sanitized as any).defaultPassword
+
+        setInitial(prev => ({ ...(prev as SystemSettings), ...sanitized }))
+        setCurrent(prev => ({ ...(prev as SystemSettings), ...sanitized }))
         message.success('系统设置保存成功')
       } catch (e: any) {
         console.error(e)
@@ -54,8 +56,12 @@ export function useSettings() {
     [message]
   )
 
+  // ✅ “是否脏”逻辑：除去 defaultPassword 的普通字段对比；若仅填写了 defaultPassword 也算脏
   const isDirty = useMemo(() => {
     if (!initial || !current) return false
+
+    if ((current.defaultPassword ?? '').trim().length > 0) return true
+
     const a = { ...initial }
     const b = { ...current }
     delete (a as any).defaultPassword

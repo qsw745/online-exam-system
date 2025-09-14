@@ -1,4 +1,4 @@
-import { Router } from 'express'
+import {Router} from 'express'
 
 // auth
 import * as authRoutesMod from '@/modules/auth/routes/auth.routes'
@@ -34,6 +34,8 @@ import * as learningProgressRoutesMod from '@/modules/learning-progress/routes/l
 import * as taskRoutesMod from '@/modules/tasks/routes/task.routes'
 // wrong-questions
 import * as wrongQuestionRoutesMod from '@/modules/wrong-questions/routes/wrong-question.routes'
+import * as adminSettingsRoutesMod from '@/modules/admin-settings/routes/admin-settings.routes'
+import * as profileRoutesMod from '@/modules/profile/routes/profile.routes'
 
 const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
 
@@ -57,42 +59,47 @@ const discussionsRoutes = pick(discussionsRoutesMod, 'discussionsRoutes')
 const learningProgressRoutes = pick(learningProgressRoutesMod, 'learningProgressRoutes')
 const taskRoutes = pick(taskRoutesMod, 'taskRoutes')
 const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
+const adminSettingsRoutes = pick(adminSettingsRoutesMod, 'adminSettingsRoutes')
+const profileRoutes = pick(profileRoutesMod, 'profileRoutes')
 
 const router = Router()
 
 const mounts: Array<[string, any]> = [
-  ['/auth', authRoutes],
-  ['/auth/password-reset', passwordResetRoutes],
-  ['/users', userRoutes],
-  ['/orgs', orgRoutes],
-  ['/roles', roleRoutes],
-  ['/menus', menusRoutes],
-  ['/favorites', favoritesRoutes],
-  ['/questions', questionRoutes],
-  ['/exams', examRoutes],
-  ['/papers', paperRoutes],
-  ['/exam_results', resultRoutes],
-  ['/leaderboard', leaderboardRoutes],
-  ['/analytics', analyticsRoutes],
-  ['/dashboard', dashboardRoutes],
-  ['/logs', logRoutes],
-  ['/notifications', notificationRoutes],
-  ['/discussions', discussionsRoutes],
-  ['/learning-progress', learningProgressRoutes],
-  ['/tasks', taskRoutes],
-  ['/wrong-questions', wrongQuestionRoutes],
+    ['/auth', authRoutes],
+    ['/auth/password-reset', passwordResetRoutes],
+    ['/users', userRoutes],
+    ['/orgs', orgRoutes],
+    ['/roles', roleRoutes],
+    ['/menus', menusRoutes],
+    ['/favorites', favoritesRoutes],
+    ['/questions', questionRoutes],
+    ['/exams', examRoutes],
+    ['/papers', paperRoutes],
+    ['/exam_results', resultRoutes],
+    ['/leaderboard', leaderboardRoutes],
+    ['/analytics', analyticsRoutes],
+    ['/dashboard', dashboardRoutes],
+    ['/logs', logRoutes],
+    ['/notifications', notificationRoutes],
+    ['/discussions', discussionsRoutes],
+    ['/learning-progress', learningProgressRoutes],
+    ['/tasks', taskRoutes],
+    ['/wrong-questions', wrongQuestionRoutes],
+    ['/admin', adminSettingsRoutes],
+    ['/profile', profileRoutes],
+
 ]
 
 let ok = 0
 for (const [base, r] of mounts) {
-  const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
-  if (inst?.use && inst?.handle) {
-    router.use(base, inst)
-    ok++
-  } else {
-    console.warn(`[routes] skip mount ${base}: not an Express Router`)
-  }
+    const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
+    if (inst?.use && inst?.handle) {
+        router.use(base, inst)
+        ok++
+    } else {
+        console.warn(`[routes] skip mount ${base}: not an Express Router`)
+    }
 }
 console.log(`[routes] ✅ mounted ${ok}/${mounts.length} modules`)
-router.get('/', (_req, res) => res.json({ ok: true, mounted: mounts.map(m => m[0]) }))
+router.get('/', (_req, res) => res.json({ok: true, mounted: mounts.map(m => m[0])}))
 export default router

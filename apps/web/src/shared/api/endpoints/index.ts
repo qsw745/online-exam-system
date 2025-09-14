@@ -1,4 +1,3 @@
-// src/shared/api/endpoints/index.ts
 export * from './auth'
 export * from './dashboard'
 export * from './discussions'
@@ -13,18 +12,18 @@ export * from './papers'
 export * from './profile'
 export * from './results'
 export * from './roles'
-export * from './settings'
 export * from './smartPaper'
 export * from './tasks'
 export * from './users'
 export * from './wrongQuestions'
+export { adminSettingsApi } from './admin-settings'
 
-// —— exams 与 questions 显式导出，避免类型重名冲突 ——
+// ✅ 统一导出设置相关：系统设置(settingsApi) + 个人设置(userSettingsApi)
+export { settingsApi, userSettingsApi } from './settings'
 
-// exams：端点别名 + 类型重命名
+// —— exams 与 questions 显式导出（避免类型冲突）——
 export { exams as examsApi } from './exams'
 export type { Question as ExamQuestion, QuestionType as ExamQuestionType } from './exams'
 
-// questions：端点别名 + 类型原名
 export { questions as questionsApi } from './questions'
 export type { Question, QuestionType, Difficulty } from './questions'

@@ -1,8 +1,12 @@
-// src/features/discussions/hooks/useDiscussions.ts
-import { useCallback, useEffect, useState } from 'react'
-import { App, Form } from 'antd'
-import type { Discussion, DiscussionCategory, Reply, SortBy } from '@/shared/api/http'
 import { discussionsApi } from '@/shared/api/endpoints/discussions'
+import { App, Form } from 'antd'
+import { useCallback, useEffect, useState } from 'react'
+
+// —— 最小必要类型，避免外部类型导入不齐导致构建失败 ——
+export type SortBy = 'latest' | 'hot' | 'replies'
+export type Discussion = Record<string, any>
+export type DiscussionCategory = { id: number; name?: string; color?: string }
+export type Reply = Record<string, any>
 
 type CreateDiscussionDto = {
   title: string
@@ -12,38 +16,44 @@ type CreateDiscussionDto = {
 }
 type CreateReplyDto = { content: string }
 
+// —— 把后端任何形态的分类，规范成 {id, name, color} ——
+const normalizeCategories = (raw: any): DiscussionCategory[] => {
+  const arr = Array.isArray(raw?.data) ? raw.data : Array.isArray(raw) ? raw : []
+  return arr.map((c: any) => ({
+    id: Number(c?.id ?? c),
+    name: String(c?.name ?? c?.title ?? c?.label ?? c ?? ''),
+    color: c?.color,
+  }))
+}
+
 export function useDiscussions() {
   const { message } = App.useApp()
 
-  // 列表/详情/回复
   const [discussions, setDiscussions] = useState<Discussion[]>([])
   const [selectedDiscussion, setSelectedDiscussion] = useState<Discussion | null>(null)
   const [replies, setReplies] = useState<Reply[]>([])
 
-  // 基础数据
   const [categories, setCategories] = useState<DiscussionCategory[]>([])
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [sortBy, setSortBy] = useState<SortBy>('latest')
 
-  // 加载状态
   const [loading, setLoading] = useState(true)
   const [repliesLoading, setRepliesLoading] = useState(false)
 
-  // 弹窗控制
   const [createOpen, setCreateOpen] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)
 
-  // 表单
   const [createForm] = Form.useForm<CreateDiscussionDto>()
   const [replyForm] = Form.useForm<CreateReplyDto>()
+  const viewedSet = new Set<number>()
 
-  // 拉取分类
+  // 拉取分类（并做规范化）
   const fetchCategories = useCallback(async () => {
     try {
-      const list = await discussionsApi.categories()
-      setCategories(list)
+      const res = await discussionsApi.categories()
+      setCategories(normalizeCategories(res))
     } catch {
-      // 静默或按需提示
+      setCategories([])
     }
   }, [])
 
@@ -54,7 +64,8 @@ export function useDiscussions() {
       const params: Record<string, any> = { sort: sortBy, limit: 50 }
       if (selectedCategory !== 'all') params.category_id = selectedCategory
       const list = await discussionsApi.list(params)
-      setDiscussions(list)
+      setDiscussions(Array.isArray(list) ? list : [])
+      setSelectedDiscussion(prev => (prev && Array.isArray(list) && list.some(d => d.id === prev.id) ? prev : null))
     } catch {
       setDiscussions([])
       message.error('获取讨论列表失败')
@@ -63,31 +74,35 @@ export function useDiscussions() {
     }
   }, [message, selectedCategory, sortBy])
 
-  // 拉取回复
   const fetchReplies = useCallback(async (discussionId: number) => {
+    if (!discussionId) return
     try {
       setRepliesLoading(true)
       const list = await discussionsApi.replies(discussionId)
-      setReplies(list)
+      setReplies(Array.isArray(list) ? list : [])
     } finally {
       setRepliesLoading(false)
     }
   }, [])
 
-  // 计数 +1（静默）
   const incrementViews = useCallback(async (discussionId: number) => {
+    if (!discussionId || viewedSet.has(discussionId)) return
+
     try {
       await discussionsApi.viewed(discussionId)
-      setDiscussions(prev => prev.map(d => (d.id === discussionId ? { ...d, views_count: d.views_count + 1 } : d)))
+      viewedSet.add(discussionId)
+      setDiscussions(prev =>
+        prev.map(d => (d.id === discussionId ? { ...d, views_count: (d.views_count ?? 0) + 1 } : d))
+      )
       setSelectedDiscussion(prev =>
-        prev && prev.id === discussionId ? { ...prev, views_count: prev.views_count + 1 } : prev
+        prev && prev.id === discussionId ? { ...prev, views_count: (prev.views_count ?? 0) + 1 } : prev
       )
     } catch {}
   }, [])
 
-  // 点赞讨论
   const toggleLike = useCallback(
     async (id: number) => {
+      if (!id) return
       try {
         const payload = await discussionsApi.like(id)
         if (!payload) return
@@ -100,9 +115,9 @@ export function useDiscussions() {
     [message]
   )
 
-  // 点赞回复
   const toggleReplyLike = useCallback(
     async (replyId: number) => {
+      if (!replyId) return
       try {
         const payload = await discussionsApi.likeReply(replyId)
         if (!payload) return
@@ -114,7 +129,6 @@ export function useDiscussions() {
     [message]
   )
 
-  // 新建讨论
   const createDiscussion = useCallback(
     async (values: CreateDiscussionDto) => {
       const created = await discussionsApi.create(values)
@@ -130,14 +144,13 @@ export function useDiscussions() {
     [createForm, message]
   )
 
-  // 新建回复
   const createReply = useCallback(
     async (values: CreateReplyDto) => {
-      if (!selectedDiscussion) return
+      if (!selectedDiscussion?.id) return
       const created = await discussionsApi.reply(selectedDiscussion.id, values)
       if (created) {
         setReplies(prev => [...prev, created])
-        setSelectedDiscussion(prev => (prev ? { ...prev, replies_count: prev.replies_count + 1 } : prev))
+        setSelectedDiscussion(prev => (prev ? { ...prev, replies_count: (prev.replies_count ?? 0) + 1 } : prev))
         setReplyOpen(false)
         replyForm.resetFields()
         message.success('回复成功')
@@ -148,20 +161,21 @@ export function useDiscussions() {
     [message, replyForm, selectedDiscussion]
   )
 
-  // 选择某条讨论 → 拉取回复、+1 浏览
   const selectDiscussion = useCallback(
-    (d: Discussion) => {
-      setSelectedDiscussion(d)
-      fetchReplies(d.id)
-      incrementViews(d.id)
+    (dOrId: Discussion | number) => {
+      const disc = typeof dOrId === 'number' ? discussions.find(x => x.id === dOrId) || null : dOrId ?? null
+      if (!disc?.id) return
+      setSelectedDiscussion(disc)
+      fetchReplies(disc.id)
+      incrementViews(disc.id)
     },
-    [fetchReplies, incrementViews]
+    [discussions, fetchReplies, incrementViews]
   )
 
-  // 副作用：初始拉分类；过滤/排序变化拉列表
   useEffect(() => {
     fetchCategories()
   }, [fetchCategories])
+
   useEffect(() => {
     fetchDiscussions()
   }, [fetchDiscussions])

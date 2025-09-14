@@ -1,0 +1,48 @@
+import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express'
+import { body } from 'express-validator'
+import { authenticateToken } from '@/common/middleware/auth.js'
+import { validateRequest } from '@/common/middleware/validation.js'
+import type { AuthRequest } from '@/types/auth.js'
+import { AdminSettingsController } from '../controllers/admin-settings.controller.js'
+
+const router = Router()
+
+// 允许的角色（与你前端 AdminLayout 一致）
+const ALLOWED_ROLES = new Set(['admin', 'teacher'])
+
+function requireRole(_roles = ALLOWED_ROLES) {
+    return (req: AuthRequest, res: Response, next: NextFunction) => {
+        const role = req.user?.role
+        if (!role) return res.status(401).json({ success: false, error: '未授权访问' })
+        if (!_roles.has(role)) return res.status(403).json({ success: false, error: '无权限' })
+        next()
+    }
+}
+
+const wrap =
+    (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
+        (req: Request, res: Response, next: NextFunction) => {
+            Promise.resolve(handler(req as AuthRequest, res)).catch(next)
+        }
+
+// 鉴权 + 角色
+router.use(authenticateToken, requireRole())
+
+// GET /admin/settings
+router.get('/settings', wrap(AdminSettingsController.getSettings))
+
+// PUT /admin/settings
+router.put(
+    '/settings',
+    [
+        body('systemName').optional().isString().isLength({ min: 1, max: 100 }),
+        body('allowUserRegistration').optional().isBoolean(),
+        body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
+        body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
+    ],
+    validateRequest,
+    wrap(AdminSettingsController.updateSettings)
+)
+
+export { router as adminSettingsRoutes }
+export default router

@@ -11,7 +11,6 @@ import { useDiscussions } from '../hooks/useDiscussions'
 
 export default function DiscussionPage() {
   const {
-    // state
     discussions,
     selectedDiscussion,
     replies,
@@ -22,18 +21,12 @@ export default function DiscussionPage() {
     repliesLoading,
     createOpen,
     replyOpen,
-
-    // setters
     setSelectedCategory,
     setSortBy,
     setCreateOpen,
     setReplyOpen,
-
-    // forms
     createForm,
     replyForm,
-
-    // actions
     selectDiscussion,
     toggleLike,
     toggleReplyLike,
@@ -42,58 +35,55 @@ export default function DiscussionPage() {
   } = useDiscussions()
 
   return (
-    <div className="p-6">
-      <div className="flex items-center space-x-3 mb-2">
-        <MessageSquare className="w-6 h-6 text-blue-600" />
-        <h1 className="text-2xl font-bold">讨论区</h1>
-      </div>
+    <div className="bg-gray-50 min-h-screen">
+      <div className="mx-auto max-w-[1200px] px-4 md:px-6 py-5">
+        <DiscussionFilters
+          categories={categories}
+          selectedCategory={selectedCategory}
+          sortBy={sortBy}
+          onCategoryChange={setSelectedCategory}
+          onSortChange={setSortBy}
+          onCreate={() => setCreateOpen(true)}
+        />
 
-      <DiscussionFilters
-        categories={categories}
-        selectedCategory={selectedCategory}
-        sortBy={sortBy}
-        onCategoryChange={setSelectedCategory}
-        onSortChange={setSortBy}
-        onCreate={() => setCreateOpen(true)}
-      />
+        <div className="grid grid-cols-12 gap-6 items-start">
+          {/* 左侧列表 */}
+          <div className="col-span-12 lg:col-span-5 lg:sticky lg:top-6">
+            <DiscussionList
+              loading={loading}
+              data={discussions}
+              categories={categories} // 传入类别表，用于兜底显示名称
+              selectedId={selectedDiscussion?.id}
+              onSelect={selectDiscussion}
+            />
+          </div>
 
-      <div className="grid grid-cols-12 gap-6">
-        {/* 左侧列表 */}
-        <div className="col-span-12 lg:col-span-5">
-          <DiscussionList
-            loading={loading}
-            data={discussions}
-            selectedId={selectedDiscussion?.id}
-            onSelect={selectDiscussion}
-          />
-        </div>
-
-        {/* 右侧详情 */}
-        <div className="col-span-12 lg:col-span-7">
-          {selectedDiscussion ? (
-            <div className="space-y-4">
-              <DiscussionDetail
-                discussion={selectedDiscussion}
-                onLike={() => toggleLike(selectedDiscussion.id)}
-                onReply={() => setReplyOpen(true)}
-              />
-              <Divider />
-              <Card>
-                <ReplyList loading={repliesLoading} replies={replies} onLike={toggleReplyLike} />
-              </Card>
-            </div>
-          ) : (
-            <Card className="h-full">
-              <div className="text-center py-12">
-                <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">请选择一个讨论查看详情</p>
+          {/* 右侧详情 */}
+          <div className="col-span-12 lg:col-span-7">
+            {selectedDiscussion ? (
+              <div className="space-y-4">
+                <DiscussionDetail
+                  discussion={selectedDiscussion}
+                  onLike={() => toggleLike(selectedDiscussion.id)}
+                  onReply={() => setReplyOpen(true)}
+                />
+                <Divider className="my-0" />
+                <Card className="border bg-white shadow-sm rounded-xl">
+                  <ReplyList loading={repliesLoading} replies={replies} onLike={toggleReplyLike} />
+                </Card>
               </div>
-            </Card>
-          )}
+            ) : (
+              <Card className="h-full border bg-white shadow-sm rounded-xl">
+                <div className="text-center py-16">
+                  <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500">请选择左侧的讨论查看详情</p>
+                </div>
+              </Card>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* 发起讨论 */}
       <CreateDiscussionModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -102,7 +92,6 @@ export default function DiscussionPage() {
         onSubmit={createDiscussion}
       />
 
-      {/* 回复弹窗 */}
       <ReplyModal open={replyOpen} onClose={() => setReplyOpen(false)} form={replyForm} onSubmit={createReply} />
     </div>
   )

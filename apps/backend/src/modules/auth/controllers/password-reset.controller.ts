@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import type { ApiResponse } from 'types/response.js'
+import type { ApiResponse } from '@/types/response.js'
 import { PasswordResetService } from '../services/password-reset.service.js'
 
 const svc = new PasswordResetService()

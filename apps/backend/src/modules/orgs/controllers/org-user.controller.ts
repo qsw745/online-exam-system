@@ -1,7 +1,7 @@
 // apps/backend/src/modules/orgs/controllers/org-user.controller.ts
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth'
-import type { ApiResponse } from 'types/response'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response'
 import type { OrgUserListData } from '../domain/org-user.model'
 import { OrgUserService } from '../services/org-user.service'
 // ✅ 补上仓库导入

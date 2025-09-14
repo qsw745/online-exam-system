@@ -2,6 +2,30 @@
 import { DiscussionRepository } from '../repositories/discussion.repository.js'
 
 export class DiscussionsService {
+    /** 生成 viewer_key：登录用户用 u:{userId}；匿名用 IP+UA 的 SHA1 哈希 */
+    static buildViewerKey(req: AuthRequest): string {
+        const uid = req.user?.id
+        if (uid) return `u:${uid}`
+
+        const xff = req.headers['x-forwarded-for']
+        const ipHeader = Array.isArray(xff) ? xff[0] : (xff as string | undefined)
+        const ip =
+            ipHeader?.split(',')[0].trim() ||
+            (req.ip ?? '')
+
+        const ua = String(req.headers['user-agent'] ?? '')
+        const raw = `${ip}|${ua}`
+        const hash = createHash('sha1').update(raw).digest('hex')
+        return `g:${hash}`
+    }
+    /**
+     * 在 TTL 内确保只 +1 一次
+     * 返回 true 表示本次应当增加浏览数；false 表示 TTL 内已统计过
+     */
+    static async ensureViewOnce(req: AuthRequest, discussionId: number, ttlSeconds = 600): Promise<boolean> {
+        const key = this.buildViewerKey(req)
+        return DiscussionRepository.acquireViewLock(discussionId, key, ttlSeconds)
+    }
   static async markAsSolution(replyId: number, discussionId: number, userId: number): Promise<boolean> {
     const owner = await DiscussionRepository.findOwner(discussionId)
     if (!owner || owner.user_id !== userId) return false

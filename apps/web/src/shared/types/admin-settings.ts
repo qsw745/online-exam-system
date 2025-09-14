@@ -3,6 +3,6 @@ export interface SystemSettings {
   systemName: string
   allowUserRegistration: boolean
   maxLoginAttempts: number
-  // ★ 默认密码建议“仅写不读”，表单内可选
+  /** 仅写不读：页面可填写，接口 GET 不返回 */
   defaultPassword?: string
 }

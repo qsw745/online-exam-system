@@ -2,7 +2,7 @@
 import { Router, type RequestHandler, type Response } from 'express'
 import { AnalyticsController } from '../controllers/analytics.controller'
 import { authenticateToken, requireRole } from '@/common/middleware/auth'
-import type { AuthRequest } from 'types/auth'
+import type { AuthRequest } from '@/types/auth'
 
 const router = Router()
 const wrap =

@@ -1,9 +1,9 @@
 import React from 'react'
-import { Button, Select } from 'antd'
-import { Plus } from 'lucide-react'
-import type { DiscussionCategory, SortBy } from '../types'
+import { Button, Segmented, Select, Tooltip } from 'antd'
+import { Plus, Flame, Clock3, MessageSquareMore } from 'lucide-react'
 
-const { Option } = Select
+export type SortBy = 'latest' | 'hot' | 'replies'
+export type DiscussionCategory = { id: number; name?: string }
 
 type Props = {
   categories: DiscussionCategory[]
@@ -23,27 +23,70 @@ export const DiscussionFilters: React.FC<Props> = ({
   onCreate,
 }) => {
   return (
-    <div className="flex items-center justify-between mb-6">
-      <div className="flex items-center space-x-3">
-        <h1 className="text-2xl font-bold">讨论区</h1>
-      </div>
-      <div className="flex items-center space-x-4">
-        <Select value={selectedCategory} onChange={onCategoryChange} style={{ width: 140 }}>
-          <Option value="all">全部分类</Option>
-          {categories.map(c => (
-            <Option key={c.id} value={String(c.id)}>
-              {c.name}
-            </Option>
-          ))}
-        </Select>
-        <Select value={sortBy} onChange={v => onSortChange(v as SortBy)} style={{ width: 140 }}>
-          <Option value="latest">最新发布</Option>
-          <Option value="hot">热门讨论</Option>
-          <Option value="replies">回复最多</Option>
-        </Select>
-        <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={onCreate}>
-          发起讨论
-        </Button>
+    <div className="mb-4">
+      <div className="rounded-2xl border bg-white shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="text-sm text-gray-500">排序</div>
+          <Segmented
+            value={sortBy}
+            onChange={v => onSortChange(v as SortBy)}
+            options={[
+              {
+                label: (
+                  <div className="flex items-center gap-1">
+                    <Clock3 className="w-4 h-4" />
+                    最新
+                  </div>
+                ),
+                value: 'latest',
+              },
+              {
+                label: (
+                  <div className="flex items-center gap-1">
+                    <Flame className="w-4 h-4" />
+                    最热
+                  </div>
+                ),
+                value: 'hot',
+              },
+              {
+                label: (
+                  <div className="flex items-center gap-1">
+                    <MessageSquareMore className="w-4 h-4" />
+                    回复最多
+                  </div>
+                ),
+                value: 'replies',
+              },
+            ]}
+          />
+
+          <div className="hidden md:block h-6 w-px bg-gray-200 mx-1" />
+
+          {/* 关键修复：使用 options 明确 label/value，且兼容 name 缺失 */}
+          <Select
+            value={selectedCategory}
+            onChange={onCategoryChange}
+            style={{ width: 200 }}
+            placeholder="选择分类"
+            popupMatchSelectWidth={260}
+            options={[
+              { value: 'all', label: '全部分类' },
+              ...categories.map(c => ({
+                value: String(c.id),
+                label: c.name || `分类 #${c.id}`,
+              })),
+            ]}
+          />
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Tooltip title="发起一个新话题">
+            <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={onCreate}>
+              发起讨论
+            </Button>
+          </Tooltip>
+        </div>
       </div>
     </div>
   )
