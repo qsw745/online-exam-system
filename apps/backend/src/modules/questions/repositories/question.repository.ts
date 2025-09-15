@@ -4,6 +4,16 @@ import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IQuestion } from '../domain/question.model.js'
 
 export const QuestionRepository = {
+    async findByIds(ids: number[]): Promise<IQuestion[]> {
+        if (!ids.length) return []
+        // 使用占位符防注入；顺序在 service 做二次排序
+        const placeholders = ids.map(() => '?').join(',')
+        const [rows] = await pool.query<IQuestion[]>(
+            `SELECT * FROM questions WHERE id IN (${placeholders})`,
+            ids
+        )
+        return rows
+    },
   async list(whereSql: string, vals: any[], limit: number, offset: number): Promise<IQuestion[]> {
     const [rows] = await pool.query<IQuestion[]>(
       `SELECT * FROM questions ${whereSql} ORDER BY created_at DESC LIMIT ? OFFSET ?`,

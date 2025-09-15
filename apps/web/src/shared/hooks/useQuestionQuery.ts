@@ -27,20 +27,26 @@ export function useQuestionQuery() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  // 防抖
+  // 防抖（键入时不立即请求；点击“查询”再触发 reload）
   const [debouncedSearch, setDebouncedSearch] = useState('')
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 300)
     return () => clearTimeout(t)
   }, [search])
-
   // 标签选项
   const reloadTags = useCallback(async () => {
     try {
-      const res = await (questionsApi as any).getTags?.()
-      if (isSuccess(res) && Array.isArray(res.data)) setAllTags(res.data)
-    } catch {}
+      const res = await questionsApi.getTags() // ✅ 不要可选链
+      if (isSuccess<string[]>(res) && Array.isArray(res.data)) {
+        setAllTags(res.data)
+      } else {
+        setAllTags([])
+      }
+    } catch {
+      setAllTags([])
+    }
   }, [])
+
   useEffect(() => void reloadTags(), [reloadTags])
 
   // 加载列表
@@ -70,7 +76,7 @@ export function useQuestionQuery() {
         const arr = (d.questions ?? d.items ?? []) as Question[]
         setList(Array.isArray(arr) ? arr : [])
         const pg = d.pagination ?? {}
-        setTotal(pg.total ?? d.total ?? arr.length ?? 0)
+        setTotal(pg.total ?? d.total ?? (Array.isArray(arr) ? arr.length : 0))
       } else {
         setList([])
         setTotal(0)

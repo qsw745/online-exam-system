@@ -1,6 +1,5 @@
-// src/features/questions/practice/hooks/usePracticeList.ts
-import { useEffect, useMemo, useState } from 'react'
-import { api, isSuccess } from '@/shared/api/http'
+import { useEffect, useMemo, useState, useCallback } from 'react'
+import { api, isSuccess, questionsApi } from '@/shared/api/http'
 import { useDebounce } from '@/shared/hooks/useDebounce'
 
 export interface QuestionListItem {
@@ -29,9 +28,11 @@ export function usePracticeList() {
   const [search, setSearch] = useState('')
   const [type, setType] = useState<QuestionType>('all')
   const [difficulty, setDifficulty] = useState<Difficulty>('all')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [allTags, setAllTags] = useState<string[]>([])
+
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(12)
-
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [list, setList] = useState<QuestionListItem[]>([])
@@ -41,8 +42,9 @@ export function usePracticeList() {
 
   const params = useMemo(() => {
     const p: any = { page, limit: pageSize }
-    if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
-    // 同时兼容多字段，避免后端命名不一致
+    if (debouncedSearch.trim()) {
+      p.search = debouncedSearch.trim()
+    }
     if (type !== 'all') {
       p.type = type
       p.question_type = type
@@ -51,8 +53,25 @@ export function usePracticeList() {
       p.difficulty = difficulty
       p.level = difficulty
     }
+    if (selectedTags.length) {
+      p.tags = selectedTags.join(',')
+    }
     return p
-  }, [page, pageSize, debouncedSearch, type, difficulty])
+  }, [page, pageSize, debouncedSearch, type, difficulty, selectedTags])
+
+  const reloadTags = useCallback(async () => {
+    try {
+      const r = await questionsApi.getTags()
+      if (isSuccess(r) && Array.isArray(r.data)) setAllTags(r.data)
+      else setAllTags([])
+    } catch {
+      setAllTags([])
+    }
+  }, [])
+
+  useEffect(() => {
+    reloadTags()
+  }, [reloadTags])
 
   useEffect(() => {
     let mounted = true
@@ -84,10 +103,10 @@ export function usePracticeList() {
     }
   }, [params])
 
-  // 任何筛选变更重置到第一页
+  // 任一筛选变化回到第一页
   useEffect(() => {
     setPage(1)
-  }, [type, difficulty, debouncedSearch])
+  }, [type, difficulty, debouncedSearch, selectedTags])
 
   return {
     list,
@@ -99,9 +118,12 @@ export function usePracticeList() {
     type,
     difficulty,
     search,
+    selectedTags,
+    allTags,
     setType,
     setDifficulty,
     setSearch,
+    setSelectedTags,
     setPage,
     setPageSize,
   }

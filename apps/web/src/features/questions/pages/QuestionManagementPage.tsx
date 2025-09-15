@@ -1,6 +1,6 @@
 import React from 'react'
 import { Card, Typography, message } from 'antd'
-import { ConfirmDialog, Modal, Form, Button, useNotice } from '@/shared/components/ui'
+import { ConfirmDialog } from '@/shared/components/ui'
 
 import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
 import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
@@ -41,17 +41,23 @@ export default function QuestionManagementPage() {
           search={q.search}
           onSearch={v => {
             q.setSearch(v)
+          }}
+          onQuery={() => {
+            // 点击“查询”或回车时：回到第一页并刷新
             q.setPage(1)
+            q.reload()
           }}
           type={q.type}
           onTypeChange={v => {
             q.setType(v as any)
             q.setPage(1)
+            q.reload()
           }}
           selectedTags={q.selectedTags}
           onTagsChange={v => {
             q.setSelectedTags(v)
             q.setPage(1)
+            q.reload()
           }}
           allTags={q.allTags}
           onBatchDelete={() => sel.setDeleteModalVisible(true)}
@@ -80,6 +86,7 @@ export default function QuestionManagementPage() {
             onShowSizeChange: (_cur: number, ps: number) => {
               q.setPageSize(ps)
               q.setPage(1)
+              q.reload()
             },
           }}
         />

@@ -10,22 +10,25 @@ export interface Question {
   type: QuestionType
   difficulty?: Difficulty
   score: number
-  /** 其他字段按需补充 */
 }
 
 export const questionsApi = {
-  list: (params?: { keyword?: string; type?: QuestionType; difficulty?: Difficulty }) =>
-    api.get<Question[]>('/questions', { params }),
+  list: (params?: any) => api.get('/questions', { params }) as Promise<ApiResult<any>>,
+  getById: (id: string | number) => api.get(`/questions/${id}`) as Promise<ApiResult<any>>,
+  create: (payload: Partial<Question>) => api.post('/questions', payload) as Promise<ApiResult<any>>,
+  update: (id: string | number, payload: Partial<Question>) =>
+    api.put(`/questions/${id}`, payload) as Promise<ApiResult<any>>,
+  remove: (id: string | number) => api.delete(`/questions/${id}`) as Promise<ApiResult<any>>,
 
-  getById: (id: string) => api.get<Question>(`/questions/${id}`),
+  /** 批量获取题目详情（一次请求，降压） */
+  getByIds: (ids: (string | number)[]) => api.post('/questions/batch', { ids }) as Promise<ApiResult<any[]>>,
 
-  create: (payload: Partial<Question>) => api.post<Question>('/questions', payload),
+  /** 标签聚合 */
+  getTags: () => api.get('/questions/tags') as Promise<ApiResult<string[]>>,
 
-  update: (id: string, payload: Partial<Question>) => api.put<Question>(`/questions/${id}`, payload),
-
-  remove: (id: string) => api.delete<void>(`/questions/${id}`),
+  /** 知识点聚合（可选） */
+  getKnowledgePoints: () => api.get('/questions/knowledge-points') as Promise<ApiResult<string[]>>,
 }
 
-/** 兼容旧命名（若曾用过 questions） */
 export const questions = questionsApi
 export type { Question as QuestionDTO }

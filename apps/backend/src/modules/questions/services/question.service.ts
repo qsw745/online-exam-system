@@ -21,7 +21,22 @@ function ensureArrayFromMaybeCsv(input: any): string[] {
 }
 
 export class QuestionService {
-  async list(params: {
+    async batch(ids: number[]) {
+        const rows = await QuestionRepository.findByIds(ids)
+        const map = new Map<number, any>()
+        rows.forEach(q => {
+            try {
+                if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
+                if (q.knowledge_points && typeof q.knowledge_points === 'string') q.knowledge_points = JSON.parse(q.knowledge_points)
+                if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
+            } catch {}
+            map.set((q as any).id, q)
+        })
+        // 按传入 ids 顺序返回
+        return ids.map(id => map.get(id)).filter(Boolean)
+    }
+
+    async list(params: {
     question_type?: IQuestion['question_type']
     difficulty?: IQuestion['difficulty']
     search?: string

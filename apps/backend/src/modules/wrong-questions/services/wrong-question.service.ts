@@ -91,7 +91,7 @@ export class WrongQuestionService {
           question_id: qid,
           exam_result_id: examResultId,
           wrong_count: 1,
-          last_wrong_time: new Date().toISOString(),
+          last_wrong_time: new Date(),
           mastery_level: 'not_mastered',
           tags: '',
           notes: '',

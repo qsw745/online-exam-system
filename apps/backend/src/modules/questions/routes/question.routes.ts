@@ -1,20 +1,17 @@
-// apps/backend/src/modules/questions/routes/question.routes.ts
 import { authenticateToken } from '@/common/middleware/auth'
 import { Router, type RequestHandler } from 'express'
 import { QuestionController } from '../controllers/question.controller'
 
 const router = Router()
-
 type AnyAsyncController = (req: any, res: any) => any | Promise<any>
-
 const wrap =
-  (fn: AnyAsyncController, name?: string): RequestHandler =>
-  (req, res, next) => {
-    ;(req as any).__handlerName = name || fn.name || 'anonymous'
-    Promise.resolve(fn(req, res)).catch(next)
-  }
+    (fn: AnyAsyncController, name?: string): RequestHandler =>
+        (req, res, next) => { ;(req as any).__handlerName = name || fn.name || 'anonymous'; Promise.resolve(fn(req, res)).catch(next) }
 
 router.use(authenticateToken)
+
+/** 批量拉取题目详情（性能优化） */
+router.post('/batch', wrap(QuestionController.getBatchByIds))
 
 /** 错题本 / 练习相关 */
 router.post('/practice', wrap(QuestionController.recordPractice))

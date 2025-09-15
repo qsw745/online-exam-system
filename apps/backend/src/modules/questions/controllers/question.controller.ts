@@ -7,6 +7,18 @@ import { QuestionService } from '../services/question.service'
 const svc = new QuestionService()
 
 export class QuestionController {
+    /** 批量获取题目详情（ids: number[]） */
+    static async getBatchByIds(req: AuthRequest, res: Response<ApiResponse<any[]>>) {
+        try {
+            const idsRaw = Array.isArray(req.body?.ids) ? req.body.ids : []
+            const ids = idsRaw.map((x: any) => Number(x)).filter((n: any) => Number.isFinite(n))
+            if (!ids.length) return res.status(400).json({ success: false, error: '请提供有效的题目ID数组' })
+            const data = await svc.batch(ids)
+            return res.json({ success: true, data })
+        } catch (e: any) {
+            return res.status(500).json({ success: false, error: e?.message || '批量获取题目失败' })
+        }
+    }
   static async list(req: AuthRequest, res: Response<ApiResponse<QuestionListData>>) {
     try {
       const question_type = req.query.type as any

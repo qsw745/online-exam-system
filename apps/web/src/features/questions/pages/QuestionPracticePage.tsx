@@ -1,4 +1,3 @@
-// src/features/questions/pages/QuestionPracticePage.tsx
 import BulkPracticeView from '@/features/questions/practice/components/BulkPracticeView'
 import PracticeFilters from '@/features/questions/practice/components/PracticeFilters'
 import QuestionCardGrid from '@/features/questions/practice/components/QuestionCardGrid'
@@ -7,11 +6,9 @@ import { usePracticeList } from '@/features/questions/practice/hooks/usePractice
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
-// ✅ 使用公共分页条（已封装）
 import { PaginationBar } from '@/features/questions/browse/components/PaginationBar'
 
 const { Title, Text } = Typography
-
 type View = 'list' | 'single' | 'bulk'
 
 export default function QuestionPracticePage() {
@@ -25,9 +22,12 @@ export default function QuestionPracticePage() {
     type,
     difficulty,
     search,
+    selectedTags,
+    allTags,
     setType,
     setDifficulty,
     setSearch,
+    setSelectedTags,
     setPage,
     setPageSize,
   } = usePracticeList()
@@ -52,11 +52,17 @@ export default function QuestionPracticePage() {
               type={type}
               difficulty={difficulty}
               search={search}
+              selectedTags={selectedTags}
+              allTags={allTags}
               onTypeChange={setType}
               onDifficultyChange={setDifficulty}
-              onSearch={val => {
+              onSearch={kw => {
                 setPage(1)
-                setSearch(val)
+                setSearch(kw)
+              }}
+              onTagsChange={tags => {
+                setSelectedTags(tags)
+                setPage(1)
               }}
               onEnterSingle={idx => {
                 setStartIndex(idx)
@@ -70,9 +76,6 @@ export default function QuestionPracticePage() {
               list={list}
               onCardClick={idx => {
                 setStartIndex(idx)
-                // 进入方式由 PracticeFilters 上的模式按钮决定：
-                // 直接交给 filter 里的 onEnterSingle / onEnterBulk 调用。
-                // 这里默认仍按单题进入，避免“多题模式没有反应”的困惑：
                 setView('single')
               }}
             />
@@ -94,7 +97,7 @@ export default function QuestionPracticePage() {
 
       {view === 'single' && (
         <SinglePracticeView
-          key={`single-${page}-${pageSize}`} // 切页重置内部状态
+          key={`single-${page}-${pageSize}`}
           ids={ids}
           startIndex={startIndex}
           onExit={() => setView('list')}

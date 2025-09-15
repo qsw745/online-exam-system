@@ -5,10 +5,10 @@
   "description": "Online Exam System Backend",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "tsx --watch src/app.ts",
-    "start": "tsx src/app.ts",
+    "dev": "nodemon bootstrap.ts",
+    "start": "tsx bootstrap.ts",
+    "start:prod": "node dist/bootstrap.js",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
-    "start:prod": "node --enable-source-maps dist/app.js",
     "migrate:make": "knex --knexfile knexfile.js migrate:make",
     "migrate:latest": "knex --knexfile knexfile.js migrate:latest",
     "migrate:rollback": "knex --knexfile knexfile.js migrate:rollback"

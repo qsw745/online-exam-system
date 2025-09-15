@@ -1,11 +1,10 @@
-// src/features/questions/practice/components/BulkPracticeView.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff } from 'lucide-react'
 import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input } from 'antd'
-import { wrongQuestions } from '@/shared/api/http'
+import { wrongQuestions, questionsApi, isSuccess } from '@/shared/api/http'
 import {
   addQuestionToFavorites,
-  getQuestionById,
+  getQuestionById, // 仍保留给其他地方用，不在这里逐条拉取
   isQuestionFavorited,
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
@@ -23,10 +22,7 @@ type Question = {
   difficulty?: 'easy' | 'medium' | 'hard' | string
 }
 
-type Props = {
-  ids: string[]
-  onExit: () => void
-}
+type Props = { ids: string[]; onExit: () => void }
 
 function judge(q: Question, selected: number[], text: string) {
   if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
@@ -51,36 +47,33 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   const [showExp, setShowExp] = useState(false)
   const [fav, setFav] = useState<Record<string, boolean>>({})
 
-  // 拉取当前页所有题目详情
+  // 一次性拉取当前页所有题目详情
   useEffect(() => {
     let mounted = true
     ;(async () => {
       try {
         setLoading(true)
         setError(null)
-        const queue = [...ids]
-        const results: Question[] = []
-        const concurrency = 6
-        const workers = new Array(concurrency).fill(0).map(async () => {
-          while (queue.length) {
-            const id = queue.shift()!
-            try {
-              let data = cacheRef.current.get(id)
-              if (!data) {
-                data = await getQuestionById(id)
-                cacheRef.current.set(id, data)
-              }
-              results.push(data)
-            } catch {}
-          }
-        })
-        await Promise.all(workers)
-        // 按 ids 顺序排好
-        const map: Record<string, Question> = {}
-        results.forEach(q => (map[String(q.id)] = q))
-        const ordered = ids.map(id => map[id]).filter(Boolean) as Question[]
+        if (!ids.length) {
+          setQs([])
+          setAnswers({})
+          setFav({})
+          return
+        }
 
+        // 命中缓存的直接用，未命中的请求后台 batch
+        const miss = ids.filter(id => !cacheRef.current.has(id))
+        if (miss.length) {
+          const resp = await questionsApi.getByIds(miss)
+          if (!isSuccess(resp)) throw new Error((resp as any).error || '加载题目失败')
+          const arr = Array.isArray(resp.data) ? resp.data : []
+          arr.forEach(q => cacheRef.current.set(String(q.id), q))
+        }
+
+        // 按 ids 顺序组装
+        const ordered = ids.map(id => cacheRef.current.get(id)).filter(Boolean) as Question[]
         if (!mounted) return
+
         setQs(ordered)
         setSubmitted(false)
         setShowExp(false)
@@ -127,12 +120,9 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
     const payloads = qs.map(q => {
       const a = answers[String(q.id)] || { selected: [], text: '' }
       const ok = judge(q, a.selected, a.text)
-      return {
-        id: String(q.id),
-        ok,
-        payload: q.question_type === 'short_answer' ? a.text : a.selected,
-      }
+      return { id: String(q.id), ok, payload: q.question_type === 'short_answer' ? a.text : a.selected }
     })
+    // 记录做题结果（这里仍然逐条上报；如需进一步降压，可另加后端 batch-record 接口）
     Promise.allSettled(
       payloads.map(p =>
         wrongQuestions.recordPractice({
@@ -148,7 +138,6 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
     (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[
       t || ''
     ] || t)
-
   const diffLabel = (d?: string) => (({ easy: '简单', medium: '中等', hard: '困难' } as any)[d || ''] || d)
 
   return (
