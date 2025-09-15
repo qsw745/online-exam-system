@@ -1,12 +1,19 @@
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import {
+  STORAGE_FLAG_KEY,
+  getAccessToken as storageGetAccessToken,
+  setAccessToken as storageSetAccessToken,
+  USER_ROLE_KEY,
+} from '@/shared/api/core/storage'
+import { menuApi } from '@/shared/api/endpoints/menu'
 import { auth, users } from '@/shared/api/http'
+import React, { createContext, useContext, useEffect, useState } from 'react'
 
 interface User {
   id: string
   email: string
   role: string
   username?: string
-  // ↓ 可选字段
+  nickname?: string
   school?: string
   class_name?: string
   avatar_url?: string
@@ -18,57 +25,11 @@ interface AuthContextType {
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<void>
   signUp: (email: string, password: string, username: string, role: string) => Promise<void>
   signOut: () => Promise<void>
+  refreshUser: () => Promise<void>
+  reload: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-const STORAGE_FLAG_KEY = 'auth_storage' // 'local' | 'session'
-const ACCESS_TOKEN_KEY = 'token'
-const USER_ROLE_KEY = 'userRole'
-
-function getPreferredStorage(): Storage {
-  const pref = localStorage.getItem(STORAGE_FLAG_KEY)
-  if (pref === 'local') return localStorage
-  if (pref === 'session') return sessionStorage
-  // 兜底：如果 local 里已有 token 则沿用 local，否则用 session
-  if (localStorage.getItem(ACCESS_TOKEN_KEY)) return localStorage
-  return sessionStorage
-}
-
-function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY) || sessionStorage.getItem(ACCESS_TOKEN_KEY)
-}
-
-function setAccessToken(token: string) {
-  const st = getPreferredStorage()
-  st.setItem(ACCESS_TOKEN_KEY, token)
-  // 保证另一边清理
-  if (st === localStorage) sessionStorage.removeItem(ACCESS_TOKEN_KEY)
-  else localStorage.removeItem(ACCESS_TOKEN_KEY)
-}
-
-function clearAccessToken() {
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  sessionStorage.removeItem(ACCESS_TOKEN_KEY)
-}
-
-function setRole(role?: string | null) {
-  const st = getPreferredStorage()
-  if (role) {
-    st.setItem(USER_ROLE_KEY, role)
-    if (st === localStorage) sessionStorage.removeItem(USER_ROLE_KEY)
-    else localStorage.removeItem(USER_ROLE_KEY)
-  } else {
-    st.removeItem(USER_ROLE_KEY)
-  }
-}
-
-function clearAuthStorage() {
-  localStorage.removeItem(STORAGE_FLAG_KEY)
-  localStorage.removeItem(USER_ROLE_KEY)
-  sessionStorage.removeItem(USER_ROLE_KEY)
-  clearAccessToken()
-}
 
 function decodeExp(token: string): number | null {
   try {
@@ -88,75 +49,85 @@ function decodeExp(token: string): number | null {
   }
 }
 
+function writeRole(role?: string | null) {
+  if (role) {
+    localStorage.setItem(USER_ROLE_KEY, role)
+    sessionStorage.setItem(USER_ROLE_KEY, role)
+  } else {
+    localStorage.removeItem(USER_ROLE_KEY)
+    sessionStorage.removeItem(USER_ROLE_KEY)
+  }
+}
+
+function clearAllAuth() {
+  localStorage.removeItem('token')
+  sessionStorage.removeItem('token')
+  writeRole(null)
+}
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // 首次加载：如果 token 过期 -> 尝试刷新；若成功 -> 取用户；失败 -> 清理并停留在未登录态
+  const refreshUser = async () => {
+    const me = await users.getCurrentUser()
+    if ('success' in me && me.success) {
+      const u = me.data as any
+      if (!u.role) {
+        const r = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
+        if (r) u.role = r
+      }
+      if (u.role) writeRole(u.role)
+      setUser(u)
+      return
+    }
+
+    // token 可能失效，尝试刷新
+    const refreshed = await auth.refresh()
+    if ('success' in refreshed && refreshed.success && (refreshed.data as any)?.token) {
+      storageSetAccessToken((refreshed.data as any).token as string)
+      const me2 = await users.getCurrentUser()
+      if ('success' in me2 && me2.success) {
+        const u2 = me2.data as any
+        if (!u2.role) {
+          const r = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
+          if (r) u2.role = r
+        }
+        if (u2.role) writeRole(u2.role)
+        setUser(u2)
+        return
+      }
+    }
+
+    clearAllAuth()
+    setUser(null)
+  }
+
   useEffect(() => {
     ;(async () => {
-      const token = getAccessToken()
+      const token = storageGetAccessToken()
       if (!token) {
-        // 无 token：清掉残留角色信息
-        localStorage.removeItem(USER_ROLE_KEY)
-        sessionStorage.removeItem(USER_ROLE_KEY)
+        writeRole(null)
         setLoading(false)
         return
       }
-
       const expMs = decodeExp(token)
       const isExpired = expMs !== null && Date.now() >= expMs
-
       try {
         if (isExpired) {
-          // 过期：尝试用刷新令牌换新
           const refreshed = await auth.refresh()
           if ('success' in refreshed && refreshed.success && (refreshed.data as any)?.token) {
-            setAccessToken((refreshed.data as any).token as string)
+            storageSetAccessToken((refreshed.data as any).token as string)
           } else {
-            clearAuthStorage()
+            clearAllAuth()
             setUser(null)
             setLoading(false)
             return
           }
         }
-
-        // 尝试读取当前用户
-        const me = await users.getCurrentUser()
-        if ('success' in me && me.success) {
-          const userData = me.data as any
-          // 同步/补齐角色
-          if (!userData.role) {
-            const storedRole = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
-            if (storedRole) userData.role = storedRole
-          }
-          if (userData.role) setRole(userData.role)
-          setUser(userData)
-        } else {
-          // 如果失败再次尝试刷新一次（可能边界时序）
-          const refreshed = await auth.refresh()
-          if ('success' in refreshed && refreshed.success && (refreshed.data as any)?.token) {
-            setAccessToken((refreshed.data as any).token as string)
-            const me2 = await users.getCurrentUser()
-            if ('success' in me2 && me2.success) {
-              const userData = me2.data as any
-              if (!userData.role) {
-                const storedRole = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
-                if (storedRole) userData.role = storedRole
-              }
-              if (userData.role) setRole(userData.role)
-              setUser(userData)
-            } else {
-              clearAuthStorage()
-              setUser(null)
-            }
-          } else {
-            clearAuthStorage()
-            setUser(null)
-          }
-        }
+        await refreshUser()
       } catch {
-        clearAuthStorage()
+        clearAllAuth()
         setUser(null)
       } finally {
         setLoading(false)
@@ -164,42 +135,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })()
   }, [])
 
-  const signIn = async (email: string, password: string, rememberMe: boolean = false) => {
-    const result = await auth.login(email, password)
-    if ('error' in result) throw new Error(result.error || '登录失败')
-
-    const { token, user: userData } = result.data as { token: string; user: User }
-
-    // 保存 storage 偏好
+  const signIn = async (email: string, password: string, rememberMe = false) => {
     localStorage.setItem(STORAGE_FLAG_KEY, rememberMe ? 'local' : 'session')
 
-    // 保存访问令牌
-    setAccessToken(token)
+    const result = await auth.login(email, password)
+    if ('error' in result) throw new Error((result as any).error || '登录失败')
 
-    // 角色
-    if (userData.role) setRole(userData.role)
+    // 兼容 { success:true, data:{ token, user } } 或直接 { token, user }
+    const payload = (result as any)?.data ?? (result as any) ?? {}
+    const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
+    const userData: User | undefined = payload.user
 
+    if (!token || !userData) throw new Error('登录响应缺少 token 或用户信息')
+
+    storageSetAccessToken(token)
+    if ((userData as any)?.role) {
+      localStorage.setItem(USER_ROLE_KEY, (userData as any).role)
+      sessionStorage.setItem(USER_ROLE_KEY, (userData as any).role)
+    }
     setUser(userData)
   }
 
   const signUp = async (email: string, password: string, username: string, role: string) => {
     const result = await auth.register({ email, password, username, role })
-    if ('error' in result) throw new Error(result.error || '注册失败')
+    if ('error' in result) throw new Error((result as any).error || '注册失败')
 
-    const { token, user: userData } = result.data as { token: string; user: User }
-    // 默认注册后采用 local 保存
+    // 同样兼容多种返回形态
+    const payload = (result as any)?.data ?? (result as any) ?? {}
+    const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
+    const userData: User | undefined = payload.user
+
+    if (!token || !userData) throw new Error('注册响应缺少 token 或用户信息')
+
     localStorage.setItem(STORAGE_FLAG_KEY, 'local')
-    setAccessToken(token)
-    setRole(userData.role || role)
+    storageSetAccessToken(token)
+    writeRole((userData as any).role || role)
     setUser(userData)
   }
 
   const signOut = async () => {
     try {
-      await auth.logout() // 会尝试调后端 /auth/logout（如不存在也不会报错）
+      await auth.logout()
     } catch {}
-    clearAuthStorage()
+    clearAllAuth()
     setUser(null)
+    menuApi.clearRouteTreeCache?.()
   }
 
   const value: AuthContextType = {
@@ -208,13 +188,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signIn,
     signUp,
     signOut,
+    refreshUser,
+    reload: refreshUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
 export const useAuth = () => {
-  const context = useContext(AuthContext)
-  if (context === undefined) throw new Error('useAuth must be used within an AuthProvider')
-  return context
+  const ctx = useContext(AuthContext)
+  if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
+  return ctx
 }

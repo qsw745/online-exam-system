@@ -87,8 +87,46 @@ export const menuApi = {
     return pickData<MenuDTO[]>(res)
   },
 
+  // ========= 路由树：带缓存 / 并发去重 / 失败冷却 =========
+  _routeTreeCache: null as null | MenuDTO[],
+  _routeTreeInFlight: null as null | Promise<MenuDTO[]>,
+  _routeTreeLastFailAt: 0,
+  _FAIL_COOLDOWN_MS: 1500,
+
+  getRouteTreeCached(): MenuDTO[] | null {
+    return this._routeTreeCache
+  },
+  clearRouteTreeCache() {
+    this._routeTreeCache = null
+    this._routeTreeInFlight = null
+  },
+
   async routeTree(): Promise<MenuDTO[]> {
-    const r = await api.get('/menus/route-tree')
-    return pickData<MenuDTO[]>(r)
+    if (this._routeTreeCache) return this._routeTreeCache
+    if (this._routeTreeInFlight) return this._routeTreeInFlight
+
+    const now = Date.now()
+    if (now - this._routeTreeLastFailAt < this._FAIL_COOLDOWN_MS) {
+      // 短时间失败冷却，直接抛错，避免风暴
+      throw new Error('route-tree cooling down')
+    }
+
+    const p = api
+      .get('/menus/route-tree')
+      .then(r => {
+        const data = pickData<MenuDTO[]>(r)
+        this._routeTreeCache = Array.isArray(data) ? data : []
+        return this._routeTreeCache
+      })
+      .catch(err => {
+        this._routeTreeLastFailAt = Date.now()
+        throw err
+      })
+      .finally(() => {
+        this._routeTreeInFlight = null
+      })
+
+    this._routeTreeInFlight = p
+    return p
   },
 }

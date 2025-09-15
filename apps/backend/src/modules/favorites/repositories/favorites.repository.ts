@@ -1,3 +1,4 @@
+// src/modules/favorites/repositories/favorites.repository.ts
 import { pool } from '@/infrastructure/db/index.js'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IFavorite, IFavoriteCategory, IFavoriteItem } from '../domain/favorites.model.js'
@@ -11,9 +12,9 @@ async function hasColumn(table: string, column: string, conn?: PoolConnection): 
   const db = String((dbRows?.[0] as any)?.db ?? '')
 
   const [rows] = await (conn ?? pool).query<RowDataPacket[]>(
-    `SELECT 1 FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
-    [db, table, column]
+      `SELECT 1 FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1`,
+      [db, table, column]
   )
   const ok = rows.length > 0
   columnExistsCache.set(key, ok)
@@ -26,9 +27,9 @@ export class FavoritesRepository {
   }
 
   async findByUser(
-    userId: number,
-    options: { category_id?: number; is_public?: boolean; orderBy?: 'updated_at' | 'created_at' | 'id' } = {},
-    conn?: PoolConnection
+      userId: number,
+      options: { category_id?: number; is_public?: boolean; orderBy?: 'updated_at' | 'created_at' | 'id' } = {},
+      conn?: PoolConnection
   ): Promise<IFavorite[]> {
     const order = options.orderBy ?? 'id'
     const where: string[] = ['f.user_id = ?']
@@ -43,50 +44,50 @@ export class FavoritesRepository {
     }
 
     const [rows] = await this.connOrPool(conn).query<IFavorite[]>(
-      `SELECT f.*,
-              fc.name  AS category_name,
-              fc.color AS category_color,
-              (SELECT COUNT(*) FROM favorite_items fi WHERE fi.favorite_id = f.id) AS items_count
+        `SELECT f.*,
+                fc.name  AS category_name,
+                fc.color AS category_color,
+                (SELECT COUNT(*) FROM favorite_items fi WHERE fi.favorite_id = f.id) AS items_count
          FROM favorites f
-    LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-        WHERE ${where.join(' AND ')}
-     ORDER BY f.${order} DESC`,
-      args
+                LEFT JOIN favorite_categories fc ON f.category_id = fc.id
+         WHERE ${where.join(' AND ')}
+         ORDER BY f.${order} DESC`,
+        args
     )
     return rows
   }
 
   async findByIdForUser(favId: number, userId: number, conn?: PoolConnection): Promise<IFavorite | null> {
     const [rows] = await this.connOrPool(conn).query<IFavorite[]>(
-      `SELECT f.*, fc.name AS category_name, fc.color AS category_color
+        `SELECT f.*, fc.name AS category_name, fc.color AS category_color
          FROM favorites f
-    LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-        WHERE f.id = ? AND f.user_id = ?`,
-      [favId, userId]
+                LEFT JOIN favorite_categories fc ON f.category_id = fc.id
+         WHERE f.id = ? AND f.user_id = ?`,
+        [favId, userId]
     )
     return rows[0] ?? null
   }
 
   async findPublicOrOwnedById(favId: number, userId: number, conn?: PoolConnection): Promise<IFavorite | null> {
     const [rows] = await this.connOrPool(conn).query<IFavorite[]>(
-      `SELECT f.*, fc.name AS category_name, fc.color AS category_color
+        `SELECT f.*, fc.name AS category_name, fc.color AS category_color
          FROM favorites f
-    LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-        WHERE f.id = ? AND (f.user_id = ? OR f.is_public = TRUE)`,
-      [favId, userId]
+                LEFT JOIN favorite_categories fc ON f.category_id = fc.id
+         WHERE f.id = ? AND (f.user_id = ? OR f.is_public = TRUE)`,
+        [favId, userId]
     )
     return rows[0] ?? null
   }
 
   async insertFavorite(
-    conn: PoolConnection,
-    data: {
-      user_id: number
-      name: string
-      description?: string
-      is_public: boolean
-      category_id: number | null
-    }
+      conn: PoolConnection,
+      data: {
+        user_id: number
+        name: string
+        description?: string
+        is_public: boolean
+        category_id: number | null
+      }
   ): Promise<number> {
     const hasDesc = await hasColumn('favorites', 'description', conn)
 
@@ -106,10 +107,10 @@ export class FavoritesRepository {
   }
 
   async updateFavorite(
-    conn: PoolConnection,
-    favId: number,
-    userId: number,
-    patch: { name?: string; description?: string; is_public?: boolean; category_id?: number | null }
+      conn: PoolConnection,
+      favId: number,
+      userId: number,
+      patch: { name?: string; description?: string; is_public?: boolean; category_id?: number | null }
   ): Promise<boolean> {
     const fields: string[] = []
     const args: any[] = []
@@ -137,8 +138,8 @@ export class FavoritesRepository {
     fields.push('updated_at = NOW()')
 
     const [ret] = await conn.query<ResultSetHeader>(
-      `UPDATE favorites SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
-      [...args, favId, userId]
+        `UPDATE favorites SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`,
+        [...args, favId, userId]
     )
     return ret.affectedRows > 0
   }
@@ -153,37 +154,37 @@ export class FavoritesRepository {
 
   async listItems(favoriteId: number, conn?: PoolConnection): Promise<IFavoriteItem[]> {
     const [rows] = await this.connOrPool(conn).query<IFavoriteItem[]>(
-      'SELECT * FROM favorite_items WHERE favorite_id = ? ORDER BY sort_order ASC, created_at DESC',
-      [favoriteId]
+        'SELECT * FROM favorite_items WHERE favorite_id = ? ORDER BY sort_order ASC, created_at DESC',
+        [favoriteId]
     )
     return rows
   }
 
   async existsItem(favoriteId: number, type: string, itemId: number, conn?: PoolConnection): Promise<boolean> {
     const [rows] = await this.connOrPool(conn).query<RowDataPacket[]>(
-      'SELECT id FROM favorite_items WHERE favorite_id = ? AND item_type = ? AND item_id = ?',
-      [favoriteId, type, itemId]
+        'SELECT id FROM favorite_items WHERE favorite_id = ? AND item_type = ? AND item_id = ?',
+        [favoriteId, type, itemId]
     )
     return rows.length > 0
   }
 
   async insertItem(
-    conn: PoolConnection,
-    data: {
-      favorite_id: number
-      item_type: string
-      item_id: number
-      title: string
-      description: string
-      tags: string
-      notes: string
-    }
+      conn: PoolConnection,
+      data: {
+        favorite_id: number
+        item_type: string
+        item_id: number
+        title: string
+        description: string
+        tags: string
+        notes: string
+      }
   ): Promise<number> {
     const [ret] = await conn.query<ResultSetHeader>(
-      `INSERT INTO favorite_items
+        `INSERT INTO favorite_items
          (favorite_id, item_type, item_id, title, description, tags, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [data.favorite_id, data.item_type, data.item_id, data.title, data.description, data.tags, data.notes]
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+        [data.favorite_id, data.item_type, data.item_id, data.title, data.description, data.tags, data.notes]
     )
     return ret.insertId
   }
@@ -197,9 +198,9 @@ export class FavoritesRepository {
   }
 
   async searchItems(
-    userId: number,
-    opt: { keyword?: string; item_type?: string; favorite_id?: number },
-    conn?: PoolConnection
+      userId: number,
+      opt: { keyword?: string; item_type?: string; favorite_id?: number },
+      conn?: PoolConnection
   ): Promise<IFavoriteItem[]> {
     let where = 'WHERE f.user_id = ?'
     const args: any[] = [userId]
@@ -217,21 +218,39 @@ export class FavoritesRepository {
     }
 
     const [rows] = await this.connOrPool(conn).query<IFavoriteItem[]>(
-      `SELECT fi.*
+        `SELECT fi.*
          FROM favorite_items fi
-         JOIN favorites f ON fi.favorite_id = f.id
-       ${where}
-     ORDER BY fi.updated_at DESC
-        LIMIT 50`,
-      args
+                JOIN favorites f ON fi.favorite_id = f.id
+           ${where}
+         ORDER BY fi.updated_at DESC
+           LIMIT 50`,
+        args
     )
     return rows
   }
 
   async allCategories(conn?: PoolConnection): Promise<IFavoriteCategory[]> {
     const [rows] = await this.connOrPool(conn).query<IFavoriteCategory[]>(
-      'SELECT * FROM favorite_categories ORDER BY sort_order ASC'
+        'SELECT * FROM favorite_categories ORDER BY sort_order ASC'
     )
     return rows
+  }
+
+  /** 批量插入分类（用于首次自动种子） */
+  async insertCategoriesBulk(
+      conn: PoolConnection,
+      items: Array<Pick<IFavoriteCategory, 'name' | 'description' | 'color' | 'icon' | 'sort_order'>>
+  ): Promise<void> {
+    if (!items.length) return
+    const cols = ['name', 'description', 'color', 'icon', 'sort_order']
+    const values: any[] = []
+    const qms = items.map(i => {
+      values.push(i.name, i.description ?? '', i.color ?? '#A78BFA', i.icon ?? '', i.sort_order ?? 0)
+      return '(?, ?, ?, ?, ?)'
+    })
+    await conn.query<ResultSetHeader>(
+        `INSERT INTO favorite_categories (${cols.join(', ')}) VALUES ${qms.join(', ')}`,
+        values
+    )
   }
 }

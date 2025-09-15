@@ -1,11 +1,14 @@
 import NotFound404 from '@/app/errors/NotFound404'
 import AdminLayout from '@/app/routing/AdminLayout'
 import ProtectedLayout from '@/app/routing/ProtectedLayout'
+import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import AppLayout from '@/shared/components/Layout' // ★ 新增：把路由包在通用布局里
 
 type RouteNode = {
   path?: string | null
@@ -66,7 +69,6 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const abs = joinAbs(parentAbs, n.path)
     const inAdmin = isAdminAbs(abs)
 
-    // 根区只收非 /admin；admin 区只收 /admin
     if ((base === '/' && inAdmin) || (base === '/admin' && !inAdmin)) {
       if (n.children?.length) out.push(...buildRoutes(n.children, base, abs, ''))
       continue
@@ -75,7 +77,6 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const relRaw = absToRel(abs, base)
     const rel = relativize(relRaw, parentRel)
 
-    // 目录节点
     if (!n.component) {
       const nested: RouteNode[] = []
       const floating: RouteNode[] = []
@@ -95,7 +96,6 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
       continue
     }
 
-    // 页面节点
     const element = elementFromRegistry(n.component!)
     const nestedChildren = n.children?.length ? buildRoutes(n.children, base, abs, relRaw) : undefined
 
@@ -107,73 +107,110 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
 }
 
 export default function DynamicRoutes() {
+  const { user, loading: authLoading } = useAuth()
   const [tree, setTree] = useState<RouteNode[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    ;(async () => {
-      try {
-        const data = await menuApi.routeTree()
-        if (alive) setTree(Array.isArray(data) ? data : [])
-      } catch (e: any) {
-        if (alive) setErr(e?.message || '加载动态路由失败')
+    if (!authLoading && user) {
+      const cached = menuApi.getRouteTreeCached?.()
+      if (cached) {
+        setTree(cached as any)
+        setErr(null)
+        return
       }
-    })()
+      ;(async () => {
+        try {
+          const data = await menuApi.routeTree()
+          if (alive) {
+            setTree(Array.isArray(data) ? data : [])
+            setErr(null)
+          }
+        } catch (e: any) {
+          if (alive) {
+            setErr(e?.message || '加载动态路由失败')
+            setTree([])
+          }
+        }
+      })()
+    } else {
+      setTree(null)
+      setErr(null)
+    }
     return () => {
       alive = false
     }
-  }, [])
+  }, [authLoading, user])
 
   const routes: RouteObject[] = useMemo(() => {
+    if (authLoading) return [{ path: '*', element: <LoadingSpinner /> }]
+    if (!user) {
+      return [
+        {
+          element: <ProtectedLayout />,
+          children: [{ path: '*', element: <Navigate to="/login" replace /> }],
+        },
+      ]
+    }
+
     if (err) return [{ path: '*', element: <NotFound404 /> }]
     if (tree === null) return [{ path: '*', element: <LoadingSpinner /> }]
 
     const rootRoutes = buildRoutes(tree, '/')
     const adminRoutes = buildRoutes(tree, '/admin')
 
-    // 根区“固定动态路由”（不进菜单）
     const extraFixedRoutes: RouteObject[] = [
       { path: 'exam/:id', element: elementFromRegistry('exam') },
       { path: 'results/:id', element: elementFromRegistry('results') },
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
-      { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') }, // 新增别名
+      { path: 'questions/:id', element: elementFromRegistry('question-practice') },
+      { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },
       { path: 'settings', element: elementFromRegistry('settings') },
     ]
 
-    // Admin“固定动态路由”（不进菜单；确保使用 AdminLayout）
     const extraAdminRoutes: RouteObject[] = [
       { path: 'question-detail/:id', element: elementFromRegistry('question-detail') },
       { path: 'question-edit/:id', element: elementFromRegistry('question-edit') },
-      { path: 'task/detail/:id', element: elementFromRegistry('task-create') }, // ← 从根移入到 admin 下
+      { path: 'task/detail/:id', element: elementFromRegistry('task-create') },
     ]
 
     const defaultHome =
-      rootRoutes.find(r => 'path' in r && r.path === 'dashboard')?.path ||
-      rootRoutes.find(r => 'path' in r && r.path && r.path !== '*')?.path ||
+      (rootRoutes.find(r => 'path' in r && (r as any).path === 'dashboard') as any)?.path ||
+      (rootRoutes.find(r => 'path' in r && (r as any).path && (r as any).path !== '*') as any)?.path ||
       'dashboard'
 
     return [
       {
         element: <ProtectedLayout />,
         children: [
-          { index: true, element: <Navigate to={`/${defaultHome}`} replace /> },
-          ...rootRoutes,
-          ...extraFixedRoutes,
           {
-            path: 'admin',
-            element: <AdminLayout />,
-            children: adminRoutes.length
-              ? [...adminRoutes, ...extraAdminRoutes]
-              : [...extraAdminRoutes, { index: true, element: <Navigate to="/admin/orgs" replace /> }],
+            // ★ 在受保护区域内包一层通用布局（含 Header + Sidebar）
+            element: <AppLayout />,
+            children: [
+              { index: true, element: <Navigate to={`/${defaultHome}`} replace /> },
+              {
+                element: <RefreshableOutlet />,
+                children: [
+                  ...rootRoutes,
+                  ...extraFixedRoutes,
+                  {
+                    path: 'admin',
+                    element: <AdminLayout />,
+                    children: adminRoutes.length
+                      ? [...adminRoutes, ...extraAdminRoutes]
+                      : [...extraAdminRoutes, { index: true, element: <Navigate to="/admin/orgs" replace /> }],
+                  },
+                  { path: 'errors/404', element: <NotFound404 /> },
+                  { path: '*', element: <NotFound404 /> },
+                ],
+              },
+            ],
           },
-          { path: 'errors/404', element: <NotFound404 /> },
-          { path: '*', element: <NotFound404 /> },
         ],
       },
-      { path: '*', element: <NotFound404 /> },
     ]
-  }, [tree, err])
+  }, [tree, err, authLoading, user])
 
   return useRoutes(routes)
 }

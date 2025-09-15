@@ -1,46 +1,60 @@
-// src/features/favorites/components/CreateFavoriteModal.tsx
+import { Modal, Form, Input, Select, Spin } from 'antd'
 import { useEffect } from 'react'
-import { Modal, Form, Input, Select, Empty } from 'antd'
-import type { FavoriteCategory } from '@/shared/api/endpoints/favorites'
+import type { Favorite } from '@/shared/api/endpoints/favorites'
+import { useFavoriteCategories } from '@/features/favorites/hooks/useFavoriteCategories'
+
 const { TextArea } = Input
-const { Option } = Select
 
 type Props = {
   open: boolean
-  categories: FavoriteCategory[]
   onCancel: () => void
-  onSubmit: (payload: { name: string; description?: string; category_id: number | null; is_public: boolean }) => void
+  onSubmit: (payload: Partial<Favorite>) => void
 }
 
-export default function CreateFavoriteModal({ open, categories, onCancel, onSubmit }: Props) {
+export default function CreateFavoriteModal({ open, onCancel, onSubmit }: Props) {
   const [form] = Form.useForm()
+  // 只有弹窗打开时才请求；并且每次打开都 refetch 一次
+  const { categories, loading, refetch } = useFavoriteCategories({ enabled: open })
 
-  // 打开时：有分类选第一个；无分类设为 null
   useEffect(() => {
     if (!open) return
-    if (categories.length > 0) {
-      form.setFieldsValue({ category_id: categories[0].id })
-    } else {
-      form.setFieldsValue({ category_id: null })
+    // 打开时：重置表单 + 拉一次最新分类
+    form.resetFields()
+    form.setFieldsValue({
+      name: '',
+      description: '',
+      category_id: null,
+      is_public: false,
+    })
+    refetch()
+  }, [open, form, refetch])
+
+  const handleFinish = (vals: any) => {
+    const isPublic = !!vals.is_public
+    const payload: Partial<Favorite> = {
+      ...vals,
+      // 如果后端支持 boolean，改成 is_public: isPublic
+      is_public: (isPublic ? 1 : 0) as unknown as any,
+      category_id: vals.category_id ?? null,
     }
-  }, [open, categories, form])
+    onSubmit(payload)
+  }
 
   return (
     <Modal
-      title="创建收藏夹"
+      title="新建收藏夹"
       open={open}
-      onCancel={onCancel}
+      onCancel={() => {
+        form.resetFields()
+        onCancel()
+      }}
       onOk={() => form.submit()}
       okText="创建"
       cancelText="取消"
-      destroyOnHidden
+      destroyOnClose
+      maskClosable={false}
     >
-      <Form
-        form={form}
-        layout="vertical"
-        initialValues={{ is_public: false }}
-        onFinish={vals => onSubmit({ ...vals, category_id: vals.category_id ?? null })}
-      >
+      <Form form={form} layout="vertical" onFinish={handleFinish}>
         <Form.Item name="name" label="收藏夹名称" rules={[{ required: true, message: '请输入收藏夹名称' }]}>
           <Input placeholder="请输入收藏夹名称" />
         </Form.Item>
@@ -49,29 +63,25 @@ export default function CreateFavoriteModal({ open, categories, onCancel, onSubm
           <TextArea rows={3} placeholder="请输入收藏夹描述" />
         </Form.Item>
 
-        <Form.Item
-          name="category_id"
-          label="分类"
-          rules={categories.length > 0 ? [{ required: true, message: '请选择分类' }] : []}
-        >
-          {categories.length > 0 ? (
-            <Select placeholder="请选择分类" allowClear>
-              {categories.map(c => (
-                <Option key={c.id} value={c.id}>
-                  {c.name}
-                </Option>
-              ))}
-            </Select>
-          ) : (
-            <Empty description="暂无可选分类（将创建为未分类）" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-          )}
+        <Form.Item name="category_id" label="分类">
+          <Select
+            placeholder={loading ? '加载分类中…' : categories.length ? '请选择分类（可不选）' : '暂无可用分类'}
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            loading={loading}
+            options={categories.map(c => ({ label: c.name, value: c.id }))}
+            notFoundContent={loading ? <Spin size="small" /> : '无数据'}
+          />
         </Form.Item>
 
-        <Form.Item name="is_public" label="是否公开" initialValue={false}>
-          <Select>
-            <Option value={false}>私有</Option>
-            <Option value={true}>公开</Option>
-          </Select>
+        <Form.Item name="is_public" label="是否公开">
+          <Select
+            options={[
+              { label: '私有', value: false },
+              { label: '公开', value: true },
+            ]}
+          />
         </Form.Item>
       </Form>
     </Modal>

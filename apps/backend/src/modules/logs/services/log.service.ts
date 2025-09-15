@@ -1,55 +1,80 @@
-// apps/backend/src/modules/logs/services/log.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Request } from 'express'
 import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
+import { getClientIp } from '@/common/utils/request-ip'   // 确保路径存在：apps/backend/src/common/utils/request-ip.ts
 
-/** 轻量 UA 解析（设备/OS/浏览器）*/
-function parseUA(ua: string) {
-  const s = ua || ''
-  const isMobile = /Mobile|Android|iPhone|iPad|iPod/i.test(s)
-  const os = /Windows NT 11/.test(s)
-    ? 'Windows 11'
-    : /Windows NT 10/.test(s)
-    ? 'Windows 10'
-    : /Macintosh|Mac OS X/.test(s)
-    ? 'macOS'
-    : /Android/.test(s)
-    ? 'Android'
-    : /iPhone|iPad|iPod/.test(s)
-    ? 'iOS'
-    : /Linux/.test(s)
-    ? 'Linux'
-    : 'Unknown'
-  const browser = /Edg\/\d+/.test(s)
-    ? 'Edge'
-    : /Safari\/\d+/.test(s) && /Version\/\d+/.test(s)
-    ? 'Safari'
-    : /Chrome\/\d+/.test(s)
-    ? 'Chrome'
-    : /Firefox\/\d+/.test(s)
-    ? 'Firefox'
-    : /MSIE|Trident\//.test(s)
-    ? 'IE'
-    : 'Unknown'
-  let device = 'Desktop'
-  if (isMobile) {
-    if (/iPhone/.test(s)) device = 'iPhone'
-    else if (/iPad/.test(s)) device = 'iPad'
-    else if (/Android/.test(s)) device = s.match(/Android.*; ([^;)]*)\)/)?.[1]?.trim() || 'Android'
-    else device = 'Mobile'
-  }
-  return { label: `${device} · ${os} · ${browser}`, os, browser, device }
+// ---------- 轻量 UA 解析 ----------
+type ClientType = 'desktop' | 'mobile' | 'tablet' | 'bot'
+type ClientInfo = {
+  label: string
+  os: string
+  browser: string
+  device: string
+  type: ClientType
 }
 
-const attachClient = (rows: LogRow[]) => rows.map(r => ({ ...r, client: parseUA(r.user_agent || '') }))
+/** 返回 os/browser/device + type（desktop/mobile/tablet/bot） */
+function parseUA(uaRaw: string): ClientInfo {
+  const ua = uaRaw || ''
 
-const metaFromReq = (req?: Pick<Request, 'ip' | 'get'> | null) => ({
-  ipAddress: req?.ip,
-  userAgent: req?.get('User-Agent') || undefined,
+  // 1) 爬虫/脚本
+  const isBot = /(bot|spider|crawler|bingbot|googlebot|yandex|headless|phantom|scrapy|python-requests|curl|wget)/i.test(ua)
+  if (isBot) {
+    return { label: 'Bot · Unknown · Unknown', os: 'Unknown', browser: 'Unknown', device: 'Bot', type: 'bot' }
+  }
+
+  // 2) 设备类型
+  const isIPad = /iPad/.test(ua)
+  const isIPhone = /iPhone/.test(ua)
+  const isAndroid = /Android/.test(ua)
+  const isMobile = /Mobile|Windows Phone|iPhone|iPod/.test(ua) || (isAndroid && /Mobile/i.test(ua))
+  const isTablet = isIPad || (isAndroid && !/Mobile/i.test(ua)) || /Tablet|Nexus 7|Nexus 10/i.test(ua)
+
+  let device = 'Desktop'
+  let type: ClientType = 'desktop'
+  if (isTablet) {
+    device = isIPad ? 'iPad' : 'Tablet'
+    type = 'tablet'
+  } else if (isMobile) {
+    if (isIPhone) device = 'iPhone'
+    else if (isAndroid) device = ua.match(/Android.*; ([^;)]*)\)/)?.[1]?.trim() || 'Android'
+    else device = 'Mobile'
+    type = 'mobile'
+  }
+
+  // 3) OS
+  const os =
+      /Windows NT 11/.test(ua) ? 'Windows 11' :
+          /Windows NT 10/.test(ua) ? 'Windows 10' :
+              /Windows NT 6\.3/.test(ua) ? 'Windows 8.1' :
+                  /Windows NT 6\.1/.test(ua) ? 'Windows 7' :
+                      /Macintosh|Mac OS X/.test(ua) ? (/(iPhone|iPad|iPod)/.test(ua) ? 'iOS' : 'macOS') :
+                          isAndroid ? 'Android' :
+                              /Linux/.test(ua) ? 'Linux' : 'Unknown'
+
+  // 4) Browser（判定顺序很重要）
+  const browser =
+      /Edg\/\d+/.test(ua) ? 'Edge' :
+          (/Chrome\/\d+/.test(ua) && !/Edg\/\d+/.test(ua)) ? 'Chrome' :
+              (/Safari\/\d+/.test(ua) && /Version\/\d+/.test(ua) && !/Chrome\/\d+/.test(ua)) ? 'Safari' :
+                  /Firefox\/\d+/.test(ua) ? 'Firefox' :
+                      /MSIE|Trident\//.test(ua) ? 'IE' : 'Unknown'
+
+  return { label: `${device} · ${os} · ${browser}`, os, browser, device, type }
+}
+
+// rows 附带 client（含 type）
+const attachClient = (rows: LogRow[]) =>
+    rows.map(r => ({ ...r, client: parseUA(r.user_agent || '') }))
+
+// ---------- 请求元信息 ----------
+const metaFromReq = (req?: Pick<Request, 'ip' | 'get' | 'headers' | 'socket'> | null) => ({
+  ipAddress: req ? getClientIp(req as Request) : undefined,
+  userAgent: req?.get?.('User-Agent') || (req as any)?.headers?.['user-agent'] || undefined,
 })
 
-/** 自动推断 level（可被入参覆盖） */
+// ---------- level 推断（可被入参覆盖） ----------
 function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   if (input.level) return input.level
   if (typeof input.status === 'string' && /failed|error/i.test(input.status)) return 'error'
@@ -61,8 +86,9 @@ function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   return 'info'
 }
 
+// ---------- Service ----------
 export class LogService {
-  /** ✅ 唯一写日志入口：所有模块只调用这个 */
+  /** 统一写日志入口 */
   static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
     await LogRepository.insert({
@@ -76,36 +102,38 @@ export class LogService {
       resourceId: input.resourceId,
       details: input.details,
       status: input.status,
-      // 允许调用方传入覆盖；未传则使用 req 的值
+      // 允许调用方覆盖；未传则取真实客户端信息
       ipAddress: input.ipAddress ?? meta.ipAddress,
       userAgent: input.userAgent ?? meta.userAgent,
     })
   }
 
-  /** ✅ 列表查询（带权限范围） */
   async getLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
-    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
+    const { rows, total, page, limit } =
+        await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getSystemLogs(role: string | undefined, q: LogQueryParams) {
-    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
+    const { rows, total, page, limit } =
+        await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getAuditLogs(role: string | undefined, q: LogQueryParams) {
-    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
+    const { rows, total, page, limit } =
+        await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
-    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
+    const { rows, total, page, limit } =
+        await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
-  /** 给控制器用的考试日志查询 */
   async getExamLogs(user: { id?: number; role?: string } | undefined, examId: number, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
     return LogRepository.queryExamLogs({ currentUserId: user.id, role: user.role }, examId, q)

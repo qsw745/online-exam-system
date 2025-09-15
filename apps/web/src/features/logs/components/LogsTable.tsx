@@ -5,36 +5,52 @@ import type { LogEntry } from '@/shared/api/endpoints/logs'
 
 const { Text, Paragraph } = Typography
 
+type Row = LogEntry & {
+  resource?: string
+  resource_type?: string
+  resource_id?: string | number
+  user_agent?: string
+  client?: { label?: string; device?: string; os?: string; browser?: string; type?: string }
+}
+
 const levelColor = (lv: string) =>
   lv === 'info' ? 'blue' : lv === 'warning' ? 'orange' : lv === 'error' ? 'red' : undefined
 const levelText = (lv: string) => (lv === 'info' ? '信息' : lv === 'warning' ? '警告' : lv === 'error' ? '错误' : lv)
 
-function brief(record: LogEntry) {
+function brief(record: Row) {
   const base =
-    record.message ??
-    (typeof record.details === 'string' ? record.details : record.details ? JSON.stringify(record.details) : '')
-  return base || `${record.action} @ ${record.resource}`
+    (record as any).message ??
+    (typeof (record as any).details === 'string'
+      ? (record as any).details
+      : (record as any).details
+      ? JSON.stringify((record as any).details)
+      : '')
+  const res =
+    record.resource ||
+    (record.resource_type
+      ? record.resource_id !== undefined && record.resource_id !== null && String(record.resource_id) !== ''
+        ? `${record.resource_type}#${record.resource_id}`
+        : record.resource_type
+      : '')
+  return base || `${record.action} @ ${res}`
 }
 
 const typeTagColor = (t?: string) =>
   t === 'mobile' ? 'green' : t === 'tablet' ? 'gold' : t === 'desktop' ? 'blue' : t === 'bot' ? 'purple' : 'default'
 
 type Props = {
-  data: LogEntry[]
+  data: Row[]
   loading: boolean
-  onRowDblClick: (record: LogEntry) => void
+  onRowDblClick: (record: Row) => void
 }
 
-/**
- * 统一的单行省略文本（带 Tooltip）
- */
 function OneLine({ text, title, className }: { text?: React.ReactNode; title?: React.ReactNode; className?: string }) {
   const content = <span className={`cell-clip ${className || ''}`}>{text ?? '-'}</span>
   return title ? <Tooltip title={title}>{content}</Tooltip> : content
 }
 
 export default function LogsTable({ data, loading, onRowDblClick }: Props) {
-  const columns: ColumnsType<LogEntry> = [
+  const columns: ColumnsType<Row> = [
     {
       title: '时间',
       dataIndex: 'created_at',
@@ -95,13 +111,20 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
       dataIndex: 'resource',
       width: 180,
       ellipsis: true,
-      render: (v?: string) => <OneLine text={v} title={v} />,
+      render: (v: string | undefined, r) => {
+        const fallback = r.resource_type
+          ? r.resource_id !== undefined && r.resource_id !== null && String(r.resource_id) !== ''
+            ? `${r.resource_type}#${r.resource_id}`
+            : r.resource_type
+          : undefined
+        const text = v || fallback
+        return <OneLine text={text} title={text} />
+      },
       responsive: ['md'],
     },
     {
       title: '详情',
       key: 'details',
-      // 给详情更多空间，并做**两行**省略，防止拉高
       width: 360,
       render: (_: unknown, r) => {
         const text = brief(r)
@@ -148,16 +171,14 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
   ]
 
   return (
-    <Table<LogEntry>
+    <Table<Row>
       className="logs-table"
       columns={columns}
       dataSource={data}
       rowKey="id"
       loading={loading}
       pagination={false}
-      // 关键：固定表格布局，避免被长内容撑爆
       tableLayout="fixed"
-      // 视口宽度不足时横向滚动
       scroll={{ x: 1320 }}
       size="small"
       sticky

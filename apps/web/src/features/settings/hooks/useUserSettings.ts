@@ -7,7 +7,7 @@ import type { UserSettings } from '@/shared/types/settings'
 import { api } from '@/shared/api/http'
 
 // 轻量内联服务
-const settingsEndpoint = '/settings/me'
+const settingsEndpoint = 'users/settings'
 const settingsService = {
   async get(): Promise<UserSettings | null> {
     try {

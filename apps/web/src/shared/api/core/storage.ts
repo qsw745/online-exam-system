@@ -1,10 +1,8 @@
-// 访问令牌 / 角色 存取与清理工具
-
 export const STORAGE_FLAG_KEY = 'auth_storage' // 'local' | 'session'
 export const ACCESS_TOKEN_KEY = 'token'
 export const USER_ROLE_KEY = 'userRole'
 
-function getPreferredStorage(): Storage {
+export function getPreferredStorage(): Storage {
   const pref = localStorage.getItem(STORAGE_FLAG_KEY)
   if (pref === 'local') return localStorage
   if (pref === 'session') return sessionStorage
@@ -23,16 +21,24 @@ export function setAccessToken(token: string) {
   else localStorage.removeItem(ACCESS_TOKEN_KEY)
 }
 
-export function clearAccessToken() {
+export function clearAuth() {
   localStorage.removeItem(ACCESS_TOKEN_KEY)
   sessionStorage.removeItem(ACCESS_TOKEN_KEY)
-}
-
-export function clearAuthAndRedirect() {
-  clearAccessToken()
   localStorage.removeItem(USER_ROLE_KEY)
   sessionStorage.removeItem(USER_ROLE_KEY)
-  if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
-    window.location.href = '/login'
+}
+
+let _lastRedirectAt = 0
+export function clearAuthAndRedirect(path = '/login') {
+  clearAuth()
+  try {
+    const now = Date.now()
+    const alreadyOnLogin = typeof window !== 'undefined' && window.location?.pathname === '/login'
+    if (!alreadyOnLogin && now - _lastRedirectAt > 2000) {
+      _lastRedirectAt = now
+      window.location.assign(path)
+    }
+  } catch {
+    // ignore
   }
 }

@@ -1,7 +1,19 @@
-// src/shared/hooks/useFavorites.ts
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
-import { favoritesApi, type Favorite, type FavoriteCategory, type FavoriteItem } from '@/shared/api/endpoints/favorites'
+import { favoritesApi, type Favorite, type FavoriteItem } from '@/shared/api/endpoints/favorites'
+
+/** 将后端返回的字段做统一规范化（尤其 is_public 可能是 0/1） */
+function normalizeFavorite(f: any): Favorite {
+  return {
+    ...f,
+    // 关键：把 0/1/true/false 统一成 boolean，避免在 JSX 中渲染出数字 0
+    is_public: !!f?.is_public,
+    // 计数类字段转 number，避免 undefined/字符串参与运算
+    items_count: Number(f?.items_count ?? 0),
+    // 可能为空的外键统一成 null
+    category_id: f?.category_id ?? null,
+  } as Favorite
+}
 
 export function useFavorites() {
   const { message } = App.useApp()
@@ -9,7 +21,6 @@ export function useFavorites() {
   const [favorites, setFavorites] = useState<Favorite[]>([])
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [items, setItems] = useState<FavoriteItem[]>([])
-  const [categories, setCategories] = useState<FavoriteCategory[]>([])
 
   const [loading, setLoading] = useState(true)
   const [itemsLoading, setItemsLoading] = useState(false)
@@ -23,8 +34,9 @@ export function useFavorites() {
     try {
       setLoading(true)
       const list = await favoritesApi.list()
-      setFavorites(list)
-      if (!selectedId && list.length > 0) setSelectedId(list[0].id)
+      const normalized = Array.isArray(list) ? list.map(normalizeFavorite) : []
+      setFavorites(normalized)
+      if (!selectedId && normalized.length > 0) setSelectedId(normalized[0].id)
     } catch (e: any) {
       console.error(e)
       message.error('获取收藏夹失败')
@@ -38,7 +50,7 @@ export function useFavorites() {
       try {
         setItemsLoading(true)
         const list = await favoritesApi.items(fid)
-        setItems(list)
+        setItems(list ?? [])
       } catch (e: any) {
         console.error(e)
         message.error('获取收藏夹内容失败')
@@ -49,22 +61,14 @@ export function useFavorites() {
     [message]
   )
 
-  const fetchCategories = useCallback(async () => {
-    try {
-      const list = await favoritesApi.categories()
-      setCategories(list)
-    } catch {
-      // 静默
-    }
-  }, [])
-
   const createFavorite = useCallback(
     async (payload: Partial<Favorite>) => {
-      // 未选择分类时，确保传 null
+      // 未选择分类显式传 null
       const created = await favoritesApi.create({ ...payload, category_id: payload.category_id ?? null })
       if (!created) throw new Error('创建失败')
-      setFavorites(prev => [created, ...prev])
-      setSelectedId(created.id)
+      const normalized = normalizeFavorite(created)
+      setFavorites(prev => [normalized, ...prev])
+      setSelectedId(normalized.id)
       message.success('创建收藏夹成功')
     },
     [message]
@@ -75,7 +79,8 @@ export function useFavorites() {
       if (!selected) return
       const updated = await favoritesApi.update(selected.id, payload)
       if (!updated) throw new Error('更新失败')
-      setFavorites(prev => prev.map(f => (f.id === selected.id ? updated : f)))
+      const normalized = normalizeFavorite(updated)
+      setFavorites(prev => prev.map(f => (f.id === selected.id ? normalized : f)))
       message.success('更新收藏夹成功')
     },
     [message, selected]
@@ -86,13 +91,12 @@ export function useFavorites() {
       await favoritesApi.remove(fid)
       setFavorites(prev => prev.filter(f => f.id !== fid))
       if (selectedId === fid) {
-        const remain = favorites.filter(f => f.id !== fid)
-        setSelectedId(remain[0]?.id ?? null)
+        setSelectedId(null)
         setItems([])
       }
       message.success('删除收藏夹成功')
     },
-    [favorites, message, selectedId]
+    [message, selectedId]
   )
 
   const removeItem = useCallback(
@@ -101,7 +105,7 @@ export function useFavorites() {
       await favoritesApi.removeItem(selected.id, itemId)
       setItems(prev => prev.filter(i => i.id !== itemId))
       setFavorites(prev =>
-        prev.map(f => (f.id === selected.id ? { ...f, items_count: Math.max(0, (f.items_count || 0) - 1) } : f))
+        prev.map(f => (f.id === selected.id ? { ...f, items_count: Math.max(0, Number(f.items_count ?? 0) - 1) } : f))
       )
       message.success('移除成功')
     },
@@ -124,8 +128,7 @@ export function useFavorites() {
 
   useEffect(() => {
     fetchFavorites()
-    fetchCategories()
-  }, [fetchFavorites, fetchCategories])
+  }, [fetchFavorites])
 
   useEffect(() => {
     if (selectedId) fetchItems(selectedId)
@@ -136,7 +139,6 @@ export function useFavorites() {
     selected,
     selectedId,
     items,
-    categories,
     loading,
     itemsLoading,
     createOpen,

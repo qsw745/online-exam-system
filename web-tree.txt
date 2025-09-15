@@ -116,6 +116,8 @@
 |   |   |   |   |   EditFavoriteModal.tsx
 |   |   |   |   |   FavoriteItems.tsx
 |   |   |   |   |   FavoritesList.tsx
+|   |   |   +-- hooks
+|   |   |   |   |   useFavoriteCategories.ts
 |   |   |   +-- pages
 |   |   |   |   |   FavoritesPage.tsx
 |   |   +-- leaderboard
@@ -154,6 +156,7 @@
 |   |   |   |   |   FunctionMenusPage.tsx
 |   |   |   |   |   MenuManagementPage.tsx
 |   |   |   |   |   UnitMenusPage.tsx
+|   |   |   +-- utils
 |   |   |   |   model.ts
 |   |   +-- notifications
 |   |   |   +-- components
@@ -251,7 +254,6 @@
 |   |   |   |   |   |   useAnswerState.ts
 |   |   |   |   |   |   usePracticeController.ts
 |   |   |   |   |   |   usePracticeList.ts
-|   |   |   |   +-- pages
 |   |   |   |   +-- utils
 |   |   |   |   |   |   answer.ts
 |   |   |   |   |   |   practiceApi.ts
@@ -325,6 +327,8 @@
 |   |   |   |   |   useWrongQuestions.ts
 |   |   |   +-- pages
 |   |   |   |   |   WrongQuestionsPage.tsx
+|   +-- public
+|   |   |   brand-logo.svg
 |   +-- shared
 |   |   +-- api
 |   |   |   +-- core
@@ -333,6 +337,7 @@
 |   |   |   |   |   storage.ts
 |   |   |   |   |   types.ts
 |   |   |   +-- endpoints
+|   |   |   |   |   admin-settings.ts
 |   |   |   |   |   auth.ts
 |   |   |   |   |   dashboard.ts
 |   |   |   |   |   discussions.ts

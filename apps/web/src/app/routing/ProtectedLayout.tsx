@@ -1,14 +1,27 @@
-import { Navigate, useLocation } from 'react-router-dom'
-import Layout from '@/shared/components/Layout'
+import React from 'react'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useAuth } from '@/shared/contexts/AuthContext'
 
 export default function ProtectedLayout() {
-  const hasToken = !!localStorage.getItem('token')
+  const { user, loading } = useAuth()
   const location = useLocation()
 
-  if (!hasToken) {
-    return <Navigate to="/login" replace state={{ from: location }} />
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <LoadingSpinner />
+      </div>
+    )
   }
 
-  // ✅ 这里不要再传 children；你的 Layout 组件内部已经包含 <Outlet />
-  return <Layout />
+  if (!user) {
+    // 仅当非 /login 时跳转，避免来回送
+    if (location.pathname !== '/login') {
+      return <Navigate to="/login" replace state={{ from: location }} />
+    }
+    return <Outlet />
+  }
+
+  return <Outlet />
 }

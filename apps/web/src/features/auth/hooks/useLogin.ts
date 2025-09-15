@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { App } from 'antd'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { App } from 'antd'
+import { useCallback, useEffect, useState } from 'react'
 
-const STORAGE_FLAG_KEY = 'auth_storage' // 与 http.ts 中保持一致：'local' | 'session'
+const STORAGE_FLAG_KEY = 'auth_storage' // 'local' | 'session'
 
 function parseLoginError(err: any): string {
   if (err?.message) return err.message
@@ -28,14 +27,12 @@ function parseLoginError(err: any): string {
 export function useLogin() {
   const { message } = App.useApp()
   const { signIn } = useAuth()
-  const navigate = useNavigate()
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
 
-  // 初始回填“记住的邮箱”
   useEffect(() => {
     const savedEmail = localStorage.getItem('rememberedEmail')
     if (savedEmail) {
@@ -54,40 +51,20 @@ export function useLogin() {
       message.error('请填写所有必需字段')
       return
     }
-
     setLoading(true)
     try {
+      localStorage.setItem(STORAGE_FLAG_KEY, rememberMe ? 'local' : 'session') // 先设偏好
       await signIn(email, password, rememberMe)
-
-      // 记住邮箱
-      if (rememberMe) {
-        localStorage.setItem('rememberedEmail', email)
-        localStorage.setItem(STORAGE_FLAG_KEY, 'local') // 刷新 token 时优先写 localStorage
-      } else {
-        localStorage.removeItem('rememberedEmail')
-        localStorage.setItem(STORAGE_FLAG_KEY, 'session') // 刷新 token 时优先写 sessionStorage
-      }
-
+      if (rememberMe) localStorage.setItem('rememberedEmail', email)
+      else localStorage.removeItem('rememberedEmail')
       message.success('登录成功')
-      navigate('/dashboard')
+      // 跳转交给 LoginPage 统一处理
     } catch (err: any) {
       message.error(parseLoginError(err))
     } finally {
       setLoading(false)
     }
-  }, [email, password, rememberMe, message, navigate, signIn])
+  }, [email, password, rememberMe, message, signIn])
 
-  return {
-    // 状态
-    email,
-    setEmail,
-    password,
-    setPassword,
-    rememberMe,
-    setRememberMe,
-    loading,
-    // 事件
-    submit,
-    quickLogin,
-  }
+  return { email, setEmail, password, setPassword, rememberMe, setRememberMe, loading, submit, quickLogin }
 }

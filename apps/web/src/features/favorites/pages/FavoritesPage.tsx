@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
 import { Heart, Plus, BookOpen, Star } from 'lucide-react'
 import { useFavorites } from '@/shared/hooks/useFavorites'
@@ -16,7 +15,6 @@ export default function FavoritesPage() {
     selected,
     selectedId,
     items,
-    categories,
     loading,
     itemsLoading,
     createOpen,
@@ -114,7 +112,6 @@ export default function FavoritesPage() {
         {/* 创建 / 编辑模态框 */}
         <CreateFavoriteModal
           open={createOpen}
-          categories={categories}
           onCancel={() => setCreateOpen(false)}
           onSubmit={vals =>
             createFavorite(vals)
@@ -124,7 +121,6 @@ export default function FavoritesPage() {
         />
         <EditFavoriteModal
           open={editOpen}
-          categories={categories}
           initial={selected}
           onCancel={() => setEditOpen(false)}
           onSubmit={vals =>

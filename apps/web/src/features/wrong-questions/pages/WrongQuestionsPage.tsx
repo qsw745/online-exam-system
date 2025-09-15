@@ -1,9 +1,9 @@
 // apps/web/src/features/wrong-questions/pages/WrongQuestionsPage.tsx
-import { Button, Empty, Pagination, Space, Spin, Typography, Card, Segmented } from 'antd'
-import { RefreshCw, BookOpen } from 'lucide-react'
+import { Button, Card, Empty, Pagination, Segmented, Space, Spin, Typography } from 'antd'
+import { BookOpen, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { useWrongQuestions } from '../hooks/useWrongQuestions'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
+import { useWrongQuestions } from '../hooks/useWrongQuestions'
 
 const { Title, Text } = Typography
 
@@ -132,7 +132,7 @@ export default function WrongQuestionsPage() {
             <WrongQuestionItem
               key={item.question_id ?? (item as any).id}
               item={item}
-              onView={qid => navigate(`/questions/${qid}`)}
+              onView={qid => navigate(`/questions/${qid}/practice`)}
               onMark={markMastered}
               onRemove={remove}
             />

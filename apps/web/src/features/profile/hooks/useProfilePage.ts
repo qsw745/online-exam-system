@@ -1,13 +1,14 @@
 // features/profile/hooks/useProfilePage.ts
 import { useEffect, useMemo, useState, useRef } from 'react'
-import { message } from 'antd'
+import { App } from 'antd'
 import { profileApi, type ProfileForm } from '@/shared/api/endpoints/profile'
 import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export function useProfilePage() {
-  const { user, ...authCtx } = useAuth()
+  const { message } = App.useApp() // ✅ 从 App 上下文取 message，避免静态方法警告
+  const { user, refreshUser } = useAuth() // ✅ 新增的刷新方法（见 AuthContext）
   const { t } = useLanguage()
 
   // 表单
@@ -40,7 +41,6 @@ export function useProfilePage() {
     return () => revokeObjectUrl(lastUrl.current)
   }, [])
   const onAvatarPick = (file: File) => {
-    // 简单校验
     if (!/^image\//.test(file.type)) {
       message.error(t('profile.image_only') || '仅支持图片文件')
       return
@@ -80,15 +80,13 @@ export function useProfilePage() {
         await profileApi.uploadAvatar(fd)
       }
 
-      // 3) 刷新用户（统一从 AuthContext 暴露方法；保留降级兼容）
-      const anyCtx = authCtx as any
-      if (typeof anyCtx.reload === 'function') await anyCtx.reload()
-      if (typeof anyCtx.refreshUser === 'function') await anyCtx.refreshUser()
+      // 3) 强制刷新服务端用户信息（会实际发请求）
+      await refreshUser()
 
-      message.success(t('profile.update_success'))
+      message.success(t('profile.update_success') || '资料已更新')
     } catch (e: any) {
       console.error('update profile error', e)
-      message.error(e?.message || t('profile.update_error'))
+      message.error(e?.message || t('profile.update_error') || '更新失败')
     } finally {
       setLoading(false)
     }

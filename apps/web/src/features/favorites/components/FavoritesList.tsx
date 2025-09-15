@@ -70,7 +70,7 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
             title={
               <div className="flex items-center space-x-2">
                 <span>{favorite.name}</span>
-                {favorite.is_public && (
+                {Boolean(favorite.is_public) && ( // 关键：Boolean()，避免 0 被当成文本渲染
                   <Tag
                     color="blue"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 4, paddingInline: 8, height: 22 }}
@@ -88,7 +88,7 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <Tag color={favorite.category_color || 'purple'}>{favorite.category_name || '未分类'}</Tag>
                   <Text type="secondary" style={{ fontSize: 12 }}>
-                    {favorite.items_count} 题
+                    {Number(favorite.items_count ?? 0)} 题
                   </Text>
                 </div>
               </div>
