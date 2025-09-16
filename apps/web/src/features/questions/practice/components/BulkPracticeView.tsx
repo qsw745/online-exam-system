@@ -1,10 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
+import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff, ArrowUp } from 'lucide-react'
 import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input } from 'antd'
 import { wrongQuestions, questionsApi, isSuccess } from '@/shared/api/http'
 import {
   addQuestionToFavorites,
-  getQuestionById, // 仍保留给其他地方用，不在这里逐条拉取
   isQuestionFavorited,
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
@@ -22,7 +21,10 @@ type Question = {
   difficulty?: 'easy' | 'medium' | 'hard' | string
 }
 
-type Props = { ids: string[]; onExit: () => void }
+type Props = {
+  ids: string[]
+  onExit: () => void
+}
 
 function judge(q: Question, selected: number[], text: string) {
   if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
@@ -38,7 +40,6 @@ function judge(q: Question, selected: number[], text: string) {
 }
 
 export default function BulkPracticeView({ ids, onExit }: Props) {
-  const cacheRef = useRef<Map<string, Question>>(new Map())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qs, setQs] = useState<Question[]>([])
@@ -47,7 +48,23 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   const [showExp, setShowExp] = useState(false)
   const [fav, setFav] = useState<Record<string, boolean>>({})
 
-  // 一次性拉取当前页所有题目详情
+  // 全局导航高度，按你的页面调整
+  const TOP_OFFSET = 64
+
+  // 回到顶部可见性
+  const [showGoTop, setShowGoTop] = useState(false)
+  useEffect(() => {
+    const handler = () => {
+      const top = window.document.documentElement.scrollTop || window.document.body.scrollTop
+      setShowGoTop(top > 300)
+    }
+    window.addEventListener('scroll', handler, { passive: true })
+    handler()
+    return () => window.removeEventListener('scroll', handler)
+  }, [])
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
+
+  // 拉题（一次性 batch）
   useEffect(() => {
     let mounted = true
     ;(async () => {
@@ -60,20 +77,11 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
           setFav({})
           return
         }
+        const resp = await questionsApi.getByIds(ids)
+        if (!isSuccess(resp)) throw new Error((resp as any).error || '加载题目失败')
+        const ordered = (Array.isArray(resp.data) ? resp.data : []) as Question[]
 
-        // 命中缓存的直接用，未命中的请求后台 batch
-        const miss = ids.filter(id => !cacheRef.current.has(id))
-        if (miss.length) {
-          const resp = await questionsApi.getByIds(miss)
-          if (!isSuccess(resp)) throw new Error((resp as any).error || '加载题目失败')
-          const arr = Array.isArray(resp.data) ? resp.data : []
-          arr.forEach(q => cacheRef.current.set(String(q.id), q))
-        }
-
-        // 按 ids 顺序组装
-        const ordered = ids.map(id => cacheRef.current.get(id)).filter(Boolean) as Question[]
         if (!mounted) return
-
         setQs(ordered)
         setSubmitted(false)
         setShowExp(false)
@@ -89,10 +97,9 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
             favMap[k] = false
           }
         }
-        if (mounted) {
-          setAnswers(ans)
-          setFav(favMap)
-        }
+        setAnswers(ans)
+        setFav(favMap)
+
         window.scrollTo({ top: 0 })
       } catch (e: any) {
         if (mounted) setError(e?.message || '加载题目失败')
@@ -122,7 +129,6 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
       const ok = judge(q, a.selected, a.text)
       return { id: String(q.id), ok, payload: q.question_type === 'short_answer' ? a.text : a.selected }
     })
-    // 记录做题结果（这里仍然逐条上报；如需进一步降压，可另加后端 batch-record 接口）
     Promise.allSettled(
       payloads.map(p =>
         wrongQuestions.recordPractice({
@@ -143,46 +149,61 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space>
-            <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
-              返回列表
-            </Button>
-            <Tag color="blue">本页试题：{qs.length} 题</Tag>
-            {submitted && (
-              <Tag color="green">
-                成绩：{summary.correct} / {summary.total}
-              </Tag>
-            )}
-          </Space>
-          <Space>
-            <Button
-              icon={showExp ? <EyeOff size={16} /> : <Eye size={16} />}
-              onClick={() => setShowExp(v => !v)}
-              type="primary"
-              ghost
-            >
-              {showExp ? '隐藏解析' : '显示解析'}
-            </Button>
-            {!submitted ? (
-              <Button type="primary" onClick={submitAll}>
-                提交全部
+        {/* 顶部工具条 —— 用 sticky，不会遮挡内容 */}
+        <div
+          style={{
+            position: 'sticky',
+            top: TOP_OFFSET,
+            zIndex: 1000,
+            padding: '12px 16px',
+            background: '#fff',
+            borderRadius: 12,
+            border: '1px solid rgba(15, 23, 42, 0.06)',
+            boxShadow: '0 8px 24px -12px rgba(15, 23, 42, 0.25)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+            <Space wrap size={12}>
+              <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
+                返回列表
               </Button>
-            ) : (
+              <Tag color="blue">本页试题：{qs.length} 题</Tag>
+              {submitted && (
+                <Tag color="green">
+                  成绩：{summary.correct} / {summary.total}
+                </Tag>
+              )}
+            </Space>
+            <Space wrap size={12} style={{ marginLeft: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
               <Button
-                onClick={() => {
-                  const cleared: typeof answers = {}
-                  qs.forEach(q => (cleared[String(q.id)] = { selected: [], text: '' }))
-                  setAnswers(cleared)
-                  setSubmitted(false)
-                  setShowExp(false)
-                  window.scrollTo({ top: 0 })
-                }}
+                icon={showExp ? <EyeOff size={16} /> : <Eye size={16} />}
+                onClick={() => setShowExp(v => !v)}
+                type="primary"
+                ghost
               >
-                重新作答
+                {showExp ? '隐藏解析' : '显示解析'}
               </Button>
-            )}
-          </Space>
+              {!submitted ? (
+                <Button type="primary" onClick={submitAll}>
+                  提交全部
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    const cleared: typeof answers = {}
+                    qs.forEach(q => (cleared[String(q.id)] = { selected: [], text: '' }))
+                    setAnswers(cleared)
+                    setSubmitted(false)
+                    setShowExp(false)
+                    window.scrollTo({ top: 0, behavior: 'smooth' })
+                  }}
+                >
+                  重新作答
+                </Button>
+              )}
+            </Space>
+          </div>
         </div>
 
         <Spin spinning={loading} tip="加载题目中...">
@@ -389,6 +410,13 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
               )
             })}
         </Spin>
+
+        {/* 左下角回到顶部 */}
+        {showGoTop && (
+          <div onClick={scrollToTop} style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 1100 }}>
+            <Button shape="circle" size="large" type="primary" icon={<ArrowUp size={18} />} />
+          </div>
+        )}
       </Space>
     </div>
   )
