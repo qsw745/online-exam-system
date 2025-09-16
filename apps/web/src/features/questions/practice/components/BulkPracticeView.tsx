@@ -143,46 +143,72 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Space>
-            <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
-              返回列表
-            </Button>
-            <Tag color="blue">本页试题：{qs.length} 题</Tag>
-            {submitted && (
-              <Tag color="green">
-                成绩：{summary.correct} / {summary.total}
-              </Tag>
-            )}
-          </Space>
-          <Space>
-            <Button
-              icon={showExp ? <EyeOff size={16} /> : <Eye size={16} />}
-              onClick={() => setShowExp(v => !v)}
-              type="primary"
-              ghost
+        <div
+          style={{
+            width: '100%',
+            position: 'sticky',
+            top: 24,
+            zIndex: 9,
+            padding: '12px 16px',
+            background: '#fff',
+            borderRadius: 12,
+            border: '1px solid rgba(15, 23, 42, 0.06)',
+            boxShadow: '0 8px 24px -12px rgba(15, 23, 42, 0.25)',
+            boxSizing: 'border-box',
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: 12,
+            }}
+          >
+            <Space wrap size={12}>
+              <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
+                返回列表
+              </Button>
+              <Tag color="blue">本页试题：{qs.length} 题</Tag>
+              {submitted && (
+                <Tag color="green">
+                  成绩：{summary.correct} / {summary.total}
+                </Tag>
+              )}
+            </Space>
+            <Space
+              wrap
+              size={12}
+              style={{ marginLeft: 'auto', display: 'flex', justifyContent: 'flex-end' }}
             >
-              {showExp ? '隐藏解析' : '显示解析'}
-            </Button>
-            {!submitted ? (
-              <Button type="primary" onClick={submitAll}>
-                提交全部
-              </Button>
-            ) : (
               <Button
-                onClick={() => {
-                  const cleared: typeof answers = {}
-                  qs.forEach(q => (cleared[String(q.id)] = { selected: [], text: '' }))
-                  setAnswers(cleared)
-                  setSubmitted(false)
-                  setShowExp(false)
-                  window.scrollTo({ top: 0 })
-                }}
+                icon={showExp ? <EyeOff size={16} /> : <Eye size={16} />}
+                onClick={() => setShowExp(v => !v)}
+                type="primary"
+                ghost
               >
-                重新作答
+                {showExp ? '隐藏解析' : '显示解析'}
               </Button>
-            )}
-          </Space>
+              {!submitted ? (
+                <Button type="primary" onClick={submitAll}>
+                  提交全部
+                </Button>
+              ) : (
+                <Button
+                  onClick={() => {
+                    const cleared: typeof answers = {}
+                    qs.forEach(q => (cleared[String(q.id)] = { selected: [], text: '' }))
+                    setAnswers(cleared)
+                    setSubmitted(false)
+                    setShowExp(false)
+                    window.scrollTo({ top: 0 })
+                  }}
+                >
+                  重新作答
+                </Button>
+              )}
+            </Space>
+          </div>
         </div>
 
         <Spin spinning={loading} tip="加载题目中...">
