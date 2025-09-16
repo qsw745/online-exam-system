@@ -1,3 +1,4 @@
+// apps/backend/src/modules/admin-settings/routes/admin-settings.routes.ts
 import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express'
 import { body } from 'express-validator'
 import { authenticateToken } from '@/common/middleware/auth.js'
@@ -6,8 +7,6 @@ import type { AuthRequest } from '@/types/auth.js'
 import { AdminSettingsController } from '../controllers/admin-settings.controller.js'
 
 const router = Router()
-
-// 允许的角色（与你前端 AdminLayout 一致）
 const ALLOWED_ROLES = new Set(['admin', 'teacher'])
 
 function requireRole(_roles = ALLOWED_ROLES) {
@@ -18,20 +17,16 @@ function requireRole(_roles = ALLOWED_ROLES) {
         next()
     }
 }
-
 const wrap =
     (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
         (req: Request, res: Response, next: NextFunction) => {
             Promise.resolve(handler(req as AuthRequest, res)).catch(next)
         }
 
-// 鉴权 + 角色
 router.use(authenticateToken, requireRole())
 
-// GET /admin/settings
 router.get('/settings', wrap(AdminSettingsController.getSettings))
 
-// PUT /admin/settings
 router.put(
     '/settings',
     [
@@ -39,6 +34,20 @@ router.put(
         body('allowUserRegistration').optional().isBoolean(),
         body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
         body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
+
+        // ✅ 新增验证
+        body('enableCaptcha').optional().isBoolean(),
+        body('captchaAfterFailedAttempts').optional().isInt({ min: 1, max: 20 }),
+
+        body('enableStrongPassword').optional().isBoolean(),
+        body('strongPasswordRules').optional().isObject(),
+        body('strongPasswordRules.minLength').optional().isInt({ min: 6, max: 64 }),
+        body('strongPasswordRules.requireUpper').optional().isBoolean(),
+        body('strongPasswordRules.requireLower').optional().isBoolean(),
+        body('strongPasswordRules.requireNumber').optional().isBoolean(),
+        body('strongPasswordRules.requireSymbol').optional().isBoolean(),
+        body('strongPasswordRules.forbidRepeated').optional().isBoolean(),
+        body('strongPasswordRules.forbidCommon').optional().isBoolean(),
     ],
     validateRequest,
     wrap(AdminSettingsController.updateSettings)

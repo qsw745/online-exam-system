@@ -48,6 +48,8 @@ export class AuthService {
   /** 注册：返回 access + refresh + user（日志带 IP/UA） */
   async register(body: { username?: string; email: string; password: string }, reqMeta?: { ip?: string; ua?: string }) {
     const { username, email, password } = body
+    await validateStrongPassword(password) // ✅ 强密码校验
+
     const existed = await UserRepository.findByEmail(email)
     if (existed) throw new Error('用户已存在')
 
@@ -141,7 +143,7 @@ export class AuthService {
         ipAddress: reqMeta.ip,
         userAgent: reqMeta.ua,
       } as any)
-      throw new HttpError('密码错误')
+      throw new HttpError('用户名或密码错误')
     }
 
     const { roles, roleIds } = await UserRepository.rolesOfUser(user.id)

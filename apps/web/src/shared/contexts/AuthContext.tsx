@@ -1,8 +1,11 @@
 import {
-  STORAGE_FLAG_KEY,
+  clearTokenAll,
+  getAuthStorageFlag,
+  setAuthStorageFlag,
   getAccessToken as storageGetAccessToken,
   setAccessToken as storageSetAccessToken,
   USER_ROLE_KEY,
+  type AuthStorageMode,
 } from '@/shared/api/core/storage'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import { auth, users } from '@/shared/api/http'
@@ -22,7 +25,12 @@ interface User {
 interface AuthContextType {
   user: User | null
   loading: boolean
-  signIn: (email: string, password: string, rememberMe?: boolean) => Promise<void>
+  signIn: (
+    email: string,
+    password: string,
+    keep7Days?: boolean,
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }
+  ) => Promise<void>
   signUp: (email: string, password: string, username: string, role: string) => Promise<void>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
@@ -59,10 +67,12 @@ function writeRole(role?: string | null) {
   }
 }
 
-function clearAllAuth() {
-  localStorage.removeItem('token')
-  sessionStorage.removeItem('token')
-  writeRole(null)
+/** 仅清 token 与角色，不碰“记住我/7天免登录/失败计数” */
+function clearAllAuthSoft() {
+  try {
+    clearTokenAll()
+    writeRole(null)
+  } catch {}
 }
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -82,10 +92,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return
     }
 
-    // token 可能失效，尝试刷新
     const refreshed = await auth.refresh()
     if ('success' in refreshed && refreshed.success && (refreshed.data as any)?.token) {
-      storageSetAccessToken((refreshed.data as any).token as string)
+      const newToken = (refreshed.data as any).token as string
+      const flag = getAuthStorageFlag()
+      storageSetAccessToken(newToken, flag)
       const me2 = await users.getCurrentUser()
       if ('success' in me2 && me2.success) {
         const u2 = me2.data as any
@@ -99,7 +110,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
-    clearAllAuth()
+    clearAllAuthSoft()
     setUser(null)
   }
 
@@ -117,9 +128,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (isExpired) {
           const refreshed = await auth.refresh()
           if ('success' in refreshed && refreshed.success && (refreshed.data as any)?.token) {
-            storageSetAccessToken((refreshed.data as any).token as string)
+            const flag = getAuthStorageFlag()
+            storageSetAccessToken((refreshed.data as any).token as string, flag)
           } else {
-            clearAllAuth()
+            clearAllAuthSoft()
             setUser(null)
             setLoading(false)
             return
@@ -127,7 +139,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         await refreshUser()
       } catch {
-        clearAllAuth()
+        clearAllAuthSoft()
         setUser(null)
       } finally {
         setLoading(false)
@@ -135,20 +147,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })()
   }, [])
 
-  const signIn = async (email: string, password: string, rememberMe = false) => {
-    localStorage.setItem(STORAGE_FLAG_KEY, rememberMe ? 'local' : 'session')
+  const signIn = async (
+    email: string,
+    password: string,
+    keep7Days = false,
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }
+  ) => {
+    const mode: AuthStorageMode = keep7Days ? '7d' : 'session'
+    setAuthStorageFlag(mode)
 
-    const result = await auth.login(email, password)
-    if ('error' in result) throw new Error((result as any).error || '登录失败')
+    const result = await auth.login(email, password, extra)
+    // 关键：透传 normalize 的错误
+    if ((result as any)?.success === false) throw new Error((result as any).error || '登录失败')
 
-    // 兼容 { success:true, data:{ token, user } } 或直接 { token, user }
     const payload = (result as any)?.data ?? (result as any) ?? {}
     const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
     const userData: User | undefined = payload.user
-
     if (!token || !userData) throw new Error('登录响应缺少 token 或用户信息')
 
-    storageSetAccessToken(token)
+    storageSetAccessToken(token, mode)
     if ((userData as any)?.role) {
       localStorage.setItem(USER_ROLE_KEY, (userData as any).role)
       sessionStorage.setItem(USER_ROLE_KEY, (userData as any).role)
@@ -158,17 +175,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const signUp = async (email: string, password: string, username: string, role: string) => {
     const result = await auth.register({ email, password, username, role })
-    if ('error' in result) throw new Error((result as any).error || '注册失败')
+    if ((result as any)?.success === false) throw new Error((result as any).error || '注册失败')
 
-    // 同样兼容多种返回形态
     const payload = (result as any)?.data ?? (result as any) ?? {}
     const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
     const userData: User | undefined = payload.user
-
     if (!token || !userData) throw new Error('注册响应缺少 token 或用户信息')
 
-    localStorage.setItem(STORAGE_FLAG_KEY, 'local')
-    storageSetAccessToken(token)
+    setAuthStorageFlag('7d')
+    storageSetAccessToken(token, '7d')
     writeRole((userData as any).role || role)
     setUser(userData)
   }
@@ -177,7 +192,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await auth.logout()
     } catch {}
-    clearAllAuth()
+    clearAllAuthSoft()
     setUser(null)
     menuApi.clearRouteTreeCache?.()
   }

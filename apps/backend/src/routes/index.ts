@@ -37,6 +37,10 @@ import * as wrongQuestionRoutesMod from '@/modules/wrong-questions/routes/wrong-
 import * as adminSettingsRoutesMod from '@/modules/admin-settings/routes/admin-settings.routes'
 import * as profileRoutesMod from '@/modules/profile/routes/profile.routes'
 
+import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
+import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
+import * as publicRoutesMod from "@/modules/admin-settings/routes/public.routes";
+
 const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
 
 const authRoutes = pick(authRoutesMod, 'authRoutes')
@@ -61,7 +65,9 @@ const taskRoutes = pick(taskRoutesMod, 'taskRoutes')
 const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
 const adminSettingsRoutes = pick(adminSettingsRoutesMod, 'adminSettingsRoutes')
 const profileRoutes = pick(profileRoutesMod, 'profileRoutes')
-
+const captchaRoutes=pick(captchaRoutesMod,"captchaRoutes")
+const cryptoRoutes=pick(cryptoRoutesMod,'cryptoRoutes')
+const publicRoutes=pick(publicRoutesMod,'publicRoutes')
 const router = Router()
 
 const mounts: Array<[string, any]> = [
@@ -87,6 +93,9 @@ const mounts: Array<[string, any]> = [
     ['/wrong-questions', wrongQuestionRoutes],
     ['/admin', adminSettingsRoutes],
     ['/profile', profileRoutes],
+    ['/captcha',captchaRoutes],
+    ['/crypto',cryptoRoutes],
+    ['/public',publicRoutes]
 
 ]
 

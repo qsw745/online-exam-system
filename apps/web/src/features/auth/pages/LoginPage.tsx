@@ -41,7 +41,27 @@ function pickDefaultHome(tree: any[] | null | undefined): string {
 }
 
 const LoginPage: React.FC = () => {
-  const { email, setEmail, password, setPassword, rememberMe, setRememberMe, loading, submit, quickLogin } = useLogin()
+  const {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    rememberMe,
+    setRememberMe,
+    keep7Days,
+    setKeep7Days,
+    loading,
+    submit,
+    quickLogin,
+
+    // 验证码
+    captchaRequired,
+    captcha,
+    setCaptcha,
+    captchaImgUrl,
+    refreshCaptcha,
+  } = useLogin()
+
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const navigatedRef = useRef(false)
@@ -111,11 +131,19 @@ const LoginPage: React.FC = () => {
           email={email}
           password={password}
           rememberMe={rememberMe}
+          keep7Days={keep7Days}
           loading={loading}
           onEmailChange={setEmail}
           onPasswordChange={setPassword}
           onRememberChange={setRememberMe}
+          onKeep7DaysChange={setKeep7Days}
           onSubmit={submit}
+          // 验证码
+          captchaRequired={captchaRequired}
+          captcha={captcha}
+          captchaImgUrl={captchaImgUrl}
+          onCaptchaChange={setCaptcha}
+          onRefreshCaptcha={refreshCaptcha}
         />
       </Card>
     </div>

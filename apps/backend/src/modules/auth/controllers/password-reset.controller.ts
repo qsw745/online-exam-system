@@ -1,6 +1,9 @@
+// apps/backend/src/modules/auth/controllers/password-reset.controller.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Request, Response } from 'express'
-import type { ApiResponse } from '@/types/response.js'
-import { PasswordResetService } from '../services/password-reset.service.js'
+import type { ApiResponse } from '@/types/response'
+import { CODES } from '@/types/response'
+import { PasswordResetService } from '../services/password-reset.service'
 
 const svc = new PasswordResetService()
 
@@ -8,24 +11,24 @@ export class PasswordResetController {
   static async forgotPassword(req: Request, res: Response<ApiResponse<{ success: true; message: string }>>) {
     try {
       const email = String(req.body?.email || '').trim()
-      if (!email) return res.status(400).json({ success: false, error: '邮箱地址不能为空' })
+      if (!email) return (res as any).badRequest('邮箱地址不能为空', { code: CODES.VALIDATION_ERROR })
       await svc.send(email)
-      return res.json({ success: true, data: { success: true, message: '如果该邮箱已注册，您将收到密码重置邮件' } })
+      return (res as any).ok({ success: true, message: '如果该邮箱已注册，您将收到密码重置邮件' }, '请求已受理')
     } catch (e: any) {
       const msg = e?.message || '服务器内部错误，请稍后重试'
-      const code = /频繁/.test(msg) ? 429 : 500
-      return res.status(code).json({ success: false, error: msg })
+      if (/频繁/.test(msg)) return (res as any).tooMany(msg, { code: CODES.RATE_LIMITED, error: { retryAfter: 300 } })
+      return (res as any).internal(msg, { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async validateResetToken(req: Request, res: Response<ApiResponse<{ valid: boolean; email?: string }>>) {
     try {
       const token = String(req.params.token || req.body?.token || '')
-      if (!token) return res.status(400).json({ success: false, error: '重置令牌不能为空' })
+      if (!token) return (res as any).badRequest('重置令牌不能为空', { code: CODES.VALIDATION_ERROR })
       const { email } = await svc.validate(token)
-      return res.json({ success: true, data: { valid: true, email } })
+      return (res as any).ok({ valid: true, email }, '令牌有效')
     } catch (e: any) {
-      return res.status(400).json({ success: false, error: e?.message || '重置令牌无效或已过期' })
+      return (res as any).badRequest(e?.message || '重置令牌无效或已过期', { code: CODES.AUTH_BAD_TOKEN })
     }
   }
 
@@ -33,23 +36,25 @@ export class PasswordResetController {
     try {
       const { token, newPassword, confirmPassword } = req.body || {}
       if (!token || !newPassword || !confirmPassword)
-        return res.status(400).json({ success: false, error: '所有字段都是必填的' })
+        return (res as any).badRequest('所有字段都是必填的', { code: CODES.VALIDATION_ERROR })
       if (newPassword !== confirmPassword)
-        return res.status(400).json({ success: false, error: '两次输入的密码不一致' })
-      if (String(newPassword).length < 6) return res.status(400).json({ success: false, error: '密码长度至少为6位' })
+        return (res as any).badRequest('两次输入的密码不一致', { code: CODES.VALIDATION_ERROR })
+      if (String(newPassword).length < 6)
+        return (res as any).badRequest('密码长度至少为6位', { code: CODES.VALIDATION_ERROR })
+
       await svc.reset(token, newPassword)
-      return res.json({ success: true, data: { success: true, message: '密码重置成功，请使用新密码登录' } })
+      return (res as any).ok({ success: true, message: '密码重置成功，请使用新密码登录' }, '重置成功')
     } catch (e: any) {
-      return res.status(500).json({ success: false, error: e?.message || '服务器内部错误，请稍后重试' })
+      return (res as any).internal(e?.message || '服务器内部错误，请稍后重试', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async cleanExpiredTokens(_req: Request, res: Response<ApiResponse<{ cleaned: number }>>) {
     try {
       const cleaned = await svc.cleanExpired()
-      return res.json({ success: true, data: { cleaned } })
+      return (res as any).ok({ cleaned }, '清理完成')
     } catch {
-      return res.status(500).json({ success: false, error: '清理失败' })
+      return (res as any).internal('清理失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 }

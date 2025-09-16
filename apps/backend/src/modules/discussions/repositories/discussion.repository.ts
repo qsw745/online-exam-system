@@ -1,75 +1,74 @@
-// apps/backend/src/modules/discussions/repositories/discussion.repository.ts
 import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2'
-import type { IDiscussion, IDiscussionCategory, IDiscussionReply } from '../domain/discussion.model.js'
+import type { IDiscussion, IDiscussionCategory, IDiscussionReply, IDiscussionTag } from '../domain/discussion.model.js'
 
 export class DiscussionRepository {
   // ===== 列表 / 详情 =====
   static async increaseView(id: number) {
     await pool.query('UPDATE discussions SET view_count = view_count + 1 WHERE id = ?', [id])
   }
+
   /**
    * 视图去重锁：同一个 viewer_key 在 TTL(秒) 内只允许统计一次
    * 返回 true 表示“应当 +1”，false 表示“TTL 未过，不加”
    */
   static async acquireViewLock(discussionId: number, viewerKey: string, ttlSeconds: number): Promise<boolean> {
-    // 1) 已存在且过期 -> 刷新过期时间，允许 +1
     const [upd] = await pool.query<ResultSetHeader>(
-      `UPDATE discussion_view_locks
+        `UPDATE discussion_view_locks
          SET expires_at = DATE_ADD(NOW(), INTERVAL ? SECOND)
-       WHERE discussion_id = ? AND viewer_key = ? AND expires_at < NOW()`,
-      [ttlSeconds, discussionId, viewerKey]
+         WHERE discussion_id = ? AND viewer_key = ? AND expires_at < NOW()`,
+        [ttlSeconds, discussionId, viewerKey]
     )
     if (upd.affectedRows > 0) return true
 
-    // 2) 不存在 -> 插入（首次），允许 +1
     const [ins] = await pool.query<ResultSetHeader>(
-      `INSERT IGNORE INTO discussion_view_locks (discussion_id, viewer_key, expires_at)
+        `INSERT IGNORE INTO discussion_view_locks (discussion_id, viewer_key, expires_at)
        VALUES (?, ?, DATE_ADD(NOW(), INTERVAL ? SECOND))`,
-      [discussionId, viewerKey, ttlSeconds]
+        [discussionId, viewerKey, ttlSeconds]
     )
     if (ins.affectedRows > 0) return true
 
-    // 3) 存在且未过期 -> 不允许 +1
     return false
   }
+
   // 扁平获取某讨论下的全部回复（含作者 & 是否已点赞），按创建时间升序
   static async getRepliesFlat(userId: number | null, discussionId: number) {
     const sql = `
-    SELECT dr.*, u.username, u.avatar_url as avatar,
-           ${
-             userId
-               ? `EXISTS(
+      SELECT dr.*, u.username, u.avatar_url as avatar,
+             ${
+                 userId
+                     ? `EXISTS(
                     SELECT 1 FROM discussion_likes dl
                     WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id
                   ) as is_liked`
-               : 'FALSE as is_liked'
-           }
-    FROM discussion_replies dr
-    LEFT JOIN users u ON dr.user_id = u.id
-    WHERE dr.discussion_id = ?
-    ORDER BY dr.created_at ASC
-  `
+                     : 'FALSE as is_liked'
+             }
+      FROM discussion_replies dr
+             LEFT JOIN users u ON dr.user_id = u.id
+      WHERE dr.discussion_id = ?
+      ORDER BY dr.created_at ASC
+    `
     const params = userId ? [userId, discussionId] : [discussionId]
     const [rows] = await pool.query<IDiscussionReply[]>(sql, params)
     return rows
   }
+
   static async queryList(userId: number | null, whereSql: string, params: any[], limit: number, offset: number) {
     const sql = `
       SELECT d.*, u.username, u.avatar_url as avatar, dc.name as category_name, dc.color as category_color,
              ${
-               userId
-                 ? `
+                 userId
+                     ? `
              EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'discussion' AND dl.target_id = d.id) as is_liked,
              EXISTS(SELECT 1 FROM discussion_bookmarks db WHERE db.user_id = ? AND db.discussion_id = d.id) as is_bookmarked,
              EXISTS(SELECT 1 FROM discussion_follows df WHERE df.user_id = ? AND df.discussion_id = d.id) as is_followed
              `
-                 : 'FALSE as is_liked, FALSE as is_bookmarked, FALSE as is_followed'
+                     : 'FALSE as is_liked, FALSE as is_bookmarked, FALSE as is_followed'
              }
       FROM discussions d
-      LEFT JOIN users u ON d.user_id = u.id
-      LEFT JOIN discussion_categories dc ON d.category_id = dc.id
-      ${whereSql}
+             LEFT JOIN users u ON d.user_id = u.id
+             LEFT JOIN discussion_categories dc ON d.category_id = dc.id
+        ${whereSql}
       LIMIT ? OFFSET ?`
     const queryParams = userId ? [userId, userId, userId, ...params, limit, offset] : [...params, limit, offset]
     const [rows] = await pool.query<IDiscussion[]>(sql, queryParams)
@@ -83,12 +82,12 @@ export class DiscussionRepository {
 
   static async getCategories() {
     const [rows] = await pool.query<IDiscussionCategory[]>(
-      `SELECT dc.*, COUNT(d.id) as discussions_count
-       FROM discussion_categories dc
-       LEFT JOIN discussions d ON dc.id = d.category_id
-       WHERE dc.is_active = TRUE
-       GROUP BY dc.id
-       ORDER BY dc.sort_order ASC`
+        `SELECT dc.*, COUNT(d.id) as discussions_count
+         FROM discussion_categories dc
+                LEFT JOIN discussions d ON dc.id = d.category_id
+         WHERE dc.is_active = TRUE
+         GROUP BY dc.id
+         ORDER BY dc.sort_order ASC`
     )
     return rows
   }
@@ -97,17 +96,17 @@ export class DiscussionRepository {
     const sql = `
       SELECT d.*, u.username, u.avatar_url as avatar, dc.name as category_name, dc.color as category_color,
              ${
-               userId
-                 ? `
+                 userId
+                     ? `
              EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'discussion' AND dl.target_id = d.id) as is_liked,
              EXISTS(SELECT 1 FROM discussion_bookmarks db WHERE db.user_id = ? AND db.discussion_id = d.id) as is_bookmarked,
              EXISTS(SELECT 1 FROM discussion_follows df WHERE df.user_id = ? AND df.discussion_id = d.id) as is_followed
              `
-                 : 'FALSE as is_liked, FALSE as is_bookmarked, FALSE as is_followed'
+                     : 'FALSE as is_liked, FALSE as is_bookmarked, FALSE as is_followed'
              }
       FROM discussions d
-      LEFT JOIN users u ON d.user_id = u.id
-      LEFT JOIN discussion_categories dc ON d.category_id = dc.id
+             LEFT JOIN users u ON d.user_id = u.id
+             LEFT JOIN discussion_categories dc ON d.category_id = dc.id
       WHERE d.id = ?`
     const params = userId ? [userId, userId, userId, id] : [id]
     const [rows] = await pool.query<IDiscussion[]>(sql, params)
@@ -118,15 +117,15 @@ export class DiscussionRepository {
     const sql = `
       SELECT dr.*, u.username, u.avatar_url as avatar,
              ${
-               userId
-                 ? `EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id) as is_liked`
-                 : 'FALSE as is_liked'
+                 userId
+                     ? `EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id) as is_liked`
+                     : 'FALSE as is_liked'
              }
       FROM discussion_replies dr
-      LEFT JOIN users u ON dr.user_id = u.id
+             LEFT JOIN users u ON dr.user_id = u.id
       WHERE dr.discussion_id = ? AND dr.parent_id IS NULL
       ORDER BY dr.is_solution DESC, dr.created_at ASC
-      LIMIT ? OFFSET ?`
+        LIMIT ? OFFSET ?`
     const params = userId ? [userId, discussionId, limit, offset] : [discussionId, limit, offset]
     const [rows] = await pool.query<IDiscussionReply[]>(sql, params)
     return rows
@@ -136,12 +135,12 @@ export class DiscussionRepository {
     const sql = `
       SELECT dr.*, u.username, u.avatar_url as avatar,
              ${
-               userId
-                 ? `EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id) as is_liked`
-                 : 'FALSE as is_liked'
+                 userId
+                     ? `EXISTS(SELECT 1 FROM discussion_likes dl WHERE dl.user_id = ? AND dl.target_type = 'reply' AND dl.target_id = dr.id) as is_liked`
+                     : 'FALSE as is_liked'
              }
       FROM discussion_replies dr
-      LEFT JOIN users u ON dr.user_id = u.id
+             LEFT JOIN users u ON dr.user_id = u.id
       WHERE dr.parent_id = ?
       ORDER BY dr.created_at ASC`
     const params = userId ? [userId, parentId] : [parentId]
@@ -152,25 +151,25 @@ export class DiscussionRepository {
   // ===== 写操作（讨论 / 回复）=====
   static async insertDiscussion(userId: number, payload: any) {
     const [ret] = await pool.query<ResultSetHeader>(
-      `INSERT INTO discussions (user_id, category_id, title, content, tags, related_type, related_id, last_reply_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
-        userId,
-        payload.category_id ?? null,
-        payload.title,
-        payload.content,
-        JSON.stringify(payload.tags ?? []),
-        payload.related_type ?? 'general',
-        payload.related_id ?? null,
-      ]
+        `INSERT INTO discussions (user_id, category_id, title, content, tags, related_type, related_id, last_reply_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+        [
+          userId,
+          payload.category_id ?? null,
+          payload.title,
+          payload.content,
+          JSON.stringify(payload.tags ?? []),
+          payload.related_type ?? 'general',
+          payload.related_id ?? null,
+        ]
     )
     return ret.insertId
   }
 
   static async updateDiscussion(userId: number, id: number, payload: any) {
     const [ret] = await pool.query<ResultSetHeader>(
-      'UPDATE discussions SET title = ?, content = ?, category_id = ?, tags = ? WHERE id = ? AND user_id = ?',
-      [payload.title, payload.content, payload.category_id ?? null, JSON.stringify(payload.tags ?? []), id, userId]
+        'UPDATE discussions SET title = ?, content = ?, category_id = ?, tags = ? WHERE id = ? AND user_id = ?',
+        [payload.title, payload.content, payload.category_id ?? null, JSON.stringify(payload.tags ?? []), id, userId]
     )
     return ret.affectedRows > 0
   }
@@ -187,16 +186,16 @@ export class DiscussionRepository {
 
   static async insertReply(discussionId: number, userId: number, content: string, parent_id?: number | null) {
     const [ret] = await pool.query<ResultSetHeader>(
-      'INSERT INTO discussion_replies (discussion_id, user_id, parent_id, content) VALUES (?, ?, ?, ?)',
-      [discussionId, userId, parent_id ?? null, content]
+        'INSERT INTO discussion_replies (discussion_id, user_id, parent_id, content) VALUES (?, ?, ?, ?)',
+        [discussionId, userId, parent_id ?? null, content]
     )
     return ret.insertId
   }
 
   static async bumpReplyMeta(discussionId: number, userId: number, parent_id?: number | null) {
     await pool.query(
-      'UPDATE discussions SET reply_count = reply_count + 1, last_reply_at = NOW(), last_reply_user_id = ? WHERE id = ?',
-      [userId, discussionId]
+        'UPDATE discussions SET reply_count = reply_count + 1, last_reply_at = NOW(), last_reply_user_id = ? WHERE id = ?',
+        [userId, discussionId]
     )
     if (parent_id)
       await pool.query('UPDATE discussion_replies SET reply_count = reply_count + 1 WHERE id = ?', [parent_id])
@@ -205,8 +204,8 @@ export class DiscussionRepository {
   // ===== 点赞 / 收藏 =====
   static async toggleLike(userId: number, target_type: 'discussion' | 'reply', target_id: number) {
     const [exists] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_likes WHERE user_id = ? AND target_type = ? AND target_id = ?',
-      [userId, target_type, target_id]
+        'SELECT id FROM discussion_likes WHERE user_id = ? AND target_type = ? AND target_id = ?',
+        [userId, target_type, target_id]
     )
     if (exists.length > 0) {
       await pool.query('DELETE FROM discussion_likes WHERE user_id = ? AND target_type = ? AND target_id = ?', [
@@ -223,8 +222,8 @@ export class DiscussionRepository {
     }
     const tableName = target_type === 'discussion' ? 'discussions' : 'discussion_replies'
     const [countRows] = await pool.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as like_count FROM discussion_likes WHERE target_type = ? AND target_id = ?',
-      [target_type, target_id]
+        'SELECT COUNT(*) as like_count FROM discussion_likes WHERE target_type = ? AND target_id = ?',
+        [target_type, target_id]
     )
     const likeCount = Number((countRows as any)[0]?.like_count ?? 0)
     await pool.query(`UPDATE ${tableName} SET like_count = ? WHERE id = ?`, [likeCount, target_id])
@@ -233,8 +232,8 @@ export class DiscussionRepository {
 
   static async toggleBookmark(userId: number, discussionId: number) {
     const [exists] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_bookmarks WHERE user_id = ? AND discussion_id = ?',
-      [userId, discussionId]
+        'SELECT id FROM discussion_bookmarks WHERE user_id = ? AND discussion_id = ?',
+        [userId, discussionId]
     )
     if (exists.length > 0) {
       await pool.query('DELETE FROM discussion_bookmarks WHERE user_id = ? AND discussion_id = ?', [
@@ -251,11 +250,11 @@ export class DiscussionRepository {
     }
   }
 
-  // ===== 关注（之前在 Service，这里下沉到 Repo）=====
+  // ===== 关注 / 举报 =====
   static async toggleFollow(userId: number, discussionId: number): Promise<{ is_followed: boolean }> {
     const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_follows WHERE user_id = ? AND discussion_id = ?',
-      [userId, discussionId]
+        'SELECT id FROM discussion_follows WHERE user_id = ? AND discussion_id = ?',
+        [userId, discussionId]
     )
     if (existing.length > 0) {
       await pool.query('DELETE FROM discussion_follows WHERE user_id = ? AND discussion_id = ?', [userId, discussionId])
@@ -266,22 +265,21 @@ export class DiscussionRepository {
     }
   }
 
-  // ===== 举报（之前在 Service，这里下沉到 Repo）=====
   static async reportContent(
-    userId: number,
-    targetType: 'discussion' | 'reply',
-    targetId: number,
-    reason: string,
-    description?: string
+      userId: number,
+      targetType: 'discussion' | 'reply',
+      targetId: number,
+      reason: string,
+      description?: string
   ): Promise<boolean> {
     const [existing] = await pool.query<RowDataPacket[]>(
-      'SELECT id FROM discussion_reports WHERE user_id = ? AND target_type = ? AND target_id = ?',
-      [userId, targetType, targetId]
+        'SELECT id FROM discussion_reports WHERE user_id = ? AND target_type = ? AND target_id = ?',
+        [userId, targetType, targetId]
     )
     if (existing.length > 0) return false
     await pool.query(
-      'INSERT INTO discussion_reports (user_id, target_type, target_id, reason, description) VALUES (?, ?, ?, ?, ?)',
-      [userId, targetType, targetId, reason, description ?? null]
+        'INSERT INTO discussion_reports (user_id, target_type, target_id, reason, description) VALUES (?, ?, ?, ?, ?)',
+        [userId, targetType, targetId, reason, description ?? null]
     )
     return true
   }
@@ -298,8 +296,8 @@ export class DiscussionRepository {
 
   static async markReplyAsSolution(replyId: number, discussionId: number): Promise<boolean> {
     const [ret] = await pool.query<ResultSetHeader>(
-      'UPDATE discussion_replies SET is_solution = TRUE WHERE id = ? AND discussion_id = ?',
-      [replyId, discussionId]
+        'UPDATE discussion_replies SET is_solution = TRUE WHERE id = ? AND discussion_id = ?',
+        [replyId, discussionId]
     )
     return ret.affectedRows > 0
   }
@@ -311,10 +309,10 @@ export class DiscussionRepository {
 
   static async incUserSolutionStats(userId: number) {
     await pool.query(
-      `INSERT INTO user_discussion_stats (user_id, solutions_count, reputation_score)
+        `INSERT INTO user_discussion_stats (user_id, solutions_count, reputation_score)
        VALUES (?, 1, 10)
        ON DUPLICATE KEY UPDATE solutions_count = solutions_count + 1, reputation_score = reputation_score + 10`,
-      [userId]
+        [userId]
     )
   }
 
@@ -328,5 +326,77 @@ export class DiscussionRepository {
 
   static async toggleFeatured(discussionId: number) {
     await pool.query('UPDATE discussions SET is_featured = NOT is_featured WHERE id = ?', [discussionId])
+  }
+
+  // ======= 从 Controller 下沉的新 SQL 封装 =======
+
+  /** 讨论创建后：+1 用户统计 */
+  static async increaseUserDiscussionStats(userId: number) {
+    await pool.query(
+        `INSERT INTO user_discussion_stats (user_id, discussions_count, last_active_at)
+       VALUES (?, 1, NOW())
+       ON DUPLICATE KEY UPDATE discussions_count = discussions_count + 1, last_active_at = NOW()`,
+        [userId]
+    )
+  }
+
+  /** 批量增加标签使用次数 */
+  static async increaseTagsUsage(tags: string[]) {
+    if (!tags.length) return
+    const values = tags.map(() => '(?, 1)').join(', ')
+    await pool.query(
+        `INSERT INTO discussion_tags (name, usage_count) VALUES ${values}
+       ON DUPLICATE KEY UPDATE usage_count = usage_count + 1`,
+        tags.flatMap(t => [t])
+    )
+  }
+
+  /** 是否锁定讨论 */
+  static async isDiscussionLocked(discussionId: number): Promise<boolean> {
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT is_locked FROM discussions WHERE id = ?', [discussionId])
+    return Boolean((rows[0] as any)?.is_locked)
+  }
+
+  /** 删除讨论后：用户讨论数自减（不小于 0） */
+  static async decreaseUserDiscussionsCount(userId: number) {
+    await pool.query(
+        `UPDATE user_discussion_stats
+         SET discussions_count = GREATEST(discussions_count - 1, 0)
+       WHERE user_id = ?`,
+        [userId]
+    )
+  }
+
+  /** 创建回复后：+1 用户回复统计 */
+  static async increaseUserReplyStats(userId: number) {
+    await pool.query(
+        `INSERT INTO user_discussion_stats (user_id, replies_count, last_active_at)
+       VALUES (?, 1, NOW())
+       ON DUPLICATE KEY UPDATE replies_count = replies_count + 1, last_active_at = NOW()`,
+        [userId]
+    )
+  }
+
+  /** 热门标签 */
+  static async getPopularTags(limit: number): Promise<IDiscussionTag[]> {
+    const [tags] = await pool.query<IDiscussionTag[]>(
+        'SELECT * FROM discussion_tags ORDER BY usage_count DESC LIMIT ?',
+        [limit]
+    )
+    return tags
+  }
+
+  /** 用户讨论统计 */
+  static async getUserDiscussionStats(userId: number) {
+    const [stats] = await pool.query<RowDataPacket[]>('SELECT * FROM user_discussion_stats WHERE user_id = ?', [userId])
+    return (
+        stats[0] || {
+          discussions_count: 0,
+          replies_count: 0,
+          likes_received: 0,
+          solutions_count: 0,
+          reputation_score: 0,
+        }
+    )
   }
 }

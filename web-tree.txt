@@ -2,6 +2,8 @@
 |   |   kong.yml
 +-- playground
 |   |   debug_menu_issue.html
++-- public
+|   |   brand-logo.svg
 +-- scripts
 |   |   dev-stop.sh
 +-- src
@@ -327,8 +329,6 @@
 |   |   |   |   |   useWrongQuestions.ts
 |   |   |   +-- pages
 |   |   |   |   |   WrongQuestionsPage.tsx
-|   +-- public
-|   |   |   brand-logo.svg
 |   +-- shared
 |   |   +-- api
 |   |   |   +-- core
@@ -433,6 +433,7 @@
 |   |   |   |   settings.ts
 |   |   |   |   tasks.ts
 |   |   +-- utils
+|   |   |   |   cryptoLocal.ts
 |   |   |   |   dayjs.ts
 |   |   |   |   fileParser.ts
 |   |   |   |   q-helpers.ts
@@ -440,6 +441,7 @@
 |   |   |   |   tree.ts
 |   +-- types
 |   |   |   global.d.ts
+|   |   |   node-forge.d.ts
 |   |   App.css
 |   |   App.tsx
 |   |   AppProviders.tsx

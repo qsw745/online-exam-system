@@ -10,6 +10,13 @@ export const adminSettingsApi = {
     }
     throw new Error((res as any).error || '加载系统设置失败')
   },
+  async getPublic(): Promise<SystemSettings> {
+    const res = await api.get<SystemSettings>('/public/settings')
+    if ((res as ApiResult<SystemSettings>).success) {
+      return (res as any).data as SystemSettings
+    }
+    throw new Error((res as any).error || '加载系统设置失败')
+  },
 
   async update(payload: Partial<SystemSettings>): Promise<void> {
     const res = await api.put<null>('/admin/settings', payload)

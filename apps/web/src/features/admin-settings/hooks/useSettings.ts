@@ -1,8 +1,29 @@
+// apps/web/src/features/admin-settings/hooks/useSettings.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SystemSettings } from '@/shared/types/admin-settings'
 import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { settingsSchema } from '../validation/settings.schema'
+
+const DEFAULTS: SystemSettings = {
+  systemName: '在线考试系统',
+  allowUserRegistration: true,
+  maxLoginAttempts: 5,
+
+  enableCaptcha: true,
+  captchaAfterFailedAttempts: 3,
+
+  enableStrongPassword: true,
+  strongPasswordRules: {
+    minLength: 8,
+    requireUpper: true,
+    requireLower: true,
+    requireNumber: true,
+    requireSymbol: false,
+    forbidRepeated: true,
+    forbidCommon: true,
+  },
+}
 
 export function useSettings() {
   const { message } = App.useApp()
@@ -14,18 +35,14 @@ export function useSettings() {
     setLoading(true)
     try {
       const data = await adminSettingsApi.get()
-      setInitial(data)
-      setCurrent(data)
+      const merged = { ...DEFAULTS, ...(data ?? {}) } as SystemSettings
+      setInitial(merged)
+      setCurrent(merged)
     } catch (e) {
       console.error(e)
       message.error('加载系统设置失败')
-      const fallback: SystemSettings = {
-        systemName: '在线考试系统',
-        allowUserRegistration: true,
-        maxLoginAttempts: 5,
-      }
-      setInitial(fallback)
-      setCurrent(fallback)
+      setInitial(DEFAULTS)
+      setCurrent(DEFAULTS)
     } finally {
       setLoading(false)
     }
@@ -38,7 +55,6 @@ export function useSettings() {
         setLoading(true)
         await adminSettingsApi.update(parsed)
 
-        // 保存成功后，写回状态并清除写入型字段
         const sanitized: SystemSettings = { ...parsed }
         delete (sanitized as any).defaultPassword
 
@@ -56,12 +72,9 @@ export function useSettings() {
     [message]
   )
 
-  // ✅ “是否脏”逻辑：除去 defaultPassword 的普通字段对比；若仅填写了 defaultPassword 也算脏
   const isDirty = useMemo(() => {
     if (!initial || !current) return false
-
     if ((current.defaultPassword ?? '').trim().length > 0) return true
-
     const a = { ...initial }
     const b = { ...current }
     delete (a as any).defaultPassword

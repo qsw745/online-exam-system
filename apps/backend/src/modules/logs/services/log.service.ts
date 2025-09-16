@@ -3,6 +3,8 @@ import type { Request } from 'express'
 import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
 import { getClientIp } from '@/common/utils/request-ip'   // 确保路径存在：apps/backend/src/common/utils/request-ip.ts
+import HttpError from '@/common/errors/http-error'
+import { CODES } from '@/types/response'
 
 // ---------- 轻量 UA 解析 ----------
 type ClientType = 'desktop' | 'mobile' | 'tablet' | 'bot'
@@ -109,7 +111,7 @@ export class LogService {
   }
 
   async getLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new Error('未授权访问')
+    if (!user?.id) throw new HttpError('未授权访问',401, CODES.AUTH_UNAUTHORIZED)
     const { rows, total, page, limit } =
         await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
@@ -128,20 +130,21 @@ export class LogService {
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new Error('未授权访问')
+    if (!user?.id) throw new HttpError('未授权访问',401, CODES.AUTH_UNAUTHORIZED)
     const { rows, total, page, limit } =
         await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
   }
 
   async getExamLogs(user: { id?: number; role?: string } | undefined, examId: number, q: LogQueryParams) {
-    if (!user?.id) throw new Error('未授权访问')
+    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
     return LogRepository.queryExamLogs({ currentUserId: user.id, role: user.role }, examId, q)
   }
 
   async cleanupLogs(role: string | undefined, daysToKeep: number) {
-    if (role !== 'admin') throw new Error('权限不足')
-    if (!Number.isFinite(daysToKeep) || daysToKeep < 0) throw new Error('daysToKeep 必须为非负数字')
+    if (role !== 'admin') throw new HttpError('权限不足', 403, CODES.AUTH_FORBIDDEN)
+
+    if (!Number.isFinite(daysToKeep) || daysToKeep < 0) throw new HttpError('daysToKeep 必须为非负数字')
     const affected = await LogRepository.cleanupOlderThan(new Date(Date.now() - daysToKeep * 86400_000))
     return { message: '日志清理完成', affected }
   }

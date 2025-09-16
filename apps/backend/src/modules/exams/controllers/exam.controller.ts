@@ -1,7 +1,10 @@
+// apps/backend/src/modules/exams/controllers/exam.controller.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth.js'
-import type { ApiResponse } from 'types/response.js'
-import type { ExamListData, ExamDetailData, IExam } from '../domain/exam.model.js'
+import type { AuthRequest } from '@/types/auth'
+import type { ApiResponse } from '@/types/response'
+import { CODES } from '@/types/response'
+import type { ExamListData, ExamDetailData, IExam } from '../domain/exam.model'
 import { ExamService } from '../services/exam.service'
 
 const svc = new ExamService()
@@ -14,32 +17,33 @@ export class ExamController {
       const status = (req.query.status as string | undefined)?.toLowerCase()
       const search = (req.query.search as string) || ''
       const data = await svc.list({ page, limit, status, search })
-      return res.json({ success: true, data })
+      return (res as any).ok(data, '获取考试列表成功')
     } catch (e: any) {
-      return res.status(500).json({ success: false, error: e?.message || '获取考试列表失败' })
+      return (res as any).internal(e?.message || '获取考试列表失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getById(req: AuthRequest, res: Response<ApiResponse<ExamDetailData>>) {
     try {
       const examId = Number(req.params.id)
-      if (Number.isNaN(examId)) return res.status(400).json({ success: false, error: '无效的考试ID' })
+      if (Number.isNaN(examId)) return (res as any).badRequest('无效的考试ID', { code: CODES.VALIDATION_ERROR })
       const data = await svc.getById(examId)
-      return res.json({ success: true, data })
+      return (res as any).ok(data, '获取考试详情成功')
     } catch (e: any) {
-      const code = /不存在/.test(e?.message) ? 404 : 500
-      return res.status(code).json({ success: false, error: e?.message || '获取考试详情失败' })
+      const notFound = /不存在/.test(e?.message)
+      if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, e?.message || '考试不存在')
+      return (res as any).internal(e?.message || '获取考试详情失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async create(req: AuthRequest, res: Response<ApiResponse<IExam>>) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
       const exam = await svc.create(userId, req.body)
-      return res.status(201).json({ success: true, data: exam })
+      return (res as any).created(exam, '创建考试成功')
     } catch (e: any) {
-      return res.status(500).json({ success: false, error: e?.message || '创建考试失败' })
+      return (res as any).internal(e?.message || '创建考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -47,13 +51,14 @@ export class ExamController {
     try {
       const userId = req.user?.id
       const examId = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(examId)) return res.status(400).json({ success: false, error: '无效的考试ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(examId)) return (res as any).badRequest('无效的考试ID', { code: CODES.VALIDATION_ERROR })
       const exam = await svc.update(userId, examId, req.body)
-      return res.json({ success: true, data: exam })
+      return (res as any).ok(exam, '更新考试成功')
     } catch (e: any) {
-      const code = /不存在|权限/.test(e?.message) ? 404 : 500
-      return res.status(code).json({ success: false, error: e?.message || '更新考试失败' })
+      const notFound = /不存在|权限/.test(e?.message)
+      if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, e?.message || '考试不存在或无权限')
+      return (res as any).internal(e?.message || '更新考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -61,13 +66,14 @@ export class ExamController {
     try {
       const userId = req.user?.id
       const examId = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(examId)) return res.status(400).json({ success: false, error: '无效的考试ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(examId)) return (res as any).badRequest('无效的考试ID', { code: CODES.VALIDATION_ERROR })
       await svc.remove(userId, examId)
-      return res.json({ success: true, data: null })
+      return (res as any).ok(null, '删除考试成功')
     } catch (e: any) {
-      const code = /不存在|权限/.test(e?.message) ? 404 : 500
-      return res.status(code).json({ success: false, error: e?.message || '删除考试失败' })
+      const notFound = /不存在|权限/.test(e?.message)
+      if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, e?.message || '考试不存在或无权限')
+      return (res as any).internal(e?.message || '删除考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -75,12 +81,13 @@ export class ExamController {
     try {
       const userId = req.user?.id
       const examId = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
       await svc.start(userId, examId)
-      return res.json({ success: true, data: null })
+      return (res as any).ok(null, '开始考试成功')
     } catch (e: any) {
-      const code = /不存在|发布|开始|结束|已经开始/.test(e?.message) ? 400 : 500
-      return res.status(code).json({ success: false, error: e?.message || '开始考试失败' })
+      const bad = /不存在|发布|开始|结束|已经开始/.test(e?.message)
+      if (bad) return (res as any).badRequest(e?.message, { code: CODES.VALIDATION_ERROR })
+      return (res as any).internal(e?.message || '开始考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -88,11 +95,11 @@ export class ExamController {
     try {
       const userId = req.user?.id
       const examId = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
       await svc.submit(userId, examId, req.body?.answers || {}, req)
-      return res.json({ success: true, data: null })
+      return (res as any).ok(null, '提交成功')
     } catch (e: any) {
-      return res.status(500).json({ success: false, error: e?.message || '提交考试失败' })
+      return (res as any).internal(e?.message || '提交考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 }

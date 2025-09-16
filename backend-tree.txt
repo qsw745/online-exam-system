@@ -40,6 +40,7 @@
 |   |   |   19_add_disussion.sql
 |   |   |   20_reate.sql
 |   |   |   20240912_create_unit_menus.ts
+|   |   |   20240916_create_auth_login_failures.ts
 |   |   |   20250906_090000_add_tags_to_questions.sql
 |   |   |   20250910_add_logs_defaults.ts
 |   |   |   20250910134113_add_logs_defaults.js
@@ -48,6 +49,8 @@
 |   |   |   20250914_create_system_settings.ts
 |   |   |   20250915_create_system_settings.ts
 |   |   |   20250915_fix_favorite_categories.ts
+|   |   |   20250916_add_login_security_to_users.js.ts
+|   |   |   20250916_create_login_failures.ts
 |   |   |   add_task_publish_status.sql
 |   |   |   database.sql
 |   |   |   init.sql
@@ -56,6 +59,7 @@
 |   |   |   password-reset.sql
 |   |   |   practice_records.sql
 |   |   |   wrong_questions.sql
+|   |   |   wrong_questions_v2.ts
 |   +-- seeds
 +-- logs
 |   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
@@ -74,6 +78,8 @@
 |   |   2025-09-12-error.log
 |   |   2025-09-15.log
 |   |   2025-09-15-error.log
+|   |   2025-09-16.log
+|   |   2025-09-16-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -100,6 +106,7 @@
 |   |   |   |   validation.ts
 |   |   +-- utils
 |   |   |   |   date.ts
+|   |   |   |   request-ip.ts
 |   |   |   |   ua.ts
 |   |   +-- validation
 |   |   |   |   favorites.schema.ts
@@ -128,6 +135,7 @@
 |   |   |   |   |   admin-settings.repository.ts
 |   |   |   +-- routes
 |   |   |   |   |   admin-settings.routes.ts
+|   |   |   |   |   public.routes.ts
 |   |   |   +-- services
 |   |   |   |   |   admin-settings.service.ts
 |   |   +-- analytics
@@ -147,18 +155,25 @@
 |   |   +-- auth
 |   |   |   +-- controllers
 |   |   |   |   |   auth.controller.ts
+|   |   |   |   |   captcha.controller.ts
 |   |   |   |   |   password-reset.controller.ts
 |   |   |   +-- domain
 |   |   |   |   |   auth.model.ts
 |   |   |   +-- repositories
+|   |   |   |   |   login-failure.repository.ts
 |   |   |   |   |   password-reset.repository.ts
 |   |   |   |   |   token.repository.ts
 |   |   |   |   |   user.repository.ts
 |   |   |   +-- routes
 |   |   |   |   |   auth.routes.ts
+|   |   |   |   |   captcha.routes.ts
+|   |   |   |   |   crypto.routes.ts
 |   |   |   |   |   password-reset.routes.ts
 |   |   |   +-- services
 |   |   |   |   |   auth.service.ts
+|   |   |   |   |   captcha.service.ts
+|   |   |   |   |   crypto.service.ts
+|   |   |   |   |   password-policy.ts
 |   |   |   |   |   password-reset.service.ts
 |   |   +-- discussions
 |   |   |   +-- controllers
@@ -350,6 +365,7 @@
 |   |   |   password-reset.ts
 |   |   |   response.ts
 |   |   app.ts
+|   |   bootstrap.ts
 +-- uploads
 |   +-- avatars
 |   |   |   avatar-1757898805086-6884710094894473.jpg
@@ -363,6 +379,7 @@
 |   knexfile.js
 |   latest_menu_response.json
 |   learning_progress.sql
+|   nodemon.json
 |   package.json
 |   pnpm-lock.yaml
 |   tsconfig.json

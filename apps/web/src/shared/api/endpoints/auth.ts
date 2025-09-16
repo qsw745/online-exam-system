@@ -1,43 +1,78 @@
+// apps/web/src/shared/api/endpoints/auth.ts
 import { api } from '../core/httpClient'
-import { clearAuthAndRedirect } from '../core/storage'
+import { clearTokenAll } from '../core/storage'
+import type { ApiResult } from '../core/types' // ✅ 仅使用这里的 ApiResult，去掉本文件重复声明
 
-/** 你项目里常用的返回壳，按需调整 */
-export type ApiResult<T = any> = { success: boolean; data?: T; error?: string }
+let _lastRedirectAt = 0
+function redirectToLogin(path = '/login') {
+  try {
+    const now = Date.now()
+    const alreadyOnLogin = typeof window !== 'undefined' && window.location?.pathname === path
+    if (!alreadyOnLogin && now - _lastRedirectAt > 2000) {
+      _lastRedirectAt = now
+      window.location.assign(path)
+    }
+  } catch {}
+}
 
-/** ======== 认证 ======== */
 export const auth = {
-  login(email: string, password: string) {
-    return api.post<ApiResult<{ token: string; user: any }>>('/auth/login', { email, password })
+  /** 登录：如有 enc/alg（前端已加密）优先发加密字段；否则发明文（兼容旧后端） */
+  login(email: string, password: string, extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }) {
+    const hasEnc = !!(extra?.enc && extra?.alg)
+    const body: any = hasEnc
+      ? {
+          enc: extra!.enc,
+          alg: extra!.alg,
+          ...(extra?.captcha ? { captcha: extra.captcha } : {}),
+          ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
+        }
+      : {
+          email,
+          password,
+          ...(extra?.captcha ? { captcha: extra.captcha } : {}),
+          ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
+        }
+
+    const headers = hasEnc ? { 'X-Cred-Enc': String(extra!.enc), 'X-Cred-Alg': String(extra!.alg) } : undefined
+    return api.post<ApiResult<{ token: string; user: any }>>('/auth/login', body, { headers })
   },
+
   register(userData: { email: string; password: string; username: string; role: string }) {
     return api.post<ApiResult>('/auth/register', userData)
   },
-  // 如果你的后端是 GET /auth/refresh，请改成 api.get
+
   refresh() {
     return api.post<ApiResult<{ token: string }>>('/auth/refresh', undefined)
   },
+
   async logout() {
     try {
       await api.post<ApiResult>('/auth/logout')
     } finally {
-      clearAuthAndRedirect()
+      try {
+        // 仅清除易变登录态：token/角色。保留“记住我”和“7天免登录”偏好。
+        clearTokenAll()
+        localStorage.removeItem('user_role')
+        sessionStorage.removeItem('user_role')
+      } catch {}
+      // 通知登录页：刷新输入框/勾选状态
+      try {
+        window.dispatchEvent(new CustomEvent('auth:logout'))
+      } catch {}
+      redirectToLogin('/login')
     }
   },
 
-  /** ======== 找回/重置密码 ======== */
-  /** 对应后端：POST /auth/password-reset/forgot-password */
   forgotPassword(email: string) {
     return api.post<ApiResult<{ message: string }>>('/auth/password-reset/forgot-password', { email })
   },
 
-  /** 对应后端：GET /auth/password-reset/validate-token/:token  */
   validateResetToken(token: string) {
     return api.get<ApiResult<{ valid: boolean; email?: string }>>(
       `/auth/password-reset/validate-token/${encodeURIComponent(token)}`
     )
   },
 
-  /** 对应后端：POST /auth/password-reset/reset-password */
   resetPassword(token: string, newPassword: string, confirmPassword: string) {
     return api.post<ApiResult<{ message: string }>>('/auth/password-reset/reset-password', {
       token,
@@ -45,6 +80,14 @@ export const auth = {
       confirmPassword,
     })
   },
+
+  /** 验证码：支持 {success:false,error} 的提示 */
+  captchaNew() {
+    // 兼容有壳/无壳两种返回
+    return api.get<ApiResult<{ id: string; svg: string }> | { id: string; svg: string }>('/captcha/new.json', {
+      params: { t: Date.now() },
+    })
+  },
 }
 
-export const { login, register, refresh, logout, forgotPassword, validateResetToken, resetPassword } = auth
+export const { login, register, refresh, logout, forgotPassword, validateResetToken, resetPassword, captchaNew } = auth

@@ -6,13 +6,22 @@ const DEFAULTS: SystemSettings = {
     systemName: '在线考试系统',
     allowUserRegistration: true,
     maxLoginAttempts: 5,
+
+    // 新增默认
+    enableCaptcha: true,
+    captchaAfterFailed: 3,
+    enableStrongPassword: true,
+    strongPasswordRegex: '',
+    strongPasswordMinLength: 8,
+    strongPasswordRequireUpper: true,
+    strongPasswordRequireLower: true,
+    strongPasswordRequireDigit: true,
+    strongPasswordRequireSpecial: false,
 }
 
 export class AdminSettingsRepository {
     static async get(): Promise<SystemSettings> {
-        const [rows] = await pool.query<RowDataPacket[]>(
-            'SELECT data FROM system_settings WHERE id = 1 LIMIT 1'
-        )
+        const [rows] = await pool.query<RowDataPacket[]>(`SELECT data FROM system_settings WHERE id = 1 LIMIT 1`)
         const raw = rows?.[0]?.data
         if (!raw) return DEFAULTS
         try {
@@ -29,8 +38,8 @@ export class AdminSettingsRepository {
         const json = JSON.stringify(next)
         await pool.query<ResultSetHeader>(
             `INSERT INTO system_settings (id, data, updated_at)
-       VALUES (1, ?, NOW())
-       ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()`,
+             VALUES (1, ?, NOW())
+                 ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = NOW()`,
             [json]
         )
         return next

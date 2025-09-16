@@ -1,102 +1,90 @@
-// apps/backend/src/modules/discussions/controllers/discussions.controller.ts
-import { pool } from '@/config/database.js'
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { AuthRequest } from '@/types/auth'
-import type { ApiResponse } from '@/types/response.js'
+import type { ApiResponse } from '@/types/response'
+import { CODES } from '@/types/response'
 import type { Response } from 'express'
-import type { RowDataPacket } from 'mysql2'
-import type { IDiscussion, IDiscussionCategory, IDiscussionReply, IDiscussionTag } from '../domain/discussion.model.js'
-import { DiscussionRepository } from '../repositories/discussion.repository.js'
-import { DiscussionsService } from '../services/discussions.service.js'
+import type { IDiscussion, IDiscussionCategory, IDiscussionReply, IDiscussionTag } from '../domain/discussion.model'
+import { DiscussionRepository } from '../repositories/discussion.repository'
+import { DiscussionsService } from '../services/discussions.service'
 
 export class DiscussionsController {
   // ------ 浏览 +1（带 TTL 去重） ------
   static async viewed(req: AuthRequest, res: Response<ApiResponse<{ increased: boolean }>>) {
     try {
       const discussionId = Number(req.params.id)
-      if (Number.isNaN(discussionId)) {
-        return res.status(400).json({ success: false, error: '无效的讨论ID' })
-      }
+      if (Number.isNaN(discussionId)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
 
-      // 同一 viewer 在 10 分钟内只统计一次
       const shouldIncrease = await DiscussionsService.ensureViewOnce(req, discussionId, 600)
-      if (shouldIncrease) {
-        await DiscussionRepository.increaseView(discussionId)
-      }
-      return res.json({ success: true, data: { increased: shouldIncrease } })
-    } catch (e) {
+      if (shouldIncrease) await DiscussionRepository.increaseView(discussionId)
+      return (res as any).ok({ increased: shouldIncrease }, '浏览记录完成')
+    } catch (e: any) {
       console.error('记录浏览错误:', e)
-      return res.status(500).json({ success: false, error: '记录浏览失败' })
+      return (res as any).internal('记录浏览失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
-  // ------ 替换：获取某个讨论的回复列表（GET /discussions/:id/replies） ------
+  // ------ 获取某个讨论的回复列表（GET /discussions/:id/replies） ------
   static async getReplies(req: AuthRequest, res: Response<ApiResponse<any[]>>) {
     try {
       const userId = req.user?.id ?? null
       const discussionId = Number(req.params.id)
-      if (Number.isNaN(discussionId)) {
-        return res.status(400).json({ success: false, error: '无效的讨论ID' })
-      }
+      if (Number.isNaN(discussionId)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
       const list = await DiscussionRepository.getRepliesFlat(userId, discussionId)
-      return res.json({ success: true, data: list })
+      return (res as any).ok(list, '获取成功')
     } catch (e) {
       console.error('获取回复列表错误:', e)
-      return res.status(500).json({ success: false, error: '获取回复列表失败' })
+      return (res as any).internal('获取回复列表失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
-  // ------ 替换：点赞帖子 & 兼容两种调用方式 ------
-  // 1) POST /discussions/:id/like              （前端当前用法，无 body）
-  // 2) POST /discussions/like {target_type,target_id}（保留向后兼容，可选）
+  // ------ 点赞帖子（兼容 URL 与 body 两种方式） ------
   static async toggleLike(req: AuthRequest, res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
 
-      // 方式 A：从 URL param 推断为 discussion
       const urlId = Number(req.params.id)
       if (!Number.isNaN(urlId)) {
         const result = await DiscussionRepository.toggleLike(userId, 'discussion', urlId)
-        return res.json({ success: true, data: result })
+        return (res as any).ok(result, '操作成功')
       }
 
-      // 方式 B：走 body（保留兼容）
       const { target_type, target_id } = (req.body ?? {}) as {
         target_type?: 'discussion' | 'reply'
         target_id?: any
       }
       if (!target_type || Number.isNaN(Number(target_id))) {
-        return res.status(400).json({ success: false, error: '缺少或无效的目标参数' })
+        return (res as any).badRequest('缺少或无效的目标参数', { code: CODES.VALIDATION_ERROR })
       }
       const result = await DiscussionRepository.toggleLike(userId, target_type, Number(target_id))
-      return res.json({ success: true, data: result })
+      return (res as any).ok(result, '操作成功')
     } catch (e) {
       console.error('点赞操作错误:', e)
-      return res.status(500).json({ success: false, error: '点赞操作失败' })
+      return (res as any).internal('点赞操作失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
-  // ------ 替换：点赞回复（POST /discussions/replies/:replyId/like） ------
+  // ------ 点赞回复 ------
   static async toggleReplyLike(
-    req: AuthRequest,
-    res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>
+      req: AuthRequest,
+      res: Response<ApiResponse<{ is_liked: boolean; like_count: number }>>
   ) {
     try {
       const userId = req.user?.id
       const replyId = Number(req.params.replyId)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(replyId)) return res.status(400).json({ success: false, error: '无效的回复ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(replyId)) return (res as any).badRequest('无效的回复ID', { code: CODES.VALIDATION_ERROR })
       const result = await DiscussionRepository.toggleLike(userId, 'reply', replyId)
-      return res.json({ success: true, data: result })
+      return (res as any).ok(result, '操作成功')
     } catch (e) {
       console.error('点赞回复错误:', e)
-      return res.status(500).json({ success: false, error: '点赞回复失败' })
+      return (res as any).internal('点赞回复失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getDiscussions(
-    req: AuthRequest,
-    res: Response<ApiResponse<{ discussions: IDiscussion[]; total: number; categories: IDiscussionCategory[] }>>
+      req: AuthRequest,
+      res: Response<ApiResponse<{ discussions: IDiscussion[]; total: number; categories: IDiscussionCategory[] }>>
   ) {
     try {
       const userId = req.user?.id ?? null
@@ -131,7 +119,7 @@ export class DiscussionsController {
       switch (sort) {
         case 'hot':
           where +=
-            ' ORDER BY d.is_pinned DESC, (d.like_count + d.reply_count * 2 + d.view_count * 0.1) DESC, d.created_at DESC'
+              ' ORDER BY d.is_pinned DESC, (d.like_count + d.reply_count * 2 + d.view_count * 0.1) DESC, d.created_at DESC'
           break
         case 'replies':
           where += ' ORDER BY d.is_pinned DESC, d.reply_count DESC, d.created_at DESC'
@@ -145,70 +133,60 @@ export class DiscussionsController {
 
       const discussions = await DiscussionRepository.queryList(userId, where, params, Number(limit), offset)
       const total = await DiscussionRepository.count(
-        'WHERE 1=1' + (params.length ? where.split('ORDER BY')[0].slice(8) : ''),
-        params
+          'WHERE 1=1' + (params.length ? where.split('ORDER BY')[0].slice(8) : ''),
+          params
       )
       const categories = await DiscussionRepository.getCategories()
 
-      return res.json({ success: true, data: { discussions, total, categories } })
+      return (res as any).ok({ discussions, total, categories }, '获取成功')
     } catch (e) {
       console.error('获取讨论列表错误:', e)
-      return res.status(500).json({ success: false, error: '获取讨论列表失败' })
+      return (res as any).internal('获取讨论列表失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getDiscussionDetail(
-    req: AuthRequest,
-    res: Response<ApiResponse<{ discussion: IDiscussion; replies: IDiscussionReply[] }>>
+      req: AuthRequest,
+      res: Response<ApiResponse<{ discussion: IDiscussion; replies: IDiscussionReply[] }>>
   ) {
     try {
       const userId = req.user?.id ?? null
       const id = Number(req.params.id)
       const { page = 1, limit = 20 } = req.query as any
-      if (Number.isNaN(id)) return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      if (Number.isNaN(id)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
 
       await DiscussionRepository.increaseView(id)
       const discussion = await DiscussionRepository.getById(userId, id)
-      if (!discussion) return res.status(404).json({ success: false, error: '讨论不存在' })
+      if (!discussion) return (res as any).fail(CODES.NOT_FOUND, 404, '讨论不存在')
 
       const offset = (Number(page) - 1) * Number(limit)
       const replies = await DiscussionRepository.getTopReplies(userId, id, Number(limit), offset)
       for (const r of replies) {
         r.children = await DiscussionRepository.getChildReplies(userId, r.id)
       }
-      return res.json({ success: true, data: { discussion, replies } })
+      return (res as any).ok({ discussion, replies }, '获取成功')
     } catch (e) {
       console.error('获取讨论详情错误:', e)
-      return res.status(500).json({ success: false, error: '获取讨论详情失败' })
+      return (res as any).internal('获取讨论详情失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async createDiscussion(req: AuthRequest, res: Response<ApiResponse<{ discussion_id: number }>>) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+
       const id = await DiscussionRepository.insertDiscussion(userId, req.body)
 
-      // 用户统计与标签
-      await pool.query(
-        `INSERT INTO user_discussion_stats (user_id, discussions_count, last_active_at)
-                 VALUES (?, 1, NOW()) ON DUPLICATE KEY
-                UPDATE discussions_count = discussions_count + 1, last_active_at = NOW()`,
-        [userId]
-      )
+      // 用户统计与标签（已下沉至 Repository）
+      await DiscussionRepository.increaseUserDiscussionStats(userId)
       const tags: string[] = Array.isArray(req.body?.tags) ? req.body.tags : []
-      for (const tag of tags) {
-        await pool.query(
-          `INSERT INTO discussion_tags (name, usage_count)
-                     VALUES (?, 1) ON DUPLICATE KEY
-                    UPDATE usage_count = usage_count + 1`,
-          [tag]
-        )
-      }
-      return res.json({ success: true, data: { discussion_id: id } })
+      if (tags.length) await DiscussionRepository.increaseTagsUsage(tags)
+
+      return (res as any).created({ discussion_id: id }, '创建成功')
     } catch (e) {
       console.error('创建讨论错误:', e)
-      return res.status(500).json({ success: false, error: '创建讨论失败' })
+      return (res as any).internal('创建讨论失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -216,15 +194,15 @@ export class DiscussionsController {
     try {
       const userId = req.user?.id
       const id = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(id)) return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(id)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
 
       const ok = await DiscussionRepository.updateDiscussion(userId, id, req.body)
-      if (!ok) return res.status(404).json({ success: false, error: '讨论不存在或无权修改' })
-      return res.json({ success: true, data: null })
+      if (!ok) return (res as any).fail(CODES.NOT_FOUND, 404, '讨论不存在或无权修改')
+      return (res as any).ok(null, '更新成功')
     } catch (e) {
       console.error('更新讨论错误:', e)
-      return res.status(500).json({ success: false, error: '更新讨论失败' })
+      return (res as any).internal('更新讨论失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -232,28 +210,23 @@ export class DiscussionsController {
     try {
       const currentUserId = req.user?.id
       const id = Number(req.params.id)
-      if (!currentUserId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(id)) return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      if (!currentUserId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(id)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
 
       const d = await DiscussionRepository.findOwner(id)
-      if (!d) return res.status(404).json({ success: false, error: '讨论不存在' })
+      if (!d) return (res as any).fail(CODES.NOT_FOUND, 404, '讨论不存在')
 
-      const [users] = await pool.query<RowDataPacket[]>('SELECT role FROM users WHERE id = ?', [currentUserId])
+      const isAdmin = await DiscussionRepository.isAdmin(currentUserId)
       const isAuthor = d.user_id === currentUserId
-      const isAdmin = users[0]?.role === 'admin'
-      if (!isAuthor && !isAdmin) return res.status(403).json({ success: false, error: '无权删除此讨论' })
+      if (!isAuthor && !isAdmin) return (res as any).forbidden('无权删除此讨论', { code: CODES.AUTH_FORBIDDEN })
 
       await DiscussionRepository.deleteById(id)
-      await pool.query(
-        `UPDATE user_discussion_stats
-                 SET discussions_count = GREATEST(discussions_count - 1, 0)
-                 WHERE user_id = ?`,
-        [d.user_id]
-      )
-      return res.json({ success: true, data: null })
+      await DiscussionRepository.decreaseUserDiscussionsCount(d.user_id)
+
+      return (res as any).ok(null, '删除成功')
     } catch (e) {
       console.error('删除讨论错误:', e)
-      return res.status(500).json({ success: false, error: '删除讨论失败' })
+      return (res as any).internal('删除讨论失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -262,28 +235,20 @@ export class DiscussionsController {
       const userId = req.user?.id
       const discussionId = Number(req.params.id)
       const { content, parent_id } = req.body
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(discussionId)) return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(discussionId)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
 
-      const [d] = await pool.query<RowDataPacket[]>('SELECT is_locked FROM discussions WHERE id = ?', [discussionId])
-      if (!d?.length && !Array.isArray(d)) {
-        /* noop */
-      }
-      const isLocked = (d as any)[0]?.is_locked
-      if (isLocked) return res.status(403).json({ success: false, error: '讨论已锁定，无法回复' })
+      const isLocked = await DiscussionRepository.isDiscussionLocked(discussionId)
+      if (isLocked) return (res as any).forbidden('讨论已锁定，无法回复', { code: CODES.AUTH_FORBIDDEN })
 
       const id = await DiscussionRepository.insertReply(discussionId, userId, content, parent_id ?? null)
       await DiscussionRepository.bumpReplyMeta(discussionId, userId, parent_id ?? null)
-      await pool.query(
-        `INSERT INTO user_discussion_stats (user_id, replies_count, last_active_at)
-                 VALUES (?, 1, NOW()) ON DUPLICATE KEY
-                UPDATE replies_count = replies_count + 1, last_active_at = NOW()`,
-        [userId]
-      )
-      return res.json({ success: true, data: { reply_id: id } })
+      await DiscussionRepository.increaseUserReplyStats(userId)
+
+      return (res as any).created({ reply_id: id }, '回复已创建')
     } catch (e) {
       console.error('创建回复错误:', e)
-      return res.status(500).json({ success: false, error: '创建回复失败' })
+      return (res as any).internal('创建回复失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
@@ -291,106 +256,94 @@ export class DiscussionsController {
     try {
       const userId = req.user?.id
       const discussionId = Number(req.params.id)
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      if (Number.isNaN(discussionId)) return res.status(400).json({ success: false, error: '无效的讨论ID' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(discussionId)) return (res as any).badRequest('无效的讨论ID', { code: CODES.VALIDATION_ERROR })
       const data = await DiscussionRepository.toggleBookmark(userId, discussionId)
-      return res.json({ success: true, data })
+      return (res as any).ok(data, '操作成功')
     } catch (e) {
       console.error('收藏操作错误:', e)
-      return res.status(500).json({ success: false, error: '收藏操作失败' })
+      return (res as any).internal('收藏操作失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
-  // 以下是“管理/增强”能力
+  // —— 管理/增强 —— //
   static async markAsSolution(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const { id, replyId } = req.params
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
       const ok = await DiscussionsService.markAsSolution(Number(replyId), Number(id), userId)
-      if (!ok) return res.status(403).json({ success: false, error: '无权限或目标不存在' })
-      return res.json({ success: true, data: null })
+      if (!ok) return (res as any).forbidden('无权限或目标不存在', { code: CODES.AUTH_FORBIDDEN })
+      return (res as any).ok(null, '操作成功')
     } catch (e) {
       console.error('标记解决方案错误:', e)
-      return res.status(500).json({ success: false, error: '标记解决方案失败' })
+      return (res as any).internal('标记解决方案失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async togglePin(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const ok = await DiscussionsService.togglePin(Number(req.params.id), Number(req.user?.id))
-      if (!ok) return res.status(403).json({ success: false, error: '无权限' })
-      return res.json({ success: true, data: null })
+      if (!ok) return (res as any).forbidden('无权限', { code: CODES.AUTH_FORBIDDEN })
+      return (res as any).ok(null, '置顶状态已切换')
     } catch (e) {
       console.error('置顶操作错误:', e)
-      return res.status(500).json({ success: false, error: '置顶操作失败' })
+      return (res as any).internal('置顶操作失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async toggleLock(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const ok = await DiscussionsService.toggleLock(Number(req.params.id), Number(req.user?.id))
-      if (!ok) return res.status(403).json({ success: false, error: '无权限' })
-      return res.json({ success: true, data: null })
+      if (!ok) return (res as any).forbidden('无权限', { code: CODES.AUTH_FORBIDDEN })
+      return (res as any).ok(null, '锁定状态已切换')
     } catch (e) {
       console.error('锁定操作错误:', e)
-      return res.status(500).json({ success: false, error: '锁定操作失败' })
+      return (res as any).internal('锁定操作失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async toggleFeatured(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const ok = await DiscussionsService.toggleFeatured(Number(req.params.id), Number(req.user?.id))
-      if (!ok) return res.status(403).json({ success: false, error: '无权限' })
-      return res.json({ success: true, data: null })
+      if (!ok) return (res as any).forbidden('无权限', { code: CODES.AUTH_FORBIDDEN })
+      return (res as any).ok(null, '精选状态已切换')
     } catch (e) {
       console.error('精选操作错误:', e)
-      return res.status(500).json({ success: false, error: '精选操作失败' })
+      return (res as any).internal('精选操作失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getCategories(_req: AuthRequest, res: Response<ApiResponse<IDiscussionCategory[]>>) {
     try {
       const categories = await DiscussionRepository.getCategories()
-      return res.json({ success: true, data: categories })
+      return (res as any).ok(categories, '获取成功')
     } catch (e) {
       console.error('获取讨论分类错误:', e)
-      return res.status(500).json({ success: false, error: '获取讨论分类失败' })
+      return (res as any).internal('获取讨论分类失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getPopularTags(req: AuthRequest, res: Response<ApiResponse<IDiscussionTag[]>>) {
     try {
       const limit = Number(req.query.limit ?? 20)
-      const [tags] = await pool.query<IDiscussionTag[]>(
-        'SELECT * FROM discussion_tags ORDER BY usage_count DESC LIMIT ?',
-        [limit]
-      )
-      return res.json({ success: true, data: tags })
+      const tags = await DiscussionRepository.getPopularTags(limit)
+      return (res as any).ok(tags, '获取成功')
     } catch (e) {
       console.error('获取热门标签错误:', e)
-      return res.status(500).json({ success: false, error: '获取热门标签失败' })
+      return (res as any).internal('获取热门标签失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 
   static async getUserStats(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
-      const [stats] = await pool.query<RowDataPacket[]>('SELECT * FROM user_discussion_stats WHERE user_id = ?', [
-        userId,
-      ])
-      const userStats = stats[0] || {
-        discussions_count: 0,
-        replies_count: 0,
-        likes_received: 0,
-        solutions_count: 0,
-        reputation_score: 0,
-      }
-      return res.json({ success: true, data: userStats })
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      const userStats = await DiscussionRepository.getUserDiscussionStats(userId)
+      return (res as any).ok(userStats, '获取成功')
     } catch (e) {
       console.error('获取用户讨论统计错误:', e)
-      return res.status(500).json({ success: false, error: '获取用户讨论统计失败' })
+      return (res as any).internal('获取用户讨论统计失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 }

@@ -1,13 +1,19 @@
 // apps/backend/src/types/express.d.ts
 import 'express-serve-static-core'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import 'express'
 
 declare module 'express-serve-static-core' {
-  interface Request {
-    /** requestId 中间件写入 */
-    id?: string
-    /** http-logger 想挂一个错误回调 */
-    onError?: (err: unknown) => void
-    /** 供 error-handler 打日志使用，可在 http-logger 里注入 */
-    log?: Console
+  interface Response {
+    ok: (data?: any, message?: string, extra?: any) => this
+    created: (data?: any, message?: string, extra?: any) => this
+
+    fail: (code: string, status?: number, message?: string, extra?: any) => this
+
+    badRequest: (message?: string, extra?: any) => this
+    unauthorized: (message?: string, extra?: any) => this
+    forbidden: (message?: string, extra?: any) => this
+    tooMany: (message?: string, extra?: any) => this
+    internal: (message?: string, extra?: any) => this
   }
 }

@@ -1,8 +1,26 @@
-// features/admin-settings/types/index.ts
+// apps/web/src/shared/types/admin-settings.ts
+export interface StrongPasswordRules {
+  minLength: number
+  requireUpper: boolean
+  requireLower: boolean
+  requireNumber: boolean
+  requireSymbol: boolean
+  forbidRepeated: boolean
+  forbidCommon: boolean
+}
+
 export interface SystemSettings {
   systemName: string
   allowUserRegistration: boolean
   maxLoginAttempts: number
-  /** 仅写不读：页面可填写，接口 GET 不返回 */
+  /** 可写不回显 */
   defaultPassword?: string
+
+  // ✅ 新增：验证码相关
+  enableCaptcha: boolean
+  captchaAfterFailedAttempts: number
+
+  // ✅ 新增：强密码相关
+  enableStrongPassword: boolean
+  strongPasswordRules: StrongPasswordRules
 }
