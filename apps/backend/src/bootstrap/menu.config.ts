@@ -353,6 +353,7 @@ const RAW_MENU: MenuSeed[] = [
                 children: [
                     { name: 'task-public', title: '发布任务', path: '/admin/tasks/public', component: 'task-public', menu_type: 'page', sort_order: 1, meta: { requireAuth: true }, permission_code: 'system:tasks:public' },
                     { name: 'task-create', title: '创建任务', path: '/admin/tasks/create', component: 'task-create', menu_type: 'page', sort_order: 2, meta: { requireAuth: true }, permission_code: 'system:tasks:create' },
+                    { name: 'task-my', title: '我的任务', path: '/admin/tasks/my', component: 'task-my', menu_type: 'page', sort_order: 3, meta: { requireAuth: true }, permission_code: 'system:tasks:my' },
                 ],
             },
             {

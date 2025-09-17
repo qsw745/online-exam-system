@@ -7,10 +7,12 @@ import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 const STORAGE_FLAG_KEY = 'auth_storage' // 'session' | '7d'
-const REMEMBER_PACK_KEY = 'remember_pack_v1' // 记住我（本地加密）
-const FAILED_COUNT_KEY = 'login_failed_count' // 本地累计失败
-const LOCK_UNTIL_KEY = 'login_lock_until_ms' // 锁定到期时间戳
-const SERVER_CAPTCHA_FLAG = 'login_need_captcha' // ⭐ 新增：后端强制需要验证码（持久化）
+const REMEMBER_PACK_KEY = 'remember_pack_v1' // 记住我（本地加密，含邮箱+密码）
+const REMEMBER_ME_FLAG = 'remember_me_flag' // '1' | '0' 仅记录勾选状态
+const LAST_EMAIL_KEY = 'last_login_email' // 无论是否勾选，都记录最后一次的邮箱
+const FAILED_COUNT_KEY = 'login_failed_count'
+const LOCK_UNTIL_KEY = 'login_lock_until_ms'
+const SERVER_CAPTCHA_FLAG = 'login_need_captcha'
 
 const CODE_NEED_CAPTCHA = 'NEED_CAPTCHA'
 const CODE_BAD_CAPTCHA = 'BAD_CAPTCHA'
@@ -71,18 +73,15 @@ function parseLoginError(err: any): { msg: string; code?: string; status?: numbe
     }
   }
   if (err?.request) return { msg: '服务器无响应，请稍后重试', code, status }
-  return { msg: '网络连接错误，请检查网络后重试', code, status }
+  return { msg: '网络连接错误，请检查后重试', code, status }
 }
 
 function svgToDataUrl(svg: string) {
   return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.replace(/\r?\n/g, ''))
 }
 
-// ⭐ 文案型判断：把 200 + "用户名/邮箱/账号或密码错误" 视为密码错误
 const looksLikeBadCreds = (msg?: string) =>
   !!msg && /(用户名|邮箱|账号).*(密码).*(错误)|密码错误|credentials/i.test(msg)
-
-// ⭐ 文案型判断：把 200 + "请先完成验证码 / 验证码错误/过期" 视为需要验证码
 const looksLikeNeedCaptcha = (msg?: string) => !!msg && /(请先完成验证码|验证码(错误|过期)|captcha)/i.test(msg || '')
 
 export function useLogin() {
@@ -96,6 +95,9 @@ export function useLogin() {
   const [keep7Days, setKeep7Days] = useState(false)
   const [loading, setLoading] = useState(false)
 
+  // ⭐ 修复关键：本地偏好是否已加载完成（未完成前，禁止把 remember 写回本地）
+  const [prefsReady, setPrefsReady] = useState(false)
+
   // 设置
   const [settings, setSettings] = useState<Settings | null>(null)
   const captchaThreshold = useMemo(
@@ -105,10 +107,8 @@ export function useLogin() {
   const lockAfter = useMemo(() => Number(settings?.lockAfterFailedAttempts ?? 6), [settings?.lockAfterFailedAttempts])
   const lockMinutes = useMemo(() => Number(settings?.lockMinutes ?? 5), [settings?.lockMinutes])
 
-  // 失败计数
+  // 失败计数/验证码
   const [failedCount, setFailedCount] = useState(0)
-
-  // 验证码（两种来源）
   const [captchaByServer, setCaptchaByServer] = useState(false)
   const [captchaByThreshold, setCaptchaByThreshold] = useState(false)
   const captchaRequired = captchaByServer || captchaByThreshold
@@ -127,6 +127,15 @@ export function useLogin() {
     [lockUntil, nowTick]
   )
 
+  // 记录最近一次输入的邮箱（无论是否勾选）
+  useEffect(() => {
+    if (email) {
+      try {
+        localStorage.setItem(LAST_EMAIL_KEY, email)
+      } catch {}
+    }
+  }, [email])
+
   // 加载系统设置
   useEffect(() => {
     ;(async () => {
@@ -139,23 +148,33 @@ export function useLogin() {
     })()
   }, [])
 
-  // 初始化本地状态
+  // 初始化：先还原本地偏好，然后再放开写回副作用
   useEffect(() => {
     ;(async () => {
-      const pack = localStorage.getItem(REMEMBER_PACK_KEY)
-      const json = await decryptLocal(pack)
-      if (json) {
-        try {
-          const { email: e, password: p } = JSON.parse(json)
-          if (e) setEmail(e)
-          if (p) setPassword(p)
-          setRememberMe(true)
-        } catch {
-          setRememberMe(false)
+      const rememberFlag = localStorage.getItem(REMEMBER_ME_FLAG) === '1'
+      setRememberMe(rememberFlag)
+
+      const lastEmail = localStorage.getItem(LAST_EMAIL_KEY) || ''
+
+      if (rememberFlag) {
+        const pack = localStorage.getItem(REMEMBER_PACK_KEY)
+        const json = await decryptLocal(pack)
+        if (json) {
+          try {
+            const { email: e, password: p } = JSON.parse(json)
+            setEmail(typeof e === 'string' ? e : lastEmail)
+            setPassword(typeof p === 'string' ? p : '')
+          } catch {
+            setEmail(lastEmail)
+            setPassword('')
+          }
+        } else {
+          setEmail(lastEmail)
           setPassword('')
         }
       } else {
-        setRememberMe(false)
+        // 未勾选：保留邮箱，清空密码
+        setEmail(lastEmail)
         setPassword('')
       }
 
@@ -169,30 +188,42 @@ export function useLogin() {
       if (Number.isFinite(lu) && lu > Date.now()) setLockUntil(lu)
       else localStorage.removeItem(LOCK_UNTIL_KEY)
 
-      // ⭐ 读取“服务器强制需要验证码”的持久化标记
       setCaptchaByServer(localStorage.getItem(SERVER_CAPTCHA_FLAG) === '1')
+
+      // ✅ 完成首轮恢复，再允许把 remember 状态写回本地
+      setPrefsReady(true)
     })()
   }, [])
 
-  // 切页退出登录：刷新 UI
+  // —— 退出登录事件：保持勾选状态不被清 —— //
   useEffect(() => {
     const onLogout = async () => {
-      const pack = localStorage.getItem(REMEMBER_PACK_KEY)
-      const json = await decryptLocal(pack)
-      if (json) {
-        try {
-          const { email: e, password: p } = JSON.parse(json)
-          setRememberMe(true)
-          setEmail(e || '')
-          setPassword(p || '')
-        } catch {
-          setRememberMe(false)
+      const rememberFlag = localStorage.getItem(REMEMBER_ME_FLAG) === '1'
+      setRememberMe(rememberFlag)
+
+      const lastEmail = localStorage.getItem(LAST_EMAIL_KEY) || ''
+
+      if (rememberFlag) {
+        const pack = localStorage.getItem(REMEMBER_PACK_KEY)
+        const json = await decryptLocal(pack)
+        if (json) {
+          try {
+            const { email: e, password: p } = JSON.parse(json)
+            setEmail(typeof e === 'string' ? e : lastEmail)
+            setPassword(typeof p === 'string' ? p : '')
+          } catch {
+            setEmail(lastEmail)
+            setPassword('')
+          }
+        } else {
+          setEmail(lastEmail)
           setPassword('')
         }
       } else {
-        setRememberMe(false)
+        setEmail(lastEmail)
         setPassword('')
       }
+
       const flag = localStorage.getItem(STORAGE_FLAG_KEY)
       setKeep7Days(flag === '7d')
     }
@@ -227,7 +258,7 @@ export function useLogin() {
     }
   }, [nowTick, lockUntil])
 
-  // 加载验证码
+  // 验证码加载
   const loadCaptcha = useCallback(async () => {
     try {
       const resp = await authApi.captchaNew()
@@ -253,19 +284,16 @@ export function useLogin() {
     }
   }, [])
 
-  // ⭐ 页面初始化后，只要满足任一条件就立刻显示验证码并拉取图片：
-  // - 后端强制标记为 true（持久化）
-  // - 本地失败次数达到阈值
+  // 满足条件显示验证码
   useEffect(() => {
     if (!settings?.enableCaptcha) return
     const needByThreshold = failedCount >= captchaThreshold
     setCaptchaByThreshold(needByThreshold)
     if (captchaByServer || needByThreshold) {
-      // 只要当前没有有效 captchaId 就拉一次
       if (!captchaId) loadCaptcha()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings?.enableCaptcha, failedCount, captchaThreshold, captchaByServer]) // 故意不把 captchaId 放依赖，避免死循环
+  }, [settings?.enableCaptcha, failedCount, captchaThreshold, captchaByServer])
 
   // 刷新验证码
   const refreshCaptcha = useCallback(() => {
@@ -273,18 +301,45 @@ export function useLogin() {
     loadCaptcha()
   }, [loadCaptcha])
 
-  // 记住我持久化
+  // 保存/删除记住包
   const saveRemember = useCallback(
     async (em: string, pwd: string) => {
-      if (!rememberMe) {
-        localStorage.removeItem(REMEMBER_PACK_KEY)
-        return
-      }
+      if (!rememberMe) return
       const enc = await encryptLocal(JSON.stringify({ email: em, password: pwd }))
       localStorage.setItem(REMEMBER_PACK_KEY, enc)
+      try {
+        localStorage.setItem(LAST_EMAIL_KEY, em || '')
+      } catch {}
     },
     [rememberMe]
   )
+
+  // ⭐ 勾选切换：等 prefsReady 后才写回本地，避免首屏把勾选改成未勾选
+  useEffect(() => {
+    if (!prefsReady) return
+    ;(async () => {
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_ME_FLAG, '1')
+        await saveRemember(email, password)
+      } else {
+        localStorage.setItem(REMEMBER_ME_FLAG, '0')
+        localStorage.removeItem(REMEMBER_PACK_KEY)
+        try {
+          localStorage.setItem(LAST_EMAIL_KEY, email || '')
+        } catch {}
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rememberMe, prefsReady])
+
+  // 输入变化且勾选时，同步包（防抖）—— 同样需要 prefsReady
+  useEffect(() => {
+    if (!prefsReady || !rememberMe) return
+    const tid = window.setTimeout(() => {
+      saveRemember(email, password)
+    }, 300)
+    return () => window.clearTimeout(tid)
+  }, [email, password, rememberMe, saveRemember, prefsReady])
 
   // 进入锁定
   const enterLock = useCallback(() => {
@@ -296,7 +351,6 @@ export function useLogin() {
 
   // 提交
   const submit = useCallback(async () => {
-    // 先就地计算剩余秒数
     if (lockUntil) {
       const remainingNow = Math.ceil((lockUntil - Date.now()) / 1000)
       if (remainingNow > 0) {
@@ -326,6 +380,9 @@ export function useLogin() {
     setLoading(true)
     try {
       localStorage.setItem(STORAGE_FLAG_KEY, keep7Days ? '7d' : 'session')
+      try {
+        localStorage.setItem(LAST_EMAIL_KEY, email || '')
+      } catch {}
 
       const remote = await tryEncryptRemote({ email, password, captcha, captchaId: captchaId || undefined })
       const extra = {
@@ -336,10 +393,17 @@ export function useLogin() {
 
       await signIn(email, password, keep7Days, extra)
 
-      // 登录成功：清理状态
+      // 登录成功：依据勾选保存/删除包（不动勾选标记）
+      if (rememberMe) {
+        await saveRemember(email, password)
+      } else {
+        localStorage.removeItem(REMEMBER_PACK_KEY)
+      }
+
+      // 成功后的状态清理
       localStorage.removeItem(FAILED_COUNT_KEY)
       localStorage.removeItem(LOCK_UNTIL_KEY)
-      localStorage.removeItem(SERVER_CAPTCHA_FLAG) // ⭐ 清后端强制标记
+      localStorage.removeItem(SERVER_CAPTCHA_FLAG)
       setFailedCount(0)
       setLockUntil(null)
       setCaptcha('')
@@ -354,7 +418,6 @@ export function useLogin() {
       const isBadCaptcha = code === CODE_BAD_CAPTCHA
       const isBadCreds = code === CODE_BAD_CREDS || status === HTTP_UNAUTH || looksLikeBadCreds(msg)
 
-      // ① 验证码填写错误：刷新验证码
       if (isBadCaptcha) {
         setCaptcha('')
         await loadCaptcha()
@@ -363,10 +426,9 @@ export function useLogin() {
         return
       }
 
-      // ② 后端强制需要验证码
       if (isNeedCaptcha) {
         setCaptchaByServer(true)
-        localStorage.setItem(SERVER_CAPTCHA_FLAG, '1') // ⭐ 持久化，刷新后也显示
+        localStorage.setItem(SERVER_CAPTCHA_FLAG, '1')
         setCaptcha('')
         await loadCaptcha()
         message.error(msg || '请先完成验证码验证')
@@ -374,19 +436,15 @@ export function useLogin() {
         return
       }
 
-      // ③ 用户名/密码错误 → 计数、可能触发锁定/验证码
       if (isBadCreds) {
-        // 如果当前已需要验证码，每次失败后也刷新一次，避免旧 captcha 继续使用
         if (captchaRequired) {
           setCaptcha('')
           await loadCaptcha()
         }
-
         const next = (Number(localStorage.getItem(FAILED_COUNT_KEY) || 0) || 0) + 1
         localStorage.setItem(FAILED_COUNT_KEY, String(next))
         setFailedCount(next)
 
-        // 达到阈值：立即显示验证码
         if (settings?.enableCaptcha && next >= captchaThreshold) {
           setCaptchaByThreshold(true)
           if (!captchaRequired) {
@@ -395,7 +453,6 @@ export function useLogin() {
           }
         }
 
-        // 锁定判断（支持设置里没有 lockAfter 字段的情况）
         if (next >= lockAfter) {
           enterLock()
           message.error(`密码连续错误次数过多，登录已锁定 ${lockMinutes} 分钟`)
@@ -403,7 +460,6 @@ export function useLogin() {
           message.error(msg || '邮箱或密码错误，请检查后重试')
         }
       } else {
-        // ④ 其他错误：如果当前需要验证码，也顺刷新一次
         if (captchaRequired) {
           setCaptcha('')
           await loadCaptcha()
@@ -416,6 +472,7 @@ export function useLogin() {
   }, [
     email,
     password,
+    rememberMe,
     keep7Days,
     captchaRequired,
     captcha,
@@ -430,6 +487,7 @@ export function useLogin() {
     enterLock,
     settings?.enableCaptcha,
     captchaThreshold,
+    saveRemember,
   ])
 
   return {

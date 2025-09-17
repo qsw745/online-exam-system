@@ -3,6 +3,7 @@ import HttpError from '@/common/errors/http-error'
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
+import httpError from "@/common/errors/http-error";
 
 function ensureArrayFromMaybeCsv(input: any): string[] {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
@@ -91,7 +92,7 @@ export class QuestionService {
 
   async getById(id: number): Promise<QuestionData> {
     const q = await QuestionRepository.findById(id)
-    if (!q) throw new Error('问题不存在')
+    if (!q) throw new httpError('问题不存在')
     try {
       if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
       if (q.knowledge_points && typeof q.knowledge_points === 'string')
@@ -121,16 +122,16 @@ export class QuestionService {
     } = body
 
     if (!content || !question_type || correct_answer === undefined)
-      throw new Error('缺少必填字段：题目内容、题目类型和正确答案')
+      throw new httpError('缺少必填字段：题目内容、题目类型和正确答案')
 
     const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'short_answer']
     const validDifficulties = ['easy', 'medium', 'hard']
-    if (!validTypes.includes(question_type)) throw new Error('无效的题目类型')
-    if (!validDifficulties.includes(difficulty)) throw new Error('无效的难度等级')
+    if (!validTypes.includes(question_type)) throw new httpError('无效的题目类型')
+    if (!validDifficulties.includes(difficulty)) throw new httpError('无效的难度等级')
 
     let optionsJson: string | null = null
     if (question_type === 'single_choice' || question_type === 'multiple_choice') {
-      if (!Array.isArray(options) || options.length === 0) throw new Error('选择题必须提供选项')
+      if (!Array.isArray(options) || options.length === 0) throw new httpError('选择题必须提供选项')
       optionsJson = JSON.stringify(options)
     }
 
@@ -244,9 +245,9 @@ export class QuestionService {
       vals.push(Number(score))
     }
 
-    if (!sets.length) throw new Error('没有需要更新的字段')
+    if (!sets.length) throw new httpError('没有需要更新的字段')
     const affected = await QuestionRepository.update(id, sets, vals)
-    if (!affected) throw new Error('问题不存在')
+    if (!affected) throw new httpError('问题不存在')
 
     await LogService.log({
       type: 'audit',
@@ -272,7 +273,7 @@ export class QuestionService {
     _reqMeta?: { ip?: string; ua?: string }
   ) {
     const affected = await QuestionRepository.delete(id)
-    if (!affected) throw new Error('问题不存在')
+    if (!affected) throw new httpError('问题不存在')
 
     await LogService.log({
       type: 'audit',

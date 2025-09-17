@@ -110,7 +110,6 @@ export const LoginForm: React.FC<Props> = ({
               </Col>
               <Col>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  {/* 这里显示的是后端 /captcha/new 返回的 svg 转 dataURL */}
                   <img
                     src={captchaImgUrl}
                     alt="captcha"
@@ -128,7 +127,7 @@ export const LoginForm: React.FC<Props> = ({
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
         >
           <Checkbox checked={rememberMe} onChange={e => onRememberChange(e.target.checked)}>
-            记住我（下次自动填充）
+            记住我
           </Checkbox>
 
           <Checkbox checked={keep7Days} onChange={e => onKeep7DaysChange(e.target.checked)}>

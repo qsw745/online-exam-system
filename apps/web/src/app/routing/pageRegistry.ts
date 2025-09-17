@@ -87,7 +87,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   // Tasks
   tasks: TasksPage,
   'task-my': MyTasksPage,
-  'task-publish': PublishTaskPage,
+  'task-public': PublishTaskPage,
   'task-manage': TaskManagementPage,
   'task-create': TaskCreatePage,
 

@@ -9,7 +9,15 @@ import type {
   TaskWithAssigned,
   UpdateTaskInput,
 } from '../domain/task.model'
-
+function sanitizeIds(arr: unknown): number[] {
+  if (!Array.isArray(arr)) return []
+  const s = new Set<number>()
+  for (const v of arr) {
+    const n = Number(v)
+    if (Number.isFinite(n) && n > 0) s.add(n)
+  }
+  return Array.from(s)
+}
 export class TaskService {
   private readonly repo: TaskRepository
   private readonly db: Pool
@@ -40,26 +48,32 @@ export class TaskService {
       assigned_user_ids,
     } = input
 
-    // 验证分配用户
-    const assignees = Array.isArray(assigned_user_ids) && assigned_user_ids.length > 0 ? assigned_user_ids : [creatorId]
+    // ✅ 二次清洗 & 兜底为创建者本人
+    const cleanAssignees = sanitizeIds(assigned_user_ids)
+    const assignees = cleanAssignees.length ? cleanAssignees : [creatorId]
+
+    // ✅ 校验用户是否存在，并给出缺失列表
     const existing = await this.repo.findExistingUserIds(assignees)
     if (existing.length !== assignees.length) {
-      throw new Error('部分指定的分配用户不存在')
+      const existSet = new Set(existing)
+      const missing = assignees.filter(id => !existSet.has(id))
+      // 让 Controller 能识别并返回 400
+      throw new Error(`部分指定的分配用户不存在：${missing.join(', ')}`)
     }
 
-    // 状态映射（默认 not_started）
+    // 状态映射
     const dbStatus =
-      status &&
-      ['not_started', 'in_progress', 'completed', 'published', 'unpublished', 'draft', 'expired'].includes(status)
-        ? status
-        : 'not_started'
+        status &&
+        ['not_started', 'in_progress', 'completed', 'published', 'unpublished', 'draft', 'expired'].includes(status)
+            ? status
+            : 'not_started'
 
-    // 若没有 exam_id，创建一个
+    // 若无 exam_id 但给了时间，则顺手建一条考试
     let finalExamId = exam_id ?? null
     if (!finalExamId && (start_time || end_time)) {
       const [ret] = await this.db.query<ResultSetHeader>(
-        'INSERT INTO exams (title, description, duration, start_time, end_time, created_by) VALUES (?, ?, ?, ?, ?, ?)',
-        [title, description ?? '', 60, this.asDateTime(start_time), this.asDateTime(end_time), creatorId]
+          'INSERT INTO exams (title, description, duration, start_time, end_time, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+          [title, description ?? '', 60, this.asDateTime(start_time), this.asDateTime(end_time), creatorId]
       )
       finalExamId = ret.insertId
     }
@@ -77,12 +91,11 @@ export class TaskService {
 
     await this.repo.replaceAssignments(taskId, existing, creatorId)
 
-    const role: 'admin' | 'teacher' | 'student' = 'admin' // 新建者可读取；直接用 admin 视角读回
-    const task = await this.repo.getForAccess(taskId, creatorId, role)
+    // 新建者读取
+    const task = await this.repo.getForAccess(taskId, creatorId, 'admin')
     if (!task) throw new Error('创建任务失败')
     return task
   }
-
   async update(
     taskId: number,
     userScope: { userId: number; role: 'admin' | 'teacher' | 'student' },

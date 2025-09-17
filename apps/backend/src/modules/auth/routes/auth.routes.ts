@@ -14,6 +14,8 @@ const wrap =
 // 这些接口都不应被 access-token 鉴权中间件拦住
 router.post('/register', wrap(AuthController.register))
 router.post('/login', wrap(AuthController.login))
+// ✅ 兼容前端 httpClient 的 GET 兜底
+router.get('/refresh', wrap(AuthController.refresh))
 router.post('/refresh', wrap(AuthController.refresh))
 router.post('/logout', wrap(AuthController.logout))
 

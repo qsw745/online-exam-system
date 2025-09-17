@@ -12,7 +12,16 @@ type TaskListResponse = ApiResponse<{
     pagination: { page: number; limit: number; total: number; totalPages: number }
 }>
 type TaskDetailResponse = ApiResponse<{ task: any }>
-
+// ✅ 把任意输入规范成 number[]（去重、去空、去非数）
+function normalizeUserIds(input: unknown): number[] {
+    if (!Array.isArray(input)) return []
+    const out = new Set<number>()
+    for (const v of input) {
+        const n = Number(v)
+        if (Number.isFinite(n) && n > 0) out.add(n)
+    }
+    return Array.from(out)
+}
 export class TaskController {
     static async list(req: AuthRequest, res: Response<TaskListResponse>) {
         try {
@@ -66,8 +75,9 @@ export class TaskController {
             const role = req.user?.role
             if (!creatorId) return res.unauthorized()
             if (role !== 'admin' && role !== 'teacher') return res.forbidden('只有管理员和教师可以创建任务')
-
             if (!req.body?.title) return res.badRequest('任务标题不能为空')
+
+            const assignedUserIds = normalizeUserIds(req.body.assigned_user_ids)
 
             const task = await svc.create({
                 creatorId,
@@ -78,12 +88,17 @@ export class TaskController {
                 end_time: req.body.end_time,
                 exam_id: req.body.exam_id,
                 type: req.body.type || 'practice',
-                assigned_user_ids: req.body.assigned_user_ids,
+                assigned_user_ids: assignedUserIds,   // ✅ 只传净化后的
             })
             return res.created({ task }, '创建成功')
         } catch (e: any) {
+            // ✅ 针对“分配用户不存在”这类业务错误，返回 400
+            const msg = e?.message || ''
+            if (/分配用户不存在|无效的分配用户|assigned user/i.test(msg)) {
+                return res.badRequest(msg)
+            }
             console.error('创建任务错误:', e)
-            return res.internal(e?.message || '创建任务失败')
+            return res.internal(msg || '创建任务失败')
         }
     }
 

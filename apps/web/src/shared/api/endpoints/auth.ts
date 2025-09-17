@@ -17,18 +17,26 @@ function redirectToLogin(path = '/login') {
 
 export const auth = {
   /** 登录：如有 enc/alg（前端已加密）优先发加密字段；否则发明文（兼容旧后端） */
-  login(email: string, password: string, extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }) {
+  login(
+    email: string,
+    password: string,
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean } // ✅
+  ) {
     const hasEnc = !!(extra?.enc && extra?.alg)
     const body: any = hasEnc
       ? {
           enc: extra!.enc,
           alg: extra!.alg,
+          keep7Days: !!extra?.keep7Days, // ✅ 传后端
+
           ...(extra?.captcha ? { captcha: extra.captcha } : {}),
           ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
         }
       : {
           email,
           password,
+          keep7Days: !!extra?.keep7Days, // ✅ 传后端
+
           ...(extra?.captcha ? { captcha: extra.captcha } : {}),
           ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
         }

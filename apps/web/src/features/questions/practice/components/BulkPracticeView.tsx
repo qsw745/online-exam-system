@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
 import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff, ArrowUp } from 'lucide-react'
-import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input } from 'antd'
+import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input, BackTop, FloatButton } from 'antd'
 import { wrongQuestions, questionsApi, isSuccess } from '@/shared/api/http'
 import {
   addQuestionToFavorites,
@@ -412,11 +412,8 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
         </Spin>
 
         {/* 左下角回到顶部 */}
-        {showGoTop && (
-          <div onClick={scrollToTop} style={{ position: 'fixed', right: 24, bottom: 24, zIndex: 1100 }}>
-            <Button shape="circle" size="large" type="primary" icon={<ArrowUp size={18} />} />
-          </div>
-        )}
+        {/* <BackTop visibilityHeight={300} style={{ right: 24, bottom: 24 }} /> */}
+        <FloatButton.BackTop visibilityHeight={500}  duration={500}/>
       </Space>
     </div>
   )

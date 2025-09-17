@@ -29,13 +29,14 @@ interface AuthContextType {
     email: string,
     password: string,
     keep7Days?: boolean,
-    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean } // ✅ 补上 keep7Days
   ) => Promise<void>
   signUp: (email: string, password: string, username: string, role: string) => Promise<void>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   reload: () => Promise<void>
 }
+
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
@@ -147,17 +148,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })()
   }, [])
 
+  // —— AuthProvider 内的 signIn —— //
   const signIn = async (
     email: string,
     password: string,
     keep7Days = false,
-    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string }
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean }
   ) => {
     const mode: AuthStorageMode = keep7Days ? '7d' : 'session'
     setAuthStorageFlag(mode)
 
-    const result = await auth.login(email, password, extra)
-    // 关键：透传 normalize 的错误
+    // ✅ 关键：把 keep7Days 一并传入请求体（无论是否加密登录）
+    const result = await auth.login(email, password, { ...(extra ?? {}), keep7Days })
+
     if ((result as any)?.success === false) throw new Error((result as any).error || '登录失败')
 
     const payload = (result as any)?.data ?? (result as any) ?? {}

@@ -5,9 +5,10 @@ declare const process: any
 import { pool } from '@/config/database'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 import * as jwt from 'jsonwebtoken'
+import { ACCESS_JWT_CLOCK_TOLERANCE_SEC } from '@/config/jwt'
+import { getJwtSecret } from '@/config/jwt'
 import type { RowDataPacket } from 'mysql2/promise'
 
-const getJwtSecret = () => (process?.env?.JWT_SECRET as string) || 'dev-secret'
 
 async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
@@ -129,7 +130,8 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
   const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz.split(' ')[1]
   if (!token) return res.status(401).json({ success: false, error: '访问令牌缺失' })
   try {
-    jwt.verify(token, getJwtSecret(), { clockTolerance: 30 } as any)
+    // ✅ 不再固定 30s；可用环境变量 ACCESS_JWT_CLOCK_TOLERANCE 控制（默认 0s）
+    jwt.verify(token, getJwtSecret(), { clockTolerance: ACCESS_JWT_CLOCK_TOLERANCE_SEC } as any)
     next()
   } catch (e: any) {
     if (e?.name === 'TokenExpiredError') {

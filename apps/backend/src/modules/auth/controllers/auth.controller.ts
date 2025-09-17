@@ -13,35 +13,44 @@ import { CryptoService } from '@/modules/auth/services/crypto.service'
 const svc = new AuthService()
 
 export class AuthController {
+  /** 注册 */
   static async register(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const { username, email, password } = req.body || {}
+      const { username, email, password, keep7Days } = (req.body || {}) as any // 接收 keep7Days
+
       if (!email || !password) {
         return (res as any).badRequest('缺少必填字段', {
           error: { details: [{ field: 'email/password', message: '必填' }] },
         })
       }
-      const { token, refresh, user } = await svc.register({ username, email, password }, {
-        ip: req.ip,
-        ua: req.get('User-Agent') || undefined,
-      })
-      svc.setRefreshCookie(res, refresh)
+
+      const { token, refresh, user, persist } = await svc.register(
+          { username, email, password },
+          { ip: req.ip, ua: req.get('User-Agent') || undefined },
+          { persist: !!keep7Days }
+      )
+
+      // 首次签发：完整 TTL（若 persist=true）
+      svc.setRefreshCookie(res, refresh, { persist })
+
       return (res as any).created({ token, user }, '注册成功')
     } catch (e: any) {
       return (res as any).internal(e?.message || '创建用户失败')
     }
   }
 
+  /** 登录 */
   static async login(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const settings = await AdminSettingsService.getSafe()
       const enableCaptcha = !!(settings as any).enableCaptcha
       const afterN = Math.max(0, Number((settings as any).captchaAfterFailed ?? 0))
 
-      let { email, password, captcha, captchaId, enc, alg } = (req.body || {}) as any
+      let { email, password, captcha, captchaId, enc, alg, keep7Days } = (req.body || {}) as any
       enc = enc || req.get('x-cred-enc')
       alg = (alg || req.get('x-cred-alg') || '').toString()
 
+      // 支持前端加密传输
       if (enc && alg.toUpperCase().includes('RSA-OAEP')) {
         const dec = CryptoService.decryptLoginCred(String(enc))
         email = dec.email
@@ -54,6 +63,7 @@ export class AuthController {
         })
       }
 
+      // 服务端判定是否必须先过验证码
       const ip = req.ip || ''
       let mustCaptcha = false
       if (enableCaptcha) {
@@ -81,13 +91,19 @@ export class AuthController {
         }
       }
 
+      // 登录
       try {
-        const { token, refresh, user } = await svc.login(email, password, {
-          ip,
-          ua: req.get('User-Agent') || undefined,
-        })
+        const { token, refresh, user, persist } = await svc.login(
+            email,
+            password,
+            { ip, ua: req.get('User-Agent') || undefined },
+            { persist: !!keep7Days }
+        )
         await LoginFailureRepository.reset(email, ip)
-        svc.setRefreshCookie(res, refresh)
+
+        // 登录：完整 TTL（若 persist=true）
+        svc.setRefreshCookie(res, refresh, { persist })
+
         return (res as any).ok({ token, user }, '登录成功')
       } catch (e: any) {
         await LoginFailureRepository.increase(email, ip)
@@ -107,18 +123,24 @@ export class AuthController {
     }
   }
 
+  /** 刷新：固定绝对过期，不滑动续期 */
   static async refresh(req: AuthRequest, res: Response<ApiResponse<{ token: string }>>) {
     try {
       const rt = (req as any)?.cookies?.rt || req.body?.refresh_token || req.get('x-refresh-token')
       if (!rt) return (res as any).unauthorized('缺少刷新令牌', { code: CODES.AUTH_UNAUTHORIZED })
-      const { token, refresh } = await svc.refresh(rt)
-      svc.setRefreshCookie(res as any, refresh)
+
+      const { token, refresh, persist, remainMs } = await svc.refresh(rt)
+
+      // 刷新阶段：Cookie 的 maxAge 用“剩余毫秒”，不会被延长
+      svc.setRefreshCookie(res as any, refresh, { persist, maxAgeMs: remainMs })
+
       return (res as any).ok({ token }, '刷新成功')
     } catch (e: any) {
       return (res as any).unauthorized(e?.message || '刷新失败，请重新登录', { code: CODES.AUTH_UNAUTHORIZED })
     }
   }
 
+  /** 登出 */
   static async logout(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const rt = (req as any)?.cookies?.rt || req.body?.refresh_token || req.get('x-refresh-token')
