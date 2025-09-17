@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react'
-import { Card, Typography } from 'antd'
+import { Alert, Card, Typography } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 
@@ -52,14 +52,18 @@ const LoginPage: React.FC = () => {
     setKeep7Days,
     loading,
     submit,
-    quickLogin,
+    submitDisabled,
+    inputsDisabled,
+    isLocked,
+    lockCountdownText,
+    lockUiHint,
 
-    // 验证码
     captchaRequired,
     captcha,
     setCaptcha,
     captchaImgUrl,
     refreshCaptcha,
+    quickLogin,
   } = useLogin()
 
   const { user, loading: authLoading } = useAuth()
@@ -74,14 +78,12 @@ const LoginPage: React.FC = () => {
         navigatedRef.current = true
         navigate(to, { replace: true, state: { __bump: Date.now() } })
       }
-      if (cached && Array.isArray(cached)) {
-        go(pickDefaultHome(cached))
-      } else {
+      if (cached && Array.isArray(cached)) go(pickDefaultHome(cached))
+      else
         menuApi
           .routeTree()
           .then(tree => go(pickDefaultHome(tree)))
           .catch(() => go('/dashboard'))
-      }
     }
   }, [authLoading, user, navigate])
 
@@ -94,7 +96,7 @@ const LoginPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '24px',
+        padding: 24,
         background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
       }}
     >
@@ -125,6 +127,16 @@ const LoginPage: React.FC = () => {
           </Text>
         </div>
 
+        {isLocked && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={lockUiHint}
+            description={`请等待 ${lockCountdownText} 后重试`}
+          />
+        )}
+
         <DemoAccountsCard onQuickLogin={quickLogin} />
 
         <LoginForm
@@ -138,7 +150,10 @@ const LoginPage: React.FC = () => {
           onRememberChange={setRememberMe}
           onKeep7DaysChange={setKeep7Days}
           onSubmit={submit}
-          // 验证码
+          submitDisabled={submitDisabled}
+          inputsDisabled={inputsDisabled}
+          isLocked={isLocked}
+          lockCountdownText={lockCountdownText}
           captchaRequired={captchaRequired}
           captcha={captcha}
           captchaImgUrl={captchaImgUrl}

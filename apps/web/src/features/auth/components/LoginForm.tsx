@@ -19,7 +19,11 @@ type Props = {
   keep7Days: boolean
   loading: boolean
 
-  // 验证码
+  submitDisabled: boolean
+  inputsDisabled: boolean
+  isLocked: boolean
+  lockCountdownText: string
+
   captchaRequired: boolean
   captcha: string
   captchaImgUrl?: string
@@ -33,115 +37,130 @@ type Props = {
   onSubmit: () => void
 }
 
-export const LoginForm: React.FC<Props> = ({
-  email,
-  password,
-  rememberMe,
-  keep7Days,
-  loading,
-  captchaRequired,
-  captcha,
-  captchaImgUrl,
-  onCaptchaChange,
-  onRefreshCaptcha,
-  onEmailChange,
-  onPasswordChange,
-  onRememberChange,
-  onKeep7DaysChange,
-  onSubmit,
-}) => {
+export const LoginForm: React.FC<Props> = p => {
+  const btnText = p.isLocked ? `已锁定 ${p.lockCountdownText}` : '登录'
   return (
     <form
       onSubmit={e => {
         e.preventDefault()
-        onSubmit()
+        if (!p.submitDisabled) p.onSubmit()
       }}
       noValidate
     >
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
-        {/* 邮箱 */}
         <div>
           <Text style={{ display: 'block', marginBottom: 8 }}>邮箱地址</Text>
           <Input
             prefix={<UserOutlined />}
             type="email"
-            value={email}
-            onChange={e => onEmailChange(e.target.value)}
+            value={p.email}
+            onChange={e => p.onEmailChange(e.target.value)}
             placeholder="请输入您的邮箱"
             size="large"
             required
             autoComplete="username"
+            disabled={p.inputsDisabled}
           />
         </div>
 
-        {/* 密码 */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ display: 'block', marginBottom: 8 }}>密码</Text>
-            <Tooltip title="强密码请包含大小写字母/数字/符号，长度符合系统设置">
+            <Tooltip title="强密码请包含大小写字母/数字/符号">
               <SafetyCertificateOutlined style={{ opacity: 0.6 }} />
             </Tooltip>
           </div>
           <Input.Password
             prefix={<LockOutlined />}
-            value={password}
-            onChange={e => onPasswordChange(e.target.value)}
+            value={p.password}
+            onChange={e => p.onPasswordChange(e.target.value)}
             placeholder="请输入您的密码"
             size="large"
-            iconRender={visible => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
+            iconRender={v => (v ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             required
             autoComplete="current-password"
+            disabled={p.inputsDisabled}
           />
         </div>
 
-        {/* 验证码（按需显示） */}
-        {captchaRequired && (
+        {p.captchaRequired && (
           <div>
             <Text style={{ display: 'block', marginBottom: 8 }}>验证码</Text>
             <Row gutter={8} align="middle">
               <Col flex="auto">
                 <Input
-                  value={captcha}
-                  onChange={e => onCaptchaChange(e.target.value)}
+                  value={p.captcha}
+                  onChange={e => p.onCaptchaChange(e.target.value)}
                   placeholder="请输入图片中的字符"
                   size="large"
                   autoComplete="off"
+                  disabled={p.inputsDisabled}
                 />
               </Col>
               <Col>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <img
-                    src={captchaImgUrl}
+                    src={p.captchaImgUrl}
                     alt="captcha"
-                    style={{ height: 40, borderRadius: 6, border: '1px solid #eee' }}
+                    style={{
+                      height: 40,
+                      borderRadius: 6,
+                      border: '1px solid #eee',
+                      opacity: p.inputsDisabled ? 0.6 : 1,
+                    }}
+                    onClick={p.inputsDisabled ? undefined : p.onRefreshCaptcha}
                   />
-                  <Button icon={<ReloadOutlined />} onClick={onRefreshCaptcha} />
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={p.onRefreshCaptcha}
+                    disabled={p.inputsDisabled}
+                    aria-disabled={p.inputsDisabled}
+                  />
                 </div>
               </Col>
             </Row>
           </div>
         )}
 
-        {/* 记住我 & 7 天免登录 & 忘记密码 */}
         <div
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
         >
-          <Checkbox checked={rememberMe} onChange={e => onRememberChange(e.target.checked)}>
+          <Checkbox
+            checked={p.rememberMe}
+            onChange={e => p.onRememberChange(e.target.checked)}
+            disabled={p.inputsDisabled}
+          >
             记住我
           </Checkbox>
-
-          <Checkbox checked={keep7Days} onChange={e => onKeep7DaysChange(e.target.checked)}>
+          <Checkbox
+            checked={p.keep7Days}
+            onChange={e => p.onKeep7DaysChange(e.target.checked)}
+            disabled={p.inputsDisabled}
+          >
             7 天免登录
           </Checkbox>
-
-          <Link to="/forgot-password" style={{ marginLeft: 'auto' }}>
+          <Link
+            to="/forgot-password"
+            style={{
+              marginLeft: 'auto',
+              pointerEvents: p.inputsDisabled ? 'none' : 'auto',
+              opacity: p.inputsDisabled ? 0.6 : 1,
+            }}
+          >
             忘记密码？
           </Link>
         </div>
 
-        {/* 提交 */}
-        <Button type="primary" htmlType="submit" loading={loading} size="large" block>
-          登录
+        <Button
+          type="primary"
+          htmlType="submit"
+          loading={p.loading}
+          size="large"
+          block
+          disabled={p.submitDisabled}
+          aria-disabled={p.submitDisabled}
+        >
+          {btnText}
         </Button>
       </Space>
     </form>
