@@ -18,8 +18,14 @@ export class AuthLockService {
             : ({ locked: false as const } as const)
     }
 
+    /** 锁过期自动解锁并清零失败计数 */
     async unlockIfExpired(email: string, ip: string) {
         await LoginFailureRepository.unlockIfExpired(email, ip)
+    }
+
+    /** 过期计数衰减：last_failed_at 超过窗口则清零 fail_count */
+    async decayOldFails(email: string, ip: string, windowMinutes?: number) {
+        await LoginFailureRepository.decayIfStale(email, ip, typeof windowMinutes === 'number' ? windowMinutes : this.minutes)
     }
 
     async hitFail(email: string, ip: string) {
@@ -29,7 +35,6 @@ export class AuthLockService {
     async reset(email: string, ip: string) {
         await LoginFailureRepository.reset(email, ip)
     }
-
 
     /** 统一加锁：一定把 locked_until + fail_count 同步到表里 */
     async lock(email: string, ip: string, minutes?: number, withCount?: number) {

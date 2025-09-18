@@ -1,8 +1,9 @@
+// apps/backend/src/modules/logs/services/log.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Request } from 'express'
 import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
-import { getClientIp } from '@/common/utils/request-ip'   // 确保路径存在：apps/backend/src/common/utils/request-ip.ts
+import { getClientIp } from '@/common/utils/request-ip'
 import HttpError from '@/common/errors/http-error'
 import { CODES } from '@/types/response'
 
@@ -76,21 +77,39 @@ const metaFromReq = (req?: Pick<Request, 'ip' | 'get' | 'headers' | 'socket'> | 
   userAgent: req?.get?.('User-Agent') || (req as any)?.headers?.['user-agent'] || undefined,
 })
 
-// ---------- level 推断（可被入参覆盖） ----------
+// ---------- level 推断（英文 + 中文关键字） ----------
 function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   if (input.level) return input.level
-  if (typeof input.status === 'string' && /failed|error/i.test(input.status)) return 'error'
-  if (typeof input.status === 'string' && /warn/i.test(input.status)) return 'warn'
-  if (input.action) {
-    if (/delete|remove|reset|ban|disable/i.test(input.action)) return 'warn'
-    if (/create|insert|register|login|update|upload|import|export/i.test(input.action)) return 'info'
+
+  const action = String(input.action || '')
+  const msg = String(input.message || '')
+  const status = String(input.status || '')
+
+  // 明确失败
+  if (/failed|error/i.test(status) || /失败|错误|异常|未授权|无权限/.test(msg)) return 'error'
+
+  // 危险/破坏性操作 → warn
+  if (
+      /(delete|remove|reset|ban|disable|unpublish|offline)/i.test(action) ||
+      /(删除|移除|解绑|重置|禁用|停用|下线)/.test(action + msg)
+  ) {
+    return 'warn'
   }
+
+  // 常规变更 → info
+  if (
+      /(create|insert|register|login|update|publish|start|submit|upload|import|export)/i.test(action) ||
+      /(创建|新增|登录|更新|发布|开始|提交|上传|导入|导出)/.test(action + msg)
+  ) {
+    return 'info'
+  }
+
   return 'info'
 }
 
 // ---------- Service ----------
 export class LogService {
-  /** 统一写日志入口 */
+  /** 统一写日志入口（message 建议中文） */
   static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
     await LogRepository.insert({
@@ -104,14 +123,13 @@ export class LogService {
       resourceId: input.resourceId,
       details: input.details,
       status: input.status,
-      // 允许调用方覆盖；未传则取真实客户端信息
       ipAddress: input.ipAddress ?? meta.ipAddress,
       userAgent: input.userAgent ?? meta.userAgent,
     })
   }
 
   async getLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new HttpError('未授权访问',401, CODES.AUTH_UNAUTHORIZED)
+    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
     const { rows, total, page, limit } =
         await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
@@ -130,7 +148,7 @@ export class LogService {
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new HttpError('未授权访问',401, CODES.AUTH_UNAUTHORIZED)
+    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
     const { rows, total, page, limit } =
         await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     return { logs: attachClient(rows), total, page, limit }
@@ -143,7 +161,6 @@ export class LogService {
 
   async cleanupLogs(role: string | undefined, daysToKeep: number) {
     if (role !== 'admin') throw new HttpError('权限不足', 403, CODES.AUTH_FORBIDDEN)
-
     if (!Number.isFinite(daysToKeep) || daysToKeep < 0) throw new HttpError('daysToKeep 必须为非负数字')
     const affected = await LogRepository.cleanupOlderThan(new Date(Date.now() - daysToKeep * 86400_000))
     return { message: '日志清理完成', affected }

@@ -1,4 +1,3 @@
-// features/papers/components/ConfirmDialog.tsx
 import { Modal } from 'antd'
 
 export default function ConfirmDialog({
@@ -20,7 +19,7 @@ export default function ConfirmDialog({
 }) {
   return (
     <Modal title={title} open={open} onOk={onOk} onCancel={onCancel} okText={okText} cancelText={cancelText}>
-      {content ? <p>{content}</p> : null}
+      {content ? <p style={{ margin: 0 }}>{content}</p> : null}
     </Modal>
   )
 }

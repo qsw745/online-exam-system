@@ -7,10 +7,11 @@ import 'dotenv/config'
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response } from 'express'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
+import { execSync } from 'node:child_process'
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
 
-// 业务错误类型（可选）
+// 业务错误类型
 import { HttpError } from '@/common/errors/http-error'
 
 // 统一响应 & 请求ID & 日志等中间件
@@ -26,9 +27,9 @@ import apiRoutesOrFactory from '@/routes'
 import { syncMenus } from './bootstrap/syncMenus'
 
 // 时间格式
-import { formatTime } from '@/infrastructure/logging/logger'
+import {formatTime, log} from '@/infrastructure/logging/logger'
 
-// 业务状态码（用于 errorHandler/fail 等）
+// 业务状态码
 import { CODES } from '@/types/response'
 
 /** uploads 目录 */
@@ -92,96 +93,29 @@ const api404: RequestHandler = (_req, res) => {
   res.fail(CODES.NOT_FOUND, 404, '请求的资源不存在')
 }
 
-/** —— 统一错误处理（必须在所有路由/404 之后） —— */
-const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
-  // 如果 headers 已发送，交给默认处理（避免二次写头）
-  if (res.headersSent) return
-
-  const log = (req as any).log ?? console
-
-  const isHttpErr =
-      err instanceof HttpError ||
-      (err && (err as any).name === 'HttpError') ||
-      (err && (err as any).name === 'ValidationError')
-
-  const status =
-      (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
-
-  const code: string | undefined =
-      (isHttpErr && (err as any).code) || (typeof (err as any)?.code === 'string' ? (err as any).code : undefined)
-
-  const details = (isHttpErr && (err as any).details) || (err as any)?.details
-  const ctx = (isHttpErr && (err as any).ctx) || (err as any)?.ctx
-
-  ;(req as any).onError?.(err)
-
-  const top = pickTopBusinessFrame((err as any)?.stack)
-  const short =
-      `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
-      (top ? ` @/ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
-
-  const reqDump =
-      req.method === 'GET' || req.method === 'HEAD'
-          ? { params: req.params, query: req.query }
-          : { params: req.params, query: req.query, body: safeJson(req.body) }
-
-  log[status >= 500 ? 'error' : 'warn']?.(short, {
-    rid: (req as any).id ?? null,
-    method: req.method,
-    url: (req as any).originalUrl || req.url,
-    routePath: (req as any).route?.path || null,
-    handler: (req as any).__handlerName ?? null,
-    error: {
-      type: (err as any)?.name,
-      message: String((err as any)?.message ?? err),
-      stack: (err as any)?.stack,
-      code,
-      status,
-      details,
-      ctx,
-    },
-    request: reqDump,
-  })
-
-  // 统一输出：4xx/5xx
-  const msg = (err as any)?.message || (status >= 500 ? '服务器内部错误' : '请求错误')
-  if (status === 401) return res.unauthorized(msg, { code: code ?? CODES.AUTH_UNAUTHORIZED, error: { details } })
-  if (status === 403) return res.forbidden(msg, { code: code ?? CODES.AUTH_FORBIDDEN, error: { details } })
-  if (status === 404) return res.fail(code ?? CODES.NOT_FOUND, 404, msg, { error: { details } })
-  if (status === 429) return res.tooMany(msg, { code: code ?? CODES.RATE_LIMITED, error: { details } })
-  if (status >= 400 && status < 500) return res.badRequest(msg, { code: code ?? CODES.VALIDATION_ERROR, error: { details } })
-  return res.internal(msg, { code: code ?? CODES.INTERNAL_ERROR, error: { details } })
+/** 是否在响应体中暴露堆栈 */
+function shouldExposeStack(req: Request) {
+  const isProd = process.env.NODE_ENV === 'production'
+  const debugHeader = (req.headers['x-debug'] || req.headers['x-debug-stack'] || '').toString().trim()
+  return !isProd || debugHeader === '1' || debugHeader.toLowerCase() === 'true'
 }
 
-/** 启动 */
-const port = Number(process.env.PORT || 3000)
-
-async function start() {
-  try {
-    await mountRoutes()
-
-    // 404 放在所有 /api 路由之后
-    app.use('/api', api404)
-
-    // 错误处理放最后
-    app.use(errorHandler)
-
-    await syncMenus?.({ removeOrphans: false, mode: 'patch' }).catch((e: any) => {
-      console.warn('[menu-sync] failed at boot:', e?.message || e)
-    })
-
-    app.listen(port, '0.0.0.0', () => {
-      console.log(`[boot] server at http://localhost:${port} (0.0.0.0:${port})`)
-      console.log(`[boot] uploads dir = ${UPLOADS_DIR}`)
-    })
-  } catch (e) {
-    console.error('[boot] failed:', e)
-    process.exit(1)
+/** 从错误对象萃取常见 SQL 元信息 */
+function extractSqlish(err: any) {
+  if (!err) return undefined
+  const hasAny = err?.code || err?.errno || err?.sqlState || err?.sql || err?.sqlMessage
+  if (!hasAny) return undefined
+  return {
+    code: err.code,
+    errno: err.errno,
+    sqlState: err.sqlState || err.sqlstate,
+    sqlMessage: err.sqlMessage || err.message,
+    sql: err.sql,
+    parameters: err.parameters || err.values,
   }
 }
 
-start()
-
+/** 提取首个“业务栈帧”（忽略 node/node_modules） */
 function pickTopBusinessFrame(stack?: string) {
   if (!stack) return null
   const lines = stack.split('\n').slice(1)
@@ -203,6 +137,7 @@ function pickTopBusinessFrame(stack?: string) {
   return null
 }
 
+/** 安全 JSON（日志使用） */
 function safeJson(obj: any, max = 4000) {
   try {
     const s = JSON.stringify(obj)
@@ -211,3 +146,182 @@ function safeJson(obj: any, max = 4000) {
     return undefined
   }
 }
+
+/** —— 统一错误处理（必须在所有路由/404 之后） —— */
+const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
+  if (res.headersSent) return
+
+  const log = (req as any).log ?? console
+
+  const isHttpErr =
+      err instanceof HttpError ||
+      (err && (err as any).name === 'HttpError') ||
+      (err && (err as any).name === 'ValidationError')
+
+  const status =
+      (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
+
+  const code: string | undefined =
+      (isHttpErr && (err as any).code) || (typeof (err as any)?.code === 'string' ? (err as any).code : undefined)
+
+  const details = (isHttpErr && (err as any).details) || (err as any)?.details
+  const ctx = (isHttpErr && (err as any).ctx) || (err as any)?.ctx
+
+      // 触发 httpLogger 的错误日志
+  ;(req as any).onError?.(err)
+
+  const top = pickTopBusinessFrame((err as any)?.stack)
+  const exposeStack = shouldExposeStack(req)
+  const sql = extractSqlish(err)
+
+  const short =
+      `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
+      (top ? ` @/ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
+
+  const reqDump =
+      req.method === 'GET' || req.method === 'HEAD'
+          ? { params: req.params, query: req.query }
+          : { params: req.params, query: req.query, body: safeJson(req.body) }
+
+  // 结构化错误日志
+  log[status >= 500 ? 'error' : 'warn']?.('controller error', {
+    rid: (req as any).id ?? null,
+    method: req.method,
+    url: (req as any).originalUrl || req.url,
+    routePath: (req as any).route?.path || null,
+    handler: (req as any).__handlerName ?? null,
+    short,
+    error: {
+      type: (err as any)?.name,
+      message: String((err as any)?.message ?? err),
+      code,
+      status,
+      details,
+      ctx,
+      sql,
+      topFrame: top || undefined,
+      stack: exposeStack ? (err as any)?.stack : undefined,
+    },
+    request: reqDump,
+  })
+
+  // 统一输出：4xx/5xx（响应里也带上 where/stack/sql 等便于前端直接看到）
+  const msg = (err as any)?.message || (status >= 500 ? '服务器内部错误' : '请求错误')
+  const errorPayload = {
+    type: (err as any)?.name,
+    message: msg,
+    code,
+    status,
+    details,
+    ctx,
+    sql,
+    where: top || undefined,
+    stack: exposeStack ? (err as any)?.stack : undefined,
+    routePath: (req as any).route?.path || undefined,
+    handler: (req as any).__handlerName || undefined,
+    requestId: (req as any).id || undefined,
+  }
+
+  if (status === 401) return res.unauthorized(msg, { code: code ?? CODES.AUTH_UNAUTHORIZED, error: errorPayload })
+  if (status === 403) return res.forbidden(msg, { code: code ?? CODES.AUTH_FORBIDDEN, error: errorPayload })
+  if (status === 404) return res.fail(code ?? CODES.NOT_FOUND, 404, msg, { error: errorPayload })
+  if (status === 429) return res.tooMany(msg, { code: code ?? CODES.RATE_LIMITED, error: errorPayload })
+  if (status >= 400 && status < 500) return res.badRequest(msg, { code: code ?? CODES.VALIDATION_ERROR, error: errorPayload })
+  return res.internal(msg, { code: code ?? CODES.INTERNAL_ERROR, error: errorPayload })
+}
+
+/** —— 端口诊断（Windows 专用） —— */
+function diagnoseWindowsPort(port: number) {
+  try {
+    if (process.platform !== 'win32') return
+    log.error('[diagnose] Windows 检测：开始快速排查…')
+
+    try {
+      const out = execSync('netsh int ipv4 show excludedportrange protocol=tcp', { encoding: 'utf8' })
+      const ranges: Array<[number, number]> = []
+      for (const line of out.split(/\r?\n/)) {
+        const m = line.trim().match(/^(\d+)\s+(\d+)$/)
+        if (m) ranges.push([Number(m[1]), Number(m[2])])
+      }
+      const hit = ranges.find(([s, e]) => port >= s && port <= e)
+      if (hit) {
+        log.error(`[diagnose] 端口 ${port} 位于系统保留区间 ${hit[0]}-${hit[1]}（excludedportrange）.`)
+        log.error('[diagnose] 常见原因：Hyper-V/WSL/ICS/NAT 服务保留。可尝试（管理员 PowerShell）：')
+        log.error('    net stop winnat && net start winnat')
+        log.error('    sc stop SharedAccess && sc start SharedAccess')
+      }
+    } catch {}
+
+    try {
+      const out2 = execSync(`cmd /c netstat -ano -p tcp | findstr ":${port}"`, { encoding: 'utf8' })
+      if (out2?.trim()) {
+        log.error('[diagnose] netstat 检测到可能占用：')
+        log.error(out2)
+        log.error('[diagnose] 可执行：taskkill /PID <pid> /F')
+      } else {
+        log.error('[diagnose] netstat 未发现监听，同样可能是“系统保留端口/权限策略”。')
+      }
+    } catch {
+      log.error('[diagnose] netstat 未发现监听，同样可能是“系统保留端口/权限策略”。')
+    }
+  } catch {}
+}
+
+/** 启动（固定端口策略 + 单例监听防抖） */
+const port = Number(process.env.PORT || 3000)
+const HOST = String(process.env.HOST || '0.0.0.0')
+const LISTEN_FLAG = '__OES_SERVER_ALREADY_LISTENING__'
+
+async function start() {
+  try {
+    await mountRoutes()
+
+    // 404 放在所有 /api 路由之后
+    app.use('/api', api404)
+
+    // 错误处理放最后
+    app.use(errorHandler)
+
+    await syncMenus?.({ removeOrphans: false, mode: 'patch' }).catch((e: any) => {
+      log.warn('[menu-sync] failed at boot:', e?.message || e)
+    })
+
+    if ((globalThis as any)[LISTEN_FLAG]) {
+      log.warn('[boot] listen skipped: already listening in this process (duplicate import)')
+      return
+    }
+    ;(globalThis as any)[LISTEN_FLAG] = true
+
+    const server = app.listen(port, HOST, () => {
+      const shownHost = HOST === '0.0.0.0' ? 'localhost' : HOST
+      console.log(`[boot] server at http://${shownHost}:${port} (${HOST}:${port})`)
+      console.log(`[boot] uploads dir = ${UPLOADS_DIR}`)
+    })
+
+    server.on('error', (err: any) => {
+      const code = err?.code
+      const addr = (err as any)?.address ?? HOST
+      const prt = (err as any)?.port ?? port
+
+      if (code === 'EADDRINUSE' || code === 'EACCES') {
+        console.error(`[boot] 监听失败：${addr}:${prt} -> ${code} (${err?.message || 'permission denied'})`)
+        if (process.platform === 'win32' && code === 'EACCES') {
+          diagnoseWindowsPort(prt)
+        }
+        console.error(`[boot] 固定端口策略：不切换端口。请释放/解除限制后重试。`)
+        console.error(`[hint] Windows: netstat -ano | findstr ":${prt}"  ->  taskkill /PID <pid> /F`)
+        process.exit(1)
+      } else {
+        console.error('[boot] listen error:', err)
+        process.exit(1)
+      }
+    })
+  } catch (e) {
+    console.error('[boot] failed:', e)
+    process.exit(1)
+  }
+}
+
+start()
+
+export default app

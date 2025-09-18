@@ -57,7 +57,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
       width: 180,
       ellipsis: true,
       render: (t: string) => <OneLine text={dayjs(t).format('YYYY-MM-DD HH:mm:ss')} />,
-      fixed: 'left',
+    //   fixed: 'left',
     },
     {
       title: '级别',
@@ -71,7 +71,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
           </Tag>
         </span>
       ),
-      fixed: 'left',
+    //   fixed: 'left',
     },
     {
       title: '用户',
@@ -106,22 +106,22 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
         />
       ),
     },
-    {
-      title: '资源',
-      dataIndex: 'resource',
-      width: 180,
-      ellipsis: true,
-      render: (v: string | undefined, r) => {
-        const fallback = r.resource_type
-          ? r.resource_id !== undefined && r.resource_id !== null && String(r.resource_id) !== ''
-            ? `${r.resource_type}#${r.resource_id}`
-            : r.resource_type
-          : undefined
-        const text = v || fallback
-        return <OneLine text={text} title={text} />
-      },
-      responsive: ['md'],
-    },
+    // {
+    //   title: '资源',
+    //   dataIndex: 'resource',
+    //   width: 180,
+    //   ellipsis: true,
+    //   render: (v: string | undefined, r) => {
+    //     const fallback = r.resource_type
+    //       ? r.resource_id !== undefined && r.resource_id !== null && String(r.resource_id) !== ''
+    //         ? `${r.resource_type}#${r.resource_id}`
+    //         : r.resource_type
+    //       : undefined
+    //     const text = v || fallback
+    //     return <OneLine text={text} title={text} />
+    //   },
+    //   responsive: ['md'],
+    // },
     {
       title: '详情',
       key: 'details',

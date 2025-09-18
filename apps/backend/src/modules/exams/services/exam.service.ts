@@ -1,118 +1,271 @@
-// src/modules/exams/services/exam.service.ts
-import { LogRepository } from '@/modules/logs/repositories/log.repository.js'
+// apps/backend/src/modules/exams/services/exam.service.ts
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ExamDetailData } from '../domain/exam.model.js'
 import { ExamRepository } from '../repositories/exam.repository.js'
+import LogService from '@/modules/logs/services/log.service.js'
+import { appLogger } from '@/infrastructure/logging/logger.js'
+
+/** 取“请求作用域”日志器，优先 req.log（由 http-logger 注入），否则退回全局 appLogger */
+function getLog(req?: any) {
+  const l = (req && (req as any).log && typeof (req as any).log.info === 'function') ? (req as any).log : appLogger
+  return l
+}
+
+/** 将 Error/任意异常转成可序列化的 meta */
+function errMeta(e: any) {
+  if (e instanceof Error) return { message: e.message, stack: e.stack, name: e.name }
+  return { error: e }
+}
 
 export class ExamService {
   async list(params: { page: number; limit: number; status?: string; search?: string }) {
+    // 查询类不记审计日志
     return ExamRepository.list(params)
   }
 
   async getById(examId: number): Promise<ExamDetailData> {
+    // 查看详情通常不记审计日志
     return ExamRepository.getDetail(examId)
   }
 
   async create(userId: number, payload: any) {
-    const exam = await ExamRepository.createExam(userId, payload)
-    await LogRepository.insertAuditLog({
-      userId,
-      username: undefined,
-      action: 'create_exam',
-      resourceType: 'exam',
-      resourceId: Number(exam.id),
-      details: { title: exam.title, duration: exam.duration, questionCount: payload?.questions?.length || 0 },
-    } as any)
-    return exam
+    try {
+      const exam = await ExamRepository.createExam(userId, payload)
+
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'create_exam',
+        resourceType: 'exam',
+        resourceId: Number(exam.id),
+        status: 'success',
+        message: `创建考试「${exam.title}」成功`,
+        details: {
+          标题: exam.title,
+          描述: exam.description,
+          时长分钟: exam.duration,
+          开始时间: exam.start_time,
+          结束时间: exam.end_time,
+          总分: exam.total_score,
+          及格分: exam.passing_score,
+          题目数量: Array.isArray(payload?.questions) ? payload.questions.length : 0,
+        },
+      })
+
+      return exam
+    } catch (e: any) {
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'create_exam',
+        resourceType: 'exam',
+        resourceId: 0,
+        status: 'failed',
+        level: 'error',
+        message: `创建考试失败：${e?.message || '未知错误'}`,
+        details: { 提交参数: payload },
+      })
+      throw e
+    }
   }
 
   async update(userId: number, examId: number, payload: any) {
-    const exam = await ExamRepository.updateExam(userId, examId, payload)
-    await LogRepository.insertAuditLog({
-      userId,
-      action: 'update_exam',
-      resourceType: 'exam',
-      resourceId: examId,
-      details: {
-        title: payload?.title ?? exam.title,
-        status: payload?.status,
-        questionCount: payload?.questions?.length,
-      },
-    } as any)
-    return exam
+    try {
+      const exam = await ExamRepository.updateExam(userId, examId, payload)
+
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'update_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'success',
+        message: `更新考试「${payload?.title ?? exam.title}」成功`,
+        details: {
+          新标题: payload?.title ?? exam.title,
+          新状态: payload?.status ?? (exam as any)?.status,
+          新时长分钟: payload?.duration ?? exam.duration,
+          新开始时间: payload?.start_time ?? exam.start_time,
+          新结束时间: payload?.end_time ?? exam.end_time,
+          新总分: payload?.total_score ?? exam.total_score,
+          新及格分: payload?.passing_score ?? exam.passing_score,
+          新题目数量: Array.isArray(payload?.questions) ? payload.questions.length : undefined,
+        },
+      })
+
+      return exam
+    } catch (e: any) {
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'update_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'failed',
+        level: 'error',
+        message: `更新考试失败：${e?.message || '未知错误'}`,
+        details: { 提交参数: payload },
+      })
+      throw e
+    }
   }
 
   async remove(userId: number, examId: number) {
-    const existed = await ExamRepository.deleteExam(userId, examId)
-    await LoggerService.logUserAction({
-      userId,
-      action: 'delete_exam',
-      resourceType: 'exam',
-      resourceId: examId,
-      details: { examTitle: existed.title },
-    } as any)
+    try {
+      const existed = await ExamRepository.deleteExam(userId, examId)
+
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'delete_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'success',
+        message: `删除考试「${existed.title}」成功`,
+        details: { 标题: existed.title },
+      })
+    } catch (e: any) {
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'delete_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'failed',
+        level: 'warn',
+        message: `删除考试失败：${e?.message || '未知错误'}`,
+      })
+      throw e
+    }
   }
 
   async start(userId: number, examId: number) {
-    const exam = await ExamRepository.findPublished(examId)
-    if (!exam) throw new Error('考试不存在或未发布')
-    const now = new Date()
-    if (exam.start_time && now < (exam.start_time as any)) throw new Error('考试还未开始')
-    if (exam.end_time && now > (exam.end_time as any)) throw new Error('考试已结束')
+    try {
+      const exam = await ExamRepository.findPublished(examId)
+      if (!exam) throw new Error('考试不存在或未发布')
 
-    const existed = await ExamRepository.findAnyInProgressResult(examId, userId)
-    if (existed) throw new Error('您已经开始了这个考试')
+      const now = new Date()
+      if (exam.start_time && now < (exam.start_time as any)) throw new Error('考试还未开始')
+      if (exam.end_time && now > (exam.end_time as any)) throw new Error('考试已结束')
 
-    await ExamRepository.createInProgressResult(examId, userId)
+      const existed = await ExamRepository.findAnyInProgressResult(examId, userId)
+      if (existed) throw new Error('您已经开始了这个考试')
+
+      await ExamRepository.createInProgressResult(examId, userId)
+
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'start_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'success',
+        message: `开始考试「${exam.title}」`,
+        details: {
+          标题: exam.title,
+          开始时间: exam.start_time,
+          结束时间: exam.end_time,
+        },
+      })
+    } catch (e: any) {
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'start_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'failed',
+        level: 'warn',
+        message: `开始考试失败：${e?.message || '未知错误'}`,
+      })
+      throw e
+    }
   }
 
   async submit(userId: number, examId: number, answers: Record<number, any>, req: any) {
-    const { resultId, questions, totalScore } = await ExamRepository.submitAndScore(examId, userId, answers)
+    const log = getLog(req)
+    try {
+      const { resultId, questions, totalScore } = await ExamRepository.submitAndScore(examId, userId, answers)
 
-    // —— 事务外的联动（与原实现一致）——
-    setTimeout(async () => {
-      try {
-        const { WrongQuestionController } = await import('../wrong-questions/wrong-question.controller.js')
-        await WrongQuestionController.autoCollectWrongQuestions(
-          { ...req, body: { exam_result_id: resultId } } as any,
-          { json: () => {}, status: () => ({ json: () => {} }) } as any
-        )
-      } catch (e) {
-        console.error('自动收集错题失败:', e)
-      }
-    }, 0)
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'submit_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'success',
+        message: `提交考试答卷成功，得分：${totalScore}`,
+        details: {
+          结果ID: resultId,
+          题目数量: questions.length,
+          得分: totalScore,
+        },
+      })
 
-    setTimeout(async () => {
-      try {
-        const mod = await import('@/modules/learning-progress/controllers/learning-progress.controller.js')
-        const C = (mod as any).LearningProgressController ?? (mod as any).learningProgressController
-        const total = questions.length
-        const correct = questions.filter(q => answers[q.id] === q.answer).length
-        const studyTime = Math.floor(Math.random() * 60) + 30
-        await C.recordProgress(
-          {
-            user: { id: userId },
-            body: { studyTime, questionsAnswered: total, correctAnswers: correct, studyContent: `考试：${examId}` },
-          } as any,
-          { json: () => {}, status: () => ({ json: () => {} }) } as any
-        )
-      } catch (e) {
-        console.error('记录学习进度失败:', e)
-      }
-    }, 0)
+      // —— 事务外联动：错题收集 —— //
+      setTimeout(async () => {
+        try {
+          const { WrongQuestionController } = await import('../wrong-questions/wrong-question.controller.js')
+          await WrongQuestionController.autoCollectWrongQuestions(
+              { ...req, body: { exam_result_id: resultId } } as any,
+              { json: () => {}, status: () => ({ json: () => {} }) } as any
+          )
+        } catch (e) {
+          log.error('自动收集错题失败', { module: 'exam.service', action: 'autoCollectWrong', ...errMeta(e) })
+        }
+      }, 0)
 
-    setTimeout(async () => {
-      try {
-        const { LeaderboardService } = await import('@/modules/leaderboard/services/leaderboard.service.js')
-        const leaderboardService = new LeaderboardService()
-        const total = questions.length
-        const correct = questions.filter(q => answers[q.id] === q.answer).length
-        const accuracy = total > 0 ? (correct / total) * 100 : 0
-        await leaderboardService.updateLeaderboardRanking(1, userId, totalScore)
-        await leaderboardService.updateLeaderboardRanking(3, userId, accuracy)
-        await leaderboardService.checkAndAwardRankingAchievements(userId)
-      } catch (e) {
-        console.error('更新排行榜失败:', e)
-      }
-    }, 0)
+      // —— 事务外联动：学习进度 —— //
+      setTimeout(async () => {
+        try {
+          const mod = await import('@/modules/learning-progress/controllers/learning-progress.controller.js')
+          const C = (mod as any).LearningProgressController ?? (mod as any).learningProgressController
+          const total = questions.length
+          const correct = questions.filter(q => answers[q.id] === q.answer).length
+          const studyTime = Math.floor(Math.random() * 60) + 30
+          await C.recordProgress(
+              {
+                user: { id: userId },
+                body: { studyTime, questionsAnswered: total, correctAnswers: correct, studyContent: `考试：${examId}` },
+              } as any,
+              { json: () => {}, status: () => ({ json: () => {} }) } as any
+          )
+        } catch (e) {
+          log.error('记录学习进度失败', { module: 'exam.service', action: 'recordProgress', ...errMeta(e) })
+        }
+      }, 0)
+
+      // —— 事务外联动：排行榜 —— //
+      setTimeout(async () => {
+        try {
+          const { LeaderboardService } = await import('@/modules/leaderboard/services/leaderboard.service.js')
+          const leaderboardService = new LeaderboardService()
+          const total = questions.length
+          const correct = questions.filter(q => answers[q.id] === q.answer).length
+          const accuracy = total > 0 ? (correct / total) * 100 : 0
+          await leaderboardService.updateLeaderboardRanking(1, userId, totalScore)
+          await leaderboardService.updateLeaderboardRanking(3, userId, accuracy)
+          await leaderboardService.checkAndAwardRankingAchievements(userId)
+        } catch (e) {
+          log.error('更新排行榜失败', { module: 'exam.service', action: 'updateLeaderboard', ...errMeta(e) })
+        }
+      }, 0)
+    } catch (e: any) {
+      await LogService.log({
+        type: 'audit',
+        userId,
+        action: 'submit_exam',
+        resourceType: 'exam',
+        resourceId: examId,
+        status: 'failed',
+        level: 'error',
+        message: `提交考试失败：${e?.message || '未知错误'}`,
+      })
+      // 同时把异常也写入结构化日志，便于排查
+      getLog(req).error('提交考试失败', { module: 'exam.service', action: 'submit', ...errMeta(e) })
+      throw e
+    }
   }
 }
+
+export default ExamService

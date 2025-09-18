@@ -1,4 +1,3 @@
-// apps/backend/src/modules/exams/controllers/paper.controller.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth'
@@ -6,7 +5,7 @@ import type { ApiResponse } from '@/types/response'
 import { CODES } from '@/types/response'
 import type { PaperData, PaperListData, PaperQuestionData } from '../domain/paper.model'
 import { PaperService } from '../services/paper.service'
-
+import {logger} from "@/infrastructure/logging/logger";
 const svc = new PaperService()
 
 export class PaperController {
@@ -53,12 +52,16 @@ export class PaperController {
 
   static async list(req: AuthRequest, res: Response<ApiResponse<PaperListData>>) {
     try {
-      const difficulty = req.query.difficulty as any
-      const limit = Number(req.query.limit ?? 10)
-      const offset = Number(req.query.offset ?? 0)
+      // ✅ 兼容前端 page/limit，内部转 offset
+      const page = Math.max(1, Number(req.query.page ?? 1))
+      const limit = Math.max(1, Number(req.query.limit ?? 10))
+      const offset = Number.isFinite(Number(req.query.offset)) ? Number(req.query.offset) : (page - 1) * limit
+      const difficulty = (req.query.difficulty as any) || undefined
+
       const data = await svc.list({ difficulty, limit, offset })
       return (res as any).ok(data, '获取试卷列表成功')
     } catch (e: any) {
+      // 错误统一交由全局 errorHandler 返回详细 where/stack/sql
       return (res as any).internal(e?.message || '获取试卷列表失败', { code: CODES.INTERNAL_ERROR })
     }
   }

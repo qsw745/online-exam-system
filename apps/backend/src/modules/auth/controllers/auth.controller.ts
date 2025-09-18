@@ -32,7 +32,7 @@ export class AuthController {
         }
     }
 
-    /** 登录（锁定+验证码，确保 locked_until 一定落库） */
+    /** 登录（锁定+验证码，锁过期自动清零 fail_count，过期计数自动衰减） */
     static async login(req: AuthRequest, res: Response<ApiResponse<any>>) {
         try {
             const settings = await AdminSettingsService.getSafe()
@@ -41,12 +41,14 @@ export class AuthController {
             const captchaAfter = Number(
                 (settings as any).captchaAfterFailedAttempts ??
                 (settings as any).captchaAfterFailed ??
-                (settings as any).captcha_after_failed ?? 3
+                (settings as any).captcha_after_failed ??
+                3
             )
             const lockAfter = Number(
                 (settings as any).lockAfterFailedAttempts ??
                 (settings as any).lockAfterFailed ??
-                (settings as any).lock_after_failed ?? Math.max(captchaAfter + 2, 6)
+                (settings as any).lock_after_failed ??
+                Math.max(captchaAfter + 2, 6)
             )
             const lockMinutes = Number((settings as any).lockMinutes ?? (settings as any).lock_minutes ?? 5)
 
@@ -80,10 +82,16 @@ export class AuthController {
 
             const ip = req.ip || ''
 
-            // —— 0) 读取记录，保证“达到阈值但未落库锁定”的一致性 —— //
-            const rec = await lockSvc.getRecord(email, ip)
+            // —— 0) 标准化登录状态（关键修复点） —— //
+            // 1. 若锁已过期：清空 locked_until 且把 fail_count 置 0
+            await lockSvc.unlockIfExpired(email, ip)
+            // 2. 若 last_failed_at 早于 lockMinutes 窗口：把 fail_count 置 0（过期计数衰减）
+            await lockSvc.decayOldFails(email, ip, lockMinutes)
 
-            // 如果数据库里已处于锁定期：直接返回
+            // 再读取最新记录
+            let rec = await lockSvc.getRecord(email, ip)
+
+            // 若仍在锁定期：直接 423 返回
             if (rec?.locked_until && new Date(rec.locked_until).getTime() > Date.now()) {
                 const untilMs = new Date(rec.locked_until).getTime()
                 const remainSec = Math.max(1, Math.ceil((untilMs - Date.now()) / 1000))
@@ -98,19 +106,8 @@ export class AuthController {
                 })
             }
 
-            // 曾达到阈值但 locked_until 为空或已过期：立即补锁，保证表里有值
-            if ((rec?.fail_count ?? 0) >= lockAfter) {
-                const { untilMs, remainSec } = await lockSvc.lock(email, ip, lockMinutes, rec?.fail_count)
-                const until = new Date(untilMs)
-                const ymd = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(until.getDate()).padStart(2, '0')}`
-                return (res as any).fail(CODES.AUTH_LOCKED, 423, '账号已临时锁定', {
-                    error: { retryable: true },
-                    subcode: SUBCODES.AUTH_LOCKED,
-                    meta: { lockMinutes },
-                    headers: { 'Retry-After': String(remainSec) },
-                    data: { unlockAt: untilMs, remainingSec: remainSec, unlockDate: ymd },
-                })
-            }
+            // ⚠️ 修复：不再根据 “fail_count >= lockAfter 但 locked_until 为空” 进行 “补锁”
+            // 让是否加锁由本次校验失败后的 hitFail 决定，避免“刚解锁又被补锁”的体验
 
             // —— 1) 验证码需求 —— //
             let mustCaptcha = false

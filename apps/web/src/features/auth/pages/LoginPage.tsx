@@ -57,6 +57,8 @@ const LoginPage: React.FC = () => {
     isLocked,
     lockCountdownText,
     lockUiHint,
+    lockTryRemainSec,
+    lockRetryCountdownText,
 
     captchaRequired,
     captcha,
@@ -154,6 +156,8 @@ const LoginPage: React.FC = () => {
           inputsDisabled={inputsDisabled}
           isLocked={isLocked}
           lockCountdownText={lockCountdownText}
+          lockTryRemainSec={lockTryRemainSec}
+          lockRetryCountdownText={lockRetryCountdownText}
           captchaRequired={captchaRequired}
           captcha={captcha}
           captchaImgUrl={captchaImgUrl}

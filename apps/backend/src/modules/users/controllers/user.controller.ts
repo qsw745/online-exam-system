@@ -3,6 +3,7 @@ import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import type { ApiResponse } from '@/types/response.js'
 import { UserService } from '../services/user.service.js'
+import {log} from "@/infrastructure/logging/logger";
 
 const svc = new UserService()
 
@@ -15,7 +16,7 @@ export class UserController {
             if (!user) return res.notFound('用户不存在')
             return res.ok(user, '获取成功')
         } catch (e) {
-            console.error('获取用户详情错误:', e)
+            log.error('获取用户详情错误:', e)
             return res.internal('获取用户详情失败')
         }
     }
@@ -27,7 +28,7 @@ export class UserController {
             if (!user) return res.notFound('用户不存在')
             return res.ok(user, '获取成功')
         } catch (e) {
-            console.error('获取当前用户信息错误:', e)
+            log.error('获取当前用户信息错误:', e)
             return res.internal('获取用户信息失败')
         }
     }
@@ -42,7 +43,7 @@ export class UserController {
             })
             return res.ok(updated, '更新成功')
         } catch (e) {
-            console.error('更新当前用户信息错误:', e)
+            log.error('更新当前用户信息错误:', e)
             return res.internal('更新用户信息失败')
         }
     }
@@ -56,7 +57,7 @@ export class UserController {
             const updated = await svc.uploadAvatar(req.user.id, avatarUrl)
             return res.ok(updated, '上传成功')
         } catch (e) {
-            console.error('上传头像错误:', e)
+            log.error('上传头像错误:', e)
             return res.internal('上传头像失败')
         }
     }
@@ -80,7 +81,7 @@ export class UserController {
             const r = await svc.list({ page, limit, role, search })
             return res.ok({ ...r, page, limit })
         } catch (e) {
-            console.error('获取用户列表错误:', e)
+            log.error('获取用户列表错误:', e)
             return res.internal('获取用户列表失败')
         }
     }
@@ -116,7 +117,7 @@ export class UserController {
 
             return res.ok(updated, '更新成功')
         } catch (e) {
-            console.error('更新用户信息错误:', e)
+            log.error('更新用户信息错误:', e)
             return res.internal('更新用户信息失败')
         }
     }
@@ -135,7 +136,7 @@ export class UserController {
             await svc.updateStatus(id, status, { id: req.user?.id, username: req.user?.username })
             return res.ok({ message: `用户状态已更新为${status === 'active' ? '启用' : '禁用'}` })
         } catch (e) {
-            console.error('更新用户状态错误:', e)
+            log.error('更新用户状态错误:', e)
             return res.internal('更新用户状态失败')
         }
     }
@@ -151,7 +152,7 @@ export class UserController {
             const password: string = await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username })
             return res.ok({ password }, '密码已重置为系统默认密码')
         } catch (e) {
-            console.error('重置用户密码错误:', e)
+            log.error('重置用户密码错误:', e)
             return res.internal('重置密码失败')
         }
     }
@@ -165,7 +166,7 @@ export class UserController {
             await svc.deleteUser(id, u.role, { id: req.user?.id, username: req.user?.username })
             return res.ok(null, '用户删除成功')
         } catch (e) {
-            console.error('删除用户错误:', e)
+            log.error('删除用户错误:', e)
             return res.internal('删除用户失败')
         }
     }
@@ -176,7 +177,7 @@ export class UserController {
             const settings = await svc.getSettings(req.user.id)
             return res.ok(settings, '获取成功')
         } catch (e) {
-            console.error('获取用户设置错误:', e)
+            log.error('获取用户设置错误:', e)
             return res.internal('获取用户设置失败')
         }
     }
@@ -189,7 +190,7 @@ export class UserController {
             const saved = await svc.saveSettings(req.user.id, settings)
             return res.ok(saved, '保存成功')
         } catch (e) {
-            console.error('保存用户设置错误:', e)
+            log.error('保存用户设置错误:', e)
             return res.internal('保存用户设置失败')
         }
     }

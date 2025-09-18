@@ -1,7 +1,6 @@
-// features/papers/hooks/usePapersList.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { papersApi, type Paper, type PaperDifficulty } from '../endpoints/papers'
+import { papersApi, type Paper, type PaperDifficulty } from '@/shared/api/endpoints/papers'
 import { useDebouncedValue } from './useDebouncedValue'
 
 export function usePapersList() {
@@ -24,14 +23,14 @@ export function usePapersList() {
       const { items, total } = await papersApi.list({
         page,
         limit: pageSize,
-        search: debouncedSearch,
+        search: debouncedSearch || undefined,
         difficulty,
       })
       setItems(items)
       setTotal(total)
     } catch (e: any) {
       console.error('加载试卷失败', e)
-      message.error(e?.response?.data?.message || '加载试卷失败')
+      message.error(e?.response?.data?.message || e?.message || '加载试卷失败')
       setItems([])
       setTotal(0)
     } finally {
@@ -50,17 +49,16 @@ export function usePapersList() {
       setItems(prev => prev.filter(p => p.id !== id))
       try {
         await papersApi.remove(id)
+        // or await papersApi.delete(id)
         message.success('试卷删除成功')
-        // 若本页删空了，尝试回到上一页再拉取
         if (items.length === 1 && page > 1) {
           setPage(p => p - 1)
         } else {
           load()
         }
       } catch (e: any) {
-        // 回滚
-        setItems(lastSnapshot.current)
-        message.error(e?.response?.data?.message || '删除试卷失败')
+        setItems(lastSnapshot.current) // 回滚
+        message.error(e?.response?.data?.message || e?.message || '删除试卷失败')
       }
     },
     [items, load, message, page]
@@ -97,3 +95,6 @@ export function usePapersList() {
     reload: load,
   }
 }
+
+// ★ 同时暴露默认导出，兼容 default import 的页面写法
+export default usePapersList

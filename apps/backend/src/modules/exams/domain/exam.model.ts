@@ -1,4 +1,5 @@
-import type { RowDataPacket, ResultSetHeader } from 'mysql2'
+// apps/backend/src/modules/exams/domain/exam.model.ts
+import type { RowDataPacket } from 'mysql2'
 
 export interface IExam extends RowDataPacket {
   id: number
@@ -10,7 +11,7 @@ export interface IExam extends RowDataPacket {
   total_score: number
   passing_score: number
   created_by: number
-  status?: 'draft' | 'published' | 'closed'
+  status: 'draft' | 'published' | 'closed'   // ← 不再可选
   created_at: Date
   updated_at: Date
 }

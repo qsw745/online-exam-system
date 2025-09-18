@@ -5,8 +5,8 @@
   "description": "Online Exam System Backend",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "nodemon bootstrap.ts",
-    "start": "tsx bootstrap.ts",
+    "dev": "nodemon",
+    "start": "tsx src/bootstrap.ts",
     "start:prod": "node dist/bootstrap.js",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "migrate:make": "knex --knexfile knexfile.js migrate:make",

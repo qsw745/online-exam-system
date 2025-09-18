@@ -113,7 +113,7 @@ export const LoginFailureRepository = {
         await this.upsert(email, ip, { locked_until: until })
     },
 
-    /** ✅ 新增：加锁并同时把 fail_count/last_failed_at 一并落库，确保 locked_until 不为 NULL */
+    /** 加锁并同步 fail_count/last_failed_at，确保 locked_until 不为 NULL */
     async lockWithCount(email: string, ip: string, until: Date, count?: number) {
         const conn = await pool.getConnection()
         try {
@@ -126,14 +126,14 @@ export const LoginFailureRepository = {
                 const newCount = typeof count === 'number' ? count : (rows[0].fail_count || 0)
                 await conn.query<ResultSetHeader>(
                     `UPDATE ${TABLE}
-             SET fail_count = ?, locked_until = ?, last_failed_at = IFNULL(last_failed_at, NOW()), updated_at = NOW()
-           WHERE id = ?`,
+                     SET fail_count = ?, locked_until = ?, last_failed_at = IFNULL(last_failed_at, NOW()), updated_at = NOW()
+                     WHERE id = ?`,
                     [newCount, until, rows[0].id]
                 )
             } else {
                 await conn.query<ResultSetHeader>(
                     `INSERT INTO ${TABLE} (email, ip, fail_count, last_failed_at, locked_until, updated_at)
-           VALUES (?, ?, ?, NOW(), ?, NOW())`,
+                     VALUES (?, ?, ?, NOW(), ?, NOW())`,
                     [email, ip, typeof count === 'number' ? count : 0, until]
                 )
             }
@@ -146,11 +146,24 @@ export const LoginFailureRepository = {
         }
     },
 
+    /** 锁过期则释放锁并把 fail_count 置 0（关键修复点） */
     async unlockIfExpired(email: string, ip: string) {
         const rec = await this.get(email, ip)
         if (!rec?.locked_until) return
         if (Date.now() >= new Date(rec.locked_until).getTime()) {
-            await this.upsert(email, ip, { locked_until: null })
+            await this.upsert(email, ip, { locked_until: null, fail_count: 0 })
+        }
+    },
+
+    /** last_failed_at 超过窗口则把 fail_count 置 0（过期计数衰减） */
+    async decayIfStale(email: string, ip: string, windowMinutes: number) {
+        const rec = await this.get(email, ip)
+        if (!rec) return
+        if ((rec.fail_count || 0) <= 0) return
+        const lastMs = rec.last_failed_at ? new Date(rec.last_failed_at).getTime() : 0
+        const winMs = Math.max(1, windowMinutes) * 60 * 1000
+        if (!lastMs || Date.now() - lastMs > winMs) {
+            await this.upsert(email, ip, { fail_count: 0 })
         }
     },
 }

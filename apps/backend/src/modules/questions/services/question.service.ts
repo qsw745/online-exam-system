@@ -4,6 +4,7 @@ import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
 import httpError from "@/common/errors/http-error";
+import {log} from "@/infrastructure/logging/logger";
 
 function ensureArrayFromMaybeCsv(input: any): string[] {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
@@ -302,7 +303,7 @@ export class QuestionService {
     const upsertFlag = String(query?.upsert ?? body?.upsert ?? '').toLowerCase() === 'true'
 
     if (!Array.isArray(questions) || questions.length === 0) {
-      console.warn('[bulk-import] invalid payload', {
+      log.warn('[bulk-import] invalid payload', {
         shape: Array.isArray(body) ? 'array' : typeof body,
         length: Array.isArray(body) ? body.length : body?.questions?.length ?? 0,
       })
@@ -431,7 +432,7 @@ export class QuestionService {
       userAgent: _reqMeta?.ua,
     })
 
-    console.warn('[bulk-import] completed', {
+    log.warn('[bulk-import] completed', {
       total: questions.length,
       successCount,
       failCount,

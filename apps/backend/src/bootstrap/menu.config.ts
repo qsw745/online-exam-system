@@ -40,13 +40,6 @@ function roughlyEqual(a: MenuSeed, b: MenuSeed): boolean {
 
 /**
  * 规范化：将任意树“压缩”为 **最多两层**
- * 规则：
- *  - 顶层：有 children → 目录(menu)，path=null，redirect 指向第一个可用子路径
- *          无 children → 包为 目录(menu) + 同名子页(page)
- *  - 第二层：
- *      - 无 children → 直接是 page（不再包目录）
- *      - 有且仅 1 个 child 且等价 → 合并为 1 个 page（采用 child 的 path/component）
- *      - 有多个 child → 将所有 child **扁平化** 成第二层 page（name 以 `parent-child` 防冲突）
  */
 function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
     const out: MenuSeed[] = []
@@ -63,7 +56,7 @@ function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
                     ...n,
                     component: undefined,
                     menu_type: 'menu',
-                    path: null,      // ★ 避免父子同 path
+                    path: null,
                     redirect,
                     children: normalizedChildren,
                 })
@@ -88,7 +81,7 @@ function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
                     ...n,
                     component: undefined,
                     menu_type: 'menu',
-                    path: null,      // 目录 path 置空
+                    path: null,
                     redirect: n.path || n.redirect || null,
                     children: [child],
                 })
@@ -96,20 +89,13 @@ function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
             continue
         }
 
-        // depth === 2：生成“第二层页面”
+        // depth === 2：生成二级页面
         if (children.length === 0) {
-            // 二级叶子：就是 page
-            out.push({
-                ...n,
-                menu_type: 'page',
-                children: undefined,
-            })
+            out.push({ ...n, menu_type: 'page', children: undefined })
             continue
         }
 
-        // 二级还有下一级
         if (children.length === 1 && roughlyEqual(n, children[0])) {
-            // 与唯一子项等价 → 合并为一个二级 page
             const only = children[0]
             out.push({
                 ...n,
@@ -122,10 +108,9 @@ function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
             continue
         }
 
-        // 有多个子项 → 全部扁平为第二层 page（不保留第三级）
         for (const gc of children) {
             out.push({
-                name: `${n.name}-${gc.name}`,         // 防止 name 冲突
+                name: `${n.name}-${gc.name}`,
                 title: gc.title,
                 path: gc.path ?? null,
                 component: gc.component,
@@ -145,9 +130,9 @@ function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
     return out
 }
 
-/** ===== 原始种子：可以包含单层 / 多层，最终会被压缩为“最多两层” ===== */
+/** ===== 原始种子：最终会被压缩为“最多两层” ===== */
 const RAW_MENU: MenuSeed[] = [
-    // ===== 概览（单层，压缩后变：仪表盘(目录) -> 仪表盘(页面)）=====
+    // ===== 仪表盘 =====
     {
         name: 'dashboard',
         title: '仪表盘',
@@ -173,70 +158,35 @@ const RAW_MENU: MenuSeed[] = [
         meta: { requireAuth: true },
         permission_code: 'learning:view',
         children: [
-            {
-                name: 'learning-progress',
-                title: '学习进度',
-                path: '/learning/progress',
-                component: 'learning-progress',
-                menu_type: 'page',
-                sort_order: 1,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'learning:progress',
-            },
-            {
-                name: 'learning-practice',
-                title: '题目练习',
-                path: '/learning/practice',
-                component: 'question-practice',
-                menu_type: 'page',
-                sort_order: 2,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'learning:practice',
-            },
-            {
-                name: 'learning-favorites',
-                title: '我的收藏',
-                path: '/learning/favorites',
-                component: 'favorites',
-                menu_type: 'page',
-                sort_order: 3,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'learning:favorites',
-            },
-            {
-                name: 'learning-wrong',
-                title: '错题本',
-                path: '/learning/wrong-questions',
-                component: 'wrong-questions',
-                menu_type: 'page',
-                sort_order: 4,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'learning:wrong',
-            },
-            {
-                name: 'learning-discussion',
-                title: '讨论区',
-                path: '/learning/discussion',
-                component: 'discussion',
-                menu_type: 'page',
-                sort_order: 5,
-                meta: { requireAuth: true },
-                permission_code: 'learning:discussion',
-            },
-            {
-                name: 'learning-leaderboard',
-                title: '排行榜',
-                path: '/learning/leaderboard',
-                component: 'leaderboard',
-                menu_type: 'page',
-                sort_order: 6,
-                meta: { requireAuth: true },
-                permission_code: 'learning:leaderboard',
-            },
+            { name: 'learning-progress', title: '学习进度', path: '/learning/progress', component: 'learning-progress', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'learning:progress' },
+            { name: 'learning-practice', title: '题目练习', path: '/learning/practice', component: 'question-practice', menu_type: 'page', sort_order: 2, meta: { requireAuth: true, keepAlive: true }, permission_code: 'learning:practice' },
+            { name: 'learning-favorites', title: '我的收藏', path: '/learning/favorites', component: 'favorites', menu_type: 'page', sort_order: 3, meta: { requireAuth: true, keepAlive: true }, permission_code: 'learning:favorites' },
+            { name: 'learning-wrong', title: '错题本', path: '/learning/wrong-questions', component: 'wrong-questions', menu_type: 'page', sort_order: 4, meta: { requireAuth: true, keepAlive: true }, permission_code: 'learning:wrong' },
+            { name: 'learning-discussion', title: '讨论区', path: '/learning/discussion', component: 'discussion', menu_type: 'page', sort_order: 5, meta: { requireAuth: true }, permission_code: 'learning:discussion' },
+            { name: 'learning-leaderboard', title: '排行榜', path: '/learning/leaderboard', component: 'leaderboard', menu_type: 'page', sort_order: 6, meta: { requireAuth: true }, permission_code: 'learning:leaderboard' },
         ],
     },
 
-    // ===== 考试中心（学员/监考）=====
+    // ===== 任务中心（学员）=====
+    {
+        name: 'task-center',
+        title: '任务中心',
+        path: '/tasks',
+        icon: 'calendar',
+        menu_type: 'menu',
+        sort_order: 25,
+        redirect: '/tasks/my',
+        meta: { requireAuth: true },
+        permission_code: 'tasks:view',
+        children: [
+            // 卡片式“我的任务”
+            { name: 'tasks-my', title: '我的任务', path: '/tasks/my', component: 'tasks', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'tasks:my' },
+            // 隐藏的任务详情（从列表进入）
+            { name: 'tasks-detail', title: '任务详情', path: '/tasks/detail/:id', component: 'task-detail', menu_type: 'page', sort_order: 2, is_hidden: true, meta: { requireAuth: true }, permission_code: 'tasks:detail' },
+        ],
+    },
+
+    // ===== 考试中心（学员）=====
     {
         name: 'exam',
         title: '考试中心',
@@ -248,30 +198,12 @@ const RAW_MENU: MenuSeed[] = [
         meta: { requireAuth: true },
         permission_code: 'exam:view',
         children: [
-            {
-                name: 'exam-list',
-                title: '考试列表',
-                path: '/exam/list',
-                component: 'exam-list',
-                menu_type: 'page',
-                sort_order: 1,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'exam:list',
-            },
-            {
-                name: 'exam-results',
-                title: '考试结果',
-                path: '/exam/results',
-                component: 'results',
-                menu_type: 'page',
-                sort_order: 2,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'exam:results',
-            },
+            { name: 'exam-list', title: '考试列表', path: '/exam/list', component: 'exam-list', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'exam:list' },
+            { name: 'exam-results', title: '我的成绩', path: '/exam/results', component: 'results', menu_type: 'page', sort_order: 2, meta: { requireAuth: true, keepAlive: true }, permission_code: 'exam:results' },
         ],
     },
 
-    // ===== 题库（前台浏览）=====
+    // ===== 题库浏览（前台）=====
     {
         name: 'question',
         title: '题库',
@@ -283,44 +215,13 @@ const RAW_MENU: MenuSeed[] = [
         meta: { requireAuth: true },
         permission_code: 'question:view',
         children: [
-            {
-                name: 'question-browse',
-                title: '题库浏览',
-                path: '/questions/browse',
-                component: 'questions',
-                menu_type: 'page',
-                sort_order: 1,
-                meta: { requireAuth: true, keepAlive: true },
-                permission_code: 'question:browse',
-            },
+            { name: 'question-browse', title: '题库浏览', path: '/questions/browse', component: 'questions', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'question:browse' },
         ],
     },
 
-    // ===== 数据分析（单层 → 目录 + 同名子页）=====
-    {
-        name: 'analytics',
-        title: '数据分析',
-        path: '/analytics',
-        component: 'analytics',
-        icon: 'bar-chart',
-        menu_type: 'page',
-        sort_order: 50,
-        meta: { requireAuth: true, keepAlive: true },
-        permission_code: 'analytics:view',
-    },
-
-    // ===== 个人资料（单层 → 目录 + 同名子页）=====
-    {
-        name: 'profile',
-        title: '个人资料',
-        path: '/profile',
-        component: 'profile',
-        icon: 'user',
-        menu_type: 'page',
-        sort_order: 60,
-        meta: { requireAuth: true, keepAlive: true },
-        permission_code: 'profile:view',
-    },
+    // ===== 数据分析 / 个人资料（单页 → 自动包一层目录）=====
+    { name: 'analytics', title: '数据分析', path: '/analytics', component: 'analytics', icon: 'bar-chart', menu_type: 'page', sort_order: 50, meta: { requireAuth: true, keepAlive: true }, permission_code: 'analytics:view' },
+    { name: 'profile', title: '个人资料', path: '/profile', component: 'profile', icon: 'user', menu_type: 'page', sort_order: 60, meta: { requireAuth: true, keepAlive: true }, permission_code: 'profile:view' },
 
     // ===== 系统管理（后台）=====
     {
@@ -337,9 +238,28 @@ const RAW_MENU: MenuSeed[] = [
             { name: 'admin-user', title: '用户管理', path: '/admin/users', component: 'admin-user', menu_type: 'page', sort_order: 1, permission_code: 'system:user' },
             { name: 'admin-org', title: '组织管理', path: '/admin/orgs', component: 'admin-org', menu_type: 'page', sort_order: 2, permission_code: 'system:org' },
             { name: 'admin-role', title: '角色管理', path: '/admin/roles', component: 'admin-role', menu_type: 'page', sort_order: 3, permission_code: 'system:role' },
-            { name: 'admin-questions', title: '题库维护（后台）', path: '/admin/questions', component: 'question-manage', menu_type: 'page', sort_order: 10, permission_code: 'question:manage' },
-            { name: 'system-settings', title: '系统设置', path: '/admin/settings', component: 'system-settings', icon: 'setting', menu_type: 'page', sort_order: 20, meta: { requireAuth: true }, permission_code: 'system:settings' },
-            { name: 'system-logs', title: '系统日志', path: '/admin/logs', component: 'logs', icon: 'file-text', menu_type: 'page', sort_order: 21, meta: { requireAuth: true }, permission_code: 'system:logs' },
+
+            // —— 考试管理（出题/组卷/成绩）——
+            {
+                name: 'exam-admin',
+                title: '考试管理',
+                path: '/admin/exams',
+                icon: 'file-done',
+                menu_type: 'menu',
+                sort_order: 60,
+                redirect: '/admin/questions',
+                meta: { requireAuth: true },
+                permission_code: 'system:exams',
+                children: [
+                    { name: 'admin-questions', title: '题库管理', path: '/admin/questions', component: 'question-manage', menu_type: 'page', sort_order: 1, permission_code: 'question:manage' },
+                    { name: 'admin-papers', title: '试卷管理', path: '/admin/papers', component: 'paper-manage', menu_type: 'page', sort_order: 2, permission_code: 'paper:manage' },
+                    { name: 'admin-papers-smart', title: '智能组卷', path: '/admin/papers/create/smart', component: 'paper-create-smart', menu_type: 'page', sort_order: 3, permission_code: 'paper:create:smart' },
+                    { name: 'admin-papers-manual', title: '手动组卷', path: '/admin/papers/create/manual', component: 'paper-create-manual', menu_type: 'page', sort_order: 4, permission_code: 'paper:create:manual' },
+                    { name: 'admin-grades', title: '成绩管理', path: '/admin/exams/grades', component: 'grade-management', menu_type: 'page', sort_order: 5, permission_code: 'exam:grades' },
+                ],
+            },
+
+            // —— 任务管理（分发/发布）——
             {
                 name: 'system-tasks',
                 title: '任务管理',
@@ -347,15 +267,20 @@ const RAW_MENU: MenuSeed[] = [
                 icon: 'calendar',
                 menu_type: 'menu',
                 sort_order: 70,
-                redirect: '/admin/tasks/public',
+                redirect: '/admin/tasks/list',
                 meta: { requireAuth: true },
                 permission_code: 'system:tasks',
                 children: [
-                    { name: 'task-public', title: '发布任务', path: '/admin/tasks/public', component: 'task-public', menu_type: 'page', sort_order: 1, meta: { requireAuth: true }, permission_code: 'system:tasks:public' },
+                    { name: 'task-list', title: '任务列表', path: '/admin/tasks/list', component: 'task-manage', menu_type: 'page', sort_order: 1, meta: { requireAuth: true }, permission_code: 'system:tasks:list' },
                     { name: 'task-create', title: '创建任务', path: '/admin/tasks/create', component: 'task-create', menu_type: 'page', sort_order: 2, meta: { requireAuth: true }, permission_code: 'system:tasks:create' },
-                    { name: 'task-my', title: '我的任务', path: '/admin/tasks/my', component: 'task-my', menu_type: 'page', sort_order: 3, meta: { requireAuth: true }, permission_code: 'system:tasks:my' },
+                    { name: 'task-detail-admin', title: '任务详情', path: '/admin/tasks/detail/:id', component: 'task-detail', menu_type: 'page', sort_order: 3, is_hidden: true, meta: { requireAuth: true }, permission_code: 'system:tasks:detail' },
                 ],
             },
+
+            { name: 'system-settings', title: '系统设置', path: '/admin/settings', component: 'system-settings', icon: 'setting', menu_type: 'page', sort_order: 90, meta: { requireAuth: true }, permission_code: 'system:settings' },
+            { name: 'system-logs', title: '系统日志', path: '/admin/logs', component: 'logs', icon: 'file-text', menu_type: 'page', sort_order: 91, meta: { requireAuth: true }, permission_code: 'system:logs' },
+
+            // —— 菜单管理 ——
             {
                 name: 'system-menus',
                 title: '菜单管理',

@@ -2,6 +2,7 @@
 import type { Request, Response } from 'express'
 import { WrongQuestionService } from '../services/wrong-question.service.js'
 import { CODES } from '@/types/response'
+import {log} from "@/infrastructure/logging/logger";
 
 const svc = new WrongQuestionService()
 const masteryWhitelist = ['not_mastered', 'partially_mastered', 'mastered'] as const
@@ -27,7 +28,7 @@ export class WrongQuestionController {
             })
             return res.created({ book_id: id }, '错题本创建成功')
         } catch (e) {
-            console.error('createBook error:', e)
+            log.error('createBook error:', e)
             return res.internal('错题本创建失败')
         }
     }
@@ -39,7 +40,7 @@ export class WrongQuestionController {
             const rows = await svc.getUserBooks(userId)
             return res.ok({ books: rows }, '获取错题本列表成功')
         } catch (e) {
-            console.error('getBooks error:', e)
+            log.error('getBooks error:', e)
             return res.internal('获取错题本列表失败')
         }
     }
@@ -64,7 +65,7 @@ export class WrongQuestionController {
             await svc.updateBook(id, userId, patch)
             return res.ok(null, '错题本更新成功')
         } catch (e) {
-            console.error('updateBook error:', e)
+            log.error('updateBook error:', e)
             return res.internal('错题本更新失败')
         }
     }
@@ -78,7 +79,7 @@ export class WrongQuestionController {
             await svc.deleteBook(id, userId)
             return res.ok(null, '错题本删除成功')
         } catch (e) {
-            console.error('deleteBook error:', e)
+            log.error('deleteBook error:', e)
             return res.internal('错题本删除失败')
         }
     }
@@ -102,7 +103,7 @@ export class WrongQuestionController {
             })
             return res.created({ wrong_question_id: id }, '错题添加成功')
         } catch (e) {
-            console.error('addWrongQuestion error:', e)
+            log.error('addWrongQuestion error:', e)
             return res.internal('错题添加失败')
         }
     }
@@ -124,7 +125,7 @@ export class WrongQuestionController {
             })
             return res.ok({ ...r, page: Number(page) || 1, limit: Number(limit) || 20 }, '获取错题列表成功')
         } catch (e) {
-            console.error('getWrongQuestions error:', e)
+            log.error('getWrongQuestions error:', e)
             return res.internal('获取错题列表失败')
         }
     }
@@ -149,7 +150,7 @@ export class WrongQuestionController {
             await svc.updateWrongQuestion(id, userId, patch)
             return res.ok(null, '错题更新成功')
         } catch (e) {
-            console.error('updateWrongQuestion error:', e)
+            log.error('updateWrongQuestion error:', e)
             return res.internal('错题更新失败')
         }
     }
@@ -163,7 +164,7 @@ export class WrongQuestionController {
             await svc.removeWrongQuestion(id, userId)
             return res.ok(null, '错题移除成功')
         } catch (e) {
-            console.error('removeWrongQuestion error:', e)
+            log.error('removeWrongQuestion error:', e)
             return res.internal('错题移除失败')
         }
     }
@@ -213,7 +214,7 @@ export class WrongQuestionController {
 
             return res.created({ record_id: recordId }, '练习记录添加成功')
         } catch (e) {
-            console.error('addPracticeRecord error:', e)
+            log.error('addPracticeRecord error:', e)
             return res.internal('练习记录添加失败')
         }
     }
@@ -253,7 +254,7 @@ export class WrongQuestionController {
             })
             return res.created({ share_code: code }, '错题本分享成功')
         } catch (e) {
-            console.error('shareBook error:', e)
+            log.error('shareBook error:', e)
             return res.internal('错题本分享失败')
         }
     }
@@ -268,7 +269,7 @@ export class WrongQuestionController {
             if (!r) return res.notFound('分享链接无效或已过期')
             return res.ok({ shared_book: r }, '获取分享错题本成功')
         } catch (e) {
-            console.error('getSharedBook error:', e)
+            log.error('getSharedBook error:', e)
             return res.internal('获取分享错题本失败')
         }
     }
@@ -280,7 +281,7 @@ export class WrongQuestionController {
             const s = await svc.getStatistics(userId)
             return res.ok({ statistics: s }, '获取统计信息成功')
         } catch (e) {
-            console.error('getStatistics error:', e)
+            log.error('getStatistics error:', e)
             return res.internal('获取统计信息失败')
         }
     }
@@ -299,7 +300,7 @@ export class WrongQuestionController {
             )
             return res.ok({ results: r }, '批量添加完成')
         } catch (e) {
-            console.error('batchAddWrongQuestions error:', e)
+            log.error('batchAddWrongQuestions error:', e)
             return res.internal('批量添加失败')
         }
     }
@@ -324,7 +325,7 @@ export class WrongQuestionController {
             }
             return res.ok({ results }, '批量更新完成')
         } catch (e) {
-            console.error('batchUpdateMastery error:', e)
+            log.error('batchUpdateMastery error:', e)
             return res.internal('批量更新失败', { code: CODES.INTERNAL_ERROR })
         }
     }
@@ -377,7 +378,7 @@ export class WrongQuestionController {
                 '自动收集错题完成'
             )
         } catch (e) {
-            console.error('autoCollectWrongQuestions error:', e)
+            log.error('autoCollectWrongQuestions error:', e)
             return res.internal('自动收集错题失败')
         }
     }

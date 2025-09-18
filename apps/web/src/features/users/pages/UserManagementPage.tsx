@@ -1,3 +1,4 @@
+// apps/web/src/features/users/pages/UserManagementPage.tsx
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import { App, Card, Layout, Pagination, Typography } from 'antd'
@@ -46,6 +47,7 @@ const UserManagementPage: React.FC = () => {
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
+  // ✅ 只有选中机构后才会发请求（见 useOrgUsersQuery 内的 guard）
   const q = useOrgUsersQuery(selectedOrgId)
 
   const refreshTree = async () => {
@@ -60,7 +62,7 @@ const UserManagementPage: React.FC = () => {
     }
   }
 
-  // 弹窗状态
+  // 弹窗状态 & 行操作（保持原样）
   const [viewOpen, setViewOpen] = React.useState(false)
   const [editOpen, setEditOpen] = React.useState(false)
   const [bindOpen, setBindOpen] = React.useState(false)
@@ -68,7 +70,6 @@ const UserManagementPage: React.FC = () => {
   const [resetPwd, setResetPwd] = React.useState<string | null>(null)
   const [currentUser, setCurrentUser] = React.useState<any | null>(null)
 
-  // 行操作
   const onView = async (u: any) => {
     const detail = await q.getUserDetail(u.id).catch(() => u)
     setCurrentUser(detail || u)
@@ -117,7 +118,6 @@ const UserManagementPage: React.FC = () => {
     setBindOpen(true)
   }
 
-  // —— 新版绑定提交：支持 emails 或 userIds —— //
   const handleBindSubmit = async (payload: { emails?: string[]; userIds?: number[] }) => {
     if (!selectedOrgId) return
     if (payload.emails?.length) {
@@ -155,8 +155,9 @@ const UserManagementPage: React.FC = () => {
           <Title level={3} style={{ margin: 0 }}>
             用户管理
           </Title>
+          {/* 📝 文案调整：不再提示“未选择机构显示全量用户” */}
           <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
-            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '（未选择机构，将显示全量用户）'}
+            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '请选择左侧机构以查看用户'}
           </Paragraph>
         </div>
 
@@ -184,7 +185,7 @@ const UserManagementPage: React.FC = () => {
 
         <Card>
           <UsersTable
-            data={q.rows} // UsersTable 内部已做去重修复
+            data={q.rows}
             loading={q.loading}
             selectedOrgId={selectedOrgId}
             onView={onView}

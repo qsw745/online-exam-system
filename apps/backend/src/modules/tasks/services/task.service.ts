@@ -9,6 +9,7 @@ import type {
   TaskWithAssigned,
   UpdateTaskInput,
 } from '../domain/task.model'
+import {log} from "@/infrastructure/logging/logger";
 function sanitizeIds(arr: unknown): number[] {
   if (!Array.isArray(arr)) return []
   const s = new Set<number>()
@@ -281,7 +282,7 @@ export class TaskService {
           const resLike: any = { json: () => {}, status: () => ({ json: () => {} }) }
           await WrongQuestionController.autoCollectWrongQuestions(reqLike, resLike)
         } catch (e) {
-          console.error('自动收集错题失败:', e)
+          log.error('自动收集错题失败:', e)
         }
 
         try {
@@ -300,7 +301,7 @@ export class TaskService {
             { json: () => {}, status: () => ({ json: () => {} }) } as any
           )
         } catch (e) {
-          console.error('记录学习进度失败:', e)
+          log.error('记录学习进度失败:', e)
         }
 
         try {
@@ -311,7 +312,7 @@ export class TaskService {
           await svc.updateLeaderboardRanking(3, userId, accuracy)
           await svc.checkAndAwardRankingAchievements(userId)
         } catch (e) {
-          console.error('更新排行榜失败:', e)
+          log.error('更新排行榜失败:', e)
         }
       })
 

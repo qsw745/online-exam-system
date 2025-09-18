@@ -8,7 +8,7 @@ import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
 import { useAuth } from '@/shared/contexts/AuthContext'
-import AppLayout from '@/shared/components/Layout' // ★ 新增：把路由包在通用布局里
+import AppLayout from '@/shared/components/Layout'
 
 type RouteNode = {
   path?: string | null
@@ -146,12 +146,7 @@ export default function DynamicRoutes() {
   const routes: RouteObject[] = useMemo(() => {
     if (authLoading) return [{ path: '*', element: <LoadingSpinner /> }]
     if (!user) {
-      return [
-        {
-          element: <ProtectedLayout />,
-          children: [{ path: '*', element: <Navigate to="/login" replace /> }],
-        },
-      ]
+      return [{ element: <ProtectedLayout />, children: [{ path: '*', element: <Navigate to="/login" replace /> }] }]
     }
 
     if (err) return [{ path: '*', element: <NotFound404 /> }]
@@ -167,12 +162,15 @@ export default function DynamicRoutes() {
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },
       { path: 'settings', element: elementFromRegistry('settings') },
+      // 学员端任务详情直达
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
     ]
 
     const extraAdminRoutes: RouteObject[] = [
       { path: 'question-detail/:id', element: elementFromRegistry('question-detail') },
       { path: 'question-edit/:id', element: elementFromRegistry('question-edit') },
-      { path: 'task/detail/:id', element: elementFromRegistry('task-create') },
+      // 后台任务详情
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
     ]
 
     const defaultHome =
@@ -185,7 +183,6 @@ export default function DynamicRoutes() {
         element: <ProtectedLayout />,
         children: [
           {
-            // ★ 在受保护区域内包一层通用布局（含 Header + Sidebar）
             element: <AppLayout />,
             children: [
               { index: true, element: <Navigate to={`/${defaultHome}`} replace /> },

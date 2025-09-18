@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
-import { reqLogger } from '@/infrastructure/logging/logger'
+import { log } from '@/infrastructure/logging/logger'
 import { getClientIp } from '@/common/utils/request-ip'
 
 function formatTime(d = new Date()) {
@@ -29,7 +29,8 @@ export function httpLogger(): RequestHandler {
     const clientIp = getClientIp(req)
     ;(req as any).clientIp = clientIp
 
-    const base = reqLogger({
+    // 修复点：log 是对象，不能直接调用；使用 log.with(...) 绑定上下文
+    const base = log.with({
           rid,
           method: req.method,
           url: (req as any).originalUrl || req.url,
@@ -58,11 +59,15 @@ export function httpLogger(): RequestHandler {
     res.once('finish', () => {
       const ms = Date.now() - start
       const status = res.statusCode
-      const level = status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info'
+      const level = (status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info') as
+          | 'error'
+          | 'warn'
+          | 'info'
+
       const len = res.getHeader('content-length')
       const bytes = Array.isArray(len) ? Number(len[0]) : Number(len ?? 0)
 
-      base.log(level as any, 'request completed', {
+      base.log(level, 'request completed', {
         statusCode: status,
         responseTime: ms,
         resBytes: Number.isFinite(bytes) ? bytes : undefined,

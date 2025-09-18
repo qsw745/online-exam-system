@@ -36,7 +36,8 @@ const TaskCreatePage: React.FC = () => {
       if (mode === 'edit' && id) await tasksApi.update(id, payload)
       else await tasksApi.create(payload)
       message.success(mode === 'edit' ? '更新成功' : '创建成功')
-      nav('/admin/task/my')
+      // ★ 创建/更新后进入“发布任务”
+      nav('/admin/tasks/public', { replace: true })
     } catch (e: any) {
       message.error(e?.message || '保存失败')
     } finally {

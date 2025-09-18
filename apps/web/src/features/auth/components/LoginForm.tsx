@@ -23,6 +23,8 @@ type Props = {
   inputsDisabled: boolean
   isLocked: boolean
   lockCountdownText: string
+  lockTryRemainSec: number
+  lockRetryCountdownText: string
 
   captchaRequired: boolean
   captcha: string
@@ -38,7 +40,12 @@ type Props = {
 }
 
 export const LoginForm: React.FC<Props> = p => {
-  const btnText = p.isLocked ? `已锁定 ${p.lockCountdownText}` : '登录'
+  const btnText = !p.isLocked
+    ? '登录'
+    : p.lockTryRemainSec > 0
+    ? `已锁定 ${p.lockCountdownText} · 重试 ${p.lockRetryCountdownText}`
+    : `重试登录（剩余 ${p.lockCountdownText}）`
+
   return (
     <form
       onSubmit={e => {

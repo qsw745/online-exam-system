@@ -1,16 +1,17 @@
-// apps/backend/src/modules/exams/routes/paper.routes.ts
 import { Router, type RequestHandler, type NextFunction, type Response } from 'express'
 import { PaperController } from '../controllers/paper.controller'
 import { authenticateToken } from '@/common/middleware/auth'
-import type { AuthRequest } from 'types/auth'
+import type { AuthRequest } from '@/types/auth'
 
 const router = Router()
 
+// 包装器：记录控制器名称，错误能打印出“是哪个控制器方法”
 const wrap =
-  (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
-  (req, res, next: NextFunction) => {
-    Promise.resolve(handler(req as AuthRequest, res)).catch(next)
-  }
+    (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
+        (req, res, next: NextFunction) => {
+            ;(req as any).__handlerName = handler.name || 'anonymous'
+            Promise.resolve(handler(req as AuthRequest, res)).catch(next)
+        }
 
 router.use(authenticateToken)
 

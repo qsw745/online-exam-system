@@ -1,6 +1,6 @@
 // src/features/tasks/pages/TaskManagementPage.tsx
 import React from 'react'
-import { Breadcrumb, Card, Pagination, Space, App, Input, Select, DatePicker, Button, message } from 'antd'
+import { Breadcrumb, Card, Pagination, Space, App, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
@@ -15,7 +15,6 @@ const TaskManagementPage: React.FC = () => {
   const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset, refetch } =
     useTasksQuery()
 
-  // 顶部筛选（内联）
   const [kw, setKw] = React.useState(filters.keyword || '')
   const [st, setSt] = React.useState(filters.status || 'all')
   const [rg, setRg] = React.useState(filters.range || null)
@@ -24,7 +23,7 @@ const TaskManagementPage: React.FC = () => {
     const next: TaskFilters = {
       keyword: kw || undefined,
       status: st || 'all',
-      range: rg && rg.length === 2 ? rg : null,
+      range: rg && (rg as any)?.length === 2 ? (rg as any) : null,
     }
     search(next)
   }
@@ -100,9 +99,10 @@ const TaskManagementPage: React.FC = () => {
         <TasksTable
           data={rows as any}
           loading={loading}
-          onView={(id: string) => nav(`/admin/task-detail/${id}`)}
+          onView={(id: string) => nav(`/admin/tasks/detail/${id}`)}
           onPublish={onPublish}
           onUnpublish={onUnpublish}
+          showPublishActions
         />
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
           <Pagination

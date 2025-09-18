@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // 没装 @types/node 时做最小声明
+import {log} from "@/infrastructure/logging/logger";
+
 declare const process: any
 
 import type { EmailConfig, EmailTemplate } from 'types/password-reset.js'
@@ -15,7 +17,7 @@ class EmailService {
   private async initializeTransporter() {
     try {
       if (!process?.env?.EMAIL_HOST || !process?.env?.EMAIL_USER || !process?.env?.EMAIL_PASS) {
-        console.warn('邮件服务未配置，将使用控制台输出模拟发送')
+        log.warn('邮件服务未配置，将使用控制台输出模拟发送')
         this.isConfigured = false
         return
       }
@@ -32,22 +34,22 @@ class EmailService {
       this.transporter = nodemailer.createTransport(config as any)
 
       if (process.env.EMAIL_USER === 'your_email@qq.com' || process.env.EMAIL_PASS === 'your_email_password') {
-        console.warn('邮件服务使用默认配置，请在 .env 文件中配置真实的邮箱信息')
+        log.warn('邮件服务使用默认配置，请在 .env 文件中配置真实的邮箱信息')
         this.isConfigured = false
         return
       }
 
       this.transporter.verify((error: any) => {
         if (error) {
-          console.error('邮件服务配置验证失败:', error?.message || error)
+          log.error('邮件服务配置验证失败:', error?.message || error)
           this.isConfigured = false
         } else {
-          console.log('邮件服务配置验证成功')
+          log.log('邮件服务配置验证成功')
           this.isConfigured = true
         }
       })
     } catch (error) {
-      console.error('邮件服务初始化失败:', error)
+      log.error('邮件服务初始化失败:', error)
       this.isConfigured = false
     }
   }

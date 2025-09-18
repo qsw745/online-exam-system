@@ -1,5 +1,5 @@
 // apps/web/src/features/users/hooks/useOrgUsersQuery.ts
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { type ApiResult, isSuccess, getErr } from '@/shared/api/core/types'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { orgsApi } from '@/shared/api/endpoints/orgs'
@@ -15,29 +15,38 @@ export function useOrgUsersQuery(orgId: number | null) {
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
 
-  /** 仅用于处理那些仍返回 ApiResult 的旧接口（如 getById/update/resetPassword 等） */
+  // 记录上一次 orgId，用于在切换机构时自动重置页码
+  const prevOrgIdRef = useRef<number | null>(null)
+
+  /** 仅用于处理仍返回 ApiResult 的旧接口（如 getById/update/resetPassword 等） */
   function unwrap<T>(r: ApiResult<T>, fallbackMsg: string): T {
     if (isSuccess<T>(r)) return r.data
     throw new Error(getErr(r, fallbackMsg))
   }
 
   const fetchList = useCallback(async () => {
+    // 🛑 关键修复：未选择机构时，直接跳过，不请求 /users
+    if (orgId == null) {
+      setRows([])
+      setTotal(0)
+      return
+    }
+
     setLoading(true)
     try {
-      // ✅ usersApi.list 已返回纯数据：{ users, total, page, limit }
+      // ✅ 只请求按机构的接口
       const data = await usersApi.list({
         page,
         limit,
         search: keyword || undefined,
         role: role || undefined,
-        orgId: orgId || undefined,
+        orgId, // 有 orgId 时 usersApi.list 内部只会请求 /orgs/:id/users
         include_children: includeChildren || undefined,
       })
 
       setRows(Array.isArray(data.users) ? data.users : [])
       setTotal(Number(data.total) || 0)
-    } catch (e: any) {
-      console.error('[useOrgUsersQuery] fetchList error:', e)
+    } catch (e) {
       // 出错也清空一下，避免保留旧数据
       setRows([])
       setTotal(0)
@@ -47,10 +56,18 @@ export function useOrgUsersQuery(orgId: number | null) {
   }, [orgId, page, limit, keyword, role, includeChildren])
 
   useEffect(() => {
+    // 机构切换时，重置页码到 1，避免新机构下页码越界
+    if (prevOrgIdRef.current !== orgId) {
+      setPage(1)
+      prevOrgIdRef.current = orgId
+    }
+  }, [orgId])
+
+  useEffect(() => {
     fetchList()
   }, [fetchList])
 
-  // ✅ 仍然是旧风格 ApiResult 的接口，做一次解包
+  // —— 旧风格 ApiResult 的接口，做一次解包 —— //
   const getUserDetail = async (id: number | string) => {
     const r = await usersApi.getById(Number(id))
     return unwrap<any>(r, '加载用户详情失败')
@@ -74,12 +91,10 @@ export function useOrgUsersQuery(orgId: number | null) {
   }
 
   const unbind = async (orgIdArg: number, userId: number | string) => {
-    // orgsApi.* 在 endpoints 层已解包为纯数据
     return orgsApi.removeUser(orgIdArg, Number(userId))
   }
 
   const bind = async (orgIdArg: number, userId: number | string) => {
-    // ✅ 修正：没有 addUser，使用 addUsers(orgId, number[])
     return orgsApi.addUsers(orgIdArg, [Number(userId)])
   }
 

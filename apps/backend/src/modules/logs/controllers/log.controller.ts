@@ -5,6 +5,7 @@ import type { ApiResponse } from '@/types/response'
 import { CODES } from '@/types/response'
 import type { LogQueryParams } from '../domain/log.model'
 import { LogService } from '../services/log.service'
+import {log} from "@/infrastructure/logging/logger";
 
 const service = new LogService()
 
@@ -30,7 +31,7 @@ export class LogController {
       const data = await service.getLogs(pickUser(req.user), req.query as any)
       return (res as any).ok(data, '获取日志成功')
     } catch (error: any) {
-      console.error('[log] 获取日志失败:', error)
+      log.error('[log] 获取日志失败:', error)
       return respondError(res, error, '获取日志失败')
     }
   }
@@ -40,7 +41,7 @@ export class LogController {
       const data = await service.getLogs(pickUser(req.user), req.query as any)
       return (res as any).ok(data, '获取用户日志成功')
     } catch (error: any) {
-      console.error('[log] 获取用户日志失败:', error)
+      log.error('[log] 获取用户日志失败:', error)
       return respondError(res, error, '获取用户日志失败')
     }
   }
@@ -50,7 +51,7 @@ export class LogController {
       const data = await service.getSystemLogs((req.user as any)?.role || undefined, req.query as LogQueryParams)
       return (res as any).ok(data, '获取系统日志成功')
     } catch (error: any) {
-      console.error('[log] 获取系统日志失败:', error)
+      log.error('[log] 获取系统日志失败:', error)
       return respondError(res, error, '获取系统日志失败')
     }
   }
@@ -60,7 +61,7 @@ export class LogController {
       const data = await service.getAuditLogs((req.user as any)?.role || undefined, req.query as LogQueryParams)
       return (res as any).ok(data, '获取审计日志成功')
     } catch (error: any) {
-      console.error('[log] 获取审计日志失败:', error)
+      log.error('[log] 获取审计日志失败:', error)
       return respondError(res, error, '获取审计日志失败')
     }
   }
@@ -70,7 +71,7 @@ export class LogController {
       const data = await service.getLoginLogs(pickUser(req.user), req.query as LogQueryParams)
       return (res as any).ok(data, '获取登录日志成功')
     } catch (error: any) {
-      console.error('[log] 获取登录日志失败:', error)
+      log.error('[log] 获取登录日志失败:', error)
       return respondError(res, error, '获取登录日志失败')
     }
   }
@@ -82,7 +83,7 @@ export class LogController {
       const data = await service.getExamLogs(pickUser(req.user), examId, req.query as LogQueryParams)
       return (res as any).ok(data, '获取考试日志成功')
     } catch (error: any) {
-      console.error('[log] 获取考试日志失败:', error)
+      log.error('[log] 获取考试日志失败:', error)
       return respondError(res, error, '获取考试日志失败')
     }
   }
@@ -93,7 +94,7 @@ export class LogController {
       const data = await service.cleanupLogs((req.user as any)?.role || undefined, daysToKeep)
       return (res as any).ok(data, '清理日志成功')
     } catch (error: any) {
-      console.error('[log] 清理日志失败:', error)
+      log.error('[log] 清理日志失败:', error)
       return respondError(res, error, '清理日志失败')
     }
   }
@@ -139,7 +140,7 @@ export class LogController {
       res.header('Content-Disposition', `attachment; filename=logs_${new Date().toISOString().split('T')[0]}.json`)
       return res.json(rows)
     } catch (error: any) {
-      console.error('[log] 导出日志失败:', error)
+      log.error('[log] 导出日志失败:', error)
       return (res as any).fail(CODES.INTERNAL_ERROR, 500, error?.message || '导出日志失败')
     }
   }

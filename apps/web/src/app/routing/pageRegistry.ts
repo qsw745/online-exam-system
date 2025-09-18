@@ -17,6 +17,7 @@ const MyTasksPage = lazy(() => import('@/features/tasks/pages/MyTasksPage'))
 const PublishTaskPage = lazy(() => import('@/features/tasks/pages/PublishTaskPage'))
 const TaskManagementPage = lazy(() => import('@/features/tasks/pages/TaskManagementPage'))
 const TaskCreatePage = lazy(() => import('@/features/tasks/pages/TaskCreatePage'))
+const TaskDetailPage = lazy(() => import('@/features/tasks/pages/TaskDetailPage'))
 
 // ===== Papers / Questions =====
 const PaperManagementPage = lazy(() => import('@/features/papers/pages/PaperManagementPage'))
@@ -80,16 +81,17 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'menu-functions': FunctionMenusPage,
   'menu-units': UnitMenusPage,
   'user-manage': UserManagementPage,
-  'admin-user': UserManagementPage, // ← 兼容后端可能使用的 key
+  'admin-user': UserManagementPage, // 兼容
   logs: LogsPage,
   'system-settings': SystemSettingsPage,
 
   // Tasks
-  tasks: TasksPage,
-  'task-my': MyTasksPage,
+  tasks: TasksPage, // 学员“我的任务”（卡片式）
+  'task-my': MyTasksPage, // 表格版（如仍有使用）
   'task-public': PublishTaskPage,
   'task-manage': TaskManagementPage,
   'task-create': TaskCreatePage,
+  'task-detail': TaskDetailPage, // ★ 新增：任务详情
 
   // Papers & Questions (后台)
   'paper-manage': PaperManagementPage,
