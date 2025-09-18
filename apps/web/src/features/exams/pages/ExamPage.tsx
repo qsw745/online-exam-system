@@ -30,11 +30,7 @@ export default function ExamPage() {
 
   // 加载中
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner center="page" text="加载中…" />
   }
 
   // 无试卷（UI 优化为 antd Result）

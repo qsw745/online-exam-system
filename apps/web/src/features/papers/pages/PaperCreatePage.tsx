@@ -9,7 +9,7 @@ export default function PaperCreatePage() {
   const nav = useNavigate()
   const h = usePaperEditor()
 
-  if (h.loading) return <LoadingSpinner text="加载试卷信息..." />
+  if (h.loading) return <LoadingSpinner text="加载试卷信息..." center="page" />
 
   return (
     <div className="space-y-6">

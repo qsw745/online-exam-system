@@ -1,18 +1,13 @@
-import React from 'react'
-import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { Navigate, Outlet, useLocation } from 'react-router-dom'
 
 export default function ProtectedLayout() {
   const { user, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner center="page" text="验证中…" />
   }
 
   if (!user) {

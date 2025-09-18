@@ -1,11 +1,11 @@
 import DynamicSidebar, { MobileSidebar } from '@/app/routing/DynamicSidebar'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 import { Layout as AntLayout } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from './Header'
-import { useAuth } from '@/shared/contexts/AuthContext'
 import LoadingSpinner from './LoadingSpinner'
-import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 
 const { Sider, Content } = AntLayout
 const HEADER_HEIGHT = 56
@@ -35,19 +35,7 @@ const Layout: React.FC = () => {
   }
 
   if (loading || !user) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <LoadingSpinner text="加载用户信息..." />
-      </div>
-    )
+    return <LoadingSpinner center="page" text="加载用户信息…" />
   }
 
   return (

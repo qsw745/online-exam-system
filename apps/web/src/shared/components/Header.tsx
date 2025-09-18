@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useLanguage } from '../contexts/LanguageContext'
 import LoadingSpinner from './LoadingSpinner'
+import { Spin } from 'antd'
 
 type ApiSuccess<T = any> = { success: true; data: T; message?: string }
 type ApiFailure = { success: false; error?: string; message?: string }
@@ -418,7 +419,7 @@ export default function Header() {
                   <div style={{ marginTop: 8 }}>
                     {notificationsLoading ? (
                       <div style={{ padding: '16px 0', textAlign: 'center' }}>
-                        <LoadingSpinner />
+                        <Spin size="small" />
                       </div>
                     ) : notifications.length > 0 ? (
                       notifications.map(n => (

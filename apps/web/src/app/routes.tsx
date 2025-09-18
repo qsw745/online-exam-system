@@ -5,7 +5,10 @@ import NotFound404 from '@/app/errors/NotFound404'
 import ServerError500 from '@/app/errors/ServerError500'
 import DynamicRoutes from '@/app/routing/DynamicRoutes'
 
-const withSuspense = (el: ReactElement) => <Suspense fallback={<LoadingSpinner />}>{el}</Suspense>
+const withSuspense = (el: ReactElement) => (
+  <Suspense fallback={<LoadingSpinner center="page" text="页面加载中…" />}>{el}</Suspense>
+)
+
 
 // Auth
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))

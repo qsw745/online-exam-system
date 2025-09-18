@@ -1,6 +1,6 @@
 // features/smart-paper/pages/SmartPaperCreatePage.tsx
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import { Button } from 'antd'
+import { Button, Spin } from 'antd'
 import { ArrowLeft, Save, Shuffle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSmartPaper } from '@/shared/hooks/useSmartPaper'
@@ -63,8 +63,8 @@ export default function SmartPaperCreatePage() {
           </div>
           <div className="flex gap-2">
             <Button type="default" onClick={h.generate} disabled={h.generating} className="flex items-center gap-2">
-              {h.generating ? <LoadingSpinner /> : <Shuffle className="w-4 h-4" />}{' '}
-              {h.generating ? '重新生成中...' : '重新生成'}
+              {h.generating ? <Spin size="small" /> : <Shuffle className="w-4 h-4" />}{' '}
+              {h.generating ? '重新生成中…' : '重新生成'}
             </Button>
             <Button
               type="primary"

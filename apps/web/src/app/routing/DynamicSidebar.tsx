@@ -93,7 +93,7 @@ export default function DynamicSidebar({
         style={{ width, height: '100vh', borderRight: '1px solid #f0f0f0', background: '#fff' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-          <LoadingSpinner size="sm" />
+          <LoadingSpinner size="sm" center={false} />
         </div>
       </aside>
     )
@@ -211,7 +211,7 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
     >
       {loading ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <LoadingSpinner size="sm" />
+          <LoadingSpinner size="sm" center={false} />
         </div>
       ) : (
         <Menu

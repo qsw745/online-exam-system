@@ -13,6 +13,8 @@ import { router } from '@/app/routes'
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
+      suspense: true, // ✅ 关键
+      useErrorBoundary: true, // 建议配合错误边界
       retry: 2,
       retryDelay: 1000,
       refetchOnWindowFocus: false,

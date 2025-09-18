@@ -15,7 +15,7 @@ export default function PaperManagementPage() {
   const h = usePapersList()
   const [confirmId, setConfirmId] = useState<string | null>(null)
 
-  if (h.loading) return <LoadingSpinner text="加载试卷列表..." />
+  if (h.loading) return <LoadingSpinner text="加载试卷列表..." center="page" />
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>

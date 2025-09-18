@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react'
+import { GradeFilters } from '@/features/analytics/components/GradeFilters'
+import { GradePagination } from '@/features/analytics/components/GradePagination'
+import { GradeStatsCards } from '@/features/analytics/components/GradeStatsCards'
+import { GradeTable } from '@/features/analytics/components/GradeTable'
+import { useGrades } from '@/features/analytics/hooks/useGrades'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { App } from 'antd'
-import { useGrades } from '@/features/analytics/hooks/useGrades'
-import { GradeStatsCards } from '@/features/analytics/components/GradeStatsCards'
-import { GradeFilters } from '@/features/analytics/components/GradeFilters'
-import { GradeTable } from '@/features/analytics/components/GradeTable'
-import { GradePagination } from '@/features/analytics/components/GradePagination'
+import React, { useEffect, useState } from 'react'
 
 const GradeManagementPage: React.FC = () => {
   const { message } = App.useApp()
@@ -35,11 +35,7 @@ const GradeManagementPage: React.FC = () => {
   }, [error, message])
 
   if (loading && results.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <LoadingSpinner />
-      </div>
-    )
+    return <LoadingSpinner center="page" text="加载中…" />
   }
 
   const onExport = async () => {

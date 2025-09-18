@@ -1,14 +1,14 @@
 import NotFound404 from '@/app/errors/NotFound404'
 import AdminLayout from '@/app/routing/AdminLayout'
 import ProtectedLayout from '@/app/routing/ProtectedLayout'
-import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 import { menuApi } from '@/shared/api/endpoints/menu'
+import AppLayout from '@/shared/components/Layout'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
-import { useAuth } from '@/shared/contexts/AuthContext'
-import AppLayout from '@/shared/components/Layout'
 
 type RouteNode = {
   path?: string | null
@@ -37,12 +37,17 @@ function relativize(childRel: string, parentRel: string): string {
   if (childRel === parentRel) return ''
   return childRel.startsWith(parentRel + '/') ? childRel.slice(parentRel.length + 1) : childRel
 }
-
+const fallbackText: Record<string, string> = {
+  dashboard: '加载仪表盘数据…',
+  tasks: '加载我的任务…',
+  'exam-list': '加载考试列表…',
+}
 /** 安全取组件（带 Suspense） */
 function elementFromRegistry(key: string) {
   const Cmp = componentRegistry[key]
+  const tip = fallbackText[key] ?? '页面加载中…'
   return Cmp ? (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={<LoadingSpinner center="page" text={tip} />}>
       <Cmp />
     </Suspense>
   ) : (
@@ -144,13 +149,14 @@ export default function DynamicRoutes() {
   }, [authLoading, user])
 
   const routes: RouteObject[] = useMemo(() => {
-    if (authLoading) return [{ path: '*', element: <LoadingSpinner /> }]
+    if (authLoading) return [{ path: '*', element: <LoadingSpinner center="page" text="加载中…" /> }]
+
     if (!user) {
       return [{ element: <ProtectedLayout />, children: [{ path: '*', element: <Navigate to="/login" replace /> }] }]
     }
 
     if (err) return [{ path: '*', element: <NotFound404 /> }]
-    if (tree === null) return [{ path: '*', element: <LoadingSpinner /> }]
+    if (tree === null) return [{ path: '*', element: <LoadingSpinner center="page" text="加载中…" /> }]
 
     const rootRoutes = buildRoutes(tree, '/')
     const adminRoutes = buildRoutes(tree, '/admin')

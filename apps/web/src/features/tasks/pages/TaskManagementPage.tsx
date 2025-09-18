@@ -2,7 +2,7 @@
 import React from 'react'
 import { Breadcrumb, Card, Pagination, Space, App, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { TasksTable } from '../components/TasksTable'
+import  TasksTable  from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'

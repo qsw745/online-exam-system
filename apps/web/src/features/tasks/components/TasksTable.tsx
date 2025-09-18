@@ -2,7 +2,7 @@
 import React from 'react'
 import { Breadcrumb, Card, Pagination, Space, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { TasksTable } from '../components/TasksTable'
+import  TasksTable  from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
 

@@ -1,4 +1,5 @@
-import React from 'react'
+// src/features/dashboard/pages/DashboardPage.tsx
+import React, { useEffect } from 'react'
 import { Space, Typography, Row, Col, message } from 'antd'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
@@ -15,18 +16,17 @@ const DashboardPage: React.FC = () => {
 
   const { stats, recentTasks, recentResults, isLoading, isError, errorMessages } = useDashboard(5)
 
-  if (isError && errorMessages.length) {
-    // 只提示一次
-    message.error(errorMessages[0])
-  }
+  useEffect(() => {
+    if (isError && errorMessages.length) message.error(errorMessages[0])
+  }, [isError, errorMessages])
 
-  if (isLoading) {
-    return <LoadingSpinner text={t('dashboard.loading')} />
-  }
+//   if (isLoading) {
+//     // 整页居中，显式传入文案
+//     return <LoadingSpinner center="page" text={t('dashboard.loading')} />
+//   }
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      {/* 页面标题 */}
       <div>
         <Title level={2} style={{ marginBottom: 8 }}>
           {t('dashboard.title')}
@@ -34,7 +34,6 @@ const DashboardPage: React.FC = () => {
         <Text type="secondary">{t('dashboard.description')}</Text>
       </div>
 
-      {/* 统计卡片 */}
       <DashboardStatsCards
         stats={stats}
         labels={{
@@ -45,7 +44,6 @@ const DashboardPage: React.FC = () => {
         }}
       />
 
-      {/* 最近任务 & 最近成绩 */}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <RecentTasksList
