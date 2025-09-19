@@ -1,7 +1,6 @@
-// src/features/tasks/components/TaskDetail.tsx
 import React from 'react'
 import { Card, Descriptions, Space, Tag, Typography, Button } from 'antd'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import StatusTag from './StatusTag'
 import type { Task } from '@/shared/types/tasks'
 
@@ -11,7 +10,9 @@ export const TaskDetail: React.FC<{
   task: Task | null
   loading?: boolean
   onStart?: (task: Task) => void
-}> = ({ task, loading, onStart }) => {
+  onBack?: () => void
+  onEdit?: (task: Task) => void
+}> = ({ task, loading, onStart, onBack, onEdit }) => {
   if (loading) {
     return (
       <Card loading variant="outlined">
@@ -23,10 +24,9 @@ export const TaskDetail: React.FC<{
     return <Card variant="outlined">未找到任务</Card>
   }
 
-  const assigned: any[] = (task as any).assigned_users || []
+  const assigned: any[] = (task as any).assigned_users ?? (task as any).assignedUsers ?? []
 
   const canStart = (() => {
-    if (!task) return false
     const now = new Date()
     const s = task.start_time ? new Date(task.start_time) : undefined
     const e = task.end_time ? new Date(task.end_time) : undefined
@@ -42,10 +42,16 @@ export const TaskDetail: React.FC<{
       </Title>
 
       <Card
-        title={task.title}
+        title={task.title || '—'}
         extra={
           <Space>
-            <StatusTag status={task.status} />
+            <Button onClick={onBack}>返回</Button>
+            {onEdit && (
+              <Button type="primary" ghost onClick={() => onEdit(task)}>
+                编辑
+              </Button>
+            )}
+            <StatusTag status={task.status as any} />
             {onStart && canStart && (
               <Button type="primary" onClick={() => onStart(task)}>
                 {task.type === 'exam' ? '进入考试' : '开始练习'}
@@ -64,7 +70,9 @@ export const TaskDetail: React.FC<{
           <Descriptions.Item label="结束时间">
             {task.end_time ? dayjs(task.end_time).format('YYYY-MM-DD HH:mm') : '-'}
           </Descriptions.Item>
-          <Descriptions.Item label="关联考试ID">{(task as any).exam_id ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label="关联考试ID">
+            {(task as any).exam_id ?? (task as any).examId ?? '-'}
+          </Descriptions.Item>
           <Descriptions.Item label="创建时间">
             {task.created_at ? dayjs(task.created_at).format('YYYY-MM-DD HH:mm') : '-'}
           </Descriptions.Item>
@@ -76,7 +84,8 @@ export const TaskDetail: React.FC<{
               {assigned.length
                 ? assigned.map((u: any) => (
                     <Tag key={u.id}>
-                      {u.username}（{u.email}）
+                      {u.username || u.nickname || u.real_name || `用户${u.id}`}
+                      {u.email ? `（${u.email}）` : ''}
                     </Tag>
                   ))
                 : '-'}

@@ -31,7 +31,7 @@ export const RecentTasksList: React.FC<{
     <Card
       title={title}
       extra={
-        <Link to="/admin/tasks/my" style={{ color: '#1890ff' }}>
+        <Link to="/tasks/my" style={{ color: '#1890ff' }}>
           {viewAllText}
         </Link>
       }

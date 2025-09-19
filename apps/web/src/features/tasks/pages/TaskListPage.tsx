@@ -1,17 +1,17 @@
-// src/features/tasks/pages/TaskManagementPage.tsx
 import React from 'react'
 import { Breadcrumb, Card, Pagination, Space, App, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import  TasksTable  from '../components/TasksTable'
+import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 
 const { RangePicker } = DatePicker
 
-const TaskManagementPage: React.FC = () => {
-  const { message: msgApi } = App.useApp()
+const TaskListPage: React.FC = () => {
+  const { message: msg } = App.useApp()
   const nav = useNavigate()
+
   const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset, refetch } =
     useTasksQuery()
 
@@ -33,10 +33,10 @@ const TaskManagementPage: React.FC = () => {
       const r: any = (tasksApi as any).update?.(id, { status: 'published' }) ?? (tasksApi as any).publish?.(id)
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '发布失败')
-      msgApi.success('发布成功')
+      msg.success('发布成功')
       refetch()
     } catch (e: any) {
-      msgApi.error(e?.message || '发布失败')
+      msg.error(e?.message || '发布失败')
     }
   }
 
@@ -45,17 +45,38 @@ const TaskManagementPage: React.FC = () => {
       const r: any = (tasksApi as any).update?.(id, { status: 'draft' }) ?? (tasksApi as any).unpublish?.(id)
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '下线失败')
-      msgApi.success('已下线')
+      msg.success('已下线')
       refetch()
     } catch (e: any) {
-      msgApi.error(e?.message || '下线失败')
+      msg.error(e?.message || '下线失败')
+    }
+  }
+
+  const onDelete = async (id: string) => {
+    try {
+      const r: any =
+        (tasksApi as any).delete?.(id) ??
+        (tasksApi as any).remove?.(id) ??
+        (tasksApi as any).destroy?.(id) ??
+        (tasksApi as any).del?.(id)
+      const ret = await r
+      if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '删除失败')
+      msg.success('删除成功')
+      if (rows.length === 1 && page > 1) {
+        setPage(page - 1)
+      } else {
+        refetch()
+      }
+    } catch (e: any) {
+      msg.error(e?.message || '删除失败')
     }
   }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Breadcrumb items={[{ title: '任务管理' }]} />
-      <Card title="任务管理" variant="outlined">
+      <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks/list' }, { title: '任务列表' }]} />
+
+      <Card title="任务列表" variant="outlined">
         <Space wrap>
           <Input
             placeholder="关键词"
@@ -71,8 +92,8 @@ const TaskManagementPage: React.FC = () => {
             onChange={setSt}
             options={[
               { value: 'all', label: '全部状态' },
-              { value: 'draft', label: '草稿' },
-              { value: 'published', label: '已发布' },
+              { value: 'draft', label: '草稿（可发布）' },
+              { value: 'published', label: '已发布（可下线）' },
               { value: 'in_progress', label: '进行中' },
               { value: 'completed', label: '已完成' },
               { value: 'archived', label: '已归档' },
@@ -99,9 +120,10 @@ const TaskManagementPage: React.FC = () => {
         <TasksTable
           data={rows as any}
           loading={loading}
-          onView={(id: string) => nav(`/admin/tasks/detail/${id}`)}
+          onEdit={(id: string) => nav(`/admin/tasks/detail/${id}?edit=1`)} // ★ 直接进编辑态
           onPublish={onPublish}
           onUnpublish={onUnpublish}
+          onDelete={onDelete}
           showPublishActions
         />
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
@@ -122,4 +144,5 @@ const TaskManagementPage: React.FC = () => {
     </Space>
   )
 }
-export default TaskManagementPage
+
+export default TaskListPage

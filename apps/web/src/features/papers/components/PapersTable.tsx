@@ -1,6 +1,6 @@
 import { Button, Empty, Space, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { EyeOutlined, EditOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
 import type { Paper } from '@/shared/api/endpoints/papers'
 
 const { Text } = Typography
@@ -27,26 +27,31 @@ function formatDate(input?: string | number | Date): string {
 export default function PapersTable({
   items,
   loading,
-  onView,
+  selectedRowKeys,
+  onSelectionChange,
   onEdit,
   onDelete,
 }: {
   items: Paper[]
   loading?: boolean
-  onView: (id: string) => void
-  onEdit: (id: string) => void
-  onDelete: (id: string) => void
+  selectedRowKeys: React.Key[]
+  onSelectionChange: (keys: React.Key[]) => void
+  onEdit: (id: string | number) => void
+  onDelete: (id: string | number) => void
 }) {
   const columns: ColumnsType<Paper> = [
     {
       title: '试卷',
       dataIndex: 'title',
       key: 'title',
+      width: 420,
       render: (_: any, r) => (
-        <Space direction="vertical" size={0}>
-          <Text strong>{r.title}</Text>
+        <Space direction="vertical" size={0} style={{ maxWidth: 420 }}>
+          <Text strong ellipsis={{ tooltip: r.title }}>
+            {r.title}
+          </Text>
           {r.description ? (
-            <Text type="secondary" ellipsis style={{ maxWidth: 520 }}>
+            <Text type="secondary" ellipsis={{ tooltip: r.description }}>
               {r.description}
             </Text>
           ) : null}
@@ -57,7 +62,7 @@ export default function PapersTable({
       title: '难度',
       dataIndex: 'difficulty',
       key: 'difficulty',
-      width: 120,
+      width: 110,
       render: (d?: string) => <Tag color={diffColor[d || 'default']}>{diffText[d || ''] || d || '—'}</Tag>,
     },
     {
@@ -78,7 +83,7 @@ export default function PapersTable({
     },
     {
       title: '创建时间',
-      dataIndex: 'created_at' as any, // 后端可能返回 createdAt/created_at
+      dataIndex: 'created_at' as any,
       key: 'created_at',
       width: 200,
       render: (_: any, r) => formatDate((r as any).created_at ?? (r as any).createdAt),
@@ -86,18 +91,15 @@ export default function PapersTable({
     {
       title: '操作',
       key: 'actions',
-      width: 220,
+      width: 200,
       fixed: 'right',
       render: (_: any, r) => (
-        <Space>
-          <Button type="link" icon={<EyeOutlined />} onClick={() => onView(r.id)}>
-            查看
-          </Button>
-          <Button type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>
+        <Space size={4} wrap>
+          <Button size="small" type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>
             编辑
           </Button>
           <Tooltip title="删除后不可恢复">
-            <Button type="link" danger icon={<DeleteOutlined />} onClick={() => onDelete(r.id)}>
+            <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => onDelete(r.id)}>
               删除
             </Button>
           </Tooltip>
@@ -116,6 +118,11 @@ export default function PapersTable({
       dataSource={items}
       loading={loading}
       pagination={false}
+      scroll={{ x: 1080 }}
+      rowSelection={{
+        selectedRowKeys,
+        onChange: onSelectionChange,
+      }}
       locale={{
         emptyText: (
           <Empty image={<FileTextOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />} description="暂无试卷" />

@@ -90,6 +90,7 @@ export class TaskController {
         }
     }
 
+
     static async create(req: AuthRequest, res: Response<TaskDetailResponse>) {
         try {
             const creatorId = req.user?.id
@@ -98,8 +99,10 @@ export class TaskController {
             if (role !== 'admin' && role !== 'teacher') return res.forbidden('只有管理员和教师可以创建任务')
             if (!req.body?.title) return res.badRequest('任务标题不能为空')
 
-            // 只传净化后的用户ID（保持你原有的校验）
             const assigned_user_ids = Array.isArray(req.body.assigned_user_ids) ? req.body.assigned_user_ids : []
+            const assigned_department_ids = Array.isArray(req.body.assigned_department_ids)
+                ? req.body.assigned_department_ids
+                : []
 
             const task = await svc.create({
                 creatorId,
@@ -108,9 +111,12 @@ export class TaskController {
                 status: req.body.status,
                 start_time: req.body.start_time,
                 end_time: req.body.end_time,
-                exam_id: req.body.exam_id,
+                // 新增：paper_id 支持（仅考试）
+                paper_id: req.body.paper_id ? Number(req.body.paper_id) : undefined,
+                exam_id: req.body.exam_id ? Number(req.body.exam_id) : undefined,
                 type: req.body.type || 'practice',
                 assigned_user_ids,
+                assigned_department_ids,
             })
             return res.created({ task }, '创建成功')
         } catch (e: any) {
@@ -118,7 +124,6 @@ export class TaskController {
             if (/分配用户不存在|无效的分配用户|assigned user/i.test(msg)) {
                 return res.badRequest(msg)
             }
-            log.error('创建任务错误:', e)
             return res.internal(msg || '创建任务失败')
         }
     }

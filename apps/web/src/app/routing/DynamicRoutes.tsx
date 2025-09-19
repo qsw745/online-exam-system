@@ -177,6 +177,10 @@ export default function DynamicRoutes() {
       { path: 'question-edit/:id', element: elementFromRegistry('question-edit') },
       // 后台任务详情
       { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
+      // ✅ 后台试卷详情/编辑直达
+      { path: 'paper-detail/:id', element: elementFromRegistry('paper-detail') },
+      { path: 'paper-edit/:id', element: elementFromRegistry('paper-edit') },
+      { path: '/admin/tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
     ]
 
     const defaultHome =

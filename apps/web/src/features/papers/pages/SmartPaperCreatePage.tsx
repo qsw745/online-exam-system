@@ -4,6 +4,7 @@ import { Button, Spin } from 'antd'
 import { ArrowLeft, Save, Shuffle } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useSmartPaper } from '@/shared/hooks/useSmartPaper'
+import React, { useCallback } from 'react'
 import ConfigForm from '../components/ConfigForm'
 import PreviewList from '../components/PreviewList'
 
@@ -11,11 +12,29 @@ export default function SmartPaperCreatePage() {
   const nav = useNavigate()
   const h = useSmartPaper()
 
+  const onBackToList = useCallback(() => nav('/admin/papers'), [nav])
+
+  // 点击“开始组卷”时，等待结果；若后端已创建 → 立刻跳转详情
+  const onGenerate = useCallback(async () => {
+    const r = await h.generate()
+    if (r?.status === 'ok' && r.mode === 'created' && r.paperId) {
+      nav(`/admin/paper-detail/${r.paperId}`)
+    }
+  }, [h, nav])
+
+  // 预览页的“重新生成”也可能直接创建，保持一致处理
+  const onRegenerate = useCallback(async () => {
+    const r = await h.generate()
+    if (r?.status === 'ok' && r.mode === 'created' && r.paperId) {
+      nav(`/admin/paper-detail/${r.paperId}`)
+    }
+  }, [h, nav])
+
   if (h.step === 'config') {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-4">
-          <Button type="text" onClick={() => nav('/admin/papers')} className="flex items-center gap-2">
+          <Button type="text" onClick={onBackToList} className="flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> 返回
           </Button>
           <div>
@@ -33,10 +52,10 @@ export default function SmartPaperCreatePage() {
         />
 
         <div className="flex justify-end space-x-4">
-          <Button onClick={() => nav('/admin/papers')}>取消</Button>
+          <Button onClick={onBackToList}>取消</Button>
           <Button
             type="primary"
-            onClick={h.generate}
+            onClick={onGenerate}
             loading={h.generating}
             disabled={!!h.validationError}
             icon={!h.generating ? <Shuffle className="w-4 h-4" /> : undefined}
@@ -62,13 +81,13 @@ export default function SmartPaperCreatePage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Button type="default" onClick={h.generate} disabled={h.generating} className="flex items-center gap-2">
+            <Button type="default" onClick={onRegenerate} disabled={h.generating} className="flex items-center gap-2">
               {h.generating ? <Spin size="small" /> : <Shuffle className="w-4 h-4" />}{' '}
               {h.generating ? '重新生成中…' : '重新生成'}
             </Button>
             <Button
               type="primary"
-              onClick={() => h.save(() => nav('/admin/papers'))}
+              onClick={() => h.save(onBackToList)}
               loading={h.loading}
               icon={!h.loading ? <Save className="w-4 h-4" /> : undefined}
             >

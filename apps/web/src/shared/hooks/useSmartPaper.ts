@@ -1,9 +1,22 @@
 // features/smart-paper/hooks/useSmartPaper.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { smartPaperApi, type Question, type SmartPaperConfig } from '../api/endpoints/smartPaper'
+import { smartPaperApi, type Question, type SmartPaperConfig } from '@/shared/api/endpoints/smartPaper'
 
 export type Step = 'config' | 'preview'
+
+type GenerateResult =
+  | { status: 'ok'; mode: 'preview' }
+  | {
+      status: 'ok'
+      mode: 'created'
+      paperId: number
+      total_score: number
+      count: number
+      duration: number
+      title: string
+    }
+  | { status: 'error'; message?: string }
 
 export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
   const { message } = App.useApp()
@@ -59,24 +72,51 @@ export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
     return null
   }, [config])
 
-  const generate = useCallback(async () => {
+  /**
+   * 智能生成：
+   * - 若服务返回 {questions:[]} → 进入预览步骤
+   * - 若服务直接返回 {paperId,...} → 直接创建完成（返回给上层决定跳转）
+   */
+  const generate = useCallback(async (): Promise<GenerateResult> => {
     if (validationError) {
       message.error(validationError)
-      return
+      return { status: 'error' }
     }
     setGenerating(true)
     try {
-      const qs = await smartPaperApi.generate(config)
-      setQuestions(qs)
-      setStep('preview')
-      message.success('智能组卷成功！')
+      const result = await smartPaperApi.generate(config)
+      if (result.type === 'preview') {
+        setQuestions(result.questions || [])
+        setStep('preview')
+        if ((result.questions || []).length) {
+          message.success('智能组卷成功，已生成预览！')
+        } else {
+          message.warning('没有生成题目，请调整筛选条件后重试')
+        }
+        return { status: 'ok', mode: 'preview' }
+      } else {
+        // 直接创建成功，由上层决定跳到详情页
+        message.success('智能组卷成功，试卷已创建！')
+        return {
+          status: 'ok',
+          mode: 'created',
+          paperId: result.paperId,
+          total_score: result.total_score,
+          count: result.count,
+          duration: result.duration,
+          title: result.title,
+        }
+      }
     } catch (e: any) {
-      message.error(e?.response?.data?.error || e?.message || '智能组卷失败')
+      const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || '智能组卷失败'
+      message.error(msg)
+      return { status: 'error', message: msg }
     } finally {
       setGenerating(false)
     }
   }, [config, message, validationError])
 
+  /** 预览模式：保存为试卷 */
   const save = useCallback(
     async (onOk?: () => void) => {
       setLoading(true)
@@ -85,16 +125,22 @@ export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
           title: config.title,
           description: config.description,
           duration: config.duration,
-          difficulty: config.difficulty === 'mixed' ? 'medium' : config.difficulty,
+          difficulty: config.difficulty === 'mixed' ? 'medium' : (config.difficulty as 'easy' | 'medium' | 'hard'),
           total_score: config.totalScore,
-          questions: questions.map((q, i) => ({ question_id: q.id, score: q.score, order: i + 1 })),
+          questions: questions.map((q, i) => ({
+            question_id: q.id,
+            score: q.score ?? Math.max(1, Math.floor(config.totalScore / Math.max(1, config.totalQuestions))),
+            order: i + 1,
+          })),
         }
         const resp = await smartPaperApi.createWithQuestions(payload)
-        if ((resp as any)?.success === false) throw new Error((resp as any)?.message || '创建试卷失败')
+        const ok = (resp as any)?.success ?? ((resp as any)?.status >= 200 && (resp as any)?.status < 300)
+        if (!ok) throw new Error((resp as any)?.message || '创建试卷失败')
         message.success('试卷创建成功！')
         onOk?.()
       } catch (e: any) {
-        message.error(e?.response?.data?.error || e?.message || '创建试卷失败')
+        const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || '创建试卷失败'
+        message.error(msg)
       } finally {
         setLoading(false)
       }

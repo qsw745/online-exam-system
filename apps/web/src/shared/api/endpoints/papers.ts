@@ -1,92 +1,104 @@
+// src/shared/api/endpoints/papers.ts
 import { api } from '@/shared/api/http'
 
-export type PaperDifficulty = 'easy' | 'medium' | 'hard' | string
-
-export interface Paper {
-  id: string
+export type PaperDifficulty = 'easy' | 'medium' | 'hard'
+export type Paper = {
+  id: number | string
   title: string
   description?: string
-  duration: number
-  difficulty?: PaperDifficulty
+  difficulty?: PaperDifficulty | string
   total_score?: number
+  duration?: number
+  created_at?: string
+  updated_at?: string
 }
 
-export interface PapersListResp {
-  items: Paper[]
-  total: number
-  page: number
-  limit: number
+export type PaperQuestion = {
+  paper_id: number
+  question_id: number
+  score: number
+  order: number
+  question_title?: string
+  question_type?: string
+  question_content?: string
+  question_options?: string
+  question_answer?: string
 }
 
-function normalizeListPayload(raw: any, fallbackPage = 1, fallbackLimit = 10): PapersListResp {
-  const payload = raw?.data ?? raw ?? {}
-  const arr =
-    (Array.isArray(payload.items) && payload.items) ||
-    (Array.isArray(payload.rows) && payload.rows) ||
-    (Array.isArray(payload.papers) && payload.papers) ||
-    (Array.isArray(payload) && payload) ||
-    []
+type ListParams = {
+  page?: number
+  limit?: number
+  search?: string
+  difficulty?: PaperDifficulty | 'all'
+}
+type ListResult = { items: Paper[]; total: number }
 
-  return {
-    items: arr as Paper[],
-    total: Number(payload.total ?? arr.length ?? 0),
-    page: Number(payload.page ?? fallbackPage),
-    limit: Number(payload.limit ?? fallbackLimit),
-  }
+// 兼容各种返回包裹
+const pickData = <T>(resp: any, fallback: T): T => {
+  const d = resp?.data ?? resp
+  if (d?.data !== undefined) return d.data as T
+  return (d as T) ?? fallback
 }
 
 export const papersApi = {
-  /** 列表：统一返回 { items, total, page, limit } */
-  async list(params?: {
-    page?: number
-    limit?: number
-    search?: string
-    difficulty?: PaperDifficulty | 'all'
-  }): Promise<PapersListResp> {
-    const page = Number(params?.page ?? 1)
-    const limit = Number(params?.limit ?? 10)
-    const query = {
-      page,
-      limit,
-      search: params?.search || undefined,
-      difficulty: params?.difficulty && params.difficulty !== 'all' ? params.difficulty : undefined,
+  /** 列表 */
+  async list(params: ListParams = {}): Promise<ListResult> {
+    const q: any = {
+      page: params.page ?? 1,
+      limit: params.limit ?? 10,
+      search: params.search || undefined,
     }
-    const r: any = await api.get('/papers', { params: query })
-    return normalizeListPayload(r, page, limit)
+    if (params.difficulty && params.difficulty !== 'all') q.difficulty = params.difficulty
+
+    const res = await api.get('/papers', { params: q })
+    const d = pickData<any>(res, {})
+    // 后端形态可能是 {papers,total} 或 {items,total}
+    const items: Paper[] = Array.isArray(d?.items) ? d.items : Array.isArray(d?.papers) ? d.papers : []
+    const total: number = Number(d?.total ?? d?.pagination?.total ?? items.length ?? 0)
+    return { items, total }
   },
 
-  getById: (id: string) => api.get<Paper>(`/papers/${id}`),
+  /** 详情 */
+  async getById(id: string | number): Promise<Paper> {
+    const res = await api.get(`/papers/${id}`)
+    const d = pickData<any>(res, {})
+    return d?.paper ?? d
+  },
 
-  create: (data: Omit<Paper, 'id'> & { question_ids?: string[] }) => api.post<Paper>('/papers', data),
+  /** 更新 */
+  async update(id: string | number, body: Partial<Paper>) {
+    return api.put(`/papers/${id}`, body)
+  },
 
-  update: (id: string, data: Partial<Paper>) => api.put<Paper>(`/papers/${id}`, data),
+  /** 删除（提供两种别名，兼容不同调用） */
+  async delete(id: string | number) {
+    return api.delete(`/papers/${id}`)
+  },
+  async remove(id: string | number) {
+    return api.delete(`/papers/${id}`)
+  },
 
-  /** 删除：提供 delete 与 remove 两个别名，兼容调用 */
-  delete: (id: string) => api.delete<void>(`/papers/${id}`),
-  remove: (id: string) => api.delete<void>(`/papers/${id}`),
+  /** 题目：列表 */
+  async getQuestions(id: string | number): Promise<PaperQuestion[]> {
+    const res = await api.get(`/papers/${id}/questions`)
+    const d = pickData<any>(res, {})
+    return Array.isArray(d?.questions) ? d.questions : []
+  },
 
-  /** 试卷下题目 */
-  getQuestions: (id: string) => api.get<{ items: any[] }>(`/papers/${id}/questions`),
+  /** 题目：添加 */
+  async addQuestion(paperId: string | number, payload: { questionId: number; score: number; order: number }) {
+    return api.post(`/papers/${paperId}/questions`, payload)
+  },
 
-  addQuestion: (paperId: string, data: { question_id: string; score?: number }) =>
-    api.post<void>(`/papers/${paperId}/questions`, data),
+  /** 题目：删除 */
+  async removeQuestion(paperId: string | number, questionId: number) {
+    return api.delete(`/papers/${paperId}/questions/${questionId}`)
+  },
 
-  removeQuestion: (paperId: string, qid: string) => api.delete<void>(`/papers/${paperId}/questions/${qid}`),
-
-  updateQuestionOrder: (paperId: string, orderData: { ids: string[] }) =>
-    api.put<void>(`/papers/${paperId}/questions/order`, orderData),
-
-  /** 兼容老接口风格（可选） */
-  createWithQuestions: (payload: {
-    title: string
-    description?: string
-    duration: number
-    difficulty?: PaperDifficulty
-    total_score?: number
-    question_ids: string[]
-  }) => api.post<Paper>('/papers:createWithQuestions', payload),
+  /** 题目：更新顺序 */
+  async updateOrder(paperId: string | number, orders: Array<{ questionId: number; order: number }>) {
+    return api.put(`/papers/${paperId}/questions/order`, { orders })
+  },
 }
 
-/** 兼容旧命名 */
-export const papers = papersApi
-export type { Paper as PaperDTO }
+export default papersApi

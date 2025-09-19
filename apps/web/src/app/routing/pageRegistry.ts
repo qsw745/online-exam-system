@@ -12,10 +12,8 @@ const LogsPage = lazy(() => import('@/features/logs/pages/LogsPage'))
 const SystemSettingsPage = lazy(() => import('@/features/admin-settings/pages/SystemSettingsPage'))
 
 // ===== Tasks =====
-const TasksPage = lazy(() => import('@/features/tasks/pages/TasksPage'))
 const MyTasksPage = lazy(() => import('@/features/tasks/pages/MyTasksPage'))
-const PublishTaskPage = lazy(() => import('@/features/tasks/pages/PublishTaskPage'))
-const TaskManagementPage = lazy(() => import('@/features/tasks/pages/TaskManagementPage'))
+const TaskListPage = lazy(() => import('@/features/tasks/pages/TaskListPage'))
 const TaskCreatePage = lazy(() => import('@/features/tasks/pages/TaskCreatePage'))
 const TaskDetailPage = lazy(() => import('@/features/tasks/pages/TaskDetailPage'))
 
@@ -24,6 +22,8 @@ const PaperManagementPage = lazy(() => import('@/features/papers/pages/PaperMana
 const PaperCreatePage = lazy(() => import('@/features/papers/pages/PaperCreatePage'))
 const ManualPaperCreationPage = lazy(() => import('@/features/papers/pages/ManualPaperCreationPage'))
 const SmartPaperCreatePage = lazy(() => import('@/features/papers/pages/SmartPaperCreatePage'))
+const PaperDetailPage = lazy(() => import('@/features/papers/pages/PaperDetailPage')) // ✅ 新增
+
 const QuestionManagementPage = lazy(() => import('@/features/questions/pages/QuestionManagementPage'))
 const QuestionCreatePage = lazy(() => import('@/features/questions/pages/QuestionCreatePage'))
 const QuestionDetailPage = lazy(() => import('@/features/questions/pages/QuestionDetailPage'))
@@ -86,18 +86,18 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'system-settings': SystemSettingsPage,
 
   // Tasks
-  tasks: TasksPage, // 学员“我的任务”（卡片式）
-  'task-my': MyTasksPage, // 表格版（如仍有使用）
-  'task-public': PublishTaskPage,
-  'task-manage': TaskManagementPage,
+  'task-my': MyTasksPage,
+  'task-manage': TaskListPage,
   'task-create': TaskCreatePage,
-  'task-detail': TaskDetailPage, // ★ 新增：任务详情
+  'task-detail': TaskDetailPage,
 
   // Papers & Questions (后台)
   'paper-manage': PaperManagementPage,
   'paper-create': PaperCreatePage,
   'paper-create-manual': ManualPaperCreationPage,
   'paper-create-smart': SmartPaperCreatePage,
+  'paper-detail': PaperDetailPage, // ✅ 新增
+
   'question-manage': QuestionManagementPage,
   'question-create': QuestionCreatePage,
   'question-detail': QuestionDetailPage,

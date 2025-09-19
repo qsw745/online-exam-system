@@ -1,24 +1,36 @@
+// src/features/tasks/hooks/useTasksQuery.ts
 import { App } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { tasksApi, isSuccess } from '@/shared/api/http'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { isSuccess } from '@/shared/api/http'
 
 export type Task = {
   id: string
   title: string
   description?: string
   assigned_users?: Array<{ id: number; name?: string; username?: string }>
-  status: 'draft' | 'published' | 'unpublished' | 'not_started' | 'in_progress' | 'completed' | 'expired' | string
+  status:
+    | 'draft'
+    | 'published'
+    | 'unpublished'
+    | 'not_started'
+    | 'in_progress'
+    | 'completed'
+    | 'expired'
+    | 'archived'
+    | string
   type?: 'exam' | 'practice'
   exam_id?: number | null
   start_time?: string | null
   end_time?: string | null
   created_at?: string | null
+  updated_at?: string | null
 }
 
 export interface TaskFilters {
   keyword?: string
-  status?: string // 'all' | TaskStatus
+  status?: string // 'all' | 具体状态
   range?: [dayjs.Dayjs, dayjs.Dayjs] | null
   type?: 'exam' | 'practice' | 'all'
 }
@@ -46,21 +58,21 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
       p.start_from = filters.range[0].startOf('day').toISOString()
       p.end_to = filters.range[1].endOf('day').toISOString()
     }
-    if (options.scope === 'mine') p.mine = 1 // 旧接口兜底
+    if (options.scope === 'mine') p.mine = 1 // 给旧接口兜底
     return p
   }, [filters, page, pageSize, options.scope])
 
   const fetch = useCallback(async () => {
     setLoading(true)
     try {
-      // 优先调用 /tasks/mine，其次回退到 /tasks?mine=1
+      // 优先 mine 接口，回退到 list + ?mine=1
       const apiCaller =
         options.scope === 'mine'
           ? (tasksApi as any).mine || (tasksApi as any).listMine || (tasksApi as any).list
           : (tasksApi as any).list
 
       const res: any = await apiCaller?.(params)
-      if (!isSuccess?.(res)) {
+      if (!isSuccess(res)) {
         message.error(res?.error || res?.message || '加载任务失败')
         setRows([])
         setTotal(0)
@@ -80,8 +92,6 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
         setTotal(0)
       }
     } catch (e: any) {
-      // 仅本地输出，UI 用 message
-      // eslint-disable-next-line no-console
       console.error(e)
       message.error(e?.message || '加载任务失败')
       setRows([])

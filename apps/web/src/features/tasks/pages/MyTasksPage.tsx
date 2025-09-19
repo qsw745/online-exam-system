@@ -1,109 +1,116 @@
-// src/features/tasks/hooks/useTasksQuery.ts
-import { App } from 'antd'
+// src/features/tasks/pages/MyTasksPage.tsx
+import React from 'react'
+import { Breadcrumb, Card, Pagination, Space, Input, Select, DatePicker, Button } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { TasksTable } from '../components/TasksTable'
+import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { tasksApi, isSuccess } from '@/shared/api/http'
 
-export type Task = {
-  id: string
-  title: string
-  description?: string
-  assigned_users?: Array<{ id: number; name?: string; username?: string }>
-  status: 'draft' | 'published' | 'unpublished' | 'not_started' | 'in_progress' | 'completed' | 'expired' | string
-  type?: 'exam' | 'practice'
-  exam_id?: number | null
-  start_time?: string | null
-  end_time?: string | null
-  created_at?: string | null
-}
+const { RangePicker } = DatePicker
 
-export interface TaskFilters {
-  keyword?: string
-  status?: string // 'all' | TaskStatus
-  range?: [dayjs.Dayjs, dayjs.Dayjs] | null
-  type?: 'exam' | 'practice' | 'all'
-}
+const MyTasksPage: React.FC = () => {
+  const nav = useNavigate()
+  // ★ 仅查“我的任务”
+  const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset } = useTasksQuery(10, {
+    scope: 'mine',
+  })
 
-type Options = { scope?: 'all' | 'mine' }
+  const [kw, setKw] = React.useState(filters.keyword || '')
+  const [st, setSt] = React.useState(filters.status || 'all')
+  const [rg, setRg] = React.useState<any>(filters.range || null)
 
-export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 'all' }) {
-  const { message } = App.useApp()
-  const [filters, setFilters] = useState<TaskFilters>({ status: 'all' })
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(initialPageSize)
-  const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [rows, setRows] = useState<Task[]>([])
-
-  const params = useMemo(() => {
-    const p: any = {
-      page,
-      limit: pageSize,
-      search: filters.keyword || undefined,
-      status: filters.status && filters.status !== 'all' ? filters.status : undefined,
-      type: filters.type && filters.type !== 'all' ? filters.type : undefined,
+  const applySearch = () => {
+    const next: TaskFilters = {
+      keyword: kw || undefined,
+      status: st || 'all',
+      range: rg && rg.length === 2 ? rg : null,
     }
-    if (filters.range?.length === 2) {
-      p.start_from = filters.range[0].startOf('day').toISOString()
-      p.end_to = filters.range[1].endOf('day').toISOString()
-    }
-    if (options.scope === 'mine') p.mine = 1 // 给旧接口兜底
-    return p
-  }, [filters, page, pageSize, options.scope])
-
-  const fetch = useCallback(async () => {
-    setLoading(true)
-    try {
-      // 兼容：优先调用后端 /tasks/mine 对应的 mine/listMine；没有就回退到 list + ?mine=1
-      const apiCaller =
-        options.scope === 'mine'
-          ? (tasksApi as any).mine || (tasksApi as any).listMine || (tasksApi as any).list
-          : (tasksApi as any).list
-
-      const res: any = await apiCaller?.(params)
-      if (!isSuccess(res)) {
-        message.error(res?.error || res?.message || '加载任务失败')
-        setRows([])
-        setTotal(0)
-        return
-      }
-      const d = res.data
-      if (Array.isArray(d)) {
-        setRows(d as Task[])
-        setTotal(d.length)
-      } else if (d && typeof d === 'object') {
-        const arr = (d.items ?? d.tasks ?? []) as Task[]
-        setRows(Array.isArray(arr) ? arr : [])
-        const pg = d.pagination ?? {}
-        setTotal(pg.total ?? d.total ?? arr?.length ?? 0)
-      } else {
-        setRows([])
-        setTotal(0)
-      }
-    } catch (e: any) {
-      console.error(e)
-      message.error(e?.message || '加载任务失败')
-      setRows([])
-      setTotal(0)
-    } finally {
-      setLoading(false)
-    }
-  }, [params, message, options.scope])
-
-  useEffect(() => {
-    fetch()
-  }, [fetch])
-
-  const search = (next: TaskFilters) => {
-    setFilters(next)
-    setPage(1)
-  }
-  const reset = () => {
-    setFilters({ status: 'all' })
-    setPage(1)
+    search(next)
   }
 
-  return { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset, refetch: fetch }
+  return (
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks' }, { title: '我的任务' }]} />
+
+      <Card title="我的任务" variant="outlined">
+        <Space wrap>
+          <Input
+            placeholder="关键词"
+            allowClear
+            value={kw}
+            onChange={e => setKw(e.target.value)}
+            onPressEnter={applySearch}
+            style={{ width: 240 }}
+          />
+          <Select
+            style={{ width: 160 }}
+            value={st}
+            onChange={setSt}
+            options={[
+              { value: 'all', label: '全部状态' },
+              { value: 'not_started', label: '待开始' },
+              { value: 'published', label: '已发布' },
+              { value: 'in_progress', label: '进行中' },
+              { value: 'completed', label: '已完成' },
+              { value: 'expired', label: '已过期' },
+            ]}
+          />
+          <RangePicker
+            value={rg}
+            onChange={v => setRg(v || null)}
+            showTime
+            disabledDate={d => !!d && d > dayjs().endOf('day')}
+          />
+          <Button type="primary" onClick={applySearch}>
+            查询
+          </Button>
+          <Button
+            onClick={() => {
+              setKw('')
+              setSt('all')
+              setRg(null)
+              reset()
+            }}
+          >
+            重置
+          </Button>
+        </Space>
+      </Card>
+
+      <Card variant="outlined">
+        <TasksTable
+          data={rows as any}
+          loading={loading}
+          onView={(id: string) => nav(`/admin/tasks/detail/${id}`)}
+          showPublishActions={false} // ★ 我的任务页不展示发布/下线
+          showStartAction // ★ 显示“开始”动作
+          onStart={r => {
+            if (r.type === 'exam' && r.exam_id) {
+              nav(`/exam/${r.exam_id}`)
+            } else {
+              // 练习：根据你的实际路由选择，这里示例为 /learning/practice/:id
+              nav(`/learning/practice/${r.id}`)
+            }
+          }}
+        />
+
+        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+          <Pagination
+            current={page}
+            pageSize={pageSize}
+            total={total}
+            showSizeChanger
+            showQuickJumper
+            onChange={(p, ps) => {
+              setPage(p)
+              setPageSize(ps)
+            }}
+            showTotal={(t, r) => `共 ${t} 条，当前 ${r[0]}-${r[1]}`}
+          />
+        </div>
+      </Card>
+    </Space>
+  )
 }
 
-export default useTasksQuery
+export default MyTasksPage

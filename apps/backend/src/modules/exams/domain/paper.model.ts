@@ -1,3 +1,4 @@
+// src/modules/exams/domain/paper.model.ts
 import type { RowDataPacket } from 'mysql2'
 
 export interface IPaper extends RowDataPacket {
@@ -21,6 +22,13 @@ export interface IPaperQuestion extends RowDataPacket {
   question_content: string
   question_options: string
   question_answer: string
+}
+
+export interface IQuestion extends RowDataPacket {
+  id: number
+  title: string
+  question_type: string
+  difficulty?: 'easy' | 'medium' | 'hard'
 }
 
 export type PaperData = { paper: IPaper }

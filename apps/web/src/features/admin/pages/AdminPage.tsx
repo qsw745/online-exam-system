@@ -18,7 +18,7 @@ import PaperManagementPage from '@/features/papers/pages/PaperManagementPage'
 import SmartPaperCreatePage from '@/features/papers/pages/SmartPaperCreatePage'
 
 import TaskCreatePage from '@/features/tasks/pages/TaskCreatePage'
-import TaskManagementPage from '@/features/tasks/pages/TaskManagementPage'
+import TaskManagementPage from '@/features/tasks/pages/TasksPage'
 
 import UserManagementPage from '@/features/users/pages/UserManagementPage'
 

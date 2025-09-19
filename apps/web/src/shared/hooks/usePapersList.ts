@@ -1,3 +1,4 @@
+// src/shared/hooks/usePapersList.ts
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { papersApi, type Paper, type PaperDifficulty } from '@/shared/api/endpoints/papers'
@@ -46,10 +47,11 @@ export function usePapersList() {
     async (id: string) => {
       // 乐观更新
       lastSnapshot.current = items
-      setItems(prev => prev.filter(p => p.id !== id))
+      setItems(prev => prev.filter(p => String(p.id) !== id))
       try {
-        await papersApi.remove(id)
-        // or await papersApi.delete(id)
+        // 两种都支持
+        if ((papersApi as any).remove) await (papersApi as any).remove(id)
+        else await (papersApi as any).delete(id)
         message.success('试卷删除成功')
         if (items.length === 1 && page > 1) {
           setPage(p => p - 1)
@@ -96,5 +98,4 @@ export function usePapersList() {
   }
 }
 
-// ★ 同时暴露默认导出，兼容 default import 的页面写法
 export default usePapersList

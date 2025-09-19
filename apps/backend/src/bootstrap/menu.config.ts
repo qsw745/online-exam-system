@@ -180,7 +180,7 @@ const RAW_MENU: MenuSeed[] = [
         permission_code: 'tasks:view',
         children: [
             // 卡片式“我的任务”
-            { name: 'tasks-my', title: '我的任务', path: '/tasks/my', component: 'tasks', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'tasks:my' },
+            { name: 'tasks-my', title: '我的任务', path: '/tasks/my', component: 'task-my', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'tasks:my' },
             // 隐藏的任务详情（从列表进入）
             { name: 'tasks-detail', title: '任务详情', path: '/tasks/detail/:id', component: 'task-detail', menu_type: 'page', sort_order: 2, is_hidden: true, meta: { requireAuth: true }, permission_code: 'tasks:detail' },
         ],
