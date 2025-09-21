@@ -1,22 +1,42 @@
-// src/features/exams/hooks/useExamRunner.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { App } from 'antd'
-import { exams } from '@/shared/api/endpoints/exams'
-import type { ExamStatus } from '@/shared/api/http'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
 
-export function useExamRunner(taskId: string) {
+type Question = {
+  id: number
+  type: string
+  content: string
+  options?: string[] | null
+  score: number
+  order: number
+}
+
+type ExamPayload = {
+  taskId: number
+  examId: number
+  paperId: number
+  duration: number
+  status: 'in_progress' | 'not_started' | 'submitted'
+  startedAt?: string | null
+  endTime?: string | null
+  title: string
+  description?: string | null
+  questions: Question[]
+}
+
+export function useExamRunner(taskOrExamId: string) {
   const { message } = App.useApp()
 
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
-  const [exam, setExam] = useState<ExamStatus | null>(null)
+  const [exam, setExam] = useState<ExamPayload | null>(null)
   const [index, setIndex] = useState(0)
-  const [answers, setAnswers] = useState<Record<string, number[]>>({})
+  const [answers, setAnswers] = useState<Record<string, string>>({})
   const [timeLeft, setTimeLeft] = useState(0) // 秒
   const [flagged, setFlagged] = useState<Set<number>>(new Set())
   const timerRef = useRef<number | null>(null)
 
-  const storageKey = `exam:${taskId}`
+  const storageKey = `exam:${taskOrExamId}`
 
   // 恢复草稿
   useEffect(() => {
@@ -42,14 +62,24 @@ export function useExamRunner(taskId: string) {
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const paper = await exams.getTaskPaper(taskId)
-      if (!paper || !paper.duration || !Array.isArray(paper.questions) || paper.questions.length === 0) {
+      const res: any = await tasksApi.startExam(taskOrExamId)
+      const data = (res?.data ?? res) as ExamPayload
+      if (!data || !data.duration || !Array.isArray(data.questions) || data.questions.length === 0) {
         message.error('考试数据无效')
         setExam(null)
         return
       }
-      setExam(paper)
-      setTimeLeft(paper.duration * 60)
+      // 判断题默认选项修复
+      const ensureOpts = (q: Question) =>
+        /^(true_false|judge|tf)$/i.test(q.type)
+          ? ['正确', '错误']
+          : Array.isArray(q.options)
+          ? q.options
+          : q.options ?? null
+
+      data.questions = data.questions.map(q => ({ ...q, options: ensureOpts(q) }))
+      setExam(data)
+      setTimeLeft(data.duration * 60)
     } catch (e) {
       console.error(e)
       message.error('加载试卷失败')
@@ -57,7 +87,7 @@ export function useExamRunner(taskId: string) {
     } finally {
       setLoading(false)
     }
-  }, [message, taskId])
+  }, [message, taskOrExamId])
 
   useEffect(() => {
     load()
@@ -86,14 +116,12 @@ export function useExamRunner(taskId: string) {
   const current = useMemo(() => exam?.questions?.[index], [exam, index])
   const answeredCount = useMemo(() => Object.keys(answers).length, [answers])
 
-  const setAnswer = (qid: string, opts: number[]) => {
-    setAnswers(prev => ({ ...prev, [qid]: opts }))
-  }
+  const setAnswer = (qid: string, value: string) => setAnswers(prev => ({ ...prev, [qid]: value }))
 
-  const toggleFlag = (i: number) => {
+  const toggleFlag = (qid: number) => {
     setFlagged(prev => {
       const n = new Set(prev)
-      n.has(i) ? n.delete(i) : n.add(i)
+      n.has(qid) ? n.delete(qid) : n.add(qid)
       return n
     })
   }
@@ -106,8 +134,7 @@ export function useExamRunner(taskId: string) {
     setSubmitting(true)
     try {
       const time_spent = exam.duration * 60 - timeLeft
-      await exams.submitTask(taskId, { answers, time_spent })
-      // 成功后清理草稿
+      await tasksApi.submit(exam.taskId, { answers, time_spent })
       localStorage.removeItem(storageKey)
       return true
     } catch (e: any) {
@@ -117,7 +144,7 @@ export function useExamRunner(taskId: string) {
     } finally {
       setSubmitting(false)
     }
-  }, [answers, exam, message, submitting, taskId, timeLeft, storageKey])
+  }, [answers, exam, message, submitting, timeLeft, storageKey])
 
   return {
     // state

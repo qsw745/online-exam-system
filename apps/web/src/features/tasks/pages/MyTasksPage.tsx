@@ -1,16 +1,20 @@
 // src/features/tasks/pages/MyTasksPage.tsx
 import React from 'react'
-import { Breadcrumb, Card, Pagination, Space, Input, Select, DatePicker, Button } from 'antd'
+import { Breadcrumb, Card, Pagination, Space, Input, Select, DatePicker, Button, App } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { isSuccess } from '@/shared/api/http'
 
 const { RangePicker } = DatePicker
 
 const MyTasksPage: React.FC = () => {
   const nav = useNavigate()
-  // ★ 仅查“我的任务”
+  const { message } = App.useApp()
+
+  // 仅“我的任务”
   const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset } = useTasksQuery(10, {
     scope: 'mine',
   })
@@ -26,6 +30,23 @@ const MyTasksPage: React.FC = () => {
       range: rg && rg.length === 2 ? rg : null,
     }
     search(next)
+  }
+
+  const handleStart = async (r: any) => {
+    try {
+      if (r.type !== 'exam') {
+        nav(`/learning/practice/${r.id}`)
+        return
+      }
+      // 后端已兼容：这里传 taskId，若页面后来直接用 exam/:id 也没关系
+      const res: any = await tasksApi.startExam(r.id)
+      if (!isSuccess(res)) throw new Error(res?.message || '开始考试失败')
+      const payload = res.data
+      // 跳现有 /exam/:examId，并把 payload 兜底塞进 state（ExamPage 可直接用）
+      nav(`/exam/${payload.examId}`, { state: { ...payload, taskId: r.id } })
+    } catch (e: any) {
+      message.error(e?.message || '开始考试失败')
+    }
   }
 
   return (
@@ -82,16 +103,9 @@ const MyTasksPage: React.FC = () => {
           data={rows as any}
           loading={loading}
           onView={(id: string) => nav(`/admin/tasks/detail/${id}`)}
-          showPublishActions={false} // ★ 我的任务页不展示发布/下线
-          showStartAction // ★ 显示“开始”动作
-          onStart={r => {
-            if (r.type === 'exam' && r.exam_id) {
-              nav(`/exam/${r.exam_id}`)
-            } else {
-              // 练习：根据你的实际路由选择，这里示例为 /learning/practice/:id
-              nav(`/learning/practice/${r.id}`)
-            }
-          }}
+          showPublishActions={false}
+          showStartAction
+          onStart={handleStart}
         />
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>

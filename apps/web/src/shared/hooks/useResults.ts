@@ -1,4 +1,3 @@
-// src/shared/hooks/useResults.ts
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
 import { resultsApi, type ResultItem, type ResultStatus } from '@/shared/api/endpoints/results'
@@ -22,12 +21,15 @@ export function useResults(initialPageSize = 12) {
         limit,
         status: status === 'all' ? undefined : status,
         search: searchTerm || undefined,
+        sort: 'created_at',
       })
-      setItems(res.items)
-      setTotal(res.total)
+      setItems(res.items || [])
+      setTotal(res.total || 0)
     } catch (e: any) {
       console.error('加载考试结果失败:', e)
       message.error(e?.message || '加载考试结果失败')
+      setItems([])
+      setTotal(0)
     } finally {
       setLoading(false)
     }
@@ -37,7 +39,7 @@ export function useResults(initialPageSize = 12) {
     fetchList()
   }, [fetchList])
 
-  // 交互便捷方法
+  // 交互
   const onSearch = (value: string) => {
     setSearchTerm(value)
     setPage(1)
@@ -48,7 +50,6 @@ export function useResults(initialPageSize = 12) {
   }
 
   return {
-    // state
     loading,
     items,
     page,
@@ -56,7 +57,6 @@ export function useResults(initialPageSize = 12) {
     total,
     searchTerm,
     status,
-    // actions
     setPage,
     onSearch,
     onStatusChange,

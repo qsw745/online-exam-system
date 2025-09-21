@@ -81,7 +81,7 @@ const mounts: Array<[string, any]> = [
     ['/questions', questionRoutes],
     ['/exams', examRoutes],
     ['/papers', paperRoutes],
-    ['/exam_results', resultRoutes],
+    ['/results', resultRoutes],
     ['/leaderboard', leaderboardRoutes],
     ['/analytics', analyticsRoutes],
     ['/dashboard', dashboardRoutes],

@@ -138,4 +138,24 @@ export class PaperService {
   async createWithQuestions(body: any) {
     return PaperRepository.createWithQuestions(body)
   }
+    async searchBank(params: {
+        page: number
+        limit: number
+        search?: string
+        difficulty?: 'easy' | 'medium' | 'hard'
+        type?: 'single_choice' | 'multiple_choice' | 'true_false' | string
+    }) {
+        return PaperRepository.searchBank(params)
+    }
+
+    async addCustomQuestion(paperId: number, body: {
+        type: string
+        content: string
+        options: string[]
+        answer: string
+        score: number
+        order: number
+    }) {
+        return PaperRepository.addCustomQuestionSnapshot(paperId, body)
+    }
 }

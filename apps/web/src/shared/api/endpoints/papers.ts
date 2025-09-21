@@ -98,6 +98,42 @@ export const papersApi = {
   /** 题目：更新顺序 */
   async updateOrder(paperId: string | number, orders: Array<{ questionId: number; order: number }>) {
     return api.put(`/papers/${paperId}/questions/order`, { orders })
+  } /** ✅ 题库搜索（分页） */,
+  async bankList(params: {
+    page?: number
+    limit?: number
+    search?: string
+    difficulty?: 'easy' | 'medium' | 'hard'
+    type?: 'single_choice' | 'multiple_choice' | 'true_false'
+  }): Promise<{ items: any[]; total: number }> {
+    const res = await api.get('/papers/bank', { params })
+    const d = pickData<any>(res, {})
+    const items = Array.isArray(d?.items) ? d.items : []
+    const total = Number(d?.total ?? 0)
+    return { items, total }
+  } /** ✅ 创建试卷并附上题库题 */,
+  async createWithQuestions(body: {
+    title: string
+    description: string
+    duration: number
+    difficulty: 'easy' | 'medium' | 'hard'
+    total_score: number
+    questions: Array<{ question_id: number; score: number; order: number }>
+  }) {
+    return api.post('/papers/create-with-questions', body)
+  } /** ✅ 向试卷添加“手工录入题目”（快照挂载） */,
+  async addCustomQuestion(
+    paperId: number | string,
+    body: {
+      question_type: 'single_choice' | 'multiple_choice' | 'true_false' | string
+      content: string
+      options: string[]
+      answer: string // 单/判 'A'；多选 'A,B'
+      score: number
+      order: number
+    }
+  ) {
+    return api.post(`/papers/${paperId}/questions/custom`, body)
   },
 }
 

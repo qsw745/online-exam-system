@@ -16,12 +16,15 @@ const wrap =
 router.use(authenticateToken)
 
 router.get('/', wrap(PaperController.list))
+router.get('/bank', wrap(PaperController.searchBank))
 router.get('/:id', wrap(PaperController.getById))
 router.post('/', wrap(PaperController.create))
 router.put('/:id', wrap(PaperController.update))
 router.delete('/:id', wrap(PaperController.delete))
 
 router.post('/smart-generate', wrap(PaperController.smartGenerate))
+router.post('/:id/questions/custom', wrap(PaperController.addCustomQuestion)) // ✅ 手工题快照
+
 router.post('/create-with-questions', wrap(PaperController.createWithQuestions))
 
 router.post('/:id/questions', wrap(PaperController.addQuestion))

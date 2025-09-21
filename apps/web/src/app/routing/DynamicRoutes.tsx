@@ -1,11 +1,12 @@
+// src/app/routing/DynamicRoutes.tsx
 import NotFound404 from '@/app/errors/NotFound404'
 import AdminLayout from '@/app/routing/AdminLayout'
 import ProtectedLayout from '@/app/routing/ProtectedLayout'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import AppLayout from '@/shared/components/Layout'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import { useAuth } from '@/shared/contexts/AuthContext'
 import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
+import { useAuth } from '@/shared/contexts/AuthContext'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
@@ -37,14 +38,16 @@ function relativize(childRel: string, parentRel: string): string {
   if (childRel === parentRel) return ''
   return childRel.startsWith(parentRel + '/') ? childRel.slice(parentRel.length + 1) : childRel
 }
+
 const fallbackText: Record<string, string> = {
   dashboard: '加载仪表盘数据…',
   tasks: '加载我的任务…',
   'exam-list': '加载考试列表…',
 }
-/** 安全取组件（带 Suspense） */
+
+/** 从注册表安全拿组件并构造成元素（不要直接调用 Cmp(props)） */
 function elementFromRegistry(key: string) {
-  const Cmp = componentRegistry[key]
+  const Cmp = componentRegistry[key] as React.ComponentType<any> | undefined
   const tip = fallbackText[key] ?? '页面加载中…'
   return Cmp ? (
     <Suspense fallback={<LoadingSpinner center="page" text={tip} />}>
@@ -74,6 +77,7 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const abs = joinAbs(parentAbs, n.path)
     const inAdmin = isAdminAbs(abs)
 
+    // 只收集当前命名空间（学员端 / 后台）
     if ((base === '/' && inAdmin) || (base === '/admin' && !inAdmin)) {
       if (n.children?.length) out.push(...buildRoutes(n.children, base, abs, ''))
       continue
@@ -82,6 +86,7 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const relRaw = absToRel(abs, base)
     const rel = relativize(relRaw, parentRel)
 
+    // 目录节点（无 component）：递归 children
     if (!n.component) {
       const nested: RouteNode[] = []
       const floating: RouteNode[] = []
@@ -101,9 +106,11 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
       continue
     }
 
+    // 页面节点（有 component）
     const element = elementFromRegistry(n.component!)
     const nestedChildren = n.children?.length ? buildRoutes(n.children, base, abs, relRaw) : undefined
 
+    // 当 rel 为空：生成 index 路由；否则按 path 正常挂载
     if (!rel) out.push({ index: true, element })
     else out.push({ path: rel, element, children: nestedChildren })
   }
@@ -113,32 +120,33 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
 
 export default function DynamicRoutes() {
   const { user, loading: authLoading } = useAuth()
+
   const [tree, setTree] = useState<RouteNode[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
     if (!authLoading && user) {
-      const cached = menuApi.getRouteTreeCached?.()
+      const cached = (menuApi as any).getRouteTreeCached?.()
       if (cached) {
-        setTree(cached as any)
+        setTree(cached as RouteNode[])
         setErr(null)
-        return
+      } else {
+        ;(async () => {
+          try {
+            const data = await menuApi.routeTree()
+            if (alive) {
+              setTree(Array.isArray(data) ? (data as RouteNode[]) : [])
+              setErr(null)
+            }
+          } catch (e: any) {
+            if (alive) {
+              setErr(e?.message || '加载动态路由失败')
+              setTree([])
+            }
+          }
+        })()
       }
-      ;(async () => {
-        try {
-          const data = await menuApi.routeTree()
-          if (alive) {
-            setTree(Array.isArray(data) ? data : [])
-            setErr(null)
-          }
-        } catch (e: any) {
-          if (alive) {
-            setErr(e?.message || '加载动态路由失败')
-            setTree([])
-          }
-        }
-      })()
     } else {
       setTree(null)
       setErr(null)
@@ -163,24 +171,22 @@ export default function DynamicRoutes() {
 
     const extraFixedRoutes: RouteObject[] = [
       { path: 'exam/:id', element: elementFromRegistry('exam') },
+      { path: 'exam/task/:taskId', element: elementFromRegistry('exam') }, // 兼容旧路径
       { path: 'results/:id', element: elementFromRegistry('results') },
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },
       { path: 'settings', element: elementFromRegistry('settings') },
-      // 学员端任务详情直达
-      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') }, // 学员端任务详情
     ]
 
     const extraAdminRoutes: RouteObject[] = [
       { path: 'question-detail/:id', element: elementFromRegistry('question-detail') },
       { path: 'question-edit/:id', element: elementFromRegistry('question-edit') },
-      // 后台任务详情
-      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
-      // ✅ 后台试卷详情/编辑直达
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') }, // 后台任务详情
       { path: 'paper-detail/:id', element: elementFromRegistry('paper-detail') },
       { path: 'paper-edit/:id', element: elementFromRegistry('paper-edit') },
-      { path: '/admin/tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
+      { path: 'tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
     ]
 
     const defaultHome =

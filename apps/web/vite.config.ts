@@ -21,12 +21,14 @@ export default defineConfig({
   plugins: [react(), tsconfigPaths()],
   resolve: {
     alias: {
-      // 仅保留必要的额外别名（如果需要）
+      // ✅ 强制全项目仅用这份 React/ReactDOM，避免出现第二份 React 导致 Hook 报错
+      react: path.resolve(process.cwd(), 'node_modules/react'),
+      'react-dom': path.resolve(process.cwd(), 'node_modules/react-dom'),
       dayjs: path.resolve(process.cwd(), 'node_modules/dayjs'),
     },
-    dedupe: ['dayjs'],
+    dedupe: ['react', 'react-dom', 'scheduler', 'dayjs'],
   },
   optimizeDeps: {
-    include: ['dayjs'],
+    include: ['react', 'react-dom', 'dayjs'],
   },
 })

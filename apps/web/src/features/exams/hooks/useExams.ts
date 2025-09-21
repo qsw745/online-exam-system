@@ -1,35 +1,48 @@
-// src/features/exams/hooks/useExams.ts
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
-import { exams, type exams, type ExamListParams } from '@/shared/api/endpoints/exams'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
+
+export type ExamListParams = {
+  page?: number
+  limit?: number
+  search?: string
+  status?: 'all' | 'published' | 'in_progress' | 'completed' | 'not_started' | 'expired'
+}
+
+type ExamListItem = any
 
 export function useExams(initial: ExamListParams = { page: 1, limit: 10, status: 'all' }) {
   const { message } = App.useApp()
 
   const [loading, setLoading] = useState(true)
-  const [items, setItems] = useState<exams[]>([])
+  const [items, setItems] = useState<ExamListItem[]>([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(initial.page ?? 1)
   const [limit, setLimit] = useState(initial.limit ?? 10)
   const [search, setSearch] = useState(initial.search ?? '')
-  const [status, setStatus] = useState<ExamListParams['status']>(initial.status ?? 'all')
+  const [status, setStatus] = useState<NonNullable<ExamListParams['status']>>(initial.status ?? 'all')
 
   const load = useCallback(
     async (override?: Partial<ExamListParams>) => {
       try {
         setLoading(true)
-        const res = await exams.list({
+        const params = {
           page,
           limit,
           search,
           status,
+          type: 'exam', // ✅ 仅拉取考试型任务
           ...override,
-        })
-        setItems(res.items)
-        setTotal(res.total)
-        setPage(res.page)
-        setLimit(res.limit)
+        }
+        const res: any = await tasksApi.list(params as any)
+        const payload = res?.data ?? res
+        const list = payload?.items ?? payload?.list ?? payload?.tasks ?? (Array.isArray(payload) ? payload : [])
+        setItems(Array.isArray(list) ? list : [])
+        setTotal(Number(payload?.total ?? 0))
+        setPage(Number(payload?.page ?? params.page ?? 1))
+        setLimit(Number(payload?.limit ?? params.limit ?? 10))
       } catch (e) {
+        console.error(e)
         message.error('加载考试列表失败')
         setItems([])
         setTotal(0)

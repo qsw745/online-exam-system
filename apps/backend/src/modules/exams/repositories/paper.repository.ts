@@ -207,4 +207,60 @@ export class PaperRepository {
       conn.release()
     }
   }
+    /** ✅ 题库检索（分页 + 搜索 + 难度 + 题型） */
+    static async searchBank(params: {
+        page: number
+        limit: number
+        search?: string
+        difficulty?: 'easy' | 'medium' | 'hard'
+        type?: 'single_choice' | 'multiple_choice' | 'true_false' | string
+    }): Promise<{ items: IQuestion[]; total: number }> {
+        const { page, limit } = params
+        const offset = (page - 1) * limit
+        const conds: string[] = []
+        const vals: any[] = []
+
+        if (params.search) {
+            conds.push('(q.title LIKE ? OR q.content LIKE ?)')
+            vals.push(`%${params.search}%`, `%${params.search}%`)
+        }
+        if (params.difficulty) {
+            conds.push('q.difficulty = ?')
+            vals.push(params.difficulty)
+        }
+        if (params.type) {
+            conds.push('q.question_type = ?')
+            vals.push(params.type)
+        }
+        const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `SELECT q.id, q.title, q.question_type, q.difficulty, q.content 
+       FROM questions q ${where}
+       ORDER BY q.id DESC
+       LIMIT ? OFFSET ?`,
+            [...vals, limit, offset]
+        )
+        const [tc] = await pool.query<RowDataPacket[]>(
+            `SELECT COUNT(*) AS total FROM questions q ${where}`,
+            vals
+        )
+        return { items: rows as unknown as IQuestion[], total: Number((tc[0] as any)?.total || 0) }
+    }
+    /** ✅ 往 paper_questions 写入“手工题快照” */
+    static async addCustomQuestionSnapshot(paperId: number, body: {
+        type: string
+        content: string
+        options: string[] // 会序列化为 JSON
+        answer: string
+        score: number
+        order: number
+    }): Promise<{ id: number }> {
+        const [rs] = await pool.query<ResultSetHeader>(
+            `INSERT INTO paper_questions 
+        (paper_id, question_id, score, \`order\`, question_type, question_content, question_options, question_answer)
+       VALUES (?, NULL, ?, ?, ?, ?, ?, ?)`,
+            [paperId, body.score, body.order, body.type, body.content, JSON.stringify(body.options || []), body.answer]
+        )
+        return { id: rs.insertId }
+    }
 }

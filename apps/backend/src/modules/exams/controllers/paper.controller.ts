@@ -131,4 +131,37 @@ export class PaperController {
       return (res as any).internal(e?.message || '创建试卷失败', { code: CODES.INTERNAL_ERROR })
     }
   }
+    /** ✅ 题库检索（分页） */
+    static async searchBank(req: AuthRequest, res: Response<ApiResponse<any>>) {
+        try {
+            const page = Math.max(1, Number(req.query.page ?? 1))
+            const limit = Math.max(1, Math.min(100, Number(req.query.limit ?? 10)))
+            const search = (req.query.search as string) || ''
+            const difficulty = (req.query.difficulty as any) || undefined
+            const type = (req.query.type as any) || undefined
+
+            const { items, total } = await svc.searchBank({ page, limit, search, difficulty, type })
+            return (res as any).ok({ items, total }, '获取题库成功')
+        } catch (e: any) {
+            return (res as any).internal(e?.message || '获取题库失败', { code: CODES.INTERNAL_ERROR })
+        }
+    }
+    /** ✅ 向试卷添加“手工录入题目”（以快照写入 paper_questions） */
+    static async addCustomQuestion(req: AuthRequest, res: Response<ApiResponse<{ id: number }>>) {
+        try {
+            const paperId = Number(req.params.id)
+            const b = req.body ?? {}
+            const data = await svc.addCustomQuestion(paperId, {
+                type: b.question_type,
+                content: b.content,
+                options: b.options,
+                answer: b.answer,
+                score: Number(b.score || 5),
+                order: Number(b.order || 1),
+            })
+            return (res as any).created(data, '手工题添加成功')
+        } catch (e: any) {
+            return (res as any).internal(e?.message || '添加手工题失败', { code: CODES.INTERNAL_ERROR })
+        }
+    }
 }

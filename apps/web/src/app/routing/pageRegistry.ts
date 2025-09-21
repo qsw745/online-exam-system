@@ -20,7 +20,7 @@ const TaskDetailPage = lazy(() => import('@/features/tasks/pages/TaskDetailPage'
 // ===== Papers / Questions =====
 const PaperManagementPage = lazy(() => import('@/features/papers/pages/PaperManagementPage'))
 const PaperCreatePage = lazy(() => import('@/features/papers/pages/PaperCreatePage'))
-const ManualPaperCreationPage = lazy(() => import('@/features/papers/pages/ManualPaperCreationPage'))
+const PaperManualCreatePage = lazy(() => import('@/features/papers/pages/PaperManualCreatePage'))
 const SmartPaperCreatePage = lazy(() => import('@/features/papers/pages/SmartPaperCreatePage'))
 const PaperDetailPage = lazy(() => import('@/features/papers/pages/PaperDetailPage')) // ✅ 新增
 
@@ -94,7 +94,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   // Papers & Questions (后台)
   'paper-manage': PaperManagementPage,
   'paper-create': PaperCreatePage,
-  'paper-create-manual': ManualPaperCreationPage,
+  'paper-create-manual': PaperManualCreatePage,
   'paper-create-smart': SmartPaperCreatePage,
   'paper-detail': PaperDetailPage, // ✅ 新增
 

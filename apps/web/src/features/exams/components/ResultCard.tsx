@@ -1,4 +1,3 @@
-// src/features/exams/components/ResultCard.tsx
 import { Card, Space, Tag, Typography } from 'antd'
 import { BookmarkPlus, Clock, Eye } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -14,6 +13,7 @@ type Props = {
 }
 
 export default function ResultCard({ result, statusLabel, statusTagColor, locale }: Props) {
+  const start = result.start_time ? new Date(result.start_time).toLocaleString(locale) : '-'
   return (
     <Card
       hoverable
@@ -42,14 +42,22 @@ export default function ResultCard({ result, statusLabel, statusTagColor, locale
             </Space>
             <Space>
               <Clock style={{ width: 16, height: 16 }} />
-              <Text type="secondary">开始时间: {new Date(result.start_time).toLocaleString(locale)}</Text>
+              <Text type="secondary">开始时间: {start}</Text>
             </Space>
             <div style={{ marginTop: 8 }}>
-              <Tag color={statusTagColor(result.status)}>{statusLabel(result.status)}</Tag>
+              {/* ✅ 将 submitted/graded 也视为“已完成” */}
+              <Tag color={statusTagColor(mapToUiStatus(result.status))}>
+                {statusLabel(mapToUiStatus(result.status))}
+              </Tag>
             </div>
           </Space>
         }
       />
     </Card>
   )
+}
+
+function mapToUiStatus(s: string) {
+  if (s === 'submitted' || s === 'graded') return 'completed'
+  return s
 }

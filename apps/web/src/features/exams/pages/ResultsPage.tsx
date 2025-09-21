@@ -1,4 +1,3 @@
-// src/features/exams/pages/ResultsPage.tsx
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Col, Empty, Pagination, Row, Space, Spin, Typography } from 'antd'
@@ -11,7 +10,7 @@ import ResultCard from '../components/ResultCard'
 const { Title, Text } = Typography
 
 export default function ResultsPage() {
-  const { user } = useAuth()
+  useAuth() // 确保登录态
   const { t, language } = useLanguage()
   const { loading, items, page, limit, total, searchTerm, status, setPage, onSearch, onStatusChange } = useResults(12)
 
@@ -20,10 +19,12 @@ export default function ResultsPage() {
       completed: t('results.status_completed'),
       in_progress: t('results.status_in_progress'),
       not_started: t('results.status_not_started'),
-    }[s as keyof any] || s)
+    }[s as keyof any] ||
+    // 提示：未知状态也给个兜底
+    t('results.status_completed'))
 
   const getStatusTagColor = (s: string) =>
-    (({ completed: 'success', in_progress: 'warning', not_started: 'default' } as const)[s as keyof any] || 'default')
+    (({ completed: 'success', in_progress: 'warning', not_started: 'default' } as const)[s as keyof any] || 'success')
 
   if (loading && items.length === 0) {
     return (
@@ -37,13 +38,11 @@ export default function ResultsPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%', padding: 24 }}>
-      {/* 标题 */}
       <div>
         <Title level={2}>{t('results.title')}</Title>
         <Text type="secondary">{t('results.description')}</Text>
       </div>
 
-      {/* 筛选 */}
       <ResultsFilters
         search={searchTerm}
         status={status}
@@ -56,12 +55,11 @@ export default function ResultsPage() {
         textNotStarted={t('results.status_not_started')}
       />
 
-      {/* 列表 */}
       <Row gutter={[16, 16]}>
         {items.map(item => (
           <Col key={item.id} xs={24} md={12} lg={8}>
             <ResultCard
-              result={item}
+              result={item as any}
               statusLabel={getStatusLabel}
               statusTagColor={getStatusTagColor}
               locale={language === 'zh-CN' ? 'zh-CN' : 'en-US'}
@@ -70,7 +68,6 @@ export default function ResultsPage() {
         ))}
       </Row>
 
-      {/* 空状态 */}
       {items.length === 0 && (
         <Empty
           image={<BookmarkPlus style={{ width: 48, height: 48, color: '#d9d9d9' }} />}
@@ -83,7 +80,6 @@ export default function ResultsPage() {
         />
       )}
 
-      {/* 分页 */}
       {total > limit && (
         <Card>
           <Pagination

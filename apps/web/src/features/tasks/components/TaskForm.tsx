@@ -6,18 +6,19 @@ import React, { useEffect } from 'react'
 import { useUsersGroupedTree } from '../hooks/useUsersGroupedTree'
 import { useDepartmentsTree } from '../hooks/useDepartmentsTree'
 import { usePapersOptions } from '../hooks/usePapersOptions'
+import { TASK_STATUS_OPTIONS } from '../constants/taskStatus'
 
 export type TaskFormValues = {
   title: string
   description: string
-  status: 'not_started' | 'in_progress' | 'completed' | 'expired'
+  status: 'not_started' | 'in_progress' | 'completed' | 'expired' | 'published' | 'unpublished' | 'draft'
   type: 'practice' | 'exam'
-  paper_id?: string
-  exam_id?: string
+  paper_id?: string | number
+  exam_id?: string | number
   start_time: Dayjs
   end_time: Dayjs
-  assigned_department_ids?: string[]
-  assigned_user_ids?: string[]
+  assigned_department_ids?: Array<string | number>
+  assigned_user_ids?: Array<string | number>
 }
 
 export const TaskForm: React.FC<{
@@ -44,10 +45,20 @@ export const TaskForm: React.FC<{
     form.setFieldsValue({
       title: initial.title,
       description: initial.description,
-      status: initial.status as any,
+      status: (initial.status as any) ?? 'not_started', // 允许 published 等值正确回显
       type: (initial.type as any) || 'practice',
-      paper_id: initial.paper_id ? String(initial.paper_id) : undefined,
-      exam_id: initial.exam_id ? String(initial.exam_id) : undefined,
+      paper_id:
+        initial.paper_id != null
+          ? typeof initial.paper_id === 'string'
+            ? initial.paper_id
+            : String(initial.paper_id)
+          : undefined,
+      exam_id:
+        initial.exam_id != null
+          ? typeof initial.exam_id === 'string'
+            ? initial.exam_id
+            : String(initial.exam_id)
+          : undefined,
       start_time: initial.start_time ? dayjs(initial.start_time as any) : (dayjs() as any),
       end_time: initial.end_time ? dayjs(initial.end_time as any) : (dayjs().add(7, 'day') as any),
       assigned_user_ids: (initial.assigned_user_ids || []).map(String),
@@ -70,17 +81,24 @@ export const TaskForm: React.FC<{
           form.setFields([{ name: 'end_time', errors: ['结束时间需晚于开始时间'] }])
           return
         }
+        const toNum = (x: any) => {
+          if (x === null || x === undefined || x === '') return undefined
+          const n = Number(x)
+          return Number.isFinite(n) ? n : undefined
+        }
+        const toNumArr = (a: any) => (Array.isArray(a) ? a.map(id => Number(id)).filter(n => Number.isFinite(n)) : [])
+
         onSubmit({
-          title: v.title.trim(),
-          description: v.description.trim(),
-          status: v.status,
+          title: String(v.title || '').trim(),
+          description: String(v.description || '').trim(),
+          status: v.status, // 直接传回英文枚举
           type: v.type,
-          paper_id: v.type === 'exam' ? (v.paper_id ? Number(v.paper_id) : undefined) : undefined,
-          exam_id: v.type === 'exam' ? (v.exam_id ? Number(v.exam_id) : undefined) : undefined,
-          start_time: v.start_time?.toISOString(),
-          end_time: v.end_time?.toISOString(),
-          assigned_department_ids: (v.assigned_department_ids ?? []).map(id => Number(id)),
-          assigned_user_ids: (v.assigned_user_ids ?? []).map(id => Number(id)),
+          paper_id: v.type === 'exam' ? toNum(v.paper_id) : undefined,
+          exam_id: v.type === 'exam' ? toNum(v.exam_id) : undefined,
+          start_time: v.start_time?.format('YYYY-MM-DD HH:mm:ss'),
+          end_time: v.end_time?.format('YYYY-MM-DD HH:mm:ss'),
+          assigned_department_ids: toNumArr(v.assigned_department_ids),
+          assigned_user_ids: toNumArr(v.assigned_user_ids),
         })
       }}
     >
@@ -97,13 +115,12 @@ export const TaskForm: React.FC<{
             </Radio.Group>
           </Form.Item>
 
-          <Form.Item label="任务状态" name="status" style={{ minWidth: 200 }}>
-            <Select disabled={readOnly}>
-              <Select.Option value="not_started">待开始</Select.Option>
-              <Select.Option value="in_progress">进行中</Select.Option>
-              <Select.Option value="completed">已完成</Select.Option>
-              <Select.Option value="expired">已过期</Select.Option>
-            </Select>
+          <Form.Item label="任务状态" name="status" style={{ minWidth: 220 }}>
+            <Select
+              disabled={readOnly}
+              options={TASK_STATUS_OPTIONS} // ✅ 统一来源：后端任意状态都能回显
+              getPopupContainer={t => t.parentElement!}
+            />
           </Form.Item>
 
           <Form.Item shouldUpdate={(p, c) => p.type !== c.type} noStyle>
@@ -121,7 +138,6 @@ export const TaskForm: React.FC<{
                       optionFilterProp="label"
                       placeholder={loadingPapers ? '加载试卷中…' : '请选择试卷'}
                       disabled={readOnly || loadingPapers}
-                      // ✅ value 统一 string
                       options={paperOptions}
                       allowClear
                       getPopupContainer={t => t.parentElement!}
@@ -194,3 +210,5 @@ export const TaskForm: React.FC<{
     </Form>
   )
 }
+
+export default TaskForm

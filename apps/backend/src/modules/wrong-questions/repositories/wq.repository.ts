@@ -298,24 +298,33 @@ export class WrongQuestionRepository {
         return rows[0]
     }
 
-    async collectFromExamResult(examResultId: number) {
+// ✅ 仅替换本方法；其余类与文件内容保持不变
+    async collectFromExamResult(
+        examResultId: number
+    ): Promise<Array<{ question_id: number; exam_title?: string; subject?: string }>> {
         const [rows] = await this.db.query<RowDataPacket[]>(
-            `SELECT DISTINCT
-                 era.question_id,
-                 q.title, q.content, q.question_type, q.difficulty,
-                 e.title AS exam_title,
-                 s.name  AS subject
-             FROM exam_result_answers era
-                      JOIN questions q ON era.question_id = q.id
-                      JOIN exam_results er ON era.exam_result_id = er.id
-                      JOIN exams e ON er.exam_id = e.id
-                      LEFT JOIN subjects s ON q.subject_id = s.id
-             WHERE era.exam_result_id = ?
-               AND era.is_correct = 0`,
+            `
+                SELECT
+                    ar.question_id AS question_id,
+                    e.title        AS exam_title,
+                    ''             AS subject      -- 没有 q.subject 字段，用常量占位
+                FROM answer_records ar
+                         JOIN exam_results er ON er.id = ar.exam_result_id
+                         LEFT JOIN exams e    ON e.id = er.exam_id
+                WHERE ar.exam_result_id = ?
+                  AND (ar.is_correct = 0 OR ar.is_correct IS NULL)
+                ORDER BY ar.question_id ASC
+            `,
             [examResultId]
         )
-        return rows
+
+        return rows.map(r => ({
+            question_id: Number(r.question_id),
+            exam_title: r.exam_title ?? '',
+            subject: '', // 与上面的 SELECT 保持一致
+        }))
     }
+
 
     async statistics(userId: number) {
         const [rows] = await this.db.query<RowDataPacket[]>(

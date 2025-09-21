@@ -3,6 +3,7 @@ import { Card, Descriptions, Space, Tag, Typography, Button } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import StatusTag from './StatusTag'
 import type { Task } from '@/shared/types/tasks'
+import { isStartableStatus, getTaskStatusLabel } from '../constants/taskStatus'
 
 const { Title } = Typography
 
@@ -26,13 +27,14 @@ export const TaskDetail: React.FC<{
 
   const assigned: any[] = (task as any).assigned_users ?? (task as any).assignedUsers ?? []
 
+  // ✅ “可开始”支持 published；时间窗口仍需满足
   const canStart = (() => {
     const now = new Date()
     const s = task.start_time ? new Date(task.start_time) : undefined
     const e = task.end_time ? new Date(task.end_time) : undefined
     if (s && now < s) return false
     if (e && now > e) return false
-    return task.status === 'not_started' || task.status === 'in_progress'
+    return isStartableStatus(task.status as any)
   })()
 
   return (
@@ -64,6 +66,7 @@ export const TaskDetail: React.FC<{
         <Descriptions column={1} bordered size="middle">
           <Descriptions.Item label="描述">{task.description || '-'}</Descriptions.Item>
           <Descriptions.Item label="类型">{task.type === 'exam' ? '考试' : '练习'}</Descriptions.Item>
+          <Descriptions.Item label="当前状态">{getTaskStatusLabel(task.status as any)}</Descriptions.Item>
           <Descriptions.Item label="开始时间">
             {task.start_time ? dayjs(task.start_time).format('YYYY-MM-DD HH:mm') : '-'}
           </Descriptions.Item>

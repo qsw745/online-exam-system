@@ -110,7 +110,7 @@ export const TasksTable: React.FC<Props> = ({
         {
           title: '操作',
           key: 'actions',
-          width: 380,
+          width: 280,
           render: (_: any, r: Task) => {
             const canStart =
               showStartAction && (r.status === 'not_started' || r.status === 'published' || r.status === 'in_progress')

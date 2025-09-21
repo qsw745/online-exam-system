@@ -1,39 +1,250 @@
-import { AlertTriangle, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
-import { useNavigate, useParams } from 'react-router-dom'
-import { Button, Result, Space, Typography } from 'antd'
+import React from 'react'
+import {
+  App,
+  Affix,
+  Button,
+  Card,
+  Col,
+  Divider,
+  Empty,
+  Modal,
+  Progress,
+  Result,
+  Row,
+  Space,
+  Tag,
+  Typography,
+  Radio,
+  Checkbox,
+  Input,
+} from 'antd'
+import { AlertTriangle, Clock, Flag, Send } from 'lucide-react'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import dayjs from '@/shared/utils/dayjs'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import { useExamRunner } from '../hooks/useExamRunner'
-import { ExamTopBar } from '../components/ExamTopBar'
-import { QuestionPanel } from '../components/QuestionPanel'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { isSuccess } from '@/shared/api/http'
+
+type Question = {
+  id: number
+  type: 'single' | 'single_choice' | 'multiple' | 'multiple_choice' | 'true_false' | 'short_answer' | string
+  content: string
+  options?: string[] | null
+  score: number
+  order: number
+}
+
+type ExamPayload = {
+  taskId: number
+  examId: number
+  paperId: number
+  duration: number
+  status: 'in_progress' | 'not_started' | 'submitted'
+  startedAt?: string | null
+  endTime?: string | null
+  title: string
+  description?: string | null
+  questions: Question[]
+}
+
+const { Title, Text, Paragraph } = Typography
+const { TextArea } = Input
+
+const letter = (i: number) => String.fromCharCode(65 + i)
+const isSingle = (t: string) => ['single', 'single_choice'].includes(t?.toLowerCase())
+const isMulti = (t: string) => ['multiple', 'multiple_choice'].includes(t?.toLowerCase())
+const isTF = (t: string) => ['true_false', 'judge', 'tf'].includes(t?.toLowerCase())
+const isShort = (t: string) => ['short', 'short_answer', 'essay', 'text', 'fill_blank'].includes(t?.toLowerCase())
+
+function ensureTfOptions(q: Question) {
+  if (isTF(q.type)) return ['正确', '错误']
+  return Array.isArray(q.options) ? q.options : []
+}
+
+/** 将“已选答案字符串”转为勾选值（Radio: 'A'，Checkbox: ['A','C']；主观题返回原文） */
+function parseAnswerValue(q: Question, ans?: string) {
+  if (isShort(q.type)) return ans ?? ''
+  if (isMulti(q.type)) {
+    return (ans || '')
+      .split(',')
+      .map(s => s.trim().toUpperCase())
+      .filter(Boolean)
+      .sort()
+  }
+  return (ans || '').toUpperCase() || undefined
+}
+
+/** 由勾选值生成提交字符串（单选 'A'；多选 'A,B'；主观题为原文） */
+function buildAnswerValue(q: Question, val: any) {
+  if (isShort(q.type)) return String(val ?? '').trim()
+  if (isMulti(q.type)) {
+    const arr = Array.isArray(val) ? val : []
+    return arr
+      .map((s: string) => s.toUpperCase())
+      .sort()
+      .join(',')
+  }
+  return (val || '').toString().toUpperCase()
+}
+
+/** 题型显示标签 */
+function TypeTag({ type }: { type: string }) {
+  const t = type.toLowerCase()
+  if (isSingle(t)) return <Tag color="blue">单选题</Tag>
+  if (isMulti(t)) return <Tag color="purple">多选题</Tag>
+  if (isTF(t)) return <Tag color="green">判断题</Tag>
+  if (isShort(t)) return <Tag color="gold">主观题</Tag>
+  return <Tag>题目</Tag>
+}
 
 export default function ExamPage() {
-  // 路由参数与 /exam/:id 对齐
+  // /exam/:id —— 这里的 id 可能是 examId，也可能是 taskId（后端已兼容）
   const { id = '' } = useParams<{ id: string }>()
+  const location = useLocation() as any
   const navigate = useNavigate()
+  const { message } = App.useApp()
 
-  const {
-    loading,
-    submitting,
-    exam,
-    index,
-    current,
-    answers,
-    flagged,
-    timeLeft,
-    answeredCount,
-    setAnswer,
-    toggleFlag,
-    next,
-    prev,
-    submit,
-  } = useExamRunner(id)
+  const [loading, setLoading] = React.useState(true)
+  const [submitting, setSubmitting] = React.useState(false)
+  const [exam, setExam] = React.useState<ExamPayload | null>(() => {
+    const s = location?.state
+    if (s && typeof s === 'object' && Array.isArray(s.questions) && s.examId) {
+      s.questions = (s.questions as Question[]).map(q => ({
+        ...q,
+        options: isTF(q.type) ? ['正确', '错误'] : Array.isArray(q.options) ? q.options : q.options ?? [],
+      }))
+      return s as ExamPayload
+    }
+    return null
+  })
 
-  // 加载中
-  if (loading) {
-    return <LoadingSpinner center="page" text="加载中…" />
+  /** 答案存储：单选/判断：'A'；多选：'A,B,D'；主观题：文本字符串 */
+  const [answers, setAnswers] = React.useState<Record<number, string>>({})
+  const [flagged, setFlagged] = React.useState<Set<number>>(new Set())
+  const [timeLeft, setTimeLeft] = React.useState<number>(0) // 秒
+
+  /** 拉取试卷 */
+  React.useEffect(() => {
+    let alive = true
+    const boot = async () => {
+      try {
+        if (!exam) {
+          const res: any = await tasksApi.startExam(id)
+          if (!alive) return
+          if (!isSuccess(res)) throw new Error(res?.message || '加载试卷失败')
+          const data = (res.data ?? res) as ExamPayload
+          data.questions = (data.questions || []).map(q => ({
+            ...q,
+            options: isTF(q.type) ? ['正确', '错误'] : Array.isArray(q.options) ? q.options : q.options ?? null,
+          }))
+          setExam(data)
+          if (data.status === 'submitted') {
+            message.info('本场考试已提交，正在打开成绩页…')
+            navigate(`/results/${data.examId}`, { replace: true })
+            return
+          }
+        }
+      } catch (e: any) {
+        message.error(e?.message || '加载试卷失败')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+    boot()
+    return () => {
+      alive = false
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id])
+
+  /** 倒计时（优先截止时间，其次开始时间+duration） */
+  React.useEffect(() => {
+    if (!exam) return
+    const start = exam.startedAt ? dayjs(exam.startedAt) : dayjs()
+    const d1 = start.add(exam.duration || 60, 'minute')
+    const d2 = exam.endTime ? dayjs(exam.endTime) : null
+    const deadline = d2 && d2.isBefore(d1) ? d2 : d1
+
+    const tick = () => {
+      const sec = Math.max(0, deadline.diff(dayjs(), 'second'))
+      setTimeLeft(sec)
+      if (sec <= 0) doSubmit(true)
+    }
+    tick()
+    const t = setInterval(tick, 1000)
+    return () => clearInterval(t)
+  }, [exam])
+
+  const total = exam?.questions?.length || 0
+  const answeredCount = React.useMemo(() => {
+    if (!exam) return 0
+    return exam.questions.filter(q => {
+      const a = answers[q.id]
+      if (isShort(q.type)) return (a ?? '').trim().length > 0
+      return !!a
+    }).length
+  }, [exam, answers])
+
+  /** 交互 */
+  const setAnswer = React.useCallback((q: Question, val: any) => {
+    setAnswers(prev => ({ ...prev, [q.id]: buildAnswerValue(q, val) }))
+  }, [])
+
+  const toggleFlag = React.useCallback((qid: number) => {
+    setFlagged(prev => {
+      const n = new Set(prev)
+      n.has(qid) ? n.delete(qid) : n.add(qid)
+      return n
+    })
+  }, [])
+
+  const scrollTo = (qid: number) => {
+    const el = document.getElementById(`q-${qid}`)
+    if (el) {
+      const top = el.getBoundingClientRect().top + window.scrollY - 90
+      window.scrollTo({ top, behavior: 'smooth' })
+    }
   }
 
-  // 无试卷（UI 优化为 antd Result）
+  const doSubmit = async (auto = false) => {
+    if (!exam || submitting) return
+    try {
+      if (!auto) {
+        const ok = await new Promise<boolean>(resolve => {
+          Modal.confirm({
+            title: '确认提交',
+            content: `已作答 ${answeredCount}/${total} 题，确认提交吗？`,
+            okText: '提交',
+            cancelText: '再检查下',
+            onOk: () => resolve(true),
+            onCancel: () => resolve(false),
+          })
+        })
+        if (!ok) return
+      }
+
+      setSubmitting(true)
+      const timeSpent = exam.startedAt ? Math.max(0, dayjs().diff(dayjs(exam.startedAt), 'second')) : 0
+
+      // ✅ 使用统一的 API 封装，且不再在此处调用任何 Hook（避免 Invalid Hook Call）
+      const res: any = await tasksApi.submit(exam.taskId, {
+        answers,
+        time_spent: timeSpent,
+      })
+      if (!isSuccess(res)) throw new Error(res?.message || '提交失败')
+      if (!auto) message.success('提交成功')
+      navigate(`/results/${exam.examId}`)
+    } catch (e: any) {
+      message.error(e?.message || '提交失败')
+      if (auto) setTimeout(() => navigate('/dashboard'), 800)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  /** ---------------- UI 渲染 ---------------- */
+  if (loading) return <LoadingSpinner center="page" text="加载中…" />
+
   if (!exam) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -52,55 +263,202 @@ export default function ExamPage() {
     )
   }
 
-  // 提交并跳结果
-  const doSubmit = async () => {
-    const ok = await submit()
-    if (ok) navigate(`/results/${id}`)
-  }
+  const mm = Math.floor(timeLeft / 60)
+  const ss = (timeLeft % 60).toString().padStart(2, '0')
+  const percent = Math.max(0, Math.min(100, ((exam.duration * 60 - timeLeft) / (exam.duration * 60)) * 100))
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <ExamTopBar
-        title={exam.title}
-        timeLeft={timeLeft}
-        onSubmit={doSubmit}
-        submitting={submitting}
-        submitText="提交"
-      />
+    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+      {/* 顶部栏（固定） */}
+      <Affix offsetTop={0}>
+        <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,.04)' }}>
+          <Row gutter={16} align="middle">
+            <Col flex="auto">
+              <Space direction="vertical" size={0}>
+                <Title level={4} style={{ margin: 0 }}>
+                  {exam.title}
+                </Title>
+                {exam.description ? <Text type="secondary">{exam.description}</Text> : null}
+              </Space>
+            </Col>
+            <Col>
+              <Space size={16} align="center">
+                <Space>
+                  <Clock size={18} />
+                  <Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>
+                    {mm}:{ss}
+                  </Text>
+                </Space>
+                <Progress type="circle" size={44} percent={parseFloat(percent.toFixed(1))} />
+                <Button type="primary" icon={<Send size={16} />} onClick={() => doSubmit(false)} loading={submitting}>
+                  提交
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+      </Affix>
 
-      {current && (
-        <QuestionPanel
-          question={current}
-          index={index}
-          total={exam.questions.length}
-          flagged={flagged.has(index)}
-          onToggleFlag={() => toggleFlag(index)}
-          value={answers[current.id]}
-          onChange={nextAns => setAnswer(current.id, nextAns)}
-        />
-      )}
+      <Divider />
 
-      {/* 底部导航 */}
-      <div className="flex items-center justify-between">
-        <Button onClick={prev} disabled={index === 0} icon={<ChevronLeft className="w-5 h-5" />}>
-          上一题
-        </Button>
+      <Row gutter={16} align="top">
+        {/* 左侧：题目列表 */}
+        <Col xs={24} lg={17}>
+          {exam.questions.length === 0 ? (
+            <Empty description="暂无题目" />
+          ) : (
+            <Space direction="vertical" size={16} style={{ width: '100%' }}>
+              {exam.questions.map((q, idx) => {
+                const qno = idx + 1
+                const valueParsed = parseAnswerValue(q, answers[q.id])
+                const opts = isTF(q.type) ? ensureTfOptions(q) : Array.isArray(q.options) ? q.options : []
 
-        <Space>
-          <span className="text-sm text-gray-500">
-            已作答 {answeredCount} / {exam.questions.length}
-          </span>
-          {answeredCount === exam.questions.length && <CheckCircle className="w-5 h-5 text-green-500" />}
-        </Space>
+                return (
+                  <Card
+                    id={`q-${q.id}`}
+                    key={q.id}
+                    hoverable
+                    style={{ borderRadius: 12 }}
+                    title={
+                      <Row align="middle" justify="space-between">
+                        <Col>
+                          <Space size="small" wrap>
+                            <Text strong>第 {qno} 题</Text>
+                            <TypeTag type={q.type} />
+                            <Tag color="gold">{q.score} 分</Tag>
+                          </Space>
+                        </Col>
+                        <Col>
+                          <Button
+                            size="small"
+                            type={flagged.has(q.id) ? 'default' : 'text'}
+                            icon={<Flag size={16} color={flagged.has(q.id) ? '#faad14' : undefined} />}
+                            onClick={() => toggleFlag(q.id)}
+                          >
+                            {flagged.has(q.id) ? '已标记' : '标记'}
+                          </Button>
+                        </Col>
+                      </Row>
+                    }
+                  >
+                    <Paragraph style={{ marginBottom: 16 }}>
+                      <span dangerouslySetInnerHTML={{ __html: q.content || '' }} />
+                    </Paragraph>
 
-        <Button
-          onClick={next}
-          disabled={index === exam.questions.length - 1}
-          icon={<ChevronRight className="w-5 h-5" />}
-        >
-          下一题
-        </Button>
-      </div>
+                    {/* 渲染不同题型 */}
+                    {isShort(q.type) ? (
+                      <TextArea
+                        autoSize={{ minRows: 3, maxRows: 8 }}
+                        value={valueParsed as string}
+                        placeholder="在此作答…"
+                        onChange={e => setAnswer(q, e.target.value)}
+                      />
+                    ) : isMulti(q.type) ? (
+                      <Checkbox.Group
+                        value={valueParsed as string[]}
+                        onChange={vals => setAnswer(q, vals as string[])}
+                        style={{ width: '100%' }}
+                      >
+                        <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                          {opts.map((opt, i) => {
+                            const L = letter(i)
+                            return (
+                              <Checkbox key={i} value={L} style={{ width: '100%' }}>
+                                <Space align="start">
+                                  <Tag color="processing">{L}</Tag>
+                                  <span>{opt}</span>
+                                </Space>
+                              </Checkbox>
+                            )
+                          })}
+                        </Space>
+                      </Checkbox.Group>
+                    ) : (
+                      <Radio.Group
+                        value={valueParsed as string | undefined}
+                        onChange={e => setAnswer(q, e.target.value)}
+                        style={{ width: '100%' }}
+                      >
+                        <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                          {opts.map((opt, i) => {
+                            const L = letter(i)
+                            return (
+                              <Radio key={i} value={L} style={{ width: '100%' }}>
+                                <Space align="start">
+                                  <Tag color="processing">{L}</Tag>
+                                  <span>{opt}</span>
+                                </Space>
+                              </Radio>
+                            )
+                          })}
+                        </Space>
+                      </Radio.Group>
+                    )}
+                  </Card>
+                )
+              })}
+            </Space>
+          )}
+        </Col>
+
+        {/* 右侧：答题卡 */}
+        <Col xs={24} lg={7} style={{ marginTop: 16 }}>
+          <Affix offsetTop={92}>
+            <Card
+              title={
+                <Space>
+                  <Text strong>答题卡</Text>
+                  <Tag color="blue">
+                    已答 {answeredCount}/{total}
+                  </Tag>
+                </Space>
+              }
+              style={{ borderRadius: 12 }}
+            >
+              <Row gutter={[8, 8]}>
+                {exam.questions.map((q, idx) => {
+                  const a = answers[q.id]
+                  const answered = isShort(q.type) ? (a ?? '').trim().length > 0 : !!a
+                  const mark = flagged.has(q.id)
+                  return (
+                    <Col span={4} key={q.id}>
+                      <Button
+                        block
+                        size="small"
+                        type={answered ? 'primary' : 'default'}
+                        danger={mark}
+                        onClick={() => scrollTo(q.id)}
+                        style={{ borderRadius: 8, padding: 0, height: 32 }}
+                        title={mark ? '已标记' : undefined}
+                      >
+                        {idx + 1}
+                      </Button>
+                    </Col>
+                  )
+                })}
+              </Row>
+
+              <Divider style={{ margin: '12px 0' }} />
+              <Space wrap>
+                <Tag color="blue">已答</Tag>
+                <Tag>未答</Tag>
+                <Tag color="error">标记</Tag>
+              </Space>
+
+              <Divider style={{ margin: '12px 0' }} />
+              <Button
+                type="primary"
+                block
+                icon={<Send size={16} />}
+                onClick={() => doSubmit(false)}
+                loading={submitting}
+              >
+                提交答卷
+              </Button>
+            </Card>
+          </Affix>
+        </Col>
+      </Row>
     </div>
   )
 }
