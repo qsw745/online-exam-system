@@ -3,8 +3,8 @@ import type { Response } from 'express'
 import type { ApiResponse } from '@/types/response'
 import { CODES } from '@/types/response'
 import type { AuthRequest } from '@/types/auth'
-import type { ResultListData } from '../domain/result.model'
-import { ResultService } from '../services/result.service'
+import type { ResultListData } from '../domain/result.model.js'
+import { ResultService } from '../services/result.service.js'
 
 const svc = new ResultService()
 
@@ -22,7 +22,9 @@ export class ResultController {
 
     static async getById(req: AuthRequest, res: Response<ApiResponse<any>>) {
         try {
-            const data = await svc.getById(req.user?.id, Number(req.params.id))
+            const id = Number(req.params.id)
+            const include = (String(req.query.include || req.query.include_questions || '') || '').toLowerCase()
+            const data = await svc.getById(req.user?.id, id, include)
             return (res as any).ok(data, '获取考试结果详情成功')
         } catch (e: any) {
             const msg = e?.message || '获取考试结果详情失败'

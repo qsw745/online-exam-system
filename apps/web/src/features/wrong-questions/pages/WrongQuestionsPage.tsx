@@ -121,7 +121,7 @@ export default function WrongQuestionsPage() {
               </Space>
             }
           >
-            <Button type="primary" onClick={() => navigate('/questions')}>
+            <Button type="primary" onClick={() => navigate('/learning/practice')}>
               开始练习
             </Button>
           </Empty>

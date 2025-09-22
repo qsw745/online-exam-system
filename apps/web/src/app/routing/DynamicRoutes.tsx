@@ -172,7 +172,8 @@ export default function DynamicRoutes() {
     const extraFixedRoutes: RouteObject[] = [
       { path: 'exam/:id', element: elementFromRegistry('exam') },
       { path: 'exam/task/:taskId', element: elementFromRegistry('exam') }, // 兼容旧路径
-      { path: 'results/:id', element: elementFromRegistry('results') },
+      { path: 'results/:id', element: elementFromRegistry('result-detail') },
+
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },

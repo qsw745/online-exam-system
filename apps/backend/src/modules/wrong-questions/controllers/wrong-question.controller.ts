@@ -2,7 +2,7 @@
 import type { Request, Response } from 'express'
 import { WrongQuestionService } from '../services/wrong-question.service.js'
 import { CODES } from '@/types/response'
-import {log} from "@/infrastructure/logging/logger";
+import { log } from '@/infrastructure/logging/logger'
 
 const svc = new WrongQuestionService()
 const masteryWhitelist = ['not_mastered', 'partially_mastered', 'mastered'] as const
@@ -10,6 +10,7 @@ const asMastery = (s: any) =>
     typeof s === 'string' && (masteryWhitelist as readonly string[]).includes(s) ? (s as any) : null
 
 export class WrongQuestionController {
+    // ---- books ----
     static async createBook(req: Request, res: Response) {
         try {
             const userId = (req as any).user?.id
@@ -84,6 +85,7 @@ export class WrongQuestionController {
         }
     }
 
+    // ---- questions ----
     static async addWrongQuestion(req: Request, res: Response) {
         try {
             const userId = (req as any).user?.id
@@ -92,6 +94,7 @@ export class WrongQuestionController {
             if (!book_id || !question_id) return res.badRequest('错题本ID和题目ID不能为空')
 
             const id = await svc.addWrongQuestion({
+                user_id: Number(userId),             // ✅ 关键：带上 user_id
                 book_id: Number(book_id),
                 question_id: Number(question_id),
                 exam_result_id: exam_result_id ? Number(exam_result_id) : undefined,
@@ -180,6 +183,7 @@ export class WrongQuestionController {
             if (is_correct === undefined) return res.badRequest('缺少必要参数：is_correct')
 
             if (!wrong_question_id && question_id) {
+                // 确保默认错题本
                 const books = await svc.getUserBooks(userId)
                 let defBook = (books as any[]).find(b => b.is_default)
                 if (!defBook) {
@@ -192,7 +196,9 @@ export class WrongQuestionController {
                     })
                     defBook = { id }
                 }
+                // ✅ 创建错题时带上 user_id
                 wrong_question_id = await svc.addWrongQuestion({
+                    user_id: Number(userId),
                     book_id: Number(defBook.id),
                     question_id: Number(question_id),
                     wrong_count: 1,
@@ -204,12 +210,12 @@ export class WrongQuestionController {
             }
 
             const recordId = await svc.addPracticeRecord({
-                user_id: userId,
+                user_id: Number(userId),
                 wrong_question_id: Number(wrong_question_id),
                 is_correct: !!is_correct,
                 time_spent: Number(time_spent ?? 0),
                 practice_time: new Date(),
-                answer,
+                // 可选：answer 字段如有存储需要可加到 practice_records 表
             } as any)
 
             return res.created({ record_id: recordId }, '练习记录添加成功')
@@ -290,43 +296,20 @@ export class WrongQuestionController {
         try {
             const userId = (req as any).user?.id
             if (!userId) return res.unauthorized()
-            const { book_id, questions } = req.body
+            const { book_id, questions, exam_result_id } = req.body
             if (!book_id || !Array.isArray(questions) || !questions.length) return res.badRequest('参数错误')
 
+            // ✅ 传入 userId
             const r = await svc.batchAddWrongQuestions(
+                Number(userId),
                 Number(book_id),
                 questions.map((q: any) => Number(q.question_id)),
-                undefined
+                exam_result_id ? Number(exam_result_id) : undefined
             )
             return res.ok({ results: r }, '批量添加完成')
         } catch (e) {
             log.error('batchAddWrongQuestions error:', e)
-            return res.internal('批量添加失败')
-        }
-    }
-
-    static async batchUpdateMastery(req: Request, res: Response) {
-        try {
-            const userId = (req as any).user?.id
-            if (!userId) return res.unauthorized()
-            const { updates } = req.body
-            if (!Array.isArray(updates) || !updates.length) return res.badRequest('参数错误')
-
-            const results: Array<{ question_id: number; success: boolean; error?: string }> = []
-            for (const u of updates) {
-                try {
-                    const m = asMastery(u.mastery_level)
-                    if (!m) throw new Error('无效的掌握程度')
-                    await svc.updateWrongQuestion(Number(u.question_id), userId, { mastery_level: m })
-                    results.push({ question_id: Number(u.question_id), success: true })
-                } catch (e: any) {
-                    results.push({ question_id: Number(u.question_id), success: false, error: e?.message })
-                }
-            }
-            return res.ok({ results }, '批量更新完成')
-        } catch (e) {
-            log.error('batchUpdateMastery error:', e)
-            return res.internal('批量更新失败', { code: CODES.INTERNAL_ERROR })
+            return res.internal('批量添加失败', { code: CODES.INTERNAL_ERROR })
         }
     }
 
@@ -355,6 +338,7 @@ export class WrongQuestionController {
             for (const q of wrongs as any[]) {
                 try {
                     const wid = await svc.addWrongQuestion({
+                        user_id: Number(userId),                // ✅ 带上 user_id
                         book_id: Number(defaultBook.id),
                         question_id: Number(q.question_id),
                         exam_result_id: Number(exam_result_id),

@@ -1,3 +1,4 @@
+// apps/backend/src/modules/wrong-questions/repositories/wq.repository.ts
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { pool } from '@/config/database.js'
 import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.entity.js'
@@ -43,11 +44,10 @@ export class WrongQuestionRepository {
         if (!keys.length) return
         const fields = keys.map(k => `${k} = ?`).join(', ')
         const values = keys.map(k => (patch as any)[k])
-        await this.db.query(`UPDATE wrong_question_books SET ${fields}, updated_at = NOW() WHERE id = ? AND user_id = ?`, [
-            ...values,
-            bookId,
-            userId,
-        ])
+        await this.db.query(
+            `UPDATE wrong_question_books SET ${fields}, updated_at = NOW() WHERE id = ? AND user_id = ?`,
+            [...values, bookId, userId]
+        )
     }
 
     async deleteBookCascade(bookId: number, userId: number) {
@@ -80,16 +80,23 @@ export class WrongQuestionRepository {
     }
 
     // questions --------------------------------------
-    async findExistingWrongQuestion(bookId: number, questionId: number): Promise<{ id: number } | null> {
+    /** ✅ 去重时也带上 user_id，避免不同用户的相同 book_id/question_id 冲突 */
+    async findExistingWrongQuestion(
+        userId: number,
+        bookId: number,
+        questionId: number
+    ): Promise<{ id: number } | null> {
         const [rows] = await this.db.query<RowDataPacket[]>(
-            'SELECT id FROM wrong_questions WHERE book_id = ? AND question_id = ?',
-            [bookId, questionId]
+            'SELECT id FROM wrong_questions WHERE user_id = ? AND book_id = ? AND question_id = ?',
+            [userId, bookId, questionId]
         )
         return rows[0] ? { id: Number(rows[0].id) } : null
     }
 
-    async upsertWrongQuestion(data: Omit<WrongQuestion, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
-        const exist = await this.findExistingWrongQuestion(data.book_id, data.question_id)
+    async upsertWrongQuestion(
+        data: Omit<WrongQuestion, 'id' | 'created_at' | 'updated_at'>
+    ): Promise<number> {
+        const exist = await this.findExistingWrongQuestion(data.user_id, data.book_id, data.question_id)
         const lastWrongTime = toMySQLDate(data.last_wrong_time) ?? new Date()
 
         if (exist) {
@@ -108,19 +115,21 @@ export class WrongQuestionRepository {
                     lastWrongTime,
                     data.exam_result_id ?? null,
                     data.mastery_level,
-                    (data.tags ?? '') as any,
-                    (data.notes ?? '') as any,
+                    data.tags ?? '',
+                    data.notes ?? '',
                     exist.id,
                 ]
             )
             return exist.id
         }
 
+        /** ✅ 关键修复：INSERT 时写入 user_id */
         const [ret] = await this.db.query<ResultSetHeader>(
             `INSERT INTO wrong_questions
-             (book_id, question_id, exam_result_id, wrong_count, last_wrong_time, mastery_level, tags, notes)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+             (user_id, book_id, question_id, exam_result_id, wrong_count, last_wrong_time, mastery_level, tags, notes)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
+                data.user_id,
                 data.book_id,
                 data.question_id,
                 data.exam_result_id ?? null,
@@ -166,9 +175,9 @@ export class WrongQuestionRepository {
 
         const [cnt] = await this.db.query<RowDataPacket[]>(
             `SELECT COUNT(*) AS total
-         FROM wrong_questions wq
-         JOIN questions q ON wq.question_id = q.id
-        ${where}`,
+             FROM wrong_questions wq
+                      JOIN questions q ON wq.question_id = q.id
+                 ${where}`,
             params
         )
 
@@ -198,7 +207,7 @@ export class WrongQuestionRepository {
     }
 
     async updateWrongQuestion(questionId: number, patch: Partial<WrongQuestion>) {
-        const keys = Object.keys(patch).filter(k => !['id', 'created_at', 'updated_at', 'book_id'].includes(k))
+        const keys = Object.keys(patch).filter(k => !['id', 'created_at', 'updated_at', 'book_id', 'user_id'].includes(k))
         if (!keys.length) return
 
         const fields: string[] = []
@@ -240,7 +249,7 @@ export class WrongQuestionRepository {
         const practiceTime = toMySQLDate((r as any).practice_time) ?? new Date()
         const [ret] = await this.db.query<ResultSetHeader>(
             `INSERT INTO wrong_question_practice_records (user_id, wrong_question_id, is_correct, time_spent, practice_time)
-       VALUES (?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?)`,
             [r.user_id, r.wrong_question_id, r.is_correct ? 1 : 0, r.time_spent, practiceTime]
         )
         return ret.insertId
@@ -298,7 +307,7 @@ export class WrongQuestionRepository {
         return rows[0]
     }
 
-// ✅ 仅替换本方法；其余类与文件内容保持不变
+    // ✅ 从考试结果收集错题（仅错的或未判定的）
     async collectFromExamResult(
         examResultId: number
     ): Promise<Array<{ question_id: number; exam_title?: string; subject?: string }>> {
@@ -307,7 +316,7 @@ export class WrongQuestionRepository {
                 SELECT
                     ar.question_id AS question_id,
                     e.title        AS exam_title,
-                    ''             AS subject      -- 没有 q.subject 字段，用常量占位
+                    ''             AS subject
                 FROM answer_records ar
                          JOIN exam_results er ON er.id = ar.exam_result_id
                          LEFT JOIN exams e    ON e.id = er.exam_id
@@ -321,10 +330,9 @@ export class WrongQuestionRepository {
         return rows.map(r => ({
             question_id: Number(r.question_id),
             exam_title: r.exam_title ?? '',
-            subject: '', // 与上面的 SELECT 保持一致
+            subject: '',
         }))
     }
-
 
     async statistics(userId: number) {
         const [rows] = await this.db.query<RowDataPacket[]>(

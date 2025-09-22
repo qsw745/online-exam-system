@@ -1,5 +1,6 @@
 import dotenv from 'dotenv'
 import { createPool, Pool } from 'mysql2/promise'
+import { enableSqlDebug } from '@/config/sql-debug'
 
 dotenv.config()
 
@@ -58,5 +59,6 @@ pool.on('connection', conn => {
     }
   })
 })
-
+// 打开 SQL 调试（由环境变量控制）
+enableSqlDebug(pool)
 export { pool }

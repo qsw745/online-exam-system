@@ -19,8 +19,8 @@ export { default as useLearningProgress } from './useLearningProgress'
 export * from './useLogs'
 export { default as useLogs } from './useLogs'
 
-export * from './useResults'
-export { default as useResults } from './useResults'
+export * from '../../features/exams/hooks/useResults'
+export { default as useResults } from '../../features/exams/hooks/useResults'
 
 // —— 通用/基础 Hooks ——
 export * from './useDebounce'

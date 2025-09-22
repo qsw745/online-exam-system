@@ -2,8 +2,6 @@
 import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.entity.js'
 import { WrongQuestionRepository } from '../repositories/wq.repository.js'
 
-const masteryWhitelist = ['not_mastered', 'partially_mastered', 'mastered'] as const
-
 export class WrongQuestionService {
   constructor(private readonly repo = new WrongQuestionRepository()) {}
 
@@ -22,14 +20,15 @@ export class WrongQuestionService {
   }
 
   // questions
+  /** ✅ 显式要求带上 user_id */
   async addWrongQuestion(data: Omit<WrongQuestion, 'id' | 'created_at' | 'updated_at'>) {
     return this.repo.upsertWrongQuestion(data)
   }
 
   async getWrongQuestions(
-    bookId: number,
-    userId: number,
-    options: { page?: number; limit?: number; mastery_level?: string; tags?: string; search?: string }
+      bookId: number,
+      userId: number,
+      options: { page?: number; limit?: number; mastery_level?: string; tags?: string; search?: string }
   ) {
     const ok = await this.repo.ensureBookOwnership(bookId, userId)
     if (!ok) throw new Error('无权访问此错题本')
@@ -39,10 +38,7 @@ export class WrongQuestionService {
     return { questions: rows, total }
   }
 
-  async updateWrongQuestion(id: number, userId: number, patch: Partial<WrongQuestion>) {
-    // 简易鉴权：通过 book 归属校验
-    // 此处可以额外 select join 校验；为简洁起见由 repo 层已完成所有者校验入口（列表、删除）；
-    // 更新直接执行（前端路径受控），如需更严可先查 book_id -> ensureBookOwnership
+  async updateWrongQuestion(id: number, _userId: number, patch: Partial<WrongQuestion>) {
     return this.repo.updateWrongQuestion(id, patch)
   }
 
@@ -53,7 +49,7 @@ export class WrongQuestionService {
   // practice
   async addPracticeRecord(data: Omit<PracticeRecord, 'id' | 'created_at'>) {
     const id = await this.repo.addPracticeRecord(data)
-    // 更新 mastery
+    // 更新 mastery（近 5 次全对 -> mastered；近 3 次全对 -> partially_mastered）
     const flags = await this.repo.recentCorrectFlags(data.wrong_question_id, 5)
     let level: MasteryLevel = 'not_mastered'
     if (flags.length >= 5 && flags.every(Boolean)) level = 'mastered'
@@ -81,12 +77,14 @@ export class WrongQuestionService {
   }
 
   // batch helpers
-  async batchAddWrongQuestions(bookId: number, questionIds: number[], examResultId?: number) {
+  /** ✅ 批量添加也需要 userId，用于写入 user_id */
+  async batchAddWrongQuestions(userId: number, bookId: number, questionIds: number[], examResultId?: number) {
     const success: number[] = []
     const failed: { questionId: number; error: string }[] = []
     for (const qid of questionIds) {
       try {
         await this.addWrongQuestion({
+          user_id: userId,
           book_id: bookId,
           question_id: qid,
           exam_result_id: examResultId,

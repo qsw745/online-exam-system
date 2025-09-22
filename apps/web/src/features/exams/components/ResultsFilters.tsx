@@ -1,11 +1,12 @@
-// src/features/exams/components/ResultsFilters.tsx
 import { Card, Col, Input, Row, Select, Space } from 'antd'
 import { Filter, Search } from 'lucide-react'
 const { Option } = Select
 
+type UiStatus = 'completed' | 'in_progress' | 'not_started'
+
 type Props = {
   search: string
-  status: 'all' | 'completed' | 'in_progress' | 'not_started'
+  status: 'all' | UiStatus
   onSearchChange: (v: string) => void
   onStatusChange: (v: Props['status']) => void
   placeholder: string
@@ -41,7 +42,7 @@ export default function ResultsFilters({
         <Col xs={24} md={8}>
           <Space>
             <Filter style={{ width: 16, height: 16, color: '#999' }} />
-            <Select value={status} onChange={onStatusChange} style={{ width: 200 }}>
+            <Select value={status} onChange={onStatusChange as any} style={{ width: 200 }}>
               <Option value="all">{allStatusText}</Option>
               <Option value="completed">{textCompleted}</Option>
               <Option value="in_progress">{textInProgress}</Option>

@@ -3,28 +3,34 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Col, Empty, Pagination, Row, Space, Spin, Typography } from 'antd'
 import { BookmarkPlus } from 'lucide-react'
 import { createPaginationConfig } from '@/shared/constants/pagination'
-import { useResults } from '@/shared/hooks/useResults'
+import useResults from '../hooks/useResults'
 import ResultsFilters from '../components/ResultsFilters'
-import ResultCard from '../components/ResultCard'
+import ResultCard, { type UiStatus } from '../components/ResultCard'
 
 const { Title, Text } = Typography
 
 export default function ResultsPage() {
-  useAuth() // 确保登录态
+  useAuth()
   const { t, language } = useLanguage()
   const { loading, items, page, limit, total, searchTerm, status, setPage, onSearch, onStatusChange } = useResults(12)
 
-  const getStatusLabel = (s: string) =>
-    ({
-      completed: t('results.status_completed'),
-      in_progress: t('results.status_in_progress'),
-      not_started: t('results.status_not_started'),
-    }[s as keyof any] ||
-    // 提示：未知状态也给个兜底
-    t('results.status_completed'))
+  const STATUS_LABELS = {
+    completed: t('results.status_completed'),
+    in_progress: t('results.status_in_progress'),
+    not_started: t('results.status_not_started'),
+  } as const
+  const STATUS_COLORS = { completed: 'success', in_progress: 'warning', not_started: 'default' } as const
 
-  const getStatusTagColor = (s: string) =>
-    (({ completed: 'success', in_progress: 'warning', not_started: 'default' } as const)[s as keyof any] || 'success')
+  const getStatusLabel = (s: UiStatus) => STATUS_LABELS[s]
+  const getStatusTagColor = (s: UiStatus) => STATUS_COLORS[s]
+
+  const toUi = (s: string): UiStatus => (s === 'submitted' || s === 'graded' ? 'completed' : (s as UiStatus))
+  const statusForFilter: UiStatus | 'all' = status === 'all' ? 'all' : toUi(status as string)
+  const handleFilterStatusChange = (val: UiStatus | 'all') => {
+    if (val === 'all') return onStatusChange('all')
+    if (val === 'completed') return onStatusChange('submitted' as any)
+    return onStatusChange(val as any)
+  }
 
   if (loading && items.length === 0) {
     return (
@@ -45,9 +51,9 @@ export default function ResultsPage() {
 
       <ResultsFilters
         search={searchTerm}
-        status={status}
+        status={statusForFilter}
         onSearchChange={onSearch}
-        onStatusChange={onStatusChange}
+        onStatusChange={handleFilterStatusChange}
         placeholder={t('results.search_placeholder')}
         allStatusText={t('results.all_status')}
         textCompleted={t('results.status_completed')}
@@ -59,7 +65,7 @@ export default function ResultsPage() {
         {items.map(item => (
           <Col key={item.id} xs={24} md={12} lg={8}>
             <ResultCard
-              result={item as any}
+              result={item}
               statusLabel={getStatusLabel}
               statusTagColor={getStatusTagColor}
               locale={language === 'zh-CN' ? 'zh-CN' : 'en-US'}

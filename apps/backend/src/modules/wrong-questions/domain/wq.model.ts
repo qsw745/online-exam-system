@@ -1,4 +1,4 @@
-// apps/backend/src/modules/wrong-questions/domain/wq.entity.ts
+// apps/backend/src/modules/wrong-questions/domain/wq.model.ts
 export type MasteryLevel = 'not_mastered' | 'partially_mastered' | 'mastered'
 
 export interface WrongQuestionBook {
@@ -14,11 +14,14 @@ export interface WrongQuestionBook {
 
 export interface WrongQuestion {
   id?: number
+  /** ✅ 必须：与表结构一致 */
+  user_id: number
   book_id: number
   question_id: number
   exam_result_id?: number
   wrong_count: number
-  last_wrong_time: string
+  /** string | Date 皆可，Repo 中会统一转为 Date */
+  last_wrong_time: string | Date
   mastery_level: MasteryLevel
   tags?: string
   notes?: string
@@ -32,6 +35,6 @@ export interface PracticeRecord {
   wrong_question_id: number
   is_correct: boolean
   time_spent: number
-  practice_time: string
+  practice_time: string | Date
   created_at?: string
 }

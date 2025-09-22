@@ -39,16 +39,6 @@ export function useResults(initialPageSize = 12) {
     fetchList()
   }, [fetchList])
 
-  // 交互
-  const onSearch = (value: string) => {
-    setSearchTerm(value)
-    setPage(1)
-  }
-  const onStatusChange = (val: ResultStatus | 'all') => {
-    setStatus(val)
-    setPage(1)
-  }
-
   return {
     loading,
     items,
@@ -58,9 +48,16 @@ export function useResults(initialPageSize = 12) {
     searchTerm,
     status,
     setPage,
-    onSearch,
-    onStatusChange,
+    onSearch: (v: string) => {
+      setSearchTerm(v)
+      setPage(1)
+    },
+    onStatusChange: (v: ResultStatus | 'all') => {
+      setStatus(v)
+      setPage(1)
+    },
     refetch: fetchList,
   }
 }
+
 export default useResults

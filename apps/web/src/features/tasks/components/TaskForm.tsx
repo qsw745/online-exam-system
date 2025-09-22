@@ -1,6 +1,5 @@
 import { DatePicker, Form, Input, Radio, Select, Space, TreeSelect, Button } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
-type Dayjs = import('dayjs').Dayjs
 
 import React, { useEffect } from 'react'
 import { useUsersGroupedTree } from '../hooks/useUsersGroupedTree'
@@ -15,8 +14,8 @@ export type TaskFormValues = {
   type: 'practice' | 'exam'
   paper_id?: string | number
   exam_id?: string | number
-  start_time: Dayjs
-  end_time: Dayjs
+  start_time: dayjs
+  end_time: dayjs
   assigned_department_ids?: Array<string | number>
   assigned_user_ids?: Array<string | number>
 }

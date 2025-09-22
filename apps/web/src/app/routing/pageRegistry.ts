@@ -28,6 +28,7 @@ const QuestionManagementPage = lazy(() => import('@/features/questions/pages/Que
 const QuestionCreatePage = lazy(() => import('@/features/questions/pages/QuestionCreatePage'))
 const QuestionDetailPage = lazy(() => import('@/features/questions/pages/QuestionDetailPage'))
 const QuestionEditPage = lazy(() => import('@/features/questions/pages/QuestionEditPage'))
+const ResultDetailPage = lazy(() => import('@/features/exams/pages/ResultDetailPage'))
 
 // ===== Top-level user features =====
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'))
@@ -63,6 +64,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'exam-list': ExamListPage,
   exam: ExamPage,
   results: ResultsPage,
+  'result-detail': ResultDetailPage,
   questions: QuestionsPage,
   'question-practice': QuestionPracticePage,
   favorites: FavoritesPage,

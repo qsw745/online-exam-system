@@ -1,37 +1,47 @@
-import { Card, Space, Tag, Typography } from 'antd'
+import { Card, Space, Tag, Typography, Button } from 'antd'
 import { BookmarkPlus, Clock, Eye } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import type { ResultItem } from '@/shared/api/endpoints/results'
 
 const { Text } = Typography
 
+export type UiStatus = 'completed' | 'in_progress' | 'not_started'
+const toUiStatus = (s: string): UiStatus => (s === 'submitted' || s === 'graded' ? 'completed' : (s as UiStatus))
+
 type Props = {
   result: ResultItem
-  statusLabel: (s: string) => string
-  statusTagColor: (s: string) => 'success' | 'warning' | 'default'
+  statusLabel: (s: UiStatus) => string
+  statusTagColor: (s: UiStatus) => 'success' | 'warning' | 'default'
   locale: 'zh-CN' | 'en-US'
 }
 
 export default function ResultCard({ result, statusLabel, statusTagColor, locale }: Props) {
+  const navigate = useNavigate()
   const start = result.start_time ? new Date(result.start_time).toLocaleString(locale) : '-'
+  const uiStatus = toUiStatus(String(result.status))
+
   return (
     <Card
       hoverable
+      role="button"
+      style={{ cursor: 'pointer' }}
+      onClick={() => navigate(`/results/${result.id}`)}
       actions={[
-        <Link to={`/results/${result.id}`} key="view">
-          <Space>
-            <Eye style={{ width: 16, height: 16 }} />
-            <span>查看详情</span>
-          </Space>
-        </Link>,
+        <Button
+          key="view"
+          type="link"
+          onClick={e => {
+            e.stopPropagation()
+            navigate(`/results/${result.id}`)
+          }}
+          icon={<Eye style={{ width: 16, height: 16 }} />}
+        >
+          查看详情
+        </Button>,
       ]}
     >
       <Card.Meta
-        title={
-          <Link to={`/results/${result.id}`} style={{ color: 'inherit' }}>
-            {result.paper_title}
-          </Link>
-        }
+        title={<span style={{ color: 'inherit' }}>{result.paper_title}</span>}
         description={
           <Space direction="vertical" size="small" style={{ width: '100%' }}>
             <Space>
@@ -45,19 +55,11 @@ export default function ResultCard({ result, statusLabel, statusTagColor, locale
               <Text type="secondary">开始时间: {start}</Text>
             </Space>
             <div style={{ marginTop: 8 }}>
-              {/* ✅ 将 submitted/graded 也视为“已完成” */}
-              <Tag color={statusTagColor(mapToUiStatus(result.status))}>
-                {statusLabel(mapToUiStatus(result.status))}
-              </Tag>
+              <Tag color={statusTagColor(uiStatus)}>{statusLabel(uiStatus)}</Tag>
             </div>
           </Space>
         }
       />
     </Card>
   )
-}
-
-function mapToUiStatus(s: string) {
-  if (s === 'submitted' || s === 'graded') return 'completed'
-  return s
 }
