@@ -83,7 +83,7 @@ export const resultsApi = {
       const res = await getJson('/results', params)
       return pickList(res)
     } catch {
-      const res2 = await getJson('/exam_results', params)
+      const res2 = await getJson('/results', params)
       return pickList(res2)
     }
   },

@@ -39,7 +39,7 @@ export default function QuestionPracticePage() {
   return (
     <>
       {view === 'list' && (
-        <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+        <div style={{ minWidth: 1200, margin: '0 auto', padding: 24 }}>
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Card>
               <Title level={3} style={{ margin: 0 }}>
