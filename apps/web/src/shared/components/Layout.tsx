@@ -86,12 +86,9 @@ const Layout: React.FC = () => {
             transition: 'margin-left 0.3s',
           }}
         >
-          {/* 你自己的 Tabs 可视化组件（如果有）也要放在 TabsProvider 里面 */}
-          {/* <TabsBar /> */}
-
           <Content
             style={{
-              padding: 24,
+              padding: 15,
               overflow: 'auto',
               background: 'transparent',
             }}

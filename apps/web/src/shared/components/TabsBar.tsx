@@ -2,6 +2,7 @@ import React from 'react'
 import { Tabs, Dropdown, type MenuProps } from 'antd'
 import { useTabs } from '@/shared/contexts/TabsContext'
 
+
 export const TabsBar: React.FC = () => {
   const { tabs, activeKey, setActiveKey, remove, clear } = useTabs()
 
@@ -22,23 +23,23 @@ export const TabsBar: React.FC = () => {
   }
 
   return (
-    <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', padding: '0 8px' }}>
-      <Tabs
-        type="editable-card"
-        size="small"
-        hideAdd
-        items={items}
-        activeKey={activeKey}
-        onChange={setActiveKey}
-        onEdit={(targetKey, action) => action === 'remove' && typeof targetKey === 'string' && remove(targetKey)}
-        tabBarExtraContent={{
-          right: (
-            <Dropdown menu={{ items: menu, onClick: onMenuClick }} trigger={['click']}>
-              <a style={{ padding: '0 8px', fontSize: 12 }}>标签操作 ▾</a>
-            </Dropdown>
-          ),
-        }}
-      />
-    </div>
+    <Tabs
+      animated
+      tabBarGutter={8}
+      type="editable-card"
+      size="middle"
+      hideAdd
+      items={items}
+      activeKey={activeKey}
+      onChange={setActiveKey}
+      onEdit={(targetKey, action) => action === 'remove' && typeof targetKey === 'string' && remove(targetKey)}
+      tabBarExtraContent={{
+        right: (
+          <Dropdown menu={{ items: menu, onClick: onMenuClick }} trigger={['click']}>
+            <a style={{ padding: '0 8px', fontSize: 12 }}>标签操作 ▾</a>
+          </Dropdown>
+        ),
+      }}
+    />
   )
 }
