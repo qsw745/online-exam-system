@@ -9,6 +9,7 @@ import { DifficultyDistribution } from '@/features/analytics/components/Difficul
 import { ActivityTrend } from '@/features/analytics/components/ActivityTrend'
 import type { Period } from '@/shared/hooks/useDataAnalytics'
 import { BarChart3 } from 'lucide-react'
+import { RefreshButton } from '@/shared/components/RefreshButton'
 
 const DataAnalyticsPage: React.FC = () => {
   const { message } = App.useApp()
@@ -37,7 +38,10 @@ const DataAnalyticsPage: React.FC = () => {
           <p className="text-gray-600 mt-1">查看系统使用情况和学习效果分析</p>
         </div>
       </div>
-
+      {/* 显式刷新按钮 */}
+      <div className="flex items-center gap-2">
+        <RefreshButton /> {/* 默认按当前路由失效 /analytics 前缀的 queries */}
+      </div>
       {/* 筛选 */}
       <DataPeriodFilter
         period={period}

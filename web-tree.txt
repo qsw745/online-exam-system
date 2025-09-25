@@ -51,6 +51,7 @@
 |   |   |   |   |   GradeTable.tsx
 |   |   |   |   |   KnowledgePointsPanel.tsx
 |   |   |   |   |   OverviewStats.tsx
+|   |   |   |   |   ResultDetailContent.tsx
 |   |   |   |   |   StudentsTable.tsx
 |   |   |   |   |   SubjectsTable.tsx
 |   |   |   +-- hooks
@@ -104,13 +105,17 @@
 |   |   |   |   |   ExamTopBar.tsx
 |   |   |   |   |   QuestionPanel.tsx
 |   |   |   |   |   ResultCard.tsx
+|   |   |   |   |   ResultDetailView.tsx
 |   |   |   |   |   ResultsFilters.tsx
 |   |   |   +-- hooks
 |   |   |   |   |   useExamRunner.ts
 |   |   |   |   |   useExams.ts
+|   |   |   |   |   useResultDetail.ts
+|   |   |   |   |   useResults.ts
 |   |   |   +-- pages
 |   |   |   |   |   ExamListPage.tsx
 |   |   |   |   |   ExamPage.tsx
+|   |   |   |   |   ResultDetailPage.tsx
 |   |   |   |   |   ResultsPage.tsx
 |   |   +-- favorites
 |   |   |   +-- components
@@ -197,7 +202,9 @@
 |   |   |   +-- pages
 |   |   |   |   |   ManualPaperCreationPage.tsx
 |   |   |   |   |   PaperCreatePage.tsx
+|   |   |   |   |   PaperDetailPage.tsx
 |   |   |   |   |   PaperManagementPage.tsx
+|   |   |   |   |   PaperManualCreatePage.tsx
 |   |   |   |   |   SmartPaperCreatePage.tsx
 |   |   +-- profile
 |   |   |   +-- components
@@ -296,17 +303,19 @@
 |   |   |   |   |   TasksTable.tsx
 |   |   |   +-- constants
 |   |   |   |   |   index.ts
+|   |   |   |   |   taskStatus.ts
 |   |   |   +-- hooks
+|   |   |   |   |   useDepartmentsTree.ts
+|   |   |   |   |   usePapersOptions.ts
 |   |   |   |   |   useTaskById.ts
 |   |   |   |   |   useTasksQuery.ts
+|   |   |   |   |   useTaskSubmit.ts
 |   |   |   |   |   useUsersGroupedTree.ts
 |   |   |   +-- pages
 |   |   |   |   |   MyTasksPage.tsx
-|   |   |   |   |   PublishTaskPage.tsx
 |   |   |   |   |   TaskCreatePage.tsx
 |   |   |   |   |   TaskDetailPage.tsx
-|   |   |   |   |   TaskManagementPage.tsx
-|   |   |   |   |   TasksPage.tsx
+|   |   |   |   |   TaskListPage.tsx
 |   |   +-- users
 |   |   |   +-- components
 |   |   |   |   |   BindUserModal.tsx
@@ -383,6 +392,7 @@
 |   |   |   |   Layout.tsx
 |   |   |   |   LoadingSpinner.tsx
 |   |   |   |   OrgTreePanel.tsx
+|   |   |   |   RefreshButton.tsx
 |   |   |   |   SectionCard.tsx
 |   |   |   |   StatsCard.tsx
 |   |   |   |   StatsCardGroup.tsx
@@ -398,6 +408,7 @@
 |   |   |   |   useDashboard.ts
 |   |   |   |   useDataAnalytics.ts
 |   |   |   |   useDebounce.ts
+|   |   |   |   useDebouncedValue.ts
 |   |   |   |   useFavorites.ts
 |   |   |   |   useImportQuestions.ts
 |   |   |   |   useLeaderboard.ts
@@ -414,7 +425,6 @@
 |   |   |   |   useQuestionQuery.ts
 |   |   |   |   useQuestionSelection.ts
 |   |   |   |   useQuestionsQuery.ts
-|   |   |   |   useResults.ts
 |   |   |   |   useRouteRefresh.ts
 |   |   |   |   useSmartPaper.ts
 |   |   |   |   useTheme.tsx

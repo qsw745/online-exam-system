@@ -86,7 +86,7 @@ const ResultDetailContent: React.FC<{ loading: boolean; data: ResultDetail | nul
 
                 {Array.isArray(q.options) && q.options.length > 0 && (
                   <div style={{ paddingLeft: 12 }}>
-                    {q.options.map((opt, i) => (
+                    {q.options.map((opt:any, i:number) => (
                       <div key={i}>
                         <Text type="secondary">{String.fromCharCode(65 + i)}.</Text> {opt}
                       </div>

@@ -10,6 +10,7 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
+import TabsShell from '@/shared/router/TabsShell' // ← 文件头加这行
 
 type RouteNode = {
   path?: string | null
@@ -204,7 +205,7 @@ export default function DynamicRoutes() {
             children: [
               { index: true, element: <Navigate to={`/${defaultHome}`} replace /> },
               {
-                element: <RefreshableOutlet />,
+                element: <TabsShell />,
                 children: [
                   ...rootRoutes,
                   ...extraFixedRoutes,

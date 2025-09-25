@@ -51,6 +51,27 @@
 |   |   |   20250915_fix_favorite_categories.ts
 |   |   |   20250916_add_login_security_to_users.js.ts
 |   |   |   20250916_create_login_failures.ts
+|   |   |   20250917_add_login_failures.ts
+|   |   |   20250917_ensure_practice_wrong_tables.ts
+|   |   |   20250917_fix_auth_login_failures_table.ts
+|   |   |   20250917_fix_task_assignments_nulls.ts
+|   |   |   20250918_add_difficulty_to_papers.ts
+|   |   |   20250918_add_status_to_exams.ts
+|   |   |   20250918_link_tasks_to_exams.ts
+|   |   |   20250919_add_duration_to_papers.ts
+|   |   |   20250919_add_paper_id_to_exams.ts
+|   |   |   20250921_add_exam_results_fields.ts
+|   |   |   20250921_add_exams_paper_and_duration.ts
+|   |   |   20250921_add_paper_questions_order_and_score.ts
+|   |   |   20250921_add_paper_questions_snapshots.ts
+|   |   |   20250921_add_questions_type_and_options.ts
+|   |   |   20250921_add_task_department_assignments.ts
+|   |   |   20250921_repair_questions_and_exam_results.ts
+|   |   |   202509221030_add_exam_id_to_exam_results.ts
+|   |   |   202509221050_relax_paper_id_and_autofill.ts
+|   |   |   202509221115_add_subject_to_answer_records.ts
+|   |   |   202509221130_add_subject_to_answer_records.ts
+|   |   |   20250925_add_analytics_optional_columns.ts
 |   |   |   add_task_publish_status.sql
 |   |   |   database.sql
 |   |   |   init.sql
@@ -68,18 +89,24 @@
 |   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
 |   |   2025-09-08.log
 |   |   2025-09-08-error.log
-|   |   2025-09-09.log
-|   |   2025-09-09-error.log
-|   |   2025-09-10.log
-|   |   2025-09-10-error.log
-|   |   2025-09-11.log
-|   |   2025-09-11-error.log
 |   |   2025-09-12.log
 |   |   2025-09-12-error.log
 |   |   2025-09-15.log
 |   |   2025-09-15-error.log
 |   |   2025-09-16.log
 |   |   2025-09-16-error.log
+|   |   2025-09-17.log
+|   |   2025-09-17-error.log
+|   |   2025-09-18.log
+|   |   2025-09-18-error.log
+|   |   2025-09-19.log
+|   |   2025-09-19-error.log
+|   |   2025-09-22.log
+|   |   2025-09-22-error.log
+|   |   2025-09-23.log
+|   |   2025-09-23-error.log
+|   |   2025-09-25.log
+|   |   2025-09-25-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -101,6 +128,7 @@
 |   |   |   |   jwt-role-hydrator.ts
 |   |   |   |   rbac.ts
 |   |   |   |   requestId.ts
+|   |   |   |   response.ts
 |   |   |   |   role-auth.ts
 |   |   |   |   upload.ts
 |   |   |   |   validation.ts
@@ -115,6 +143,7 @@
 |   |   |   database.ts
 |   |   |   jwt.ts
 |   |   |   roles.ts
+|   |   |   sql-debug.ts
 |   +-- database
 |   |   |   migrate_leaderboard.js
 |   +-- infrastructure
@@ -146,6 +175,7 @@
 |   |   |   |   |   analytics.model.ts
 |   |   |   |   |   dashboard.model.ts
 |   |   |   +-- repositories
+|   |   |   |   |   analytics.repository.ts
 |   |   |   +-- routes
 |   |   |   |   |   analytics.routes.ts
 |   |   |   |   |   dashboard.routes.ts
@@ -171,6 +201,7 @@
 |   |   |   |   |   password-reset.routes.ts
 |   |   |   +-- services
 |   |   |   |   |   auth.service.ts
+|   |   |   |   |   auth-lock.service.ts
 |   |   |   |   |   captcha.service.ts
 |   |   |   |   |   crypto.service.ts
 |   |   |   |   |   password-policy.ts

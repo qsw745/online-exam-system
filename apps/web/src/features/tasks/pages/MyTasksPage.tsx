@@ -51,7 +51,7 @@ const MyTasksPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks' }, { title: '我的任务' }]} />
+      <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks/list' }, { title: '我的任务' }]} />
 
       <Card title="我的任务" variant="outlined">
         <Space wrap>

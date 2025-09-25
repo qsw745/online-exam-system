@@ -8,6 +8,7 @@ import { OverviewStats } from '../components/OverviewStats'
 import { SubjectsTable } from '../components/SubjectsTable'
 import { StudentsTable } from '../components/StudentsTable'
 import type { StudentRow } from '../components/StudentsTable'
+import { RefreshButton } from '@/shared/components/RefreshButton'
 
 export default function AnalyticsPage() {
   const { message } = App.useApp()
@@ -44,6 +45,8 @@ export default function AnalyticsPage() {
           <BarChart3 className="w-6 h-6 text-blue-600" />
           <h1 className="text-2xl font-bold">数据统计</h1>
         </div>
+        {/* 显式刷新按钮 */}
+        <RefreshButton />
         <AnalyticsFilters
           subjects={subjects}
           selectedSubject={selectedSubject}

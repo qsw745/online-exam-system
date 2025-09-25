@@ -1,3 +1,4 @@
+// src/shared/components/Layout.tsx
 import DynamicSidebar, { MobileSidebar } from '@/app/routing/DynamicSidebar'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
@@ -6,6 +7,9 @@ import React, { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from './Header'
 import LoadingSpinner from './LoadingSpinner'
+
+// ✅ 引入 TabsProvider（你刚刚新建的 TabsContext 里的 Provider）
+import { TabsProvider } from '@/shared/contexts/TabsContext'
 
 const { Sider, Content } = AntLayout
 const HEADER_HEIGHT = 56
@@ -26,6 +30,7 @@ const Layout: React.FC = () => {
 
   const isExamPage = /^\/exam\/\d+$/.test(location.pathname)
 
+  // 考试页面不走布局（不需要 Tabs）
   if (isExamPage) {
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
@@ -39,7 +44,8 @@ const Layout: React.FC = () => {
   }
 
   return (
-    <>
+    // ✅ 关键：把使用 useTabs 的所有子树（侧栏、内容等）包在 TabsProvider 里
+    <TabsProvider>
       {/* 固定顶栏，覆盖左侧 Sider 顶部 */}
       <Header onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
 
@@ -80,6 +86,9 @@ const Layout: React.FC = () => {
             transition: 'margin-left 0.3s',
           }}
         >
+          {/* 你自己的 Tabs 可视化组件（如果有）也要放在 TabsProvider 里面 */}
+          {/* <TabsBar /> */}
+
           <Content
             style={{
               padding: 24,
@@ -93,7 +102,7 @@ const Layout: React.FC = () => {
           </Content>
         </AntLayout>
       </AntLayout>
-    </>
+    </TabsProvider>
   )
 }
 

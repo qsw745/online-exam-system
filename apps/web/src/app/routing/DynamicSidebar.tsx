@@ -5,6 +5,7 @@ import { IconRenderer } from '@/shared/components/IconRenderer'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { MenuItem, useMenuPermissions } from '@/shared/hooks/useMenuPermissions'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useTabs } from '@/shared/contexts/TabsContext'
 
 interface DynamicSidebarProps {
   className?: string
@@ -78,6 +79,7 @@ export default function DynamicSidebar({
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
   const navigate = useNavigate()
+  const { addOrActivate } = useTabs()
 
   const items = useMemo<any[]>(() => toAntdItems(menus), [menus])
   const selectedKey = useMemo(() => findSelectedKey(menus, location.pathname), [menus, location.pathname])
@@ -109,6 +111,20 @@ export default function DynamicSidebar({
     )
   }
 
+  // 递归查找某 path 的菜单项
+  const findMenuByPath = (path: string): MenuItem | undefined => {
+    const dfs = (ms: MenuItem[]): MenuItem | undefined => {
+      for (const m of ms) {
+        if (m.path === path) return m
+        if (m.children?.length) {
+          const x = dfs(m.children)
+          if (x) return x
+        }
+      }
+    }
+    return dfs(menus)
+  }
+
   return (
     <aside
       className={className}
@@ -122,7 +138,7 @@ export default function DynamicSidebar({
         WebkitOverflowScrolling: 'touch' as any,
       }}
     >
-      {/* 顶部条：Logo + 折叠按钮（固定在侧栏顶部） */}
+      {/* 顶部条：Logo + 折叠按钮 */}
       <div
         style={{
           position: 'sticky',
@@ -183,7 +199,11 @@ export default function DynamicSidebar({
         onOpenChange={ks => setOpenKeys(ks as string[])}
         onClick={info => {
           const k = String(info.key)
-          if (k.startsWith('/')) navigate(k)
+          if (k.startsWith('/')) {
+            const m = findMenuByPath(k)
+            addOrActivate({ key: k, title: m?.title || '', closable: k !== '/' }) // 先创建/激活中文标签
+            // addOrActivate 内部已导航，这里无需重复 navigate
+          }
         }}
         style={{ borderRight: 0, padding: 8 }}
       />
@@ -191,14 +211,28 @@ export default function DynamicSidebar({
   )
 }
 
-/* 移动端抽屉侧栏（保留） */
+/* 移动端抽屉侧栏 */
 export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { menus, loading } = useMenuPermissions()
   const location = useLocation()
   const navigate = useNavigate()
+  const { addOrActivate } = useTabs()
 
   const items = useMemo<any[]>(() => toAntdItems(menus), [menus])
   const selectedKey = useMemo(() => findSelectedKey(menus, location.pathname), [menus, location.pathname])
+
+  const findMenuByPath = (path: string): MenuItem | undefined => {
+    const dfs = (ms: MenuItem[]): MenuItem | undefined => {
+      for (const m of ms) {
+        if (m.path === path) return m
+        if (m.children?.length) {
+          const x = dfs(m.children)
+          if (x) return x
+        }
+      }
+    }
+    return dfs(menus)
+  }
 
   return (
     <Drawer
@@ -222,7 +256,8 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
           onClick={info => {
             const k = String(info.key)
             if (k.startsWith('/')) {
-              navigate(k)
+              const m = findMenuByPath(k)
+              addOrActivate({ key: k, title: m?.title || '', closable: k !== '/' })
               onClose()
             }
           }}
