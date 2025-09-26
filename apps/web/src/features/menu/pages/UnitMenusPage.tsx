@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Card } from 'antd'
-import MenuManagementPage from './MenuManagementPage'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks/useOrgTree'
+import { Card } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import MenuManagementPage from './MenuManagementPage'
 
 type OrgNode = { id: number; name: string; children?: OrgNode[] }
 const toRaw = (nodes: OrgNode[] = []): OrgRawNode[] =>
@@ -30,30 +31,33 @@ export default function UnitMenusPage() {
   }, [rawTree])
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, height: '100%', padding: 24 }}>
-      <Card
-        title="组织"
-        variant="filled"
-        style={{ height: '100%', minHeight: 520, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
-      >
-        <div style={{ flex: 1, overflow: 'auto' }}>
-          <OrgTreePanel
-            title="组织"
-            tree={rawTree}
-            loading={loading}
-            expandedKeys={expandedKeys}
-            setExpandedKeys={setExpandedKeys}
-            selectedOrgId={selectedOrgId}
-            onSelect={id => setSelectedOrgId(id)}
-            onRefresh={refetch}
-          />
-        </div>
-      </Card>
+    <>
+      <AppBreadcrumb items={[{ title: '单位菜单', href: '/admin/menus/unit' }]} />
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, height: '100%', padding: 24 }}>
+        <Card
+          title="组织"
+          variant="filled"
+          style={{ height: '100%', minHeight: 520, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
+        >
+          <div style={{ flex: 1, overflow: 'auto' }}>
+            <OrgTreePanel
+              title="组织"
+              tree={rawTree}
+              loading={loading}
+              expandedKeys={expandedKeys}
+              setExpandedKeys={setExpandedKeys}
+              selectedOrgId={selectedOrgId}
+              onSelect={id => setSelectedOrgId(id)}
+              onRefresh={refetch}
+            />
+          </div>
+        </Card>
 
-      <Card variant="filled" style={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
-        {/* 切组织时强制重新挂载，触发 useMenus 重新取数 */}
-        <MenuManagementPage key={selectedOrgId ?? 'none'} mode="unit" unitId={selectedOrgId ?? undefined} />
-      </Card>
-    </div>
+        <Card variant="filled" style={{ height: '100%', minHeight: 520, overflow: 'hidden' }}>
+          {/* 切组织时强制重新挂载，触发 useMenus 重新取数 */}
+          <MenuManagementPage key={selectedOrgId ?? 'none'} mode="unit" unitId={selectedOrgId ?? undefined} />
+        </Card>
+      </div>
+    </>
   )
 }

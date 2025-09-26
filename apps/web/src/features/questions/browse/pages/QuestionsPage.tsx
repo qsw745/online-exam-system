@@ -1,16 +1,16 @@
 // src/features/questions/browse/pages/QuestionsPage.tsx
-import React from 'react'
-import { Card, Space, Spin, Typography, Input, Select, Row, Col } from 'antd'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
-import { Link } from 'react-router-dom'
 import { useQuestionsQuery } from '@/shared/hooks/useQuestionsQuery'
+import { Card, Col, Input, Row, Select, Space, Spin, Typography } from 'antd'
+import React from 'react'
+import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
-import { QuestionGrid } from '../components/QuestionGrid'
 import { PaginationBar } from '../components/PaginationBar'
-import { typeLabel as typeLbl, diffLabel as diffLbl } from '../utils/labelMaps'
+import { QuestionGrid } from '../components/QuestionGrid'
+import { diffLabel as diffLbl, typeLabel as typeLbl } from '../utils/labelMaps'
 import { buildPracticeLink } from '../utils/practiceLink'
-
 const { Title, Text } = Typography
 
 export default function QuestionsPage() {
@@ -85,6 +85,7 @@ export default function QuestionsPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <AppBreadcrumb />
       <Card>
         <PageHeader
           viewType={q.viewType}

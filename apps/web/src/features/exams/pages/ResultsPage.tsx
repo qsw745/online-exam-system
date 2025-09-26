@@ -1,12 +1,12 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Col, Empty, Pagination, Row, Space, Spin, Typography } from 'antd'
 import { BookmarkPlus } from 'lucide-react'
-import { createPaginationConfig } from '@/shared/constants/pagination'
-import useResults from '../hooks/useResults'
-import ResultsFilters from '../components/ResultsFilters'
 import ResultCard, { type UiStatus } from '../components/ResultCard'
-
+import ResultsFilters from '../components/ResultsFilters'
+import useResults from '../hooks/useResults'
 const { Title, Text } = Typography
 
 export default function ResultsPage() {
@@ -43,7 +43,8 @@ export default function ResultsPage() {
   }
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%', padding: 24 }}>
+    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <AppBreadcrumb />
       <div>
         <Title level={2}>{t('results.title')}</Title>
         <Text type="secondary">{t('results.description')}</Text>

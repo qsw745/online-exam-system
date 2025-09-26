@@ -1,10 +1,10 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import { Card, Space } from 'antd'
 import React, { useMemo } from 'react'
-import { useNavigate, useParams, useLocation } from 'react-router-dom'
-import { App, Card, Space } from 'antd'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { TaskForm } from '../components/TaskForm'
 import { useTaskById } from '../hooks/useTaskById'
 import { useTaskSubmit } from '../hooks/useTaskSubmit'
-
 const TaskCreatePage: React.FC = () => {
   const { id } = useParams<{ id?: string }>()
   const loc = useLocation()
@@ -40,6 +40,7 @@ const TaskCreatePage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <AppBreadcrumb />
       <Card
         title={mode === 'view' ? '查看任务' : mode === 'edit' ? '编辑任务' : '创建任务'}
         variant="outlined"

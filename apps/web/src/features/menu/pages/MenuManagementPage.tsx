@@ -1,17 +1,20 @@
 import { Card, Empty } from 'antd'
+import BatchSortModal from '../components/BatchSortModal'
+import MenuFormModal from '../components/MenuFormModal'
 import MenuToolbar from '../components/MenuToolbar'
 import MenuTree from '../components/MenuTree'
-import MenuFormModal from '../components/MenuFormModal'
-import BatchSortModal from '../components/BatchSortModal'
 import PickSystemMenuModal from '../components/PickSystemMenuModal'
 import { useMenus } from '../hooks/useMenus'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 type Props = {
-  mode?: 'system' | 'unit'
+  /** 必填：系统功能菜单页传 'system'；单位菜单页传 'unit' */
+  mode: 'system' | 'unit'
+  /** 单位模式必填，系统模式请勿传 */
   unitId?: number | null
 }
 
-export default function MenuManagementPage({ mode = 'unit', unitId = null }: Props) {
+/** 纯内容组件：不再渲染面包屑；只负责树和弹窗 */
+export default function MenuManagementPage({ mode, unitId = null }: Props) {
   const {
     loading,
     menus,
@@ -40,20 +43,20 @@ export default function MenuManagementPage({ mode = 'unit', unitId = null }: Pro
     onPickSystemOk,
   } = useMenus({ mode, unitId: unitId ?? undefined })
 
-  const title = mode === 'system' ? '功能菜单（系统内置，只读）' : '单位菜单（可维护）'
+  const readOnly = mode === 'system'
+  const title = readOnly ? '功能菜单（系统内置，只读）' : '单位菜单（可维护）'
   const emptyDesc = mode === 'unit' ? (unitId == null ? '请在左侧选择组织' : '当前单位暂无覆盖项') : '暂无系统菜单'
 
   return (
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-          <AppBreadcrumb/>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Card
         title={title}
         variant="filled"
         styles={{ body: { paddingTop: 16 } }}
         extra={
-          mode === 'unit' ? (
+          !readOnly ? (
             <MenuToolbar
-              onCreate={openCreate} // 弹多选对话框
+              onCreate={openCreate}
               onBatchSort={openBatchSort}
               onExport={exportJSON}
               onImport={importJSON}
@@ -68,15 +71,16 @@ export default function MenuManagementPage({ mode = 'unit', unitId = null }: Pro
           <MenuTree
             menus={menus}
             loading={loading}
-            onEdit={openEdit}
-            onCopy={() => setFormOpen(true)}
-            onDelete={id => remove(id)}
-            onDrop={onTreeDrop}
+            readOnly={readOnly}
+            onEdit={readOnly ? undefined : openEdit}
+            onCopy={readOnly ? undefined : () => setFormOpen(true)}
+            onDelete={readOnly ? undefined : id => remove(id)}
+            onDrop={readOnly ? undefined : onTreeDrop}
           />
         )}
       </Card>
 
-      {/* 编辑（仅修改覆盖或系统菜单属性时使用） */}
+      {/* 编辑（单位覆盖/系统菜单编辑才会用；系统页只读默认不会打开） */}
       <MenuFormModal
         open={formOpen}
         editing={editing}
@@ -85,22 +89,26 @@ export default function MenuManagementPage({ mode = 'unit', unitId = null }: Pro
         onSubmit={save}
       />
 
-      <BatchSortModal
-        open={sortOpen}
-        items={sortItems}
-        setItems={setSortItems}
-        onOk={saveBatchSort}
-        onCancel={() => setSortOpen(false)}
-      />
+      {!readOnly && (
+        <>
+          <BatchSortModal
+            open={sortOpen}
+            items={sortItems}
+            setItems={setSortItems}
+            onOk={saveBatchSort}
+            onCancel={() => setSortOpen(false)}
+          />
 
-      {/* 系统菜单多选选择器（仅 unit 模式） */}
-      <PickSystemMenuModal
-        open={mode === 'unit' && pickOpen}
-        loading={sysLoading}
-        treeData={sysTreeData}
-        onOk={onPickSystemOk} // <- 现在返回 number[]
-        onCancel={() => setPickOpen(false)}
-      />
+          {/* 系统菜单多选选择器（仅 unit 模式） */}
+          <PickSystemMenuModal
+            open={pickOpen}
+            loading={sysLoading}
+            treeData={sysTreeData}
+            onOk={onPickSystemOk}
+            onCancel={() => setPickOpen(false)}
+          />
+        </>
+      )}
     </div>
   )
 }

@@ -5,7 +5,7 @@ const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage'))
 const OrgManagementPage = lazy(() => import('@/features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@/features/roles/pages/RoleManagementPage'))
 const MenuManagementPage = lazy(() => import('@/features/menu/pages/MenuManagementPage'))
-const FunctionMenusPage = lazy(() => import('@/features/menu/pages/FunctionMenusPage'))
+const SystemMenusPage =lazy(()=> import('@/features/menu/pages/SystemMenusPage'))
 const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage'))
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
 const LogsPage = lazy(() => import('@/features/logs/pages/LogsPage'))
@@ -79,8 +79,9 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-home': AdminPage,
   'admin-org': OrgManagementPage,
   'admin-role': RoleManagementPage,
-  'menu-manage': MenuManagementPage,
-  'menu-functions': FunctionMenusPage,
+
+//   'menu-functions': MenuManagementPage,
+  'menu-functions': SystemMenusPage,
   'menu-units': UnitMenusPage,
   'user-manage': UserManagementPage,
   'admin-user': UserManagementPage, // 兼容

@@ -7,7 +7,7 @@ import { useDashboard } from '@/shared/hooks/useDashboard'
 import { DashboardStatsCards } from '../components/DashboardStatsCards'
 import { RecentTasksList } from '../components/RecentTasksList'
 import { RecentResultsList } from '../components/RecentResultsList'
-
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 const { Title, Text } = Typography
 
 const DashboardPage: React.FC = () => {
@@ -27,13 +27,13 @@ const DashboardPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <AppBreadcrumb/>
       <div>
         <Title level={2} style={{ marginBottom: 8 }}>
           {t('dashboard.title')}
         </Title>
         <Text type="secondary">{t('dashboard.description')}</Text>
       </div>
-
       <DashboardStatsCards
         stats={stats}
         labels={{
@@ -43,7 +43,6 @@ const DashboardPage: React.FC = () => {
           best: t('dashboard.best_score'),
         }}
       />
-
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <RecentTasksList
