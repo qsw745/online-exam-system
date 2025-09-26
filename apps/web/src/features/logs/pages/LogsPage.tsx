@@ -1,11 +1,11 @@
-import { Button, Card, Pagination, Space, Typography } from 'antd'
-import { FileText, Download } from 'lucide-react'
-import { createPaginationConfig } from '@/shared/constants/pagination'
-import { useLogs } from '@/shared/hooks/useLogs'
+import LogDetailModal from '@/features/logs/components/LogDetailModal'
 import LogsFilters from '@/features/logs/components/LogsFilters'
 import LogsTable from '@/features/logs/components/LogsTable'
-import LogDetailModal from '@/features/logs/components/LogDetailModal'
-
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+import { useLogs } from '@/shared/hooks/useLogs'
+import { Button, Card, Pagination, Space, Typography } from 'antd'
+import { Download, FileText } from 'lucide-react'
 const { Title } = Typography
 // 日志组件
 export default function LogsPage() {
@@ -28,7 +28,8 @@ export default function LogsPage() {
   } = useLogs()
 
   return (
-    <div style={{ padding: 24 }}>
+    <div >
+      <AppBreadcrumb />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <Space>
           <FileText style={{ width: 24, height: 24, color: '#1677ff' }} />

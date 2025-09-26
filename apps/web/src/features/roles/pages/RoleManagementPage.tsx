@@ -1,7 +1,9 @@
+import { rolesApi } from '@/shared/api/endpoints/roles'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Pagination, Space } from 'antd'
 import React, { useEffect, useState } from 'react'
-import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import OrgSelectModal from '../components/OrgSelectModal'
 import { PermissionModal } from '../components/PermissionModal'
 import RoleFormModal from '../components/RoleFormModal'
@@ -11,8 +13,6 @@ import UserSelectModal from '../components/UserSelectModal'
 import { useRoleMembers } from '../hooks/useRoleMembers'
 import { useRolePermissions } from '../hooks/useRolePermissions'
 import { useRoles } from '../hooks/useRoles'
-import { rolesApi } from '@/shared/api/endpoints/roles'
-
 export default function RoleManagementPage() {
   const { message } = App.useApp()
 
@@ -83,6 +83,7 @@ export default function RoleManagementPage() {
 
   return (
     <div className="p-6">
+      <AppBreadcrumb />
       <Card>
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-semibold">角色管理</h2>

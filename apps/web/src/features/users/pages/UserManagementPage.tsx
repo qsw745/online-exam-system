@@ -11,11 +11,11 @@ import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 // 弹窗组件
 import { orgsApi } from '@/shared/api/endpoints/orgs'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { BindUserModal } from '../components/BindUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
 import { ViewUserModal } from '../components/ViewUserModal'
-
 const { Sider, Content } = Layout
 const { Title, Paragraph } = Typography
 
@@ -133,124 +133,127 @@ const UserManagementPage: React.FC = () => {
   }
 
   return (
-    <Layout style={{ padding: 16 }}>
-      <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
-        <OrgTreePanel
-          tree={tree}
-          loading={treeLoading}
-          expandedKeys={Array.isArray(expandedKeys) ? expandedKeys : []}
-          setExpandedKeys={setExpandedKeys}
-          selectedOrgId={selectedOrgId}
-          onSelect={id => {
-            if (!id) return
-            setSelectedOrgId(id)
-            q.setPage(1)
-          }}
-          onRefresh={refreshTree}
-        />
-      </Sider>
-
-      <Content>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={3} style={{ margin: 0 }}>
-            用户管理
-          </Title>
-          {/* 📝 文案调整：不再提示“未选择机构显示全量用户” */}
-          <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
-            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '请选择左侧机构以查看用户'}
-          </Paragraph>
-        </div>
-
-        <Card style={{ marginBottom: 16 }}>
-          <UserFilterBar
-            keyword={q.keyword}
-            setKeyword={v => {
-              q.setKeyword(v)
-              q.setPage(1)
-            }}
-            role={q.role || ''}
-            setRole={v => {
-              q.setRole(v || undefined)
-              q.setPage(1)
-            }}
-            includeChildren={!!q.includeChildren}
-            setIncludeChildren={v => {
-              q.setIncludeChildren(v)
-              q.setPage(1)
-            }}
-            canBind={!!selectedOrgId}
-            onBindClick={openBindModal}
-          />
-        </Card>
-
-        <Card>
-          <UsersTable
-            data={q.rows}
-            loading={q.loading}
+    <>
+      <AppBreadcrumb />
+      <Layout style={{ padding: 16 }}>
+        <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
+          <OrgTreePanel
+            tree={tree}
+            loading={treeLoading}
+            expandedKeys={Array.isArray(expandedKeys) ? expandedKeys : []}
+            setExpandedKeys={setExpandedKeys}
             selectedOrgId={selectedOrgId}
-            onView={onView}
-            onEdit={onEdit}
-            onResetPassword={onReset}
-            onToggleStatus={onToggle}
-            onUnbind={onUnbind}
-            onDelete={onDelete}
+            onSelect={id => {
+              if (!id) return
+              setSelectedOrgId(id)
+              q.setPage(1)
+            }}
+            onRefresh={refreshTree}
           />
-          <div style={{ textAlign: 'right', marginTop: 16 }}>
-            <Pagination
-              current={q.page}
-              pageSize={q.limit}
-              total={q.total}
-              showSizeChanger
-              showQuickJumper
-              onChange={(p, ps) => {
-                if (ps !== q.limit) q.setPage(1)
-                else q.setPage(p)
-                q.setLimit(ps)
-              }}
-              showTotal={(t, r) => `${r[0]}-${r[1]} / 共 ${t} 条`}
-            />
+        </Sider>
+
+        <Content>
+          <div style={{ marginBottom: 16 }}>
+            <Title level={3} style={{ margin: 0 }}>
+              用户管理
+            </Title>
+            {/* 📝 文案调整：不再提示“未选择机构显示全量用户” */}
+            <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
+              {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '请选择左侧机构以查看用户'}
+            </Paragraph>
           </div>
-        </Card>
-      </Content>
 
-      {/* —— 查看 —— */}
-      <ViewUserModal
-        open={viewOpen}
-        user={currentUser}
-        orgPath={
-          currentUser?.orgId ? getOrgPath(currentUser?.orgId, '—') || '—' : getOrgPath(selectedOrgId, '—') || '—'
-        }
-        onClose={() => setViewOpen(false)}
-      />
+          <Card style={{ marginBottom: 16 }}>
+            <UserFilterBar
+              keyword={q.keyword}
+              setKeyword={v => {
+                q.setKeyword(v)
+                q.setPage(1)
+              }}
+              role={q.role || ''}
+              setRole={v => {
+                q.setRole(v || undefined)
+                q.setPage(1)
+              }}
+              includeChildren={!!q.includeChildren}
+              setIncludeChildren={v => {
+                q.setIncludeChildren(v)
+                q.setPage(1)
+              }}
+              canBind={!!selectedOrgId}
+              onBindClick={openBindModal}
+            />
+          </Card>
 
-      {/* —— 编辑 —— */}
-      <EditUserModal
-        open={editOpen}
-        user={currentUser}
-        tree={tree}
-        onCancel={() => setEditOpen(false)}
-        onSubmit={async v => {
-          if (!currentUser) return
-          await q.update(currentUser.id, v)
-          setEditOpen(false)
-          message.success('用户已更新')
-          q.refetch()
-        }}
-      />
+          <Card>
+            <UsersTable
+              data={q.rows}
+              loading={q.loading}
+              selectedOrgId={selectedOrgId}
+              onView={onView}
+              onEdit={onEdit}
+              onResetPassword={onReset}
+              onToggleStatus={onToggle}
+              onUnbind={onUnbind}
+              onDelete={onDelete}
+            />
+            <div style={{ textAlign: 'right', marginTop: 16 }}>
+              <Pagination
+                current={q.page}
+                pageSize={q.limit}
+                total={q.total}
+                showSizeChanger
+                showQuickJumper
+                onChange={(p, ps) => {
+                  if (ps !== q.limit) q.setPage(1)
+                  else q.setPage(p)
+                  q.setLimit(ps)
+                }}
+                showTotal={(t, r) => `${r[0]}-${r[1]} / 共 ${t} 条`}
+              />
+            </div>
+          </Card>
+        </Content>
 
-      {/* —— 新增到机构 —— */}
-      {bindOpen && selectedOrgId != null && (
-        <BindUserModal
-          open={bindOpen}
-          targetOrgId={selectedOrgId}
-          onCancel={() => setBindOpen(false)}
-          onSubmit={handleBindSubmit}
+        {/* —— 查看 —— */}
+        <ViewUserModal
+          open={viewOpen}
+          user={currentUser}
+          orgPath={
+            currentUser?.orgId ? getOrgPath(currentUser?.orgId, '—') || '—' : getOrgPath(selectedOrgId, '—') || '—'
+          }
+          onClose={() => setViewOpen(false)}
         />
-      )}
 
-      {/* —— 重置密码结果 —— */}
-      <ResetPasswordModal open={resetOpen} password={resetPwd} onClose={() => setResetOpen(false)} />
-    </Layout>
+        {/* —— 编辑 —— */}
+        <EditUserModal
+          open={editOpen}
+          user={currentUser}
+          tree={tree}
+          onCancel={() => setEditOpen(false)}
+          onSubmit={async v => {
+            if (!currentUser) return
+            await q.update(currentUser.id, v)
+            setEditOpen(false)
+            message.success('用户已更新')
+            q.refetch()
+          }}
+        />
+
+        {/* —— 新增到机构 —— */}
+        {bindOpen && selectedOrgId != null && (
+          <BindUserModal
+            open={bindOpen}
+            targetOrgId={selectedOrgId}
+            onCancel={() => setBindOpen(false)}
+            onSubmit={handleBindSubmit}
+          />
+        )}
+
+        {/* —— 重置密码结果 —— */}
+        <ResetPasswordModal open={resetOpen} password={resetPwd} onClose={() => setResetOpen(false)} />
+      </Layout>
+    </>
   )
 }
 

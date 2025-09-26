@@ -359,7 +359,7 @@ const PaperDetailPage: React.FC = () => {
       <Modal
         title="添加题目到本试卷"
         open={addOpen}
-        destroyOnClose
+        destroyOnHidden
         onCancel={() => {
           setAddOpen(false)
           form.resetFields()
@@ -392,7 +392,7 @@ const PaperDetailPage: React.FC = () => {
         onOk={submitEdit}
         okText="保存"
         confirmLoading={editLoading}
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={editForm} layout="vertical">
           <Form.Item name="title" label="试卷标题" rules={[{ required: true, message: '请输入试卷标题' }]}>

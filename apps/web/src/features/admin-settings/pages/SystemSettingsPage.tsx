@@ -1,18 +1,18 @@
 // features/admin-settings/pages/AdminSettingsPage.tsx
-import React from 'react'
-import { Typography, Space, Row, Col } from 'antd'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import SectionCard from '@/shared/components/SectionCard'
 import { SettingOutlined } from '@ant-design/icons'
-import { useSettings } from '../hooks/useSettings'
+import { Col, Row, Typography } from 'antd'
 import { SettingsForm } from '../components/SettingsForm'
-import  SectionCard  from '@/shared/components/SectionCard'
-
+import { useSettings } from '../hooks/useSettings'
 const { Title, Text } = Typography
 
 export default function AdminSettingsPage() {
   const { loading, initial, current, setCurrent, save, load, isDirty } = useSettings()
 
   return (
-    <div style={{ padding: 24 }}>
+    <div >
+      <AppBreadcrumb />
       <div style={{ marginBottom: 24 }}>
         <Title level={2}>
           <SettingOutlined style={{ marginRight: 8 }} />

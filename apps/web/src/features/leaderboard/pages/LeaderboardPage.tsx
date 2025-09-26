@@ -1,10 +1,10 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import { useLeaderboard } from '@/shared/hooks/useLeaderboard'
 import { Card, Tabs } from 'antd'
 import { Trophy } from 'lucide-react'
-import { useLeaderboard } from '@/shared/hooks/useLeaderboard'
 import LeaderboardFilters from '../components/LeaderboardFilters'
 import LeaderboardStatsCards from '../components/LeaderboardStatsCards'
 import LeaderboardTable from '../components/LeaderboardTable'
-
 export default function LeaderboardPage() {
   const {
     // tabs
@@ -33,6 +33,7 @@ export default function LeaderboardPage() {
 
   return (
     <div className="p-6">
+      <AppBreadcrumb />
       {/* 头部 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">

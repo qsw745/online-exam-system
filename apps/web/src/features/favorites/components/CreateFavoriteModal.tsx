@@ -51,7 +51,7 @@ export default function CreateFavoriteModal({ open, onCancel, onSubmit }: Props)
       onOk={() => form.submit()}
       okText="创建"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <Form form={form} layout="vertical" onFinish={handleFinish}>

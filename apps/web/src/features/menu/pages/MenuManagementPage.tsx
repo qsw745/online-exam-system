@@ -5,7 +5,7 @@ import MenuFormModal from '../components/MenuFormModal'
 import BatchSortModal from '../components/BatchSortModal'
 import PickSystemMenuModal from '../components/PickSystemMenuModal'
 import { useMenus } from '../hooks/useMenus'
-
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 type Props = {
   mode?: 'system' | 'unit'
   unitId?: number | null
@@ -44,7 +44,8 @@ export default function MenuManagementPage({ mode = 'unit', unitId = null }: Pro
   const emptyDesc = mode === 'unit' ? (unitId == null ? '请在左侧选择组织' : '当前单位暂无覆盖项') : '暂无系统菜单'
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          <AppBreadcrumb/>
       <Card
         title={title}
         variant="filled"

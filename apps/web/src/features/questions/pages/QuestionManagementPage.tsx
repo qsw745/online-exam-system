@@ -1,16 +1,16 @@
-import React from 'react'
-import { Card, Typography, message } from 'antd'
 import { ConfirmDialog } from '@/shared/components/ui'
+import { Card, Typography, message } from 'antd'
+import React from 'react'
 
 import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
 import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
 
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import AddQuestionModal from '../components/AddQuestionModal'
 import ExportModal from '../components/ExportModal'
 import ImportModal from '../components/ImportModal'
 import QuestionTable from '../components/QuestionTable'
 import QuestionToolbar from '../components/QuestionToolbar'
-
 const { Title, Paragraph } = Typography
 
 export default function QuestionManagementPage() {
@@ -26,7 +26,8 @@ export default function QuestionManagementPage() {
   const [exportOpen, setExportOpen] = React.useState(false)
 
   return (
-    <div style={{ padding: 24 }}>
+    <div >
+      <AppBreadcrumb />
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>
           题目管理

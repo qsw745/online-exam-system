@@ -1,13 +1,13 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { createPaginationConfig } from '@/shared/constants/pagination'
-import { Breadcrumb, Card, Pagination, Space, Typography, Button, Popconfirm, App } from 'antd'
-import { useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { usePapersList } from '@/shared/hooks/usePapersList'
+import { App, Button, Card, Pagination, Popconfirm, Space, Typography } from 'antd'
+import { useCallback, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PapersTable from '../components/PapersTable'
 import PapersToolbar from '../components/PapersToolbar'
-
 const { Title, Text } = Typography
 
 export default function PaperManagementPage() {
@@ -37,8 +37,7 @@ export default function PaperManagementPage() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Breadcrumb items={[{ title: '题库' }, { title: '试卷管理' }]} />
-
+      <AppBreadcrumb />
       <Card
         title={
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
@@ -68,7 +67,6 @@ export default function PaperManagementPage() {
           </Space>
         }
       />
-
       <PapersToolbar
         search={h.searchTerm}
         onSearchChange={v => {
@@ -83,7 +81,6 @@ export default function PaperManagementPage() {
         onCreateSmart={() => nav('/admin/papers/create/smart')}
         onCreateManual={() => nav('/admin/papers/create/manual')}
       />
-
       <Card styles={{ body: { padding: 0 } }}>
         <PapersTable
           loading={h.loading}
@@ -94,7 +91,6 @@ export default function PaperManagementPage() {
           onDelete={id => setConfirmId(id)}
         />
       </Card>
-
       <Card>
         <Pagination
           {...createPaginationConfig()}
@@ -111,7 +107,6 @@ export default function PaperManagementPage() {
           showQuickJumper
         />
       </Card>
-
       <ConfirmDialog
         open={!!confirmId}
         title="确认删除"

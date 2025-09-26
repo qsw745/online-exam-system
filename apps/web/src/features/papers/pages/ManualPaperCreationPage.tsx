@@ -1,14 +1,15 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { Card, Spin } from 'antd'
 import { useManualPaper } from '../../../shared/hooks/useManualPaper'
 import PaperInfoForm from '../components/PaperInfoForm'
 import QuestionCard from '../components/QuestionCard'
 import QuestionFilters from '../components/QuestionFilters'
-
 export default function ManualPaperCreationPage() {
   const h = useManualPaper()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+      <AppBreadcrumb />
       <div>
         <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>手动组卷</h1>
         <p style={{ color: '#666', margin: 0 }}>从题库中选择题目创建试卷</p>

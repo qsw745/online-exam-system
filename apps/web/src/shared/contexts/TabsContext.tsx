@@ -1,7 +1,7 @@
 // src/shared/contexts/TabsContext.tsx
-import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
 
 export type TabItem = { key: string; title: string; closable?: boolean }
 
@@ -12,20 +12,29 @@ type TabsContextValue = {
   remove: (key: string) => void
   setActiveKey: (key: string) => void
   clear: () => void
+  closeOthers: (keepKey: string) => void
 }
 
 const TabsContext = React.createContext<TabsContextValue | null>(null)
 const STORAGE_KEY = 'app_tabs_state_v1'
 
-// ============ Dashboard 合并策略 ============
-// 将 "/" 与 "/dashboard" 识别为同一路由标签（canonical）
+// ===== Dashboard 归一规则：'/' 与 '/dashboard' 认为同一标签 =====
 const DASHBOARD_CANON = '/dashboard'
 const DASHBOARD_ALIASES = new Set<string>(['/', '/dashboard'])
-
 const isDashboard = (p?: string) => !!p && DASHBOARD_ALIASES.has(p)
 const normalizePath = (p?: string) => (isDashboard(p) ? DASHBOARD_CANON : p || '/')
 
-function loadFromStorage(): { tabs: TabItem[]; activeKey: string } | null {
+// ====== 全局单例，防止 Provider 重挂载时“读到旧快照” ======
+type GlobalTabsState = { tabs: TabItem[]; activeKey: string } | null
+declare global {
+  interface Window {
+    __APP_TABS_STATE__?: GlobalTabsState
+  }
+}
+const getGlobal = (): GlobalTabsState => window.__APP_TABS_STATE__ ?? null
+const setGlobal = (state: GlobalTabsState) => (window.__APP_TABS_STATE__ = state)
+
+function loadFromStorage(): GlobalTabsState {
   try {
     const raw = sessionStorage.getItem(STORAGE_KEY)
     if (!raw) return null
@@ -45,7 +54,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { pathname } = useLocation()
   const { flatMenus } = useMenuPermissions()
 
-  // 统一“安全跳转”：放到微任务，避免渲染期更新 Router
+  // 安全跳转（放到微任务）
   const safeNav = React.useCallback(
     (to: string) => {
       const target = normalizePath(to)
@@ -57,14 +66,13 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [navigate, pathname]
   )
 
-  // 构建 path->中文标题 映射
+  // 菜单 path -> 中文标题
   const pathTitleMap = React.useMemo(() => {
     const map = new Map<string, string>()
     for (const m of flatMenus || []) {
       if (m?.path && m?.title && !m.is_hidden) {
-        // 也为 "/" 写入 dashboard 的标题，便于 alias 查到同一个标题
-        const key = normalizePath(m.path)
-        map.set(key, m.title)
+        const k = normalizePath(m.path)
+        map.set(k, m.title)
         if (isDashboard(m.path)) {
           map.set('/', m.title)
           map.set('/dashboard', m.title)
@@ -74,74 +82,76 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return map
   }, [flatMenus])
 
-  // 标题解析（优先菜单中文）
   const resolveTitle = React.useCallback(
     (path: string) => {
-      const key = normalizePath(path)
-      if (pathTitleMap.has(key)) return pathTitleMap.get(key)!
-      // 兜底为 'Dashboard'（因为首页合并成 Dashboard 了）
-      if (key === DASHBOARD_CANON) return 'Dashboard'
-      // 其它路径兜底英文格式化
-      const last = key.split('/').filter(Boolean).pop() || 'page'
+      const k = normalizePath(path)
+      if (pathTitleMap.has(k)) return pathTitleMap.get(k)!
+      if (k === DASHBOARD_CANON) return 'Dashboard'
+      const last = k.split('/').filter(Boolean).pop() || 'page'
       const t = last.replace(/[-_]/g, ' ')
       return t.charAt(0).toUpperCase() + t.slice(1)
     },
     [pathTitleMap]
   )
 
-  // 初始化：把存储里的 "/" 归一到 "/dashboard"，去重，并确保 dashboard 存在且不可关闭
+  // —— 初始：优先内存单例，其次 storage，最后默认值 —— //
   const initial = React.useMemo(() => {
+    const fromGlobal = getGlobal()
+    if (fromGlobal) return fromGlobal
+
     const loaded = loadFromStorage()
-    if (!loaded) return null
-    const seen = new Set<string>()
-    const normalizedTabs: TabItem[] = []
-    for (const t of loaded.tabs as TabItem[]) {
-      const key = normalizePath(t.key)
-      if (seen.has(key)) continue
-      seen.add(key)
-      normalizedTabs.push({
-        key,
-        title: key === DASHBOARD_CANON ? pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard' : t.title || '',
-        closable: key === DASHBOARD_CANON ? false : t.closable !== false, // dashboard 强制不可关
-      })
+    if (loaded) {
+      // 归一化 + 确保 dashboard 存在
+      const seen = new Set<string>()
+      const normalized: TabItem[] = []
+      for (const t of loaded.tabs) {
+        const k = normalizePath(t.key)
+        if (seen.has(k)) continue
+        seen.add(k)
+        normalized.push({
+          key: k,
+          title: k === DASHBOARD_CANON ? pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard' : t.title || '',
+          closable: k === DASHBOARD_CANON ? false : t.closable !== false,
+        })
+      }
+      if (!seen.has(DASHBOARD_CANON)) {
+        normalized.unshift({
+          key: DASHBOARD_CANON,
+          title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard',
+          closable: false,
+        })
+      }
+      const active = normalizePath(loaded.activeKey || pathname || DASHBOARD_CANON)
+      const state = { tabs: normalized, activeKey: active }
+      setGlobal(state)
+      return state
     }
-    if (!seen.has(DASHBOARD_CANON)) {
-      normalizedTabs.unshift({
-        key: DASHBOARD_CANON,
-        title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard',
-        closable: false,
-      })
+
+    const fallback = {
+      tabs: [{ key: DASHBOARD_CANON, title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard', closable: false }],
+      activeKey: normalizePath(pathname) || DASHBOARD_CANON,
     }
-    const active = normalizePath(loaded.activeKey || pathname || DASHBOARD_CANON)
-    return { tabs: normalizedTabs, activeKey: active }
+    setGlobal(fallback)
+    return fallback
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []) // 初次构建即可
+  }, []) // 仅首次
 
-  const [tabs, setTabs] = React.useState<TabItem[]>(
-    initial?.tabs?.length
-      ? initial.tabs
-      : [
-          {
-            key: DASHBOARD_CANON,
-            title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard',
-            closable: false,
-          },
-        ]
-  )
-  const [activeKey, setActiveKeyState] = React.useState<string>(
-    initial?.activeKey || normalizePath(pathname) || DASHBOARD_CANON
-  )
+  const [tabs, setTabs] = React.useState<TabItem[]>(initial!.tabs)
+  const [activeKey, setActiveKeyState] = React.useState<string>(initial!.activeKey)
 
+  // 统一持久化（也写入全局单例）
   const persist = React.useCallback(
     (nextTabs: TabItem[], nextActive: string) => {
-      // 持久化前也做一次归一 & 去重，确保干净
       const seen = new Set<string>()
       const clean = nextTabs
-        .map(t => ({
-          key: normalizePath(t.key),
-          title: t.key === DASHBOARD_CANON ? pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard' : t.title || '',
-          closable: t.key === DASHBOARD_CANON ? false : t.closable !== false,
-        }))
+        .map(t => {
+          const k = normalizePath(t.key)
+          return {
+            key: k,
+            title: k === DASHBOARD_CANON ? pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard' : t.title || '',
+            closable: k === DASHBOARD_CANON ? false : t.closable !== false,
+          }
+        })
         .filter(t => (seen.has(t.key) ? false : (seen.add(t.key), true)))
 
       if (!seen.has(DASHBOARD_CANON)) {
@@ -151,12 +161,15 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
           closable: false,
         })
       }
-      saveToStorage({ tabs: clean, activeKey: normalizePath(nextActive) })
+
+      const payload = { tabs: clean, activeKey: normalizePath(nextActive) }
+      setGlobal(payload) // ✅ 同步到内存单例
+      saveToStorage(payload) // ✅ 再写入 storage
     },
     [pathTitleMap]
   )
 
-  // 一次性屏蔽：清空/删到只剩 dashboard 时，阻止下一轮 pathname 触发“自动新增”
+  // 防抖：清空/只留仪表盘时，屏蔽下一轮 pathname 自动加签
   const suppressNextAutoAddRef = React.useRef(false)
 
   const setActiveKey = React.useCallback(
@@ -174,10 +187,9 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const k = normalizePath(tab.key)
       setTabs(prev => {
         const exists = prev.some(t => normalizePath(t.key) === k)
-        const title = tab.title || resolveTitle(k)
         const finalized: TabItem = {
           key: k,
-          title,
+          title: tab.title || resolveTitle(k),
           closable: k === DASHBOARD_CANON ? false : tab.closable !== false,
         }
         const next = exists ? prev.map(t => (normalizePath(t.key) === k ? finalized : t)) : [...prev, finalized]
@@ -193,24 +205,16 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const remove = React.useCallback(
     (key: string) => {
       const k = normalizePath(key)
-      if (k === DASHBOARD_CANON) {
-        // Dashboard 不允许关闭
-        return
-      }
+      if (k === DASHBOARD_CANON) return
       setTabs(prev => {
         const idx = prev.findIndex(t => normalizePath(t.key) === k)
         if (idx === -1) return prev
         const next = prev.filter(t => normalizePath(t.key) !== k)
 
         if (normalizePath(activeKey) === k) {
-          // 激活页被删
-          const fallback = next[idx - 1] ||
-            next[idx] || {
-              key: DASHBOARD_CANON,
-              title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard',
-              closable: false,
-            }
-          const fbKey = normalizePath(fallback.key)
+          const fb = next[idx - 1] ||
+            next[idx] || { key: DASHBOARD_CANON, title: resolveTitle(DASHBOARD_CANON), closable: false }
+          const fbKey = normalizePath(fb.key)
           setActiveKeyState(fbKey)
           persist(next, fbKey)
           safeNav(fbKey)
@@ -220,41 +224,51 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return next
       })
     },
-    [activeKey, persist, safeNav, pathTitleMap]
+    [activeKey, persist, safeNav, resolveTitle]
+  )
+
+  const closeOthers = React.useCallback(
+    (keepKey: string) => {
+      const k = normalizePath(keepKey || activeKey)
+      const kept: TabItem[] =
+        k === DASHBOARD_CANON
+          ? [{ key: DASHBOARD_CANON, title: resolveTitle(DASHBOARD_CANON), closable: false }]
+          : [
+              { key: DASHBOARD_CANON, title: resolveTitle(DASHBOARD_CANON), closable: false },
+              { key: k, title: resolveTitle(k), closable: true },
+            ]
+      suppressNextAutoAddRef.current = true
+      setTabs(kept)
+      setActiveKeyState(k)
+      persist(kept, k)
+      safeNav(k)
+    },
+    [activeKey, persist, safeNav, resolveTitle]
   )
 
   const clear = React.useCallback(() => {
+    const onlyDash: TabItem[] = [{ key: DASHBOARD_CANON, title: resolveTitle(DASHBOARD_CANON), closable: false }]
     suppressNextAutoAddRef.current = true
-    const onlyDash: TabItem[] = [
-      { key: DASHBOARD_CANON, title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard', closable: false },
-    ]
     setTabs(onlyDash)
     setActiveKeyState(DASHBOARD_CANON)
     persist(onlyDash, DASHBOARD_CANON)
     safeNav(DASHBOARD_CANON)
-  }, [persist, safeNav, pathTitleMap])
-  // 放在 TabsProvider 内其他 hooks 之后（比如在路由副作用 useEffect 下面或上面都行）
+  }, [persist, safeNav, resolveTitle])
+
+  // 菜单准备好后，纠正中文标题并持久化
   React.useEffect(() => {
-    // 菜单映射 ready 时，纠正已存在标签标题（尤其是 /dashboard）
     setTabs(prev => {
       let changed = false
       const updated = prev.map(t => {
         const k = normalizePath(t.key)
         const menuTitle = pathTitleMap.get(k)
-        // 只要菜单里有标题，且与当前不同，就以菜单中文为准
         if (menuTitle && t.title !== menuTitle) {
           changed = true
-          return {
-            ...t,
-            title: menuTitle,
-            // 再确保 dashboard 不可关闭
-            closable: k === DASHBOARD_CANON ? false : t.closable !== false,
-          }
+          return { ...t, title: menuTitle, closable: k === DASHBOARD_CANON ? false : t.closable !== false }
         }
         return t
       })
       if (changed) {
-        // 用当前 activeKey 持久化（也会把 dashboard 再次保证不可关闭）
         persist(updated, activeKey)
         return updated
       }
@@ -262,22 +276,18 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })
   }, [pathTitleMap, activeKey, persist])
 
-  // 路由变化：自动加入/修正标题（带一次性屏蔽 + dashboard 归一）
+  // 路由变化：自动加签（带 suppress）
   React.useEffect(() => {
     const key = normalizePath(pathname)
-
     if (suppressNextAutoAddRef.current) {
       suppressNextAutoAddRef.current = false
       setActiveKeyState(key)
       persist(
-        tabs.length
-          ? tabs
-          : [{ key: DASHBOARD_CANON, title: pathTitleMap.get(DASHBOARD_CANON) || 'Dashboard', closable: false }],
+        tabs.length ? tabs : [{ key: DASHBOARD_CANON, title: resolveTitle(DASHBOARD_CANON), closable: false }],
         key
       )
       return
     }
-
     setTabs(prev => {
       const exists = prev.some(t => normalizePath(t.key) === key)
       if (exists) {
@@ -298,12 +308,7 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         return fixed
       }
-      const newTab: TabItem = {
-        key,
-        title: resolveTitle(key),
-        closable: key === DASHBOARD_CANON ? false : true,
-      }
-      const next = [...prev, newTab]
+      const next = [...prev, { key, title: resolveTitle(key), closable: key === DASHBOARD_CANON ? false : true }]
       setActiveKeyState(key)
       persist(next, key)
       return next
@@ -311,9 +316,9 @@ export const TabsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname, resolveTitle])
 
-  const value = React.useMemo(
-    () => ({ tabs, activeKey, addOrActivate, remove, setActiveKey, clear }),
-    [tabs, activeKey, addOrActivate, remove, setActiveKey, clear]
+  const value = React.useMemo<TabsContextValue>(
+    () => ({ tabs, activeKey, addOrActivate, remove, setActiveKey, clear, closeOthers }),
+    [tabs, activeKey, addOrActivate, remove, setActiveKey, clear, closeOthers]
   )
 
   return <TabsContext.Provider value={value}>{children}</TabsContext.Provider>

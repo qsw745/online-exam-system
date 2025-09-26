@@ -1,14 +1,8 @@
+// src/app/routing/TabsShell.tsx
 import React from 'react'
 import { Outlet } from 'react-router-dom'
-import { TabsProvider } from '@/shared/contexts/TabsContext'
-import { TabsBar } from '@/shared/components/TabsBar'
 
-/** 登录后主内容区域的外层：提供 Tabs 与标签栏 */
+// 这里只渲染路由内容，不再渲染 TabsBar
 export default function TabsShell() {
-  return (
-    <TabsProvider>
-      <TabsBar />
-      <Outlet />
-    </TabsProvider>
-  )
+  return <Outlet />
 }

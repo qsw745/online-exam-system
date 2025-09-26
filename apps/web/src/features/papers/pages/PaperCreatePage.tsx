@@ -1,10 +1,10 @@
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { usePaperEditor } from '@/shared/hooks/usePaperEditor'
 import { Button, Card, Form } from 'antd'
 import { useNavigate } from 'react-router-dom'
-import { usePaperEditor } from '@/shared/hooks/usePaperEditor'
 import PaperMetaForm from '../components/PaperMetaForm'
 import PaperQuestionList from '../components/PaperQuestionList'
-
 export default function PaperCreatePage() {
   const nav = useNavigate()
   const h = usePaperEditor()
@@ -13,6 +13,7 @@ export default function PaperCreatePage() {
 
   return (
     <div className="space-y-6">
+      <AppBreadcrumb />
       <div>
         <h1 className="text-2xl font-bold">{h.pageTitle}</h1>
         <p className="text-gray-500 mt-1">{h.pageDesc}</p>

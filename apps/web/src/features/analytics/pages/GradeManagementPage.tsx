@@ -1,15 +1,15 @@
 // apps/web/src/features/analytics/pages/GradeManagementPage.tsx
-import React, { useEffect, useMemo, useState } from 'react'
-import { App, Card, Divider, Drawer, Skeleton, Space, Typography } from 'antd'
 import { GradeFilters } from '@/features/analytics/components/GradeFilters'
 import { GradePagination } from '@/features/analytics/components/GradePagination'
 import { GradeStatsCards } from '@/features/analytics/components/GradeStatsCards'
 import { GradeTable } from '@/features/analytics/components/GradeTable'
+import ResultDetailContent from '@/features/analytics/components/ResultDetailContent'
 import { useGrades } from '@/features/analytics/hooks/useGrades'
 import { api, isSuccess } from '@/shared/api/http'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import type { ResultDetail } from '@/shared/types/grades'
-import ResultDetailContent from '@/features/analytics/components/ResultDetailContent'
-
+import { App, Card, Divider, Drawer, Skeleton, Space, Typography } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
 const { Title, Text } = Typography
 
 const GradeManagementPage: React.FC = () => {
@@ -115,6 +115,7 @@ const GradeManagementPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
+      <AppBreadcrumb />
       <div>
         <Title level={2} style={{ marginBottom: 4 }}>
           成绩管理
@@ -150,7 +151,7 @@ const GradeManagementPage: React.FC = () => {
         }}
       />
 
-      <Drawer title="成绩详情" width={720} open={detailOpen} onClose={() => setDetailOpen(false)} destroyOnClose>
+      <Drawer title="成绩详情" width={720} open={detailOpen} onClose={() => setDetailOpen(false)} destroyOnHidden>
         <ResultDetailContent loading={detailLoading} data={detail} />
       </Drawer>
     </Space>

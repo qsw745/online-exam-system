@@ -1,14 +1,13 @@
-import React from 'react'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { Card, Divider } from 'antd'
 import { MessageSquare } from 'lucide-react'
+import { CreateDiscussionModal } from '../components/CreateDiscussionModal'
+import { DiscussionDetail } from '../components/DiscussionDetail'
 import { DiscussionFilters } from '../components/DiscussionFilters'
 import { DiscussionList } from '../components/DiscussionList'
-import { DiscussionDetail } from '../components/DiscussionDetail'
 import { ReplyList } from '../components/ReplyList'
-import { CreateDiscussionModal } from '../components/CreateDiscussionModal'
 import { ReplyModal } from '../components/ReplyModal'
 import { useDiscussions } from '../hooks/useDiscussions'
-
 export default function DiscussionPage() {
   const {
     discussions,
@@ -36,6 +35,7 @@ export default function DiscussionPage() {
 
   return (
     <div className="bg-gray-50 min-h-screen">
+      <AppBreadcrumb />
       <div className="mx-auto max-w-[1200px] px-4 md:px-6 py-5">
         <DiscussionFilters
           categories={categories}

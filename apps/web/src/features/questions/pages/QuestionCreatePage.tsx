@@ -1,3 +1,5 @@
+import { questionsApi } from '@/shared/api/http'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import {
   Button,
@@ -18,8 +20,6 @@ import {
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { questionsApi } from '@/shared/api/http'
-
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
@@ -340,6 +340,7 @@ const QuestionCreatePage: React.FC = () => {
 
   return (
     <div style={{ padding: '24px', maxWidth: '1200px', margin: '0 auto' }}>
+      <AppBreadcrumb />
       {/* 页面标题 */}
       <Card style={{ marginBottom: '24px' }}>
         <Row justify="space-between" align="middle">

@@ -60,7 +60,7 @@ export default function EditFavoriteModal({ open, initial, onCancel, onSubmit }:
       onOk={() => form.submit()}
       okText="保存"
       cancelText="取消"
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <Form form={form} layout="vertical" onFinish={handleFinish}>

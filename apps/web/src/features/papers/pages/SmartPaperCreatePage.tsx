@@ -1,13 +1,13 @@
 // features/smart-paper/pages/SmartPaperCreatePage.tsx
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useSmartPaper } from '@/shared/hooks/useSmartPaper'
 import { Button, Spin } from 'antd'
 import { ArrowLeft, Save, Shuffle } from 'lucide-react'
+import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useSmartPaper } from '@/shared/hooks/useSmartPaper'
-import React, { useCallback } from 'react'
 import ConfigForm from '../components/ConfigForm'
 import PreviewList from '../components/PreviewList'
-
 export default function SmartPaperCreatePage() {
   const nav = useNavigate()
   const h = useSmartPaper()
@@ -33,6 +33,7 @@ export default function SmartPaperCreatePage() {
   if (h.step === 'config') {
     return (
       <div className="space-y-6">
+        <AppBreadcrumb />
         <div className="flex items-center gap-4">
           <Button type="text" onClick={onBackToList} className="flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> 返回

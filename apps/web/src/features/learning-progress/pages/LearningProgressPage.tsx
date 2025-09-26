@@ -1,11 +1,11 @@
-import { Row, Col, Space, Spin, Typography } from 'antd'
-import { TrendingUp } from 'lucide-react'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { useLearningProgress } from '@/shared/hooks/useLearningProgress'
+import { Col, Row, Space, Spin, Typography } from 'antd'
+import { TrendingUp } from 'lucide-react'
 import LearningFilters from '../components/LearningFilters'
-import LearningStatsCards from '../components/LearningStatsCards'
 import LearningOverview from '../components/LearningOverview'
+import LearningStatsCards from '../components/LearningStatsCards'
 import LearningTimeline from '../components/LearningTimeline'
-
 const { Title } = Typography
 
 export default function LearningProgressPage() {
@@ -23,7 +23,8 @@ export default function LearningProgressPage() {
   } = useLearningProgress()
 
   return (
-    <div style={{ padding: 24 }}>
+    <div >
+      <AppBreadcrumb />
       <div className="flex items-center justify-between mb-6">
         <Space>
           <TrendingUp style={{ width: 24, height: 24, color: '#1890ff' }} />

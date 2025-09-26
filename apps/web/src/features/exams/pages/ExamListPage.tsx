@@ -1,11 +1,11 @@
 // src/features/exams/pages/ExamListPage.tsx
-import React from 'react'
-import { FilterOutlined, SearchOutlined } from '@ant-design/icons'
-import { Button, Card, Col, Empty, Input, Pagination, Row, Select, Space, Typography } from 'antd'
-import { BookOpen } from 'lucide-react'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { createPaginationConfig } from '@/shared/constants/pagination'
-import { useExams } from '../hooks/useExams'
+import { FilterOutlined, SearchOutlined } from '@ant-design/icons'
+import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Typography } from 'antd'
+import { BookOpen } from 'lucide-react'
 import { ExamCard } from '../components/ExamCard'
+import { useExams } from '../hooks/useExams'
 const { Search } = Input
 const { Option } = Select
 const { Title, Paragraph } = Typography
@@ -18,7 +18,8 @@ export default function ExamListPage() {
   })
 
   return (
-    <div style={{ padding: 24 }}>
+    <div style={{ padding: 8 }}>
+      <AppBreadcrumb />
       {/* 标题 */}
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>

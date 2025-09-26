@@ -1,7 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import { api } from '@/shared/api/core/httpClient'
+import { papersApi } from '@/shared/api/endpoints/papers'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+import dayjs from '@/shared/utils/dayjs'
+import { PlusOutlined } from '@ant-design/icons'
 import {
-  App,
   Affix,
+  App,
   Button,
   Card,
   Col,
@@ -19,12 +23,8 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { PlusOutlined } from '@ant-design/icons'
-import { papersApi } from '@/shared/api/endpoints/papers'
-import { api } from '@/shared/api/core/httpClient'
-import dayjs from '@/shared/utils/dayjs'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-
 type BankQuestion = {
   id: number
   title?: string
@@ -256,7 +256,8 @@ export default function PaperManualCreatePage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 16 }}>
+    <div style={{ minWidth: 1200, margin: '0 auto',  }}>
+      <AppBreadcrumb />
       <Affix offsetTop={0}>
         <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12 }}>
           <Row align="middle" justify="space-between">

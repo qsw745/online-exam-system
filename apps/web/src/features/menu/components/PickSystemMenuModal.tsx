@@ -83,7 +83,7 @@ export default function PickSystemMenuModal({ open, loading, treeData, onOk, onC
       okButtonProps={{ disabled: !checkedKeys.length }}
       onCancel={handleCancel}
       width={720}
-      destroyOnClose
+      destroyOnHidden
     >
       <Input.Search
         placeholder="输入名称筛选"

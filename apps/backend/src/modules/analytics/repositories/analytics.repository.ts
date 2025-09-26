@@ -77,7 +77,7 @@ export class AnalyticsRepository {
         )
         const activeStudents = Number((actives[0] as any)?.n || 0)
 
-        // 题目数：有 questions 就 count(*)，否则 0（你的 papers 无 total_questions）
+        // 题目数：有 questions 就 count(*)，否则 0
         let totalQuestions = 0
         if (await hasTable('questions').catch(() => false)) {
             const [q] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS n FROM questions`)
@@ -93,7 +93,7 @@ export class AnalyticsRepository {
         )
         const avgScore = Number((avg[0] as any)?.v || 0)
 
-        // 完成率 = submitted / 全部结果
+        // 完成率
         const [done] = await pool.query<RowDataPacket[]>(
             `SELECT
                  SUM(CASE WHEN er.status='submitted' THEN 1 ELSE 0 END) AS submitted_count,
@@ -150,7 +150,7 @@ export class AnalyticsRepository {
         ]
     }
 
-    /** 学生榜单：时间=submit_time；学习时长=time_spent(秒)→分钟；NULL 最后 */
+    /** 学生榜单 */
     async getStudents(params: DateParams) {
         const d = await dateWhereER(params)
 
@@ -183,5 +183,43 @@ export class AnalyticsRepository {
             study_time: Math.floor(Number((r as any).time_spent_sec || 0) / 60),
             last_active: (r as any).last_active || null,
         }))
+    }
+
+    /** 成绩分布（grade-stats）：A/B/C/D/F 桶 + 及格率 + 平均分 */
+    async getGradeStats(params: DateParams) {
+        const d = await dateWhereER(params)
+
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `
+        SELECT
+          SUM(CASE WHEN er.status='submitted' AND er.score >= 90 THEN 1 ELSE 0 END) AS a_cnt,
+          SUM(CASE WHEN er.status='submitted' AND er.score >= 80 AND er.score < 90 THEN 1 ELSE 0 END) AS b_cnt,
+          SUM(CASE WHEN er.status='submitted' AND er.score >= 70 AND er.score < 80 THEN 1 ELSE 0 END) AS c_cnt,
+          SUM(CASE WHEN er.status='submitted' AND er.score >= 60 AND er.score < 70 THEN 1 ELSE 0 END) AS d_cnt,
+          SUM(CASE WHEN er.status='submitted' AND er.score < 60 THEN 1 ELSE 0 END) AS f_cnt,
+          SUM(CASE WHEN er.status='submitted' AND er.score >= 60 THEN 1 ELSE 0 END) AS pass_cnt,
+          COUNT(CASE WHEN er.status='submitted' THEN 1 END) AS total_submitted,
+          AVG(CASE WHEN er.status='submitted' THEN er.score END) AS avg_score
+        FROM exam_results er
+        WHERE 1=1 ${d.sql}
+      `,
+            d.args
+        )
+
+        const r = rows[0] as any
+        const total = Number(r?.total_submitted || 0)
+        const avg = Number(Number(r?.avg_score || 0).toFixed(1))
+
+        const buckets = [
+            { key: 'A', label: '90~100', count: Number(r?.a_cnt || 0) },
+            { key: 'B', label: '80~89', count: Number(r?.b_cnt || 0) },
+            { key: 'C', label: '70~79', count: Number(r?.c_cnt || 0) },
+            { key: 'D', label: '60~69', count: Number(r?.d_cnt || 0) },
+            { key: 'F', label: '0~59',  count: Number(r?.f_cnt || 0) },
+        ]
+
+        const passRate = total ? Number(((Number(r?.pass_cnt || 0) / total) * 100).toFixed(1)) : 0
+
+        return { total, average: avg, pass_rate: passRate, buckets }
     }
 }

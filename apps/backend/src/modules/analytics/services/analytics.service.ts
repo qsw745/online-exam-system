@@ -7,7 +7,7 @@ export class AnalyticsService {
     const p: DateParams = {
       start_date: params.start_date || null,
       end_date: params.end_date || null,
-      subject: params.subject || null, // 当前无科目来源，会被忽略
+      subject: params.subject || null,
     }
     const [overview, subjects, students] = await Promise.all([
       this.repo.getOverview(p),
@@ -21,7 +21,7 @@ export class AnalyticsService {
     return this.repo.getSubjects()
   }
 
-  // 保留给其它路由用的“简版概览”，按 7/30/90 天转换
+  // “简版概览”，按 7/30/90 天转换
   async getOverview(period: string) {
     const { start_date, end_date } = this.getRangeByPeriod(period)
     return this.repo.getOverview({ start_date, end_date })
@@ -59,6 +59,16 @@ export class AnalyticsService {
       const count = day === 0 || day === 6 ? Math.floor(Math.random() * 20) + 10 : Math.floor(Math.random() * 30) + 25
       return { date: d, count }
     })
+  }
+
+  /** ===== 新增：成绩分布 ===== */
+  async getGradeStats(params: { start_date?: string; end_date?: string }) {
+    const p: DateParams = {
+      start_date: params.start_date || null,
+      end_date: params.end_date || null,
+      subject: null,
+    }
+    return this.repo.getGradeStats(p)
   }
 
   /* ===== 工具 ===== */

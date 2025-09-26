@@ -1,11 +1,11 @@
-import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
-import { Heart, Plus, BookOpen, Star } from 'lucide-react'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { useFavorites } from '@/shared/hooks/useFavorites'
-import FavoritesList from '../components/FavoritesList'
-import FavoriteItems from '../components/FavoriteItems'
+import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
+import { BookOpen, Heart, Plus, Star } from 'lucide-react'
 import CreateFavoriteModal from '../components/CreateFavoriteModal'
 import EditFavoriteModal from '../components/EditFavoriteModal'
-
+import FavoriteItems from '../components/FavoriteItems'
+import FavoritesList from '../components/FavoritesList'
 const { Title, Text } = Typography
 
 export default function FavoritesPage() {
@@ -38,7 +38,8 @@ export default function FavoritesPage() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
+    <div >
+      <AppBreadcrumb />
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 标题 + 按钮 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -29,7 +29,6 @@ export class AnalyticsController {
     }
   }
 
-  // 下面这些保留你的其它接口
   static async getOverview(req: AuthRequest, res: Response) {
     try {
       const period = (req.query.period as string) || '7d'
@@ -69,6 +68,20 @@ export class AnalyticsController {
     } catch (error) {
       console.error('获取用户活跃度数据错误:', error)
       return res.status(500).json({ success: false, error: '获取用户活跃度数据失败' })
+    }
+  }
+
+  /** ===== 新增：成绩分布接口 /api/analytics/grade-stats ===== */
+  static async getGradeStats(req: AuthRequest, res: Response) {
+    try {
+      const data = await service.getGradeStats({
+        start_date: (req.query.start_date as string) || undefined,
+        end_date: (req.query.end_date as string) || undefined,
+      })
+      return res.json({ success: true, data })
+    } catch (error) {
+      console.error('获取成绩分布数据错误:', error)
+      return res.status(500).json({ success: false, error: '获取成绩分布数据失败' })
     }
   }
 }

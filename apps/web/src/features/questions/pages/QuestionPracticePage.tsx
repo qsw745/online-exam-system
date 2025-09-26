@@ -1,13 +1,13 @@
+import { PaginationBar } from '@/features/questions/browse/components/PaginationBar'
 import BulkPracticeView from '@/features/questions/practice/components/BulkPracticeView'
 import PracticeFilters from '@/features/questions/practice/components/PracticeFilters'
 import QuestionCardGrid from '@/features/questions/practice/components/QuestionCardGrid'
 import SinglePracticeView from '@/features/questions/practice/components/SinglePracticeView'
 import { usePracticeList } from '@/features/questions/practice/hooks/usePracticeList'
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Card, Space, Typography } from 'antd'
 import { useMemo, useState } from 'react'
-import { PaginationBar } from '@/features/questions/browse/components/PaginationBar'
-
 const { Title, Text } = Typography
 type View = 'list' | 'single' | 'bulk'
 
@@ -39,7 +39,8 @@ export default function QuestionPracticePage() {
   return (
     <>
       {view === 'list' && (
-        <div style={{ minWidth: 1200, margin: '0 auto', padding: 24 }}>
+        <div style={{ minWidth: 1200, margin: '0 auto' }}>
+          <AppBreadcrumb />
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Card>
               <Title level={3} style={{ margin: 0 }}>

@@ -41,7 +41,7 @@ export default function OrgSelectModal({
       title="选择机构"
       open={open}
       onCancel={onCancel}
-      destroyOnClose
+      destroyOnHidden
       footer={[
         <Button key="cancel" onClick={onCancel}>
           取 消

@@ -4,7 +4,7 @@ import AddOrgModal from '../components/AddOrgModal'
 import OrgDetailCard from '../components/OrgDetailCard'
 import { useOrgManage } from '../hooks/useOrgManage'
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
-
+import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
 const { Sider, Content } = Layout
 const { Search } = Input
 
@@ -47,6 +47,7 @@ export default function OrgManagementPage() {
 
   return (
     <App>
+      <AppBreadcrumb />
       <Layout style={{ height: '100%', background: 'transparent' }}>
         <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
           <div style={{ padding: 12 }}>
