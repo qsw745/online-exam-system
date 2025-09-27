@@ -9,7 +9,15 @@ export const ResetPasswordModal: React.FC<{
   onClose: () => void
 }> = ({ open, password, onClose }) => {
   return (
-    <Modal open={open} title="密码已重置" onCancel={onClose} onOk={onClose} okText="我已记住" destroyOnHidden>
+    <Modal
+      open={open}
+      maskClosable={false}
+      title="密码已重置"
+      onCancel={onClose}
+      onOk={onClose}
+      okText="我已记住"
+      destroyOnHidden
+    >
       <Paragraph>请妥善保存以下临时/新密码：</Paragraph>
       <Paragraph copyable={{ text: password || '' }}>
         <Text code style={{ fontSize: 16 }}>

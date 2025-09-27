@@ -35,6 +35,7 @@ export default function RoleFormModal({
 
   return (
     <Modal
+      maskClosable={false}
       title={isEdit ? '编辑角色' : '新建角色'}
       open={open}
       onCancel={onCancel}

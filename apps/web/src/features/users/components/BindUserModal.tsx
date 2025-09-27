@@ -170,6 +170,7 @@ export const BindUserModal: React.FC<{
   return (
     <Modal
       open={open}
+      maskClosable={false}
       onCancel={onCancel}
       onOk={onOk}
       okText={okText}

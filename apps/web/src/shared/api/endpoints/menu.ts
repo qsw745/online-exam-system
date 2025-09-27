@@ -23,7 +23,7 @@ export interface MenuDTO {
   menu_type: 'menu' | 'button' | 'link'
   permission_code?: string
   redirect?: string
-  meta?: string
+  meta?: any
   created_at: string
   updated_at: string
 }
@@ -41,7 +41,7 @@ export interface MenuCreateInput {
   menu_type?: 'menu' | 'button' | 'link'
   permission_code?: string
   redirect?: string
-  meta?: string
+  meta?: any
 }
 export interface MenuUpdateInput extends Partial<MenuCreateInput> {}
 
@@ -57,6 +57,7 @@ const paramsOf = (o?: ScopeOpts) => ({
 })
 
 export const menuApi = {
+  // ---------- 普通 CRUD ----------
   async list(opts?: ScopeOpts): Promise<MenuDTO[]> {
     const res = await api.get(BASE, paramsOf(opts))
     return pickData<MenuDTO[]>(res)
@@ -82,51 +83,89 @@ export const menuApi = {
     return pickData(res)
   },
 
-  async userMenus(userId: number): Promise<MenuDTO[]> {
-    const res = await api.get(`${BASE}/users/${userId}/menus`)
-    return pickData<MenuDTO[]>(res)
+  // ---------- 用户 / 单位菜单（按角色权限） ----------
+  // in-flight 去重 + 结果缓存，避免多次请求
+  _userMenusCache: new Map<string, MenuDTO[]>(),
+  _userMenusInFlight: new Map<string, Promise<MenuDTO[]>>(),
+
+  async userMenus(userId: number, orgId?: number): Promise<MenuDTO[]> {
+    const headers: Record<string, any> = {}
+    if (orgId != null) headers['x-org-id'] = String(orgId)
+    const key = `${userId}|${orgId ?? ''}`
+
+    if (this._userMenusCache.has(key)) return this._userMenusCache.get(key)!
+    if (this._userMenusInFlight.has(key)) return this._userMenusInFlight.get(key)!
+
+    const p = api
+      .get(`${BASE}/users/${userId}/menus`, { headers })
+      .then(r => {
+        const data = pickData<MenuDTO[]>(r) || []
+        this._userMenusCache.set(key, data)
+        return data
+      })
+      .finally(() => {
+        this._userMenusInFlight.delete(key)
+      })
+
+    this._userMenusInFlight.set(key, p)
+    return p
   },
 
-  // ========= 路由树：带缓存 / 并发去重 / 失败冷却 =========
-  _routeTreeCache: null as null | MenuDTO[],
-  _routeTreeInFlight: null as null | Promise<MenuDTO[]>,
-  _routeTreeLastFailAt: 0,
+  clearUserMenusCache(userId?: number, orgId?: number) {
+    if (userId === undefined) {
+      this._userMenusCache.clear()
+      this._userMenusInFlight.clear()
+      return
+    }
+    const key = `${userId}|${orgId ?? ''}`
+    this._userMenusCache.delete(key)
+    this._userMenusInFlight.delete(key)
+  },
+
+  // ---------- 功能菜单（系统功能路由树） ----------
+  _functionsTreeCache: null as null | MenuDTO[],
+  _functionsTreeInFlight: null as null | Promise<MenuDTO[]>,
+  _functionsTreeLastFailAt: 0,
   _FAIL_COOLDOWN_MS: 1500,
 
   getRouteTreeCached(): MenuDTO[] | null {
-    return this._routeTreeCache
+    return this._functionsTreeCache
   },
   clearRouteTreeCache() {
-    this._routeTreeCache = null
-    this._routeTreeInFlight = null
+    this._functionsTreeCache = null
+    this._functionsTreeInFlight = null
   },
 
   async routeTree(): Promise<MenuDTO[]> {
-    if (this._routeTreeCache) return this._routeTreeCache
-    if (this._routeTreeInFlight) return this._routeTreeInFlight
+    // 兼容老方法（仍走 functions/tree）
+    return this.functionsTree()
+  },
+
+  async functionsTree(): Promise<MenuDTO[]> {
+    if (this._functionsTreeCache) return this._functionsTreeCache
+    if (this._functionsTreeInFlight) return this._functionsTreeInFlight
 
     const now = Date.now()
-    if (now - this._routeTreeLastFailAt < this._FAIL_COOLDOWN_MS) {
-      // 短时间失败冷却，直接抛错，避免风暴
-      throw new Error('route-tree cooling down')
+    if (now - this._functionsTreeLastFailAt < this._FAIL_COOLDOWN_MS) {
+      throw new Error('functions-tree cooling down')
     }
 
     const p = api
-      .get('/menus/route-tree')
+      .get('/menus/functions/tree')
       .then(r => {
         const data = pickData<MenuDTO[]>(r)
-        this._routeTreeCache = Array.isArray(data) ? data : []
-        return this._routeTreeCache
+        this._functionsTreeCache = Array.isArray(data) ? data : []
+        return this._functionsTreeCache
       })
       .catch(err => {
-        this._routeTreeLastFailAt = Date.now()
+        this._functionsTreeLastFailAt = Date.now()
         throw err
       })
       .finally(() => {
-        this._routeTreeInFlight = null
+        this._functionsTreeInFlight = null
       })
 
-    this._routeTreeInFlight = p
+    this._functionsTreeInFlight = p
     return p
   },
 }

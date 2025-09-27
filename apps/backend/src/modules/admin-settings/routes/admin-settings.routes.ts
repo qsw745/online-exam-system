@@ -17,27 +17,32 @@ function requireRole(_roles = ALLOWED_ROLES) {
         next()
     }
 }
+
 const wrap =
     (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
         (req: Request, res: Response, next: NextFunction) => {
             Promise.resolve(handler(req as AuthRequest, res)).catch(next)
         }
 
-router.use(authenticateToken, requireRole())
+// ✅ 统一先要求“已登录”
+router.use(authenticateToken)
 
+// ✅ 登录即可读取系统设置
 router.get('/settings', wrap(AdminSettingsController.getSettings))
 
+// ✅ 仅 admin/teacher 可修改系统设置
 router.put(
     '/settings',
+    requireRole(),
     [
         body('systemName').optional().isString().isLength({ min: 1, max: 100 }),
         body('allowUserRegistration').optional().isBoolean(),
         body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
         body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
 
-        // ✅ 新增验证
+        // 新增校验
         body('enableCaptcha').optional().isBoolean(),
-        body('captchaAfterFailedAttempts').optional().isInt({ min: 1, max: 20 }),
+        body('captchaAfterFailed').optional().isInt({ min: 1, max: 20 }), // ← 与 service/repo 字段对齐
 
         body('enableStrongPassword').optional().isBoolean(),
         body('strongPasswordRules').optional().isObject(),

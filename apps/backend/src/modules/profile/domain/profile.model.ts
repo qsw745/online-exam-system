@@ -4,6 +4,8 @@ export interface ProfileDTO {
     email?: string | null
     phone?: string | null
     bio?: string | null
+    school?: string | null
+    class_name?: string | null
 }
 
 export interface UpdateProfilePayload {

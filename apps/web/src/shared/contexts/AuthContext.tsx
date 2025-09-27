@@ -1,3 +1,4 @@
+// src/shared/contexts/AuthContext.tsx
 import {
   clearTokenAll,
   getAuthStorageFlag,
@@ -29,7 +30,7 @@ interface AuthContextType {
     email: string,
     password: string,
     keep7Days?: boolean,
-    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean } // ✅ 补上 keep7Days
+    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean }
   ) => Promise<void>
   signUp: (email: string, password: string, username: string, role: string) => Promise<void>
   signOut: () => Promise<void>
@@ -37,9 +38,9 @@ interface AuthContextType {
   reload: () => Promise<void>
 }
 
-
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+/** ============== 工具 ============== */
 function decodeExp(token: string): number | null {
   try {
     const base64Url = token.split('.')[1]
@@ -76,6 +77,17 @@ function clearAllAuthSoft() {
   } catch {}
 }
 
+/** ✅ 标签持久化键，并提供清除函数 */
+const TABS_LS_LIST = 'tabs:v2:list'
+const TABS_LS_ACTIVE = 'tabs:v2:active'
+function clearTabsPersistence() {
+  try {
+    localStorage.removeItem(TABS_LS_LIST)
+    localStorage.removeItem(TABS_LS_ACTIVE)
+  } catch {}
+}
+
+/** ============== Provider ============== */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
@@ -111,7 +123,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    // ❗ 刷新失败：清凭据 + 清标签
     clearAllAuthSoft()
+    clearTabsPersistence()
     setUser(null)
   }
 
@@ -132,7 +146,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             const flag = getAuthStorageFlag()
             storageSetAccessToken((refreshed.data as any).token as string, flag)
           } else {
+            // ❗ 初始刷新失败：清凭据 + 清标签
             clearAllAuthSoft()
+            clearTabsPersistence()
             setUser(null)
             setLoading(false)
             return
@@ -141,6 +157,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await refreshUser()
       } catch {
         clearAllAuthSoft()
+        clearTabsPersistence()
         setUser(null)
       } finally {
         setLoading(false)
@@ -148,7 +165,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     })()
   }, [])
 
-  // —— AuthProvider 内的 signIn —— //
   const signIn = async (
     email: string,
     password: string,
@@ -158,9 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const mode: AuthStorageMode = keep7Days ? '7d' : 'session'
     setAuthStorageFlag(mode)
 
-    // ✅ 关键：把 keep7Days 一并传入请求体（无论是否加密登录）
     const result = await auth.login(email, password, { ...(extra ?? {}), keep7Days })
-
     if ((result as any)?.success === false) throw new Error((result as any).error || '登录失败')
 
     const payload = (result as any)?.data ?? (result as any) ?? {}
@@ -195,7 +209,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await auth.logout()
     } catch {}
+    // ✅ 退出登录：清凭据 + 清标签 + 清动态路由缓存
     clearAllAuthSoft()
+    // ✅ 同步清理菜单缓存（可选，但强烈建议）
+    menuApi.clearUserMenusCache()
+
+    clearTabsPersistence()
     setUser(null)
     menuApi.clearRouteTreeCache?.()
   }

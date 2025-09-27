@@ -82,6 +82,7 @@ export default function AddQuestionModal({
     <Modal
       title={`新增题目（${typeTitle}）`}
       open={open}
+      maskClosable={false}
       onCancel={onClose}
       onOk={submit}
       okText="保存"

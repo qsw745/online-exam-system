@@ -21,7 +21,14 @@ export default function NotificationFormModal({
   onSubmit: (v: CreateNotificationForm) => void
 }) {
   return (
-    <Modal title={editing ? '编辑通知' : '发送通知'} open={open} onCancel={onClose} footer={null} width={600}>
+    <Modal
+      maskClosable={false}
+      title={editing ? '编辑通知' : '发送通知'}
+      open={open}
+      onCancel={onClose}
+      footer={null}
+      width={600}
+    >
       <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={{ type: 'info', send_to_all: false }}>
         <Form.Item name="title" label="通知标题" rules={[{ required: true, message: '请输入通知标题' }]}>
           <Input placeholder="请输入通知标题" />

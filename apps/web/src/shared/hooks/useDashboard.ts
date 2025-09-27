@@ -47,7 +47,7 @@ export function useDashboard(limit = 5) {
         queryKey: ['tasks', 'recent', limit],
         queryFn: async (): Promise<QueryResult<Task[]>> => {
           // 后端类型不支持 sort，去掉 sort 以避免 TS 报错
-          const res: any = await tasksApi.list({ limit })
+          const res: any = await tasksApi.listMine({ limit })
           if (isSuccess(res)) {
             const data = res.data as any
             const items: Task[] = Array.isArray(data) ? data : data?.tasks ?? []

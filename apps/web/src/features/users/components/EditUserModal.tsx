@@ -92,6 +92,7 @@ export const EditUserModal: React.FC<{
     <Modal
       title="编辑用户"
       open={open}
+      maskClosable={false}
       onCancel={onCancel}
       onOk={handleOk}
       okText="保存"

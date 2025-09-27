@@ -254,17 +254,30 @@ export class MenuRepository {
     return (row as any)?.org_id ?? null
   }
 
-  static async isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
-    const [[row]] = await pool.query<RowDataPacket[]>(
-      `SELECT 1
-       FROM user_org_roles uor
-       JOIN roles r ON r.id=uor.role_id
-       WHERE uor.user_id=? AND uor.org_id=? AND r.code='admin' AND r.is_disabled=0
-       LIMIT 1`,
-      [userId, orgId]
-    )
-    return !!row
-  }
+    static async isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
+        const [[row]] = await pool.query<RowDataPacket[]>(
+            `
+                SELECT 1 FROM (
+                                  -- 机构内分配的角色
+                                  SELECT r.id, r.code, r.is_disabled
+                                  FROM user_org_roles uor
+                                           JOIN roles r ON r.id = uor.role_id
+                                  WHERE uor.user_id = ? AND uor.org_id = ?
+                                  UNION ALL
+                                  -- 全局分配的角色（仅接受 org_id 为 NULL 或 = 当前 orgId）
+                                  SELECT r2.id, r2.code, r2.is_disabled
+                                  FROM user_roles ur
+                                           JOIN roles r2 ON r2.id = ur.role_id
+                                  WHERE ur.user_id = ? AND (r2.org_id IS NULL OR r2.org_id = ?)
+                              ) T
+                WHERE T.is_disabled = 0 AND T.code IN ('admin', 'super_admin')
+                    LIMIT 1
+            `,
+            [userId, orgId, userId, orgId]
+        )
+        return !!row
+    }
+
 
   // user_menus (个性化授权)
   static async upsertUserMenuPermission(
@@ -289,42 +302,70 @@ export class MenuRepository {
     return res.affectedRows > 0
   }
 
-  // 权限查询（非 admin）
-  static async queryUserMenuPermissionRows(userId: number, orgId: number): Promise<RowDataPacket[]> {
-    const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT DISTINCT
-        m.id           AS menu_id,
-        m.name         AS menu_name,
-        m.title        AS menu_title,
-        m.path, m.component, m.icon,
-        m.parent_id, m.sort_order, m.level,
-        m.menu_type, m.permission_code, m.redirect, m.meta,
-        CASE 
-          WHEN um.permission_type='deny'  THEN FALSE
-          WHEN um.permission_type='grant' THEN TRUE
-          WHEN rm.menu_id IS NOT NULL     THEN TRUE
-          ELSE FALSE
-        END AS has_permission,
-        CASE 
-          WHEN um.permission_type='deny'  THEN 'deny'
-          WHEN um.permission_type='grant' THEN 'user'
-          WHEN rm.menu_id IS NOT NULL     THEN 'role'
-          ELSE 'none'
-        END AS permission_source
-       FROM menus m
-       LEFT JOIN user_menus um ON um.menu_id=m.id AND um.user_id=?
-       LEFT JOIN (
-         SELECT DISTINCT rm.menu_id
-         FROM user_org_roles uor
-         JOIN role_menus rm ON rm.role_id=uor.role_id
-         WHERE uor.user_id=? AND uor.org_id=?
-       ) rm ON rm.menu_id=m.id
-       WHERE m.is_disabled=0
-       ORDER BY m.sort_order ASC, m.id ASC`,
-      [userId, userId, orgId]
-    )
-    return rows
-  }
+    static async queryUserMenuPermissionRows(userId: number, orgId: number): Promise<RowDataPacket[]> {
+        // 同时兼容：
+        // - user_org_roles（机构内分配）
+        // - user_roles（全局分配；仅接受 roles.org_id 为 NULL 或匹配当前 orgId 的角色）
+        const [rows] = await pool.query<RowDataPacket[]>(
+            `
+                WITH role_ids AS (
+                    SELECT uor.role_id
+                    FROM user_org_roles uor
+                    WHERE uor.user_id = ? AND uor.org_id = ?
+                    UNION
+                    SELECT ur.role_id
+                    FROM user_roles ur
+                             JOIN roles r ON r.id = ur.role_id
+                    WHERE ur.user_id = ? AND (r.org_id IS NULL OR r.org_id = ?)
+                ),
+                     role_menu_union AS (
+                         SELECT DISTINCT rm.menu_id
+                         FROM role_menus rm
+                                  JOIN role_ids ri ON ri.role_id = rm.role_id
+                     )
+                SELECT
+                    m.id AS menu_id,
+                    COALESCE(um.name, m.name)                 AS menu_name,
+                    COALESCE(um.title, m.title)               AS menu_title,
+                    COALESCE(um.path, m.path)                 AS path,
+                    COALESCE(um.component, m.component)       AS component,
+                    COALESCE(um.icon, m.icon)                 AS icon,
+                    COALESCE(um.parent_sys_id, m.parent_id)   AS parent_id,
+                    COALESCE(um.sort_order, m.sort_order)     AS sort_order,
+                    m.level                                   AS level,
+                    COALESCE(um.menu_type, m.menu_type)       AS menu_type,
+                    COALESCE(um.permission_code, m.permission_code) AS permission_code,
+                    COALESCE(um.redirect, m.redirect)         AS redirect,
+                    COALESCE(um.meta, m.meta)                 AS meta,
+                    CASE
+                        WHEN uum.permission_type='deny'  THEN FALSE
+                        WHEN uum.permission_type='grant' THEN TRUE
+                        WHEN rmu.menu_id IS NOT NULL     THEN TRUE
+                        ELSE FALSE
+                        END AS has_permission,
+                    CASE
+                        WHEN uum.permission_type='deny'  THEN 'deny'
+                        WHEN uum.permission_type='grant' THEN 'user'
+                        WHEN rmu.menu_id IS NOT NULL     THEN 'role'
+                        ELSE 'none'
+                        END AS permission_source
+                FROM menus m
+                         LEFT JOIN unit_menus um
+                                   ON um.sys_menu_id = m.id AND um.unit_id = ?
+                         LEFT JOIN user_menus uum
+                                   ON uum.menu_id = m.id AND uum.user_id = ?
+                         LEFT JOIN role_menu_union rmu
+                                   ON rmu.menu_id = m.id
+                WHERE
+                    COALESCE(um.is_disabled, m.is_disabled) = 0
+                  AND COALESCE(um.menu_type, m.menu_type) IN ('menu','link','page')
+                ORDER BY COALESCE(um.sort_order, m.sort_order), m.id
+            `,
+            // 参数顺序：uor(user, org), ur(user), roles.org_id filter(org), um.unit_id, uum.user_id
+            [userId, orgId, userId, orgId, orgId, userId]
+        )
+        return rows
+    }
 
   static async checkUserMenuPermissionInOrg(userId: number, orgId: number, menuId: number): Promise<boolean> {
     const [[row]] = await pool.query<RowDataPacket[]>(

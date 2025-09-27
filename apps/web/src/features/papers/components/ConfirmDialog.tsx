@@ -18,7 +18,15 @@ export default function ConfirmDialog({
   cancelText?: string
 }) {
   return (
-    <Modal title={title} open={open} onOk={onOk} onCancel={onCancel} okText={okText} cancelText={cancelText}>
+    <Modal
+      maskClosable={false}
+      title={title}
+      open={open}
+      onOk={onOk}
+      onCancel={onCancel}
+      okText={okText}
+      cancelText={cancelText}
+    >
       {content ? <p style={{ margin: 0 }}>{content}</p> : null}
     </Modal>
   )

@@ -357,6 +357,7 @@ const PaperDetailPage: React.FC = () => {
 
       {/* 添加题目弹窗 */}
       <Modal
+        maskClosable={false}
         title="添加题目到本试卷"
         open={addOpen}
         destroyOnHidden
@@ -387,6 +388,7 @@ const PaperDetailPage: React.FC = () => {
       {/* 基本信息编辑（当前页） */}
       <Modal
         title="编辑试卷基本信息"
+        maskClosable={false}
         open={editOpen}
         onCancel={() => setEditOpen(false)}
         onOk={submitEdit}

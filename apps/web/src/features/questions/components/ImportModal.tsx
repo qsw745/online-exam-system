@@ -182,6 +182,7 @@ export default function ImportModal({
     <Modal
       title="批量导入题目"
       open={open}
+      maskClosable={false}
       onCancel={onClose}
       onOk={startImport}
       okText={loading ? (progress ? `导入中… ${Math.round(progress)}%` : '导入中…') : '开始导入'}

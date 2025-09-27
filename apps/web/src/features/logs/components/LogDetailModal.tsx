@@ -48,6 +48,7 @@ export default function LogDetailModal({
 
   return (
     <Modal
+      maskClosable={false}
       title="日志详情"
       open={open}
       onOk={onClose}

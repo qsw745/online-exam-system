@@ -77,6 +77,7 @@ export default function PickSystemMenuModal({ open, loading, treeData, onOk, onC
 
   return (
     <Modal
+      maskClosable={false}
       title="选择系统菜单作为单位覆盖（可多选）"
       open={open}
       onOk={handleOk}

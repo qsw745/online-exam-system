@@ -40,6 +40,7 @@ export default function OrgSelectModal({
     <Modal
       title="选择机构"
       open={open}
+      maskClosable={false}
       onCancel={onCancel}
       destroyOnHidden
       footer={[

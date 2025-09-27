@@ -67,6 +67,7 @@ export const userSettingsApi = {
 
 // ========= 系统设置（Admin System Settings） =========
 // 说明：这是 Admin 设置页面使用的 API（useSettings Hook 会用这个）
+// ✅ 建议
 const ADMIN_BASE = '/admin/settings'
 
 export const settingsApi = {

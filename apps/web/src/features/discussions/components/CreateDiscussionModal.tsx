@@ -23,6 +23,7 @@ type Props = {
 export const CreateDiscussionModal: React.FC<Props> = ({ open, onClose, categories, form, onSubmit }) => {
   return (
     <Modal
+      maskClosable={false}
       title="发起讨论"
       open={open}
       onCancel={onClose}

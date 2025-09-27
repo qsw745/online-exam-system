@@ -5,12 +5,11 @@ import ProtectedLayout from '@/app/routing/ProtectedLayout'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import AppLayout from '@/shared/components/Layout'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import TabsShell from '@/shared/router/TabsShell' // ← 文件头加这行
 import { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
-import TabsShell from '@/shared/router/TabsShell' // ← 文件头加这行
 
 type RouteNode = {
   path?: string | null
@@ -135,7 +134,8 @@ export default function DynamicRoutes() {
       } else {
         ;(async () => {
           try {
-            const data = await menuApi.routeTree()
+            const data = await menuApi.functionsTree()
+
             if (alive) {
               setTree(Array.isArray(data) ? (data as RouteNode[]) : [])
               setErr(null)

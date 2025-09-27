@@ -160,11 +160,9 @@
 |   |   |   +-- hooks
 |   |   |   |   |   useMenus.ts
 |   |   |   +-- pages
-|   |   |   |   |   FunctionMenusPage.tsx
 |   |   |   |   |   MenuManagementPage.tsx
+|   |   |   |   |   SystemMenusPage.tsx
 |   |   |   |   |   UnitMenusPage.tsx
-|   |   |   +-- utils
-|   |   |   |   model.ts
 |   |   +-- notifications
 |   |   |   +-- components
 |   |   |   |   |   NotificationFormModal.tsx
@@ -263,6 +261,7 @@
 |   |   |   |   |   |   useAnswerState.ts
 |   |   |   |   |   |   usePracticeController.ts
 |   |   |   |   |   |   usePracticeList.ts
+|   |   |   |   +-- pages
 |   |   |   |   +-- utils
 |   |   |   |   |   |   answer.ts
 |   |   |   |   |   |   practiceApi.ts
@@ -276,6 +275,7 @@
 |   |   |   |   |   RolesTable.tsx
 |   |   |   |   |   UserSelectModal.tsx
 |   |   |   +-- hooks
+|   |   |   |   |   useOrgRoles.ts
 |   |   |   |   |   useRoleMembers.ts
 |   |   |   |   |   useRolePermissions.ts
 |   |   |   |   |   useRoles.ts
@@ -381,6 +381,7 @@
 |   |   |   |   |   index.ts
 |   |   |   |   |   Modal.tsx
 |   |   |   |   |   Notice.tsx
+|   |   |   |   AppBreadcrumb.tsx
 |   |   |   |   AuthDebugger.tsx
 |   |   |   |   DataTable.tsx
 |   |   |   |   ErrorBoundary.tsx
@@ -396,12 +397,14 @@
 |   |   |   |   SectionCard.tsx
 |   |   |   |   StatsCard.tsx
 |   |   |   |   StatsCardGroup.tsx
+|   |   |   |   TabsBar.tsx
 |   |   +-- constants
 |   |   |   |   pagination.ts
 |   |   +-- contexts
 |   |   |   |   AuthContext.tsx
 |   |   |   |   LanguageContext.tsx
 |   |   |   |   MenuPermissionContext.tsx
+|   |   |   |   TabsContext.tsx
 |   |   +-- hooks
 |   |   |   |   index.ts
 |   |   |   |   useAnalytics.ts
@@ -415,7 +418,6 @@
 |   |   |   |   useLearningProgress.ts
 |   |   |   |   useLogs.ts
 |   |   |   |   useManualPaper.ts
-|   |   |   |   useMenuPermissions.ts
 |   |   |   |   useMobile.tsx
 |   |   |   |   useNotifications.ts
 |   |   |   |   useOrgTree.ts
@@ -431,6 +433,7 @@
 |   |   |   |   useUserNotifications.ts
 |   |   +-- router
 |   |   |   |   RefreshableOutlet.tsx
+|   |   |   |   TabsShell.tsx
 |   |   +-- styles
 |   |   |   |   antd-override.css
 |   |   |   |   antd-theme.ts

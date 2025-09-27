@@ -5,7 +5,12 @@ import { authenticateToken } from '@/common/middleware/auth'
 import { requireRoleByIds } from '@/common/middleware/role-auth'
 import { ROLE_IDS } from '@/config/roles'
 import type { AuthRequest } from '@/types/auth'
-
+import {
+    listRolesByOrg,
+    createRoleUnderOrg,
+    updateRoleUnderOrg,
+    deleteRoleUnderOrg,
+} from '@/modules/roles/controllers/role.controller'
 const router = Router()
 const wrap =
     (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
@@ -63,6 +68,10 @@ router.put(
     requireRoleByIds([ROLE_IDS.ADMIN]),
     wrap(OrgUserController.moveUser)
 )
-
+/** -------- 组织下的角色 -------- */
+router.get('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(listRolesByOrg))
+router.post('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(createRoleUnderOrg))
+router.put('/:orgId/roles/:id', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(updateRoleUnderOrg))
+router.delete('/:orgId/roles/:id', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(deleteRoleUnderOrg))
 export { router as orgRoutes }
 export default router

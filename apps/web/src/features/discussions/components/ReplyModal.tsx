@@ -15,6 +15,7 @@ type Props = {
 export const ReplyModal: React.FC<Props> = ({ open, onClose, form, onSubmit }) => {
   return (
     <Modal
+      maskClosable={false}
       title="回复讨论"
       open={open}
       onCancel={onClose}

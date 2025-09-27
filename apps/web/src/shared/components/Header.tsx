@@ -1,14 +1,15 @@
-import { useTheme } from '@/app/providers/AntdThemeProvider'
-import { api } from '@/shared/api/http'
-import { MenuItem, useMenuPermissions } from '@/shared/hooks/useMenuPermissions'
-import { Input, message } from 'antd'
-import { Bell, LogOut, Moon, Search as SearchIcon, Settings, Sun, User } from 'lucide-react'
+// src/shared/components/Header.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
-import LoadingSpinner from './LoadingSpinner'
-import { Spin } from 'antd'
+import { Avatar, Dropdown, Input, message, Spin, Tooltip, type MenuProps } from 'antd'
+import { Bell, LogOut, Moon, Search as SearchIcon, Settings, Sun, User as UserIcon, ChevronDown } from 'lucide-react'
+
+import { useTheme } from '@/app/providers/AntdThemeProvider'
+import { api } from '@/shared/api/http'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { MenuItem, useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
+import { useTabs } from '@/shared/contexts/TabsContext'
 
 type ApiSuccess<T = any> = { success: true; data: T; message?: string }
 type ApiFailure = { success: false; error?: string; message?: string }
@@ -58,8 +59,8 @@ function Kbd({ children }: { children: React.ReactNode }) {
 }
 
 function HeaderSearch() {
-  const navigate = useNavigate()
   const { menus } = useMenuPermissions()
+  const { addOrActivate } = useTabs()
   const entries = useMemo(() => flattenMenus(menus), [menus])
 
   const [open, setOpen] = useState(false)
@@ -100,10 +101,10 @@ function HeaderSearch() {
     return () => document.removeEventListener('mousedown', onDoc)
   }, [open])
 
-  const go = (path: string) => {
+  const go = (entry: MenuEntry) => {
+    addOrActivate({ key: entry.path, title: entry.title, closable: entry.path !== '/' })
     setOpen(false)
     setQ('')
-    navigate(path)
   }
 
   return (
@@ -126,7 +127,7 @@ function HeaderSearch() {
             setActive(s => Math.max(0, s - 1))
           } else if (e.key === 'Enter') {
             const pick = results[active]
-            if (pick) go(pick.path)
+            if (pick) go(pick)
           } else if (e.key === 'Escape') {
             ;(e.target as HTMLInputElement).blur()
             setOpen(false)
@@ -166,7 +167,7 @@ function HeaderSearch() {
             {results.map((r, idx) => (
               <li key={r.path}>
                 <button
-                  onClick={() => go(r.path)}
+                  onClick={() => go(r)}
                   onMouseEnter={() => setActive(idx)}
                   style={{
                     width: '100%',
@@ -196,9 +197,125 @@ function HeaderSearch() {
   )
 }
 
-/* ====================== Header（固定在顶，去掉汉堡） ====================== */
+/* ====================== 用户信息芯片 ====================== */
 
-export default function Header() {
+function getDisplayName(u?: { nickname?: string; username?: string; email?: string }) {
+  return u?.nickname?.trim() || u?.username?.trim() || (u?.email ? u.email.split('@')[0] : '用户')
+}
+
+function getInitials(name: string) {
+  // 简单取首字符（中文/英文都 ok）
+  return name?.trim()?.[0]?.toUpperCase() || 'U'
+}
+
+function UserBadge({
+  user,
+  onGoProfile,
+  onGoSettings,
+  onLogout,
+}: {
+  user: any
+  onGoProfile: () => void
+  onGoSettings: () => void
+  onLogout: () => void
+}) {
+  const name = getDisplayName(user)
+  const email = user?.email || ''
+  const items: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <UserIcon size={16} />,
+      label: '个人资料',
+    },
+    {
+      key: 'settings',
+      icon: <Settings size={16} />,
+      label: '设置',
+    },
+    { type: 'divider' as const },
+    {
+      key: 'logout',
+      icon: <LogOut size={16} />,
+      label: '退出登录',
+      danger: true,
+    },
+  ]
+
+  return (
+    <Dropdown
+      trigger={['click']}
+      placement="bottomRight"
+      menu={{
+        items,
+        onClick: ({ key }) => {
+          if (key === 'profile') onGoProfile()
+          else if (key === 'settings') onGoSettings()
+          else if (key === 'logout') onLogout()
+        },
+      }}
+    >
+      <button
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          height: 36,
+          padding: '0 10px 0 6px',
+          borderRadius: 999,
+          border: '1px solid var(--app-colorSplit, rgba(0,0,0,.08))',
+          background: 'var(--app-colorBgContainer, #fff)',
+          color: 'var(--app-colorText, inherit)',
+          cursor: 'pointer',
+        }}
+      >
+        <Avatar
+          src={user?.avatar_url || undefined}
+          size={24}
+          style={{ background: 'var(--app-colorPrimaryBgHover, #e6f4ff)', color: 'var(--app-colorText, #1677ff)' }}
+        >
+          {getInitials(name)}
+        </Avatar>
+        <div style={{ display: 'flex', flexDirection: 'column', lineHeight: 1 }}>
+          <span
+            style={{
+              fontSize: 13,
+              fontWeight: 500,
+              maxWidth: 140,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {name}
+          </span>
+          <Tooltip title={email}>
+            <span
+              style={{
+                fontSize: 12,
+                color: 'var(--app-colorTextTertiary, #999)',
+                maxWidth: 140,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {email}
+            </span>
+          </Tooltip>
+        </div>
+        <ChevronDown size={16} style={{ opacity: 0.7 }} />
+      </button>
+    </Dropdown>
+  )
+}
+
+/* ====================== Header（固定在顶） ====================== */
+
+type HeaderProps = {
+  onMobileMenuToggle?: () => void // 兼容 Layout 里传入的可选回调
+}
+
+export default function Header({ onMobileMenuToggle }: HeaderProps) {
   const navigate = useNavigate()
   const { user, signOut } = useAuth()
   const { mode, toggle } = useTheme()
@@ -315,7 +432,7 @@ export default function Header() {
         top: 0,
         zIndex: 2000,
         width: '100%',
-        height: 64,
+        height: 55,
         borderBottom: '1px solid var(--app-colorSplit, #e5e7eb)',
         backgroundColor: 'var(--app-colorBgElevated, rgba(255,255,255,.95))',
         color: 'var(--app-colorText, #111827)',
@@ -331,7 +448,7 @@ export default function Header() {
           gap: 12,
         }}
       >
-        {/* Logo + 名称（注意：public 里的文件使用 / 绝对路径） */}
+        {/* Logo + 名称 */}
         <a
           href="/"
           style={{
@@ -351,11 +468,10 @@ export default function Header() {
             height={20}
             style={{ display: 'block' }}
             onError={e => {
-              // 避免路径/缓存问题导致空白，降级为文本
               ;(e.currentTarget as HTMLImageElement).style.display = 'none'
             }}
           />
-          {t('app.title')}
+          在线考试系统
         </a>
 
         {/* 中部：搜索 */}
@@ -365,12 +481,19 @@ export default function Header() {
 
         {/* 右侧图标 */}
         <nav style={{ display: 'grid', gridAutoFlow: 'column', alignItems: 'center', gap: 12 }}>
+          {/* 可选：触发移动端侧栏 */}
+          {onMobileMenuToggle && (
+            <button onClick={onMobileMenuToggle} style={{ ...iconBtnBase }} {...hoverHandlers} aria-label="菜单">
+              <span style={{ fontSize: 14 }}>≡</span>
+            </button>
+          )}
+
           <button
             onClick={toggle}
             style={iconBtnBase}
             {...hoverHandlers}
-            aria-label={mode === 'dark' ? t('theme.toggle_light') : t('theme.toggle_dark')}
-            title={mode === 'dark' ? t('theme.toggle_light') : t('theme.toggle_dark')}
+            aria-label={mode === 'dark' ? '切换到浅色' : '切换到深色'}
+            title={mode === 'dark' ? '切换到浅色' : '切换到深色'}
           >
             {mode === 'dark' ? <Sun style={iconSvgStyle} /> : <Moon style={iconSvgStyle} />}
           </button>
@@ -415,7 +538,7 @@ export default function Header() {
                 }}
               >
                 <div style={{ padding: 16 }}>
-                  <h3 style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{t('notifications.title')}</h3>
+                  <h3 style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>通知</h3>
                   <div style={{ marginTop: 8 }}>
                     {notificationsLoading ? (
                       <div style={{ padding: '16px 0', textAlign: 'center' }}>
@@ -463,7 +586,7 @@ export default function Header() {
                           color: 'var(--app-colorTextSecondary)',
                         }}
                       >
-                        {t('notifications.empty')}
+                        暂无通知
                       </div>
                     )}
                   </div>
@@ -472,15 +595,15 @@ export default function Header() {
             )}
           </div>
 
-          <button onClick={() => navigate('/settings')} style={iconBtnBase} {...hoverHandlers}>
-            <Settings style={iconSvgStyle} />
-          </button>
-          <button onClick={() => navigate('/profile')} style={iconBtnBase} {...hoverHandlers}>
-            <User style={iconSvgStyle} />
-          </button>
-          <button onClick={handleLogout} style={iconBtnBase} {...hoverHandlers}>
-            <LogOut style={iconSvgStyle} />
-          </button>
+          {/* ✅ 新增：用户信息芯片（替代单独的设置 / 个人图标按钮） */}
+          {user && (
+            <UserBadge
+              user={user}
+              onGoProfile={() => navigate('/profile')}
+              onGoSettings={() => navigate('/settings')}
+              onLogout={handleLogout}
+            />
+          )}
         </nav>
       </div>
     </header>

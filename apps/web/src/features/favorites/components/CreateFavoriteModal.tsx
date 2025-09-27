@@ -42,6 +42,7 @@ export default function CreateFavoriteModal({ open, onCancel, onSubmit }: Props)
 
   return (
     <Modal
+     
       title="新建收藏夹"
       open={open}
       onCancel={() => {

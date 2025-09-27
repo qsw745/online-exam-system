@@ -1,4 +1,5 @@
-import { rolesApi } from '@/shared/api/http'
+// features/roles/hooks/useRoles.ts
+import { rolesApi } from '@/shared/api/endpoints/roles' // ⭐ 正确来源
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
 
@@ -34,26 +35,18 @@ const unwrap = (r: any) => (r && typeof r === 'object' && 'data' in r ? (r as an
 
 const roleService = {
   async list(params: { page?: number; limit?: number; keyword?: string }) {
-    // const r = await api.get<any>('/roles', { params })
-    const r = await rolesApi.list(params)
+    const r = await rolesApi.list({ page: params.page, pageSize: params.limit, keyword: params.keyword })
     return unwrap(r)
   },
   async create(payload: Partial<Role>) {
-    // const r = await api.post<any>('/roles', payload)
-    const r = await rolesApi.create(payload)
-    return unwrap(r)
-  },
-  async addRog(payload: number) {
-    const r = await rolesApi.addRogs(payload)
+    const r = await rolesApi.create(payload as any)
     return unwrap(r)
   },
   async update(id: number, payload: Partial<Role>) {
-    // const r = await api.put<any>(`/roles/${id}`, payload)
-    const r = await rolesApi.update(id, payload)
+    const r = await rolesApi.update(id, payload as any)
     return unwrap(r)
   },
   async remove(id: number) {
-    // const r = await api.delete<any>(`/roles/${id}`)
     const r = await rolesApi.remove(id)
     return unwrap(r)
   },
@@ -76,11 +69,11 @@ export function useRoles() {
         if (!isOk(resp)) throw new Error(getMsg(resp, '加载角色失败'))
 
         // 1) 主数据
-        const arr = ensureArray<Role>(resp, [])
+        const arr = ensureArray<Role>((resp as any)?.roles ?? resp, []) // 兼容 {roles,total} 与 纯数组
         setList(arr)
 
         // 2) 分页数字兜底
-        const nextTotal = pickTotal(resp, arr.length)
+        const nextTotal = pickTotal(resp, (resp as any)?.total ?? arr.length)
         const nextSize = Number(s)
         const nextPage = Number(p)
 

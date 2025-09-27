@@ -34,7 +34,7 @@ export function useExams(initial: ExamListParams = { page: 1, limit: 10, status:
           type: 'exam', // ✅ 仅拉取考试型任务
           ...override,
         }
-        const res: any = await tasksApi.list(params as any)
+        const res: any = await tasksApi.listMine(params as any)
         const payload = res?.data ?? res
         const list = payload?.items ?? payload?.list ?? payload?.tasks ?? (Array.isArray(payload) ? payload : [])
         setItems(Array.isArray(list) ? list : [])

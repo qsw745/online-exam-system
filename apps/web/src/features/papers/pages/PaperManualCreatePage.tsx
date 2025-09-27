@@ -257,7 +257,7 @@ export default function PaperManualCreatePage() {
   }
 
   return (
-    <div style={{ minWidth: 1200, margin: '0 auto',  }}>
+    <div style={{ minWidth: 1200, margin: '0 auto' }}>
       <AppBreadcrumb />
       <Affix offsetTop={0}>
         <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12 }}>
@@ -484,6 +484,7 @@ export default function PaperManualCreatePage() {
       {/* 手工录入题目 Modal */}
       <Modal
         open={customOpen}
+        maskClosable={false}
         title="手工录入题目"
         onCancel={() => setCustomOpen(false)}
         onOk={onAddCustom}

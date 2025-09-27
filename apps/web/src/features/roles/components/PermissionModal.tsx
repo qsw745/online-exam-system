@@ -27,6 +27,7 @@ export function PermissionModal({
     <Modal
       title={`设置角色权限 - ${role?.name ?? ''}`}
       open={open}
+      maskClosable={false}
       onOk={onOk}
       onCancel={onCancel}
       width={800}

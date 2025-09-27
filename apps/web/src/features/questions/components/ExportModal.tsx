@@ -58,7 +58,15 @@ export default function ExportModal({
   }
 
   return (
-    <Modal title="批量导出" open={open} onCancel={onClose} onOk={doExport} okText="导出" destroyOnHidden>
+    <Modal
+      title="批量导出"
+      maskClosable={false}
+      open={open}
+      onCancel={onClose}
+      onOk={doExport}
+      okText="导出"
+      destroyOnHidden
+    >
       <Space direction="vertical" size="middle">
         <div>
           导出范围：

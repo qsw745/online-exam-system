@@ -87,6 +87,7 @@ function FormModal<T extends object = any>({
   return (
     <Modal
       title={title}
+      maskClosable={false}
       open={open}
       onOk={handleOk}
       onCancel={handleCancel}

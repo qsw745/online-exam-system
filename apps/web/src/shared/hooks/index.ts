@@ -29,9 +29,6 @@ export { default as useDebounce, default as useDebounced } from './useDebounce'
 export * from './useFavorites'
 export { default as useFavorites } from './useFavorites'
 
-export * from './useMenuPermissions'
-export { default as useMenuPermissions } from './useMenuPermissions'
-
 export * from './useMobile'
 export { default as useMobile } from './useMobile'
 

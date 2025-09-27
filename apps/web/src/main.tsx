@@ -13,9 +13,9 @@ import './index.css'
 import '@/shared/utils/dayjs'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
+//   <React.StrictMode>
     <ErrorBoundary>
       <App />
     </ErrorBoundary>
-  </React.StrictMode>
+//   </React.StrictMode>
 )

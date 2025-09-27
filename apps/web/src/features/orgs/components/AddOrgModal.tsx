@@ -21,6 +21,7 @@ export default function AddOrgModal({
 
   return (
     <Modal
+      maskClosable={false}
       title={parentName ? `新增子组织（上级：${parentName}）` : '新增根组织'}
       open={open}
       onOk={handleOk}

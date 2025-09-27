@@ -6,12 +6,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { UserSettings } from '@/shared/types/settings'
 import { api } from '@/shared/api/http'
 
-// 轻量内联服务
-const settingsEndpoint = 'users/settings'
+// ✅ 统一走用户端点（而不是 /admin/settings）
+const settingsEndpoint = '/users/settings'
 const settingsService = {
   async get(): Promise<UserSettings | null> {
     try {
       const r = await api.get<any>(settingsEndpoint)
+      // 兼容 {success,data} 或直出
       const d = (r as any)?.data ?? r
       return (d?.data ?? d ?? null) as UserSettings | null
     } catch {
@@ -20,9 +21,10 @@ const settingsService = {
   },
   async save(payload: UserSettings): Promise<boolean> {
     try {
-      const r = await api.put<any>(settingsEndpoint, payload)
-      const ok = (r as any)?.success
-      return ok !== false
+      // ✅ 与你下方 userSettingsApi 保持一致，使用 POST
+      const r = await api.post<any>(settingsEndpoint, payload)
+      // 兼容 {success} 或空 200
+      return (r as any)?.success !== false
     } catch {
       return false
     }

@@ -30,6 +30,7 @@ export default function UserSelectModal({
     <Modal
       title="选择用户"
       open={open}
+      maskClosable={false}
       onCancel={onCancel}
       footer={[
         <Button key="cancel" onClick={onCancel}>

@@ -36,6 +36,7 @@ export default function RoleMembersModal({
     <Modal
       title={role ? `角色成员 - ${role.name}` : '角色成员'}
       open={open}
+      maskClosable={false}
       onCancel={onClose}
       footer={null}
       width={720}

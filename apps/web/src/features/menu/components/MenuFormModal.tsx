@@ -41,6 +41,7 @@ export default function MenuFormModal({
 
   return (
     <Modal
+      maskClosable={false}
       title={editing ? '编辑菜单' : '新增菜单'}
       open={open}
       onOk={() => form.submit()}

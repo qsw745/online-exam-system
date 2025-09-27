@@ -32,7 +32,15 @@ export default function BatchSortModal({
   }
 
   return (
-    <Modal title="批量调整菜单排序" open={open} onOk={onOk} onCancel={onCancel} width={800} destroyOnHidden>
+    <Modal
+      maskClosable={false}
+      title="批量调整菜单排序"
+      open={open}
+      onOk={onOk}
+      onCancel={onCancel}
+      width={800}
+      destroyOnHidden
+    >
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Typography.Paragraph style={{ color: '#4b5563', marginBottom: 0 }}>
           拖拽下方列表项来调整菜单排序，或直接修改“当前位置”：

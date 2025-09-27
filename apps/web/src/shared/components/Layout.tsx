@@ -83,7 +83,7 @@ const Layout: React.FC = () => {
           }}
         >
           {/* ✅ 在内容上方渲染一次 TabsBar */}
-          <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0',marginTop:'15px' }}>
+          <div style={{ background: '#fff', borderBottom: '1px solid #f0f0f0',marginTop:'5px' ,marginLeft:'16px'}}>
             <TabsBar />
           </div>
 

@@ -32,6 +32,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   return (
     <Modal
       open={open}
+      maskClosable={false}
       title={
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <ExclamationCircleOutlined />

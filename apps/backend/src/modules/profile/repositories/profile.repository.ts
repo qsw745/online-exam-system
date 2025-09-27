@@ -52,6 +52,7 @@ export class ProfileRepository {
         if (map.bio)      selectPieces.push(`${map.bio} as __bio`)
         if (map.avatar)   selectPieces.push(`${map.avatar} as __avatar`)
         if (map.phone)    selectPieces.push(`${map.phone} as __phone`)
+        if(map.school)  selectPieces.push(`${map.school} as __school`)
 
         const sql = `SELECT ${selectPieces.join(', ')} FROM users WHERE id = ? LIMIT 1`
         const [rows] = await pool.query<RowDataPacket[]>(sql, [userId])
@@ -64,6 +65,8 @@ export class ProfileRepository {
             bio:      r.__bio ?? null,
             avatar:   r.__avatar ?? null,
             phone:    r.__phone ?? null,
+            school:     r.__school ?? null,
+            class_name: r.__class_name ?? null,
         }
     }
 
