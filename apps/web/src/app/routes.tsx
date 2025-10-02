@@ -1,29 +1,47 @@
-import { lazy, Suspense, type ReactElement } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
-import LoadingSpinner from '@/shared/components/LoadingSpinner'
+// src/app/routes.tsx
 import NotFound404 from '@/app/errors/NotFound404'
 import ServerError500 from '@/app/errors/ServerError500'
 import DynamicRoutes from '@/app/routing/DynamicRoutes'
+import RouterRoot from '@/app/routing/RouterRoot' // 确保路径指向 src/app/routing/RouterRoot.tsx
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { lazy, Suspense, type ReactElement } from 'react'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 
 const withSuspense = (el: ReactElement) => (
   <Suspense fallback={<LoadingSpinner center="page" text="页面加载中…" />}>{el}</Suspense>
 )
 
-
-// Auth
+// ===== Auth =====
 const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'))
 
+/**
+ * 关键点：
+ * 1) 顶层增加 index 路由：访问 "/" 时立即跳到 "/dashboard"（未登录会被守卫重定向到 /login）
+ * 2) 用 path="*" 挂载 <DynamicRoutes/>，因为它内部使用了 useRoutes() —— 所在路由必须以 * 结尾
+ */
 export const router = createBrowserRouter([
-  { path: '/login', element: withSuspense(<LoginPage />) },
-  { path: '/register', element: withSuspense(<RegisterPage />) },
-  { path: '/forgot-password', element: withSuspense(<ForgotPasswordPage />) },
-  { path: '/reset-password', element: withSuspense(<ResetPasswordPage />) },
+  {
+    path: '/',
+    element: <RouterRoot />,
+    errorElement: <ServerError500 />,
+    children: [
+      // ✅ "/" 命中这里，先跳到默认页（不依赖菜单加载即可避免空白）
+      { index: true, element: <Navigate to="/dashboard" replace /> },
 
-  // ⚠️ 必须用 /* 承接 /dashboard、/exam/list 等所有子路径
-  { path: '/*', element: <DynamicRoutes />, errorElement: <ServerError500 /> },
+      // Auth pages（静态路径优先级高于 "*"）
+      { path: 'login', element: withSuspense(<LoginPage />) },
+      { path: 'register', element: withSuspense(<RegisterPage />) },
+      { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
+      { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
 
-  { path: '*', element: <NotFound404 /> },
+      // ✅ 动态业务路由（/ 之下所有路径）
+      { path: '*', element: <DynamicRoutes /> },
+
+      // 独立 404（可选）
+      { path: '404', element: <NotFound404 /> },
+    ],
+  },
 ])

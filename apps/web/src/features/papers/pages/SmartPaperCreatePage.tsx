@@ -1,5 +1,5 @@
 // features/smart-paper/pages/SmartPaperCreatePage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useSmartPaper } from '@/shared/hooks/useSmartPaper'
 import { Button, Spin } from 'antd'
@@ -33,7 +33,7 @@ export default function SmartPaperCreatePage() {
   if (h.step === 'config') {
     return (
       <div className="space-y-6">
-        <AppBreadcrumb />
+  
         <div className="flex items-center gap-4">
           <Button type="text" onClick={onBackToList} className="flex items-center gap-2">
             <ArrowLeft className="w-4 h-4" /> 返回

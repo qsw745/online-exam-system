@@ -9,12 +9,9 @@ import React, {
   type ReactNode,
 } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useLayout } from '@/shared/contexts/LayoutContext'
 
-export type TabItem = {
-  key: string
-  title: string
-  closable?: boolean
-}
+export type TabItem = { key: string; title: string; closable?: boolean }
 
 type Ctx = {
   tabs: TabItem[]
@@ -31,10 +28,9 @@ const TabsContext = createContext<Ctx | null>(null)
 const LS_LIST = 'tabs:v2:list'
 const LS_ACTIVE = 'tabs:v2:active'
 
-// ✅ 你的“首页”就是仪表盘
+// 你的首页
 const HOME_PATH = '/dashboard'
 
-// 规范化路径：把 / 映射到 /dashboard，并去掉尾部斜杠
 function normalizePath(p: string) {
   const raw = (p || '/').trim()
   if (raw === '/' || raw === '') return HOME_PATH
@@ -52,14 +48,15 @@ function titleFromPath(p: string) {
 export function TabsProvider({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const { persistTabs } = useLayout() // ← 新增：是否持久化
 
   const [tabs, setTabs] = useState<TabItem[]>([])
   const [activeKey, setActiveKey] = useState<string>('')
 
-  // 打破“导航-监听”回路
   const programNavRef = useRef(false)
 
   const load = useCallback(() => {
+    if (!persistTabs) return { list: [] as TabItem[], a: '' }
     try {
       const listRaw = localStorage.getItem(LS_LIST)
       const activeRaw = localStorage.getItem(LS_ACTIVE)
@@ -69,23 +66,30 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     } catch {
       return { list: [], a: '' }
     }
-  }, [])
+  }, [persistTabs])
 
-  const persist = useCallback((list: TabItem[], a: string) => {
-    localStorage.setItem(LS_LIST, JSON.stringify(list))
-    localStorage.setItem(LS_ACTIVE, a || '')
-  }, [])
+  const persist = useCallback(
+    (list: TabItem[], a: string) => {
+      if (!persistTabs) {
+        try {
+          localStorage.removeItem(LS_LIST)
+          localStorage.removeItem(LS_ACTIVE)
+        } catch {}
+        return
+      }
+      try {
+        localStorage.setItem(LS_LIST, JSON.stringify(list))
+        localStorage.setItem(LS_ACTIVE, a || '')
+      } catch {}
+    },
+    [persistTabs]
+  )
 
-  // 首次挂载：从本地恢复，并做“/ -> /dashboard”的去重合并
-  const didInitRef = useRef(false)
+  // 切换持久化开关时，重置一次初始态
   useEffect(() => {
-    if (didInitRef.current) return
-    didInitRef.current = true
-
     const { list, a } = load()
     const cur = normalizePath(location.pathname || '/')
 
-    // 把历史里的 / 替换为 /dashboard，并去重
     const mergedMap = new Map<string, TabItem>()
     for (const t of list) {
       const k = normalizePath(t.key)
@@ -105,13 +109,12 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       setActiveKey(active)
       persist(merged, active)
     }
-  }, [load, location.pathname, persist])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistTabs]) // ← 监听开关
 
-  // 路由变化 -> 同步 activeKey / 自动补标签（已规范化）
+  // 路由变化 -> 同步标签
   useEffect(() => {
-    if (programNavRef.current) {
-      programNavRef.current = false
-    }
+    if (programNavRef.current) programNavRef.current = false
     const cur = normalizePath(location.pathname || '/')
     setActiveKey(prev => (prev === cur ? prev : cur))
     setTabs(prev => {
@@ -197,9 +200,10 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
   const closeAll = useCallback(() => {
     const home = HOME_PATH
-    setTabs([{ key: home, title: titleFromPath(home), closable: false }])
+    const only = [{ key: home, title: titleFromPath(home), closable: false }]
+    setTabs(only)
     setActiveKey(home)
-    persist([{ key: home, title: titleFromPath(home), closable: false }], home)
+    persist(only, home)
     if (normalizePath(location.pathname) !== home) {
       programNavRef.current = true
       navigate(home)

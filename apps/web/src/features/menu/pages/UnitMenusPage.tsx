@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import { Card } from 'antd'
@@ -32,7 +32,7 @@ export default function UnitMenusPage() {
 
   return (
     <>
-      <AppBreadcrumb items={[{ title: '单位菜单', href: '/admin/menus/unit' }]} />
+   
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, height: '100%', padding: 24 }}>
         <Card
           title="组织"

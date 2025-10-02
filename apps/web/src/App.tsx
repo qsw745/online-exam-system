@@ -1,20 +1,17 @@
 import { RouterProvider } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
-// 全局 Provider
 import { AuthProvider } from '@/shared/contexts/AuthContext'
 import { LanguageProvider } from '@/shared/contexts/LanguageContext'
 import { MenuPermissionProvider } from '@/shared/contexts/MenuPermissionContext'
-import { AppProviders } from './AppProviders'
 
-// 路由树（Data Router）—— ✅ 修正导入路径
 import { router } from '@/app/routes'
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      suspense: true, // ✅ 关键
-      useErrorBoundary: true, // 建议配合错误边界
+      suspense: true,
+      useErrorBoundary: true,
       retry: 2,
       retryDelay: 1000,
       refetchOnWindowFocus: false,
@@ -35,9 +32,7 @@ export default function App() {
       <AuthProvider>
         <MenuPermissionProvider>
           <LanguageProvider>
-            <AppProviders>
-              <RouterProvider router={router} />
-            </AppProviders>
+            <RouterProvider router={router} />
           </LanguageProvider>
         </MenuPermissionProvider>
       </AuthProvider>

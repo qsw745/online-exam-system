@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Pagination, Space, Table, Layout } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
@@ -67,7 +67,7 @@ export default function OrgManagementPage() {
 
   return (
     <App>
-      <AppBreadcrumb />
+   
       <Layout style={{ height: '100%', background: 'transparent' }}>
         <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
           <div style={{ padding: 12 }}>

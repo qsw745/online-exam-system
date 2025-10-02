@@ -1,5 +1,5 @@
 // features/admin-settings/pages/AdminSettingsPage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import SectionCard from '@/shared/components/SectionCard'
 import { SettingOutlined } from '@ant-design/icons'
 import { Col, Row, Typography } from 'antd'
@@ -12,7 +12,7 @@ export default function AdminSettingsPage() {
 
   return (
     <div >
-      <AppBreadcrumb />
+ 
       <div style={{ marginBottom: 24 }}>
         <Title level={2}>
           <SettingOutlined style={{ marginRight: 8 }} />

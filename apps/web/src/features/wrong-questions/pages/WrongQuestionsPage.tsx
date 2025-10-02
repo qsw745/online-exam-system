@@ -1,5 +1,5 @@
 // apps/web/src/features/wrong-questions/pages/WrongQuestionsPage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { Button, Card, Empty, Pagination, Segmented, Space, Spin, Typography } from 'antd'
 import { BookOpen, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -56,7 +56,7 @@ export default function WrongQuestionsPage() {
 
   return (
     <>
-      <AppBreadcrumb />
+   
       <Space direction="vertical" size="large" style={{ width: '100%', padding: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space direction="vertical" size={0}>

@@ -9,7 +9,7 @@ import { SubjectsTable } from '../components/SubjectsTable'
 import { StudentsTable } from '../components/StudentsTable'
 import type { StudentRow } from '../components/StudentsTable'
 import { RefreshButton } from '@/shared/components/RefreshButton'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 export default function AnalyticsPage() {
   const { message } = App.useApp()
 
@@ -39,7 +39,7 @@ export default function AnalyticsPage() {
 
   return (
       <div className="p-6">
-          <AppBreadcrumb/>
+        
       {/* 标题 & 筛选 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">

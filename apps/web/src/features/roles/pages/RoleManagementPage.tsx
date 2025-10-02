@@ -3,7 +3,7 @@ import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Layout, Pagination, Space, Table } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks/useOrgTree'
 
@@ -69,7 +69,7 @@ export default function RoleManagementPage() {
 
   return (
     <App>
-      <AppBreadcrumb />
+    
       <Layout style={{ height: '100%', background: 'transparent' }}>
         {/* 左侧机构树 */}
         <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>

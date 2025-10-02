@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
@@ -44,7 +44,7 @@ export default function ResultsPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <AppBreadcrumb />
+  
       <div>
         <Title level={2}>{t('results.title')}</Title>
         <Text type="secondary">{t('results.description')}</Text>

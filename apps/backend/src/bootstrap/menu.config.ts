@@ -1,12 +1,15 @@
-// apps/backend/src/bootstrap/menu.config.ts
 // --- 统一：component 采用“前端注册表里的 key” ---
+
+/** 和仓库白名单保持一致 */
+export type MenuType = 'menu' | 'page' | 'link' | 'button' | 'iframe' | 'dir'
+
 export type MenuSeed = {
     name: string
     title: string
     path?: string | null
-    component?: string
+    component?: string | null
     icon?: string | null
-    menu_type?: 'menu' | 'page' | 'button'
+    menu_type?: MenuType
     is_hidden?: boolean
     is_disabled?: boolean
     is_system?: boolean
@@ -14,123 +17,79 @@ export type MenuSeed = {
     level?: number
     redirect?: string | null
     permission_code?: string | null
-    meta?: Record<string, any>
+    meta?: Record<string, any> | null
     children?: MenuSeed[]
+}
+
+/* ------------------------- 小工具 -------------------------- */
+const DYNAMIC_RE = /[:\[\{]/
+const hasDynamic = (p?: string | null) => !!(p && DYNAMIC_RE.test(p))
+const ensureAbsPath = (p?: string | null): string | null => {
+    if (!p) return null
+    const t = String(p).trim()
+    if (!t) return null
+    return t.startsWith('/') ? t : `/${t}`
 }
 
 /** 找第一个可用于跳转的非动态子路径（用于目录 redirect） */
 function firstNonDynamicChildPath(children?: MenuSeed[]): string | null {
     if (!children?.length) return null
     for (const c of children) {
-        const p = (c.path || '').trim()
-        if (p && !/[:\[\{]/.test(p)) return p
+        const p = ensureAbsPath(c.path)
+        if (p && !hasDynamic(p)) return p
         const deep = firstNonDynamicChildPath(c.children)
         if (deep) return deep
     }
     return null
 }
 
-/** 二级与三级是否“等价”（标题、路径或组件其一相同即视为等价） */
-function roughlyEqual(a: MenuSeed, b: MenuSeed): boolean {
-    if (a.title && b.title && a.title === b.title) return true
-    if (a.path && b.path && a.path === b.path) return true
-    if (a.component && b.component && a.component === b.component) return true
-    return false
+/** 目录节点：强制 menu_type=menu；保留/清空 path 均可，这里保留传入 path */
+function asDir(n: MenuSeed): MenuSeed {
+    return { ...n, menu_type: 'menu', component: null }
 }
 
+/** 叶子节点：路径绝对化；动态路径默认隐藏（可被 is_hidden 显式覆盖） */
+function normalizeLeaf(n: MenuSeed): MenuSeed {
+    const t = (n.menu_type ?? 'page') as MenuType
+    const path = ensureAbsPath(n.path)
+    const hiddenByDynamic = hasDynamic(path) ? true : undefined
+    return {
+        ...n,
+        menu_type: t,
+        path,
+        is_hidden: typeof n.is_hidden === 'boolean' ? n.is_hidden : hiddenByDynamic ?? false,
+    }
+}
+
+/* ------------------------- 规范化（不限层级） -------------------------- */
 /**
- * 规范化：将任意树“压缩”为 **最多两层**
+ * 不再压成两层；保留任意层级：
+ * - 有 children => 目录（menu），自动补 redirect（优先显式 redirect 其后找第一个可跳转子路径）
+ * - 无 children => 叶子（page/link/iframe/button），做基本清洗
  */
-function normalizeToTwoLevels(nodes: MenuSeed[], depth = 1): MenuSeed[] {
+function normalizeAnyDepth(nodes: MenuSeed[] | undefined): MenuSeed[] {
+    if (!nodes?.length) return []
     const out: MenuSeed[] = []
-
-    for (const n of nodes || []) {
-        const children = Array.isArray(n.children) ? n.children : []
-
-        if (depth === 1) {
-            if (children.length > 0) {
-                // 顶层有子：作为目录
-                const normalizedChildren = normalizeToTwoLevels(children, 2)
-                const redirect = n.redirect ?? firstNonDynamicChildPath(normalizedChildren) ?? (n.path || null)
-                out.push({
-                    ...n,
-                    component: undefined,
-                    menu_type: 'menu',
-                    path: null,
-                    redirect,
-                    children: normalizedChildren,
-                })
-            } else {
-                // 顶层单页：包成 目录 + 同名子页
-                const child: MenuSeed = {
-                    name: n.name.endsWith('-index') ? n.name : `${n.name}-index`,
-                    title: n.title,
-                    path: n.path || null,
-                    component: n.component,
-                    icon: null,
-                    menu_type: 'page',
-                    is_hidden: n.is_hidden,
-                    is_disabled: n.is_disabled,
-                    is_system: n.is_system,
-                    sort_order: 1,
-                    redirect: null,
-                    permission_code: n.permission_code,
-                    meta: n.meta ? { ...n.meta } : undefined,
-                }
-                out.push({
-                    ...n,
-                    component: undefined,
-                    menu_type: 'menu',
-                    path: null,
-                    redirect: n.path || n.redirect || null,
-                    children: [child],
-                })
-            }
-            continue
-        }
-
-        // depth === 2：生成二级页面
-        if (children.length === 0) {
-            out.push({ ...n, menu_type: 'page', children: undefined })
-            continue
-        }
-
-        if (children.length === 1 && roughlyEqual(n, children[0])) {
-            const only = children[0]
+    for (const raw of nodes) {
+        const children = Array.isArray(raw.children) ? raw.children : []
+        if (children.length) {
+            const normalizedChildren = normalizeAnyDepth(children)
             out.push({
-                ...n,
-                title: n.title || only.title,
-                path: only.path ?? n.path ?? null,
-                component: only.component ?? n.component,
-                menu_type: 'page',
-                children: undefined,
+                ...asDir(raw),
+                path: ensureAbsPath(raw.path), // 目录可保留自身 path（若不想能点可设为 null）
+                redirect: raw.redirect ?? firstNonDynamicChildPath(normalizedChildren) ?? null,
+                children: normalizedChildren,
             })
-            continue
-        }
-
-        for (const gc of children) {
-            out.push({
-                name: `${n.name}-${gc.name}`,
-                title: gc.title,
-                path: gc.path ?? null,
-                component: gc.component,
-                icon: null,
-                menu_type: 'page',
-                is_hidden: gc.is_hidden,
-                is_disabled: gc.is_disabled,
-                is_system: gc.is_system ?? n.is_system,
-                sort_order: gc.sort_order,
-                redirect: null,
-                permission_code: gc.permission_code,
-                meta: gc.meta,
-            })
+        } else {
+            out.push(normalizeLeaf({ ...raw, children: undefined }))
         }
     }
-
+    // 稳定排序
+    out.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
     return out
 }
 
-/** ===== 原始种子：最终会被压缩为“最多两层” ===== */
+/* ------------------------- 原始种子（任意层） -------------------------- */
 const RAW_MENU: MenuSeed[] = [
     // ===== 仪表盘 =====
     {
@@ -179,9 +138,7 @@ const RAW_MENU: MenuSeed[] = [
         meta: { requireAuth: true },
         permission_code: 'tasks:view',
         children: [
-            // 卡片式“我的任务”
             { name: 'tasks-my', title: '我的任务', path: '/tasks/my', component: 'task-my', menu_type: 'page', sort_order: 1, meta: { requireAuth: true, keepAlive: true }, permission_code: 'tasks:my' },
-            // 隐藏的任务详情（从列表进入）
             { name: 'tasks-detail', title: '任务详情', path: '/tasks/detail/:id', component: 'task-detail', menu_type: 'page', sort_order: 2, is_hidden: true, meta: { requireAuth: true }, permission_code: 'tasks:detail' },
         ],
     },
@@ -219,7 +176,7 @@ const RAW_MENU: MenuSeed[] = [
         ],
     },
 
-    // ===== 数据分析 / 个人资料（单页 → 自动包一层目录）=====
+    // ===== 数据分析 / 个人资料（单页）=====
     { name: 'analytics', title: '数据分析', path: '/analytics', component: 'analytics', icon: 'bar-chart', menu_type: 'page', sort_order: 50, meta: { requireAuth: true, keepAlive: true }, permission_code: 'analytics:view' },
     { name: 'profile', title: '个人资料', path: '/profile', component: 'profile', icon: 'user', menu_type: 'page', sort_order: 60, meta: { requireAuth: true, keepAlive: true }, permission_code: 'profile:view' },
 
@@ -317,5 +274,37 @@ const RAW_MENU: MenuSeed[] = [
     },
 ]
 
-/** 导出：压缩为“最多两层”的菜单树 */
-export const MENU_TREE: MenuSeed[] = normalizeToTwoLevels(RAW_MENU)
+/* ------------------------- 导出：保留多层树 & 扁平列表 -------------------------- */
+
+/** 多层树（不限层级），用于系统表同步 / 前端动态路由 */
+export const MENU_TREE: MenuSeed[] = normalizeAnyDepth(RAW_MENU)
+
+/** 扁平列表（带 level/parentName），DFS 展开 */
+export const MENU_FLAT: Array<MenuSeed & { level: number; parentName?: string | null }> = (() => {
+    const out: Array<MenuSeed & { level: number; parentName?: string | null }> = []
+    const dfs = (nodes: MenuSeed[], level: number, parentName: string | null) => {
+        for (const n of nodes) {
+            const { children, ...self } = n
+            out.push({ ...(self as any), level, parentName })
+            if (children?.length) dfs(children, level + 1, n.name)
+        }
+    }
+    dfs(MENU_TREE, 1, null)
+    return out
+})()
+
+/** 可选：导出冻结版本，避免运行时被篡改 */
+function deepFreeze<T>(obj: T): T {
+    if (obj && typeof obj === 'object') {
+        Object.freeze(obj as any)
+        for (const k of Object.keys(obj as any)) {
+            // @ts-ignore
+            deepFreeze((obj as any)[k])
+        }
+    }
+    return obj
+}
+deepFreeze(MENU_TREE)
+deepFreeze(MENU_FLAT)
+
+export default MENU_TREE

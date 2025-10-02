@@ -11,7 +11,7 @@ import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 // 弹窗组件
 import { orgsApi } from '@/shared/api/endpoints/orgs'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { BindUserModal } from '../components/BindUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
@@ -134,7 +134,7 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <>
-      <AppBreadcrumb />
+   
       <Layout style={{ padding: 16 }}>
         <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
           <OrgTreePanel

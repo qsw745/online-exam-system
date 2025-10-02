@@ -5,7 +5,7 @@ import React from 'react'
 import { useQuestionQuery } from '@/shared/hooks/useQuestionQuery'
 import { useQuestionSelection } from '@/shared/hooks/useQuestionSelection'
 
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import AddQuestionModal from '../components/AddQuestionModal'
 import ExportModal from '../components/ExportModal'
 import ImportModal from '../components/ImportModal'
@@ -27,7 +27,7 @@ export default function QuestionManagementPage() {
 
   return (
     <div >
-      <AppBreadcrumb />
+    
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>
           题目管理

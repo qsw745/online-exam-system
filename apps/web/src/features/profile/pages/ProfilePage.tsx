@@ -1,5 +1,5 @@
 // features/profile/pages/ProfilePage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { App, Button, Card, Space, Typography } from 'antd'
 import { Save } from 'lucide-react'
 import AvatarUploader from '../components/AvatarUploader'
@@ -14,7 +14,7 @@ export default function ProfilePage() {
   return (
     // ✅ 提供 antd App 上下文，避免 message 警告 & 让 App.useApp() 生效
     <App>
-      <AppBreadcrumb />
+     
       <Space direction="vertical" size="large" style={{ width: '100%', margin: '0 auto', padding: 24 }}>
         <Title level={2}>{t('profile.title')}</Title>
 

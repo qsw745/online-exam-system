@@ -1,63 +1,116 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Drawer, Menu } from 'antd'
+import React, { useMemo, useState, useEffect } from 'react'
+import { Drawer, Menu, Tooltip } from 'antd'
 import { useLocation } from 'react-router-dom'
 import { IconRenderer } from '@/shared/components/IconRenderer'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { MenuItem, useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTabs } from '@/shared/contexts/TabsContext'
+import { useLayout } from '@/shared/contexts/LayoutContext'
+import { ChevronsLeft, ChevronsRight } from 'lucide-react'
 
-interface DynamicSidebarProps {
-  className?: string
-  collapsed?: boolean
-  width?: number
-  onToggle?: () => void
+/* ---------- 工具 ---------- */
+const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p || '')
+const norm = (p: string) => (p || '').replace(/\/+$/, '') || '/'
+const cleanPath = (p?: string | null) =>
+  ('/' + (p || '')).replace(/\/{2,}/g, '/').replace(/(?:\/index|-index)(?=\/?$)/, '')
+
+function readHiddenRaw(m: any): any {
+  if (!m) return undefined
+  if (m.is_hidden !== undefined) return m.is_hidden
+  if (m.isHidden !== undefined) return m.isHidden
+  if (m.hidden !== undefined) return m.hidden
+  if (m.meta?.hidden !== undefined) return m.meta.hidden
+  if (m.meta?.is_hidden !== undefined) return m.meta.is_hidden
+  if (typeof m.meta?.visible === 'boolean') return !m.meta.visible
+  return undefined
+}
+const isHiddenFlag = (v: any) =>
+  v === true || v === 1 || (typeof v === 'string' && ['1', 'true', 'yes'].includes(v.trim().toLowerCase()))
+const safeNotHidden = (m: any) => !isHiddenFlag(readHiddenRaw(m))
+const shouldShowInMenu = (m: any) => {
+  if (!safeNotHidden(m)) return false
+  const p = (m?.path ?? '').trim()
+  if (p && hasDynamic(p)) return false
+  return true
 }
 
-/** 动态路由判定（带 : / [ ] / { } 认为是动态） */
-const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p || '')
+/** 在混合模式下：优先使用 activeRootId；没有时根据当前地址自动推断根菜单 */
+function pickMixRoot(menus: MenuItem[], activeRootId?: string | null, pathname = '/') {
+  const roots = (menus || []).filter(shouldShowInMenu)
+  let root = roots.find(r => String((r as any).id) === String(activeRootId || ''))
+  if (root) return root
 
-/** 归一化路径末尾斜杠 */
-const norm = (p: string) => (p || '').replace(/\/+$/, '') || '/'
+  const pn = norm(cleanPath(pathname))
+  let matched: MenuItem | null = null
 
-/** 根据用户菜单构建：antd items、id->path、id->title、parentId 映射 */
+  const dfs = (list: MenuItem[], top: MenuItem) => {
+    for (const m of list || []) {
+      if (!shouldShowInMenu(m)) continue
+      const raw = (m as any).path
+      if (raw && !hasDynamic(raw)) {
+        const p = norm(cleanPath(raw))
+        if (pn === p || pn.startsWith(p + '/')) matched = top
+      }
+      if ((m as any).children?.length) dfs((m as any).children, top)
+      if (matched) return
+    }
+  }
+  for (const r of roots) {
+    dfs([r], r)
+    if (matched) break
+  }
+  return matched || roots[0] || null
+}
+
+/* ---------- 构建 items & 映射 ---------- */
 function buildMenuArtifacts(menus: MenuItem[]) {
   type AntdItem = any
   const items: AntdItem[] = []
   const id2path = new Map<string, string>()
   const id2title = new Map<string, string>()
-  const parent = new Map<string, string | null>() // childId -> parentId
+  const id2redirect = new Map<string, string>()
+  const parent = new Map<string, string | null>()
+  const rootOpenableKeys: string[] = []
 
   const walk = (list: MenuItem[], parentId: string | null): AntdItem[] =>
-    list
-      .filter(m => !m.is_hidden)
-      .map(m => {
-        const id = String(m.id) // ✅ 所有 key 一律用 id
-        parent.set(id, parentId)
-        id2title.set(id, m.title)
-        if (m.path && !hasDynamic(m.path)) id2path.set(id, m.path)
+    (list || []).filter(shouldShowInMenu).map(m => {
+      const id = String((m as any).id)
+      parent.set(id, parentId)
+      id2title.set(id, (m as any).title)
 
-        const icon = <IconRenderer icon={m.icon || 'lucide:LayoutDashboard'} size={18} />
+      const pathRaw = (m as any).path
+      if (pathRaw && !hasDynamic(pathRaw)) {
+        const p = cleanPath(pathRaw)
+        if (p) id2path.set(id, p)
+      }
+      const redirectRaw = (m as any).redirect
+      if (redirectRaw) id2redirect.set(id, cleanPath(redirectRaw))
 
-        if (m.children?.length) {
-          return { key: id, icon, label: m.title, children: walk(m.children, id) }
-        }
-        return { key: id, icon, label: m.title }
-      })
+      const iconName = (m as any).icon || 'lucide:LayoutDashboard'
+      const icon = <IconRenderer icon={iconName} size={18} />
+      const children = ((m as any).children || []).filter(shouldShowInMenu)
 
-  items.push(...walk(menus, null))
-  return { items, id2path, id2title, parent }
+      if (children.length) {
+        if (parentId === null) rootOpenableKeys.push(id)
+        return { key: id, icon, label: (m as any).title, title: (m as any).title, children: walk(children, id) }
+      }
+      return { key: id, icon, label: (m as any).title, title: (m as any).title }
+    })
+
+  items.push(...walk(menus as any, null))
+  return { items, id2path, id2title, id2redirect, parent, rootOpenableKeys }
 }
 
-/** 找到当前 pathname 对应的“最深匹配”的菜单 id（用 path 前缀匹配，越深越优先） */
+/* ---------- 选中态：用清洗后的 path 匹配 ---------- */
 function findActiveIdByPath(menus: MenuItem[], pathname: string): string | undefined {
-  const pn = norm(pathname)
+  const pn = norm(cleanPath(pathname))
   let best: { id: string; depth: number; len: number } | null = null
-
   const dfs = (list: MenuItem[], depth: number) => {
-    for (const m of list) {
+    for (const raw of list || []) {
+      if (!safeNotHidden(raw)) continue
+      const m: any = raw
       if (m.path && !hasDynamic(m.path)) {
-        const p = norm(m.path)
+        const p = norm(cleanPath(m.path))
         if (pn === p || pn.startsWith(p + '/')) {
           const id = String(m.id)
           const len = p.length
@@ -73,7 +126,6 @@ function findActiveIdByPath(menus: MenuItem[], pathname: string): string | undef
   return best?.id
 }
 
-/** 回溯祖先 id（不含自己），从近到远（父->祖父->...）需要 open 的 SubMenu keys */
 function collectAncestorIds(parent: Map<string, string | null>, id?: string): string[] {
   const out: string[] = []
   let cur = id
@@ -86,45 +138,57 @@ function collectAncestorIds(parent: Map<string, string | null>, id?: string): st
   return out
 }
 
-/* ======================== 桌面侧栏 ======================== */
-export default function DynamicSidebar({
-  className = '',
-  collapsed = false,
-  width = 240,
-  onToggle,
-}: DynamicSidebarProps) {
+const HEADER_H = 55
+const BOTTOM_CTRL_H = 44 // 底部固定控制条高度
+
+/* ======================== 桌面侧栏（side + mix） ======================== */
+export default function DynamicSidebar({ className = '', width = 240 }: { className?: string; width?: number }) {
+  const { mode, collapsed, showBrand, activeRootId, toggleCollapsed } = useLayout()
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
   const { addOrActivate } = useTabs()
 
-  // 统一构建 items / 各种映射
-  const { items, id2path, id2title, parent } = useMemo(() => buildMenuArtifacts(menus), [menus])
+  // 顶部模式不渲染侧栏
+  if (mode === 'top') return null
 
-  // 选中项：用“最深匹配”的 id
-  const selectedId = useMemo(() => findActiveIdByPath(menus, location.pathname), [menus, location.pathname])
+  // mix：只展示当前“根菜单”的 children；side：展示整棵
+  const scopedMenus = useMemo(() => {
+    if (mode !== 'mix') return menus
+    const root = pickMixRoot(menus, activeRootId, location.pathname)
+    return (root?.children as any[]) || []
+  }, [menus, mode, activeRootId, location.pathname])
 
-  // 必须保持展开的祖先 keys
+  const { items, id2path, id2title, id2redirect, parent, rootOpenableKeys } = useMemo(
+    () => buildMenuArtifacts(scopedMenus),
+    [scopedMenus]
+  )
+
+  const selectedId = useMemo(() => findActiveIdByPath(scopedMenus, location.pathname), [scopedMenus, location.pathname])
   const mustOpenAncestors = useMemo(() => collectAncestorIds(parent, selectedId), [parent, selectedId])
 
-  // 当前展开 keys（受控）。初始化为必须展开的祖先；后续合并，避免自动合上。
   const [openKeys, setOpenKeys] = useState<string[]>(mustOpenAncestors)
-
-  // 路由变化 / 选中项变化：把必须展开的祖先“并入” openKeys，保证父级不会自动合上
   useEffect(() => {
     if (collapsed) return
-    setOpenKeys(prev => {
-      const next = Array.from(new Set([...prev, ...mustOpenAncestors]))
-      return next
-    })
+    setOpenKeys(mustOpenAncestors)
   }, [mustOpenAncestors, collapsed])
+
+  const siderW = collapsed ? 64 : width
+  const brandH = showBrand ? HEADER_H : 0
 
   if (loading) {
     return (
       <aside
-        className={className}
-        style={{ width, height: '100vh', borderRight: '1px solid #f0f0f0', background: '#fff' }}
+        className={`app-sider ${className || ''}`}
+        style={{
+          position: 'fixed',
+          zIndex: 1100,
+          inset: '0 auto 0 0',
+          width: siderW,
+          background: '#fff',
+          borderRight: '1px solid #f0f0f0',
+        }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
+        <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
           <LoadingSpinner size="sm" center={false} />
         </div>
       </aside>
@@ -133,8 +197,15 @@ export default function DynamicSidebar({
   if (error) {
     return (
       <aside
-        className={className}
-        style={{ width, height: '100vh', borderRight: '1px solid #f0f0f0', background: '#fff' }}
+        className={`app-sider ${className || ''}`}
+        style={{
+          position: 'fixed',
+          zIndex: 1100,
+          inset: '0 auto 0 0',
+          width: siderW,
+          background: '#fff',
+          borderRight: '1px solid #f0f0f0',
+        }}
       >
         <div style={{ padding: 16, color: '#dc2626' }}>菜单加载失败：{error}</div>
       </aside>
@@ -143,88 +214,156 @@ export default function DynamicSidebar({
 
   return (
     <aside
-      className={className}
+      className={`app-sider ${className || ''}`}
       style={{
-        width,
-        height: '100vh',
-        borderRight: '1px solid #f0f0f0',
+        position: 'fixed',
+        zIndex: 1100,
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: siderW,
         background: '#fff',
-        overflowY: 'auto',
-        overscrollBehavior: 'contain',
-        WebkitOverflowScrolling: 'touch' as any,
+        borderRight: '1px solid #f0f0f0',
+        overflow: 'hidden',
       }}
     >
-      {/* 顶部条：Logo + 折叠按钮 */}
-      <div
-        style={{
-          position: 'sticky',
-          top: 0,
-          zIndex: 1,
-          height: 56,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 8,
-          padding: '0 8px',
-          background: '#fff',
-          borderBottom: '1px solid #f0f0f0',
-        }}
-      >
-        <a
-          href="/"
+      {/* 顶部品牌区 */}
+      {showBrand && (
+        <div
           style={{
+            height: HEADER_H,
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            overflow: 'hidden',
-            textDecoration: 'none',
-            color: 'inherit',
+            padding: '0 12px',
+            boxSizing: 'border-box',
           }}
-          title="首页"
         >
-          <img src="/brand-logo.svg" alt="Logo" width={24} height={24} style={{ display: 'block', flexShrink: 0 }} />
-          {!collapsed && <span style={{ fontWeight: 700, whiteSpace: 'nowrap' }}>在线考试系统</span>}
-        </a>
+          <img
+            src="/brand-logo.svg"
+            alt="Logo"
+            width={20}
+            height={20}
+            style={{ display: 'block' }}
+            onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+          />
+          {!collapsed && <strong style={{ fontSize: 14 }}>在线考试系统</strong>}
+        </div>
+      )}
 
-        <button
-          onClick={onToggle}
-          style={{
-            width: 32,
-            height: 32,
-            display: 'grid',
-            placeItems: 'center',
-            border: 'none',
-            background: 'transparent',
-            borderRadius: 6,
-            cursor: 'pointer',
+      {/* 菜单滚动区（预留底部固定区域高度） */}
+      <div style={{ height: `calc(100% - ${brandH + BOTTOM_CTRL_H}px)`, overflowY: 'auto' }}>
+        <Menu
+          mode="inline"
+          selectable
+          inlineCollapsed={collapsed}
+          triggerSubMenuAction="hover"
+          items={items}
+          selectedKeys={selectedId ? [selectedId] : []}
+          openKeys={collapsed ? undefined : openKeys}
+          onOpenChange={nextKeys => {
+            if (collapsed) return
+            const next = nextKeys as string[]
+            const newlyOpened = next.find(k => !openKeys.includes(k))
+            if (newlyOpened && rootOpenableKeys.includes(newlyOpened)) {
+              const filtered = next.filter(k => !rootOpenableKeys.includes(k))
+              filtered.push(newlyOpened)
+              setOpenKeys(filtered)
+            } else setOpenKeys(next)
           }}
-          title={collapsed ? '展开菜单' : '收起菜单'}
-          aria-label={collapsed ? '展开菜单' : '收起菜单'}
-        >
-          {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-        </button>
+          onClick={({ key, keyPath }) => {
+            const id = String(key)
+            const path = id2path.get(id)
+            const title = id2title.get(id) || ''
+
+            if (path) {
+              const p = cleanPath(path)
+              ;(window as any).scrollTo?.(0, 0)
+              addOrActivate({ key: p, title, closable: p !== '/' })
+              return
+            }
+            const redirect = id2redirect.get(id)
+            if (redirect) {
+              const p = cleanPath(redirect)
+              ;(window as any).scrollTo?.(0, 0)
+              addOrActivate({ key: p, title: title || '菜单', closable: p !== '/' })
+              return
+            }
+
+            if (!collapsed) {
+              const parentId = (keyPath?.[1] as string) || null
+              if (parentId) setOpenKeys(prev => Array.from(new Set([...prev, parentId])))
+            }
+          }}
+          style={{ borderRight: 0, padding: 8 }}
+        />
       </div>
 
-      <Menu
-        mode="inline"
-        selectable
-        inlineCollapsed={collapsed}
-        items={items}
-        // ✅ Menu 的 key 全部是 id
-        selectedKeys={selectedId ? [selectedId] : []}
-        openKeys={collapsed ? undefined : openKeys}
-        onOpenChange={ks => setOpenKeys(ks as string[])}
-        onClick={({ key }) => {
-          const id = String(key)
-          const path = id2path.get(id)
-          if (path) {
-            const title = id2title.get(id) || ''
-            // Tabs 的 key 仍然用 path，避免改变你现有的标签逻辑
-            addOrActivate({ key: path, title, closable: path !== '/' })
-          }
+      {/* 右侧边缘中部悬浮折叠按钮 */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 2,
+          transform: 'translateY(-50%)',
+          zIndex: 1200,
         }}
-        style={{ borderRight: 0, padding: 8 }}
-      />
+      >
+        <Tooltip title={collapsed ? '点击展开' : '点击折叠'} placement="right">
+          <button
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            style={{
+              width: 24,
+              height: 34,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: 4,
+              border: '1px solid rgba(0,0,0,.08)',
+              background: '#fff',
+              boxShadow: '0 4px 14px rgba(0,0,0,.08)',
+              cursor: 'pointer',
+            }}
+          >
+            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* 底部固定控制条（不随菜单滚动） */}
+      <div
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          width: '100%',
+          height: BOTTOM_CTRL_H,
+          borderTop: '1px solid #f0f0f0',
+          background: '#fff',
+          display: 'grid',
+          placeItems: 'center',
+        }}
+      >
+        <Tooltip title={collapsed ? '点击展开' : '点击折叠'}>
+          <button
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            style={{
+              width: 32,
+              height: 32,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: 8,
+              border: '1px solid rgba(0,0,0,.08)',
+              background: '#fff',
+              boxShadow: '0 2px 8px rgba(0,0,0,.06)',
+              cursor: 'pointer',
+            }}
+          >
+            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+          </button>
+        </Tooltip>
+      </div>
     </aside>
   )
 }
@@ -235,7 +374,11 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const location = useLocation()
   const { addOrActivate } = useTabs()
 
-  const { items, id2path, id2title } = useMemo(() => buildMenuArtifacts(menus), [menus])
+  const { items, id2path, id2title } = useMemo(() => {
+    const built = buildMenuArtifacts(menus)
+    return { items: built.items, id2path: built.id2path, id2title: built.id2title }
+  }, [menus])
+
   const selectedId = useMemo(() => findActiveIdByPath(menus, location.pathname), [menus, location.pathname])
 
   return (
@@ -262,7 +405,8 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
             const path = id2path.get(id)
             if (path) {
               const title = id2title.get(id) || ''
-              addOrActivate({ key: path, title, closable: path !== '/' })
+              const p = cleanPath(path)
+              addOrActivate({ key: p, title, closable: p !== '/' })
               onClose()
             }
           }}

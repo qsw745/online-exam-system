@@ -6,7 +6,7 @@ import { GradeTable } from '@/features/analytics/components/GradeTable'
 import ResultDetailContent from '@/features/analytics/components/ResultDetailContent'
 import { useGrades } from '@/features/analytics/hooks/useGrades'
 import { api, isSuccess } from '@/shared/api/http'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import type { ResultDetail } from '@/shared/types/grades'
 import { App, Card, Divider, Drawer, Skeleton, Space, Typography } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
@@ -115,7 +115,7 @@ const GradeManagementPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <AppBreadcrumb />
+   
       <div>
         <Title level={2} style={{ marginBottom: 4 }}>
           成绩管理

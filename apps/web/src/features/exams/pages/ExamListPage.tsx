@@ -1,5 +1,5 @@
 // src/features/exams/pages/ExamListPage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { createPaginationConfig } from '@/shared/constants/pagination'
 import { FilterOutlined, SearchOutlined } from '@ant-design/icons'
 import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Typography } from 'antd'
@@ -19,7 +19,7 @@ export default function ExamListPage() {
 
   return (
     <div style={{ padding: 8 }}>
-      <AppBreadcrumb />
+   
       {/* 标题 */}
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>

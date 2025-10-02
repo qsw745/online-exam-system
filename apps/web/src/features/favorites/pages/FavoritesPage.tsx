@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { useFavorites } from '@/shared/hooks/useFavorites'
 import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
 import { BookOpen, Heart, Plus, Star } from 'lucide-react'
@@ -39,7 +39,7 @@ export default function FavoritesPage() {
 
   return (
     <div >
-      <AppBreadcrumb />
+   
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 标题 + 按钮 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

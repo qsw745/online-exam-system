@@ -3,7 +3,7 @@ import { DataOverviewCards } from '@/features/analytics/components/DataOverviewC
 import { DataPeriodFilter } from '@/features/analytics/components/DataPeriodFilter'
 import { DifficultyDistribution } from '@/features/analytics/components/DifficultyDistribution'
 import { KnowledgePointsPanel } from '@/features/analytics/components/KnowledgePointsPanel'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { RefreshButton } from '@/shared/components/RefreshButton'
 import type { Period } from '@/shared/hooks/useDataAnalytics'
@@ -30,7 +30,7 @@ const DataAnalyticsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <AppBreadcrumb />
+   
       {/* 标题 */}
       <div className="flex items-center space-x-3">
         <BarChart3 className="w-6 h-6 text-blue-600" />

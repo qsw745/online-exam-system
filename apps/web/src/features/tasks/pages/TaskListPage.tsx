@@ -5,7 +5,7 @@ import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 
 const { RangePicker } = DatePicker
 
@@ -77,7 +77,7 @@ const TaskListPage: React.FC = () => {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {/* <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks/list' }, { title: '任务列表' }]} /> */}
       {/* ✅ 公共面包屑：默认自动根据菜单生成 */}
-      <AppBreadcrumb />
+    
 
       <Card title="任务列表" variant="outlined">
         <Space wrap>

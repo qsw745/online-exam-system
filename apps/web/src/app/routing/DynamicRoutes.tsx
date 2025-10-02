@@ -6,8 +6,8 @@ import { menuApi } from '@/shared/api/endpoints/menu'
 import AppLayout from '@/shared/components/Layout'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useAuth } from '@/shared/contexts/AuthContext'
-import TabsShell from '@/shared/router/TabsShell' // ← 文件头加这行
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import TabsShell from '@/shared/router/TabsShell'
+import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { componentRegistry } from './pageRegistry'
 
@@ -20,13 +20,15 @@ type RouteNode = {
   children?: RouteNode[]
 }
 
-/** 拼出绝对路径 */
+/* -------------------- 路径工具 -------------------- */
+const collapseSlashes = (p: string) => p.replace(/\/{2,}/g, '/')
+/** 绝对路径拼接 */
 function joinAbs(parentAbs: string, childPath: string | null | undefined): string {
   const raw = (childPath || '').trim()
   if (!raw) return parentAbs || '/'
-  if (raw.startsWith('/')) return raw.replace(/\/{2,}/g, '/')
+  if (raw.startsWith('/')) return collapseSlashes(raw)
   const base = parentAbs && parentAbs !== '/' ? parentAbs : ''
-  return `${base}/${raw}`.replace(/\/{2,}/g, '/')
+  return collapseSlashes(`${base}/${raw}`)
 }
 const isAdminAbs = (abs: string) => abs === '/admin' || abs.startsWith('/admin/')
 function absToRel(abs: string, base: '/admin' | '/'): string {
@@ -39,13 +41,23 @@ function relativize(childRel: string, parentRel: string): string {
   return childRel.startsWith(parentRel + '/') ? childRel.slice(parentRel.length + 1) : childRel
 }
 
+/** 末尾 index 规范化（支持 xxx-index 或 xxx/index） */
+const stripIndexSuffix = (p: string) => p.replace(/(?:\/index|-index)(?=\/?$)/, '')
+
+/** 把 rel 路径规范化；若是带 index 的路径，返回 clean 与 alias */
+function normalizeRel(rel: string) {
+  const clean = stripIndexSuffix(rel)
+  const hasAlias = clean !== rel
+  return { clean, alias: hasAlias ? rel : null }
+}
+
 const fallbackText: Record<string, string> = {
   dashboard: '加载仪表盘数据…',
   tasks: '加载我的任务…',
   'exam-list': '加载考试列表…',
 }
 
-/** 从注册表安全拿组件并构造成元素（不要直接调用 Cmp(props)） */
+/** 从注册表安全拿组件并构造成元素 */
 function elementFromRegistry(key: string) {
   const Cmp = componentRegistry[key] as React.ComponentType<any> | undefined
   const tip = fallbackText[key] ?? '页面加载中…'
@@ -58,16 +70,17 @@ function elementFromRegistry(key: string) {
   )
 }
 
-/** 为目录节点生成 index 重定向（遵从后端 redirect） */
+/** 为目录节点生成 index 重定向（遵从并规范后端 redirect） */
 function makeIndexRedirect(n: RouteNode, base: '/' | '/admin'): RouteObject | null {
-  const to = (n.redirect || '').trim()
-  if (!to) return null
+  const raw = (n.redirect || '').trim()
+  if (!raw) return null
+  const to = stripIndexSuffix(collapseSlashes(raw)) // <-- 规范化 redirect
   const inAdmin = isAdminAbs(to)
   if ((base === '/' && inAdmin) || (base === '/admin' && !inAdmin)) return null
   return { index: true, element: <Navigate to={to} replace /> }
 }
 
-/** 从菜单构建路由 */
+/* -------------------- 从菜单构建路由（不限层级） -------------------- */
 function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', parentRel = ''): RouteObject[] {
   const out: RouteObject[] = []
 
@@ -86,7 +99,7 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const relRaw = absToRel(abs, base)
     const rel = relativize(relRaw, parentRel)
 
-    // 目录节点（无 component）：递归 children
+    // 目录节点（无 component）
     if (!n.component) {
       const nested: RouteNode[] = []
       const floating: RouteNode[] = []
@@ -95,6 +108,7 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
         if (childAbs === abs || childAbs.startsWith(abs + '/')) nested.push(c)
         else floating.push(c)
       }
+
       const childrenNested = nested.length ? buildRoutes(nested, base, abs, relRaw) : []
       const idxRedirect = makeIndexRedirect(n, base)
       if (idxRedirect) childrenNested.unshift(idxRedirect)
@@ -110,9 +124,21 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const element = elementFromRegistry(n.component!)
     const nestedChildren = n.children?.length ? buildRoutes(n.children, base, abs, relRaw) : undefined
 
-    // 当 rel 为空：生成 index 路由；否则按 path 正常挂载
-    if (!rel) out.push({ index: true, element })
-    else out.push({ path: rel, element, children: nestedChildren })
+    // 规范化页面路径，处理 *-index / */index
+    const { clean, alias } = normalizeRel(rel)
+
+    // 主路由：用“干净路径”
+    if (!clean) {
+      out.push({ index: true, element, children: nestedChildren })
+    } else {
+      out.push({ path: clean, element, children: nestedChildren })
+    }
+
+    // 别名：旧地址重定向到干净地址，避免 404（比如 /dashboard-index -> /dashboard）
+    if (alias) {
+      const destAbs = stripIndexSuffix(abs) || (base === '/admin' ? '/admin' : '/')
+      out.push({ path: alias, element: <Navigate to={destAbs} replace /> })
+    }
   }
 
   return out
@@ -120,7 +146,6 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
 
 export default function DynamicRoutes() {
   const { user, loading: authLoading } = useAuth()
-
   const [tree, setTree] = useState<RouteNode[] | null>(null)
   const [err, setErr] = useState<string | null>(null)
 
@@ -135,7 +160,6 @@ export default function DynamicRoutes() {
         ;(async () => {
           try {
             const data = await menuApi.functionsTree()
-
             if (alive) {
               setTree(Array.isArray(data) ? (data as RouteNode[]) : [])
               setErr(null)
@@ -158,39 +182,64 @@ export default function DynamicRoutes() {
   }, [authLoading, user])
 
   const routes: RouteObject[] = useMemo(() => {
-    if (authLoading) return [{ path: '*', element: <LoadingSpinner center="page" text="加载中…" /> }]
-
-    if (!user) {
-      return [{ element: <ProtectedLayout />, children: [{ path: '*', element: <Navigate to="/login" replace /> }] }]
+    // 必须包含 index 路由，否则访问 "/" 时会命中空路径导致空白
+    if (authLoading) {
+      return [
+        { index: true, element: <LoadingSpinner center="page" text="加载中…" /> },
+        { path: '*', element: <LoadingSpinner center="page" text="加载中…" /> },
+      ]
     }
 
-    if (err) return [{ path: '*', element: <NotFound404 /> }]
-    if (tree === null) return [{ path: '*', element: <LoadingSpinner center="page" text="加载中…" /> }]
+    if (!user) {
+      return [
+        {
+          element: <ProtectedLayout />,
+          children: [
+            { index: true, element: <Navigate to="/login" replace /> },
+            { path: '*', element: <Navigate to="/login" replace /> },
+          ],
+        },
+      ]
+    }
+
+    if (err) {
+      return [
+        { index: true, element: <NotFound404 /> },
+        { path: '*', element: <NotFound404 /> },
+      ]
+    }
+
+    if (tree === null) {
+      return [
+        { index: true, element: <LoadingSpinner center="page" text="加载中…" /> },
+        { path: '*', element: <LoadingSpinner center="page" text="加载中…" /> },
+      ]
+    }
 
     const rootRoutes = buildRoutes(tree, '/')
     const adminRoutes = buildRoutes(tree, '/admin')
 
     const extraFixedRoutes: RouteObject[] = [
       { path: 'exam/:id', element: elementFromRegistry('exam') },
-      { path: 'exam/task/:taskId', element: elementFromRegistry('exam') }, // 兼容旧路径
+      { path: 'exam/task/:taskId', element: elementFromRegistry('exam') },
       { path: 'results/:id', element: elementFromRegistry('result-detail') },
-
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },
       { path: 'settings', element: elementFromRegistry('settings') },
-      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') }, // 学员端任务详情
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
     ]
 
     const extraAdminRoutes: RouteObject[] = [
       { path: 'question-detail/:id', element: elementFromRegistry('question-detail') },
       { path: 'question-edit/:id', element: elementFromRegistry('question-edit') },
-      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') }, // 后台任务详情
+      { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
       { path: 'paper-detail/:id', element: elementFromRegistry('paper-detail') },
       { path: 'paper-edit/:id', element: elementFromRegistry('paper-edit') },
       { path: 'tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
     ]
 
+    // 选择一个默认首页（优先 dashboard）
     const defaultHome =
       (rootRoutes.find(r => 'path' in r && (r as any).path === 'dashboard') as any)?.path ||
       (rootRoutes.find(r => 'path' in r && (r as any).path && (r as any).path !== '*') as any)?.path ||

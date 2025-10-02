@@ -1,0 +1,135 @@
+/* 顶部细线去掉 */
+.app-tabs-bar .ant-tabs-nav::before { display: none !important; }
+
+/* 官方蓝色 ink-bar（line 类型才生效） */
+.app-tabs-bar .ant-tabs-ink-bar {
+  height: 3px;
+  background: #609fff;
+  border-radius: 2px;
+}
+
+/* —— 全局可调参数 —— */
+.app-tabs-bar {
+  --tab-h: 36px;            /* 统一高度 */
+  --tab-px: 16px;           /* 左右内边距 */
+  --tab-gap: 0px;           /* 标签间距(想要紧挨着就 0) */
+  --tab-minw: 116px;        /* 每个标签最小宽度，防止太窄 */
+  --split: #e5e7eb;         /* 分隔线颜色 */
+  --hover-bar-h: 2px;       /* 悬停预览条厚度 */
+  --hover-bar-pad: 0px;     /* 预览条左右缩进 */
+  --close-size: 16px;       /* 关闭按钮盒子大小 */
+}
+
+/* 紧挨着的一条带子 */
+.app-tabs-bar .ant-tabs-nav-list { column-gap: var(--tab-gap) !important; }
+.app-tabs-bar .ant-tabs-tab { margin: 0 !important; }
+
+/* 标签容器：高度 + 内边距 + 最小宽度 + 垂直居中 */
+.app-tabs-bar .ant-tabs-tab {
+  position: relative;
+  height: var(--tab-h);
+  padding: 0 var(--tab-px);
+  min-width: var(--tab-minw);
+  display: flex;
+  align-items: center;               /* 垂直居中关键1 */
+  background: #fff;
+}
+
+/* 把 antd 包裹按钮也撑满并居中，修掉“看起来有点靠上”的问题 */
+.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn {
+  display: flex;                     /* 垂直居中关键2 */
+  align-items: center;               /* 垂直居中关键3 */
+  height: 100%;
+  line-height: 1;
+}
+
+/* label 容器横排对齐 */
+.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;                          /* 文字与关闭按钮间距 */
+}
+
+/* 激活态左右“边框”，第一项不画左边 */
+.app-tabs-bar .ant-tabs-tab-active {
+  box-shadow: inset 1px 0 0 var(--split), inset -1px 0 0 var(--split);
+}
+.app-tabs-bar .ant-tabs-tab-active:first-child {
+  box-shadow: inset -1px 0 0 var(--split);
+}
+
+/* 悬停的“蓝色预览条”，从 0 → 100% 动画 */
+.app-tabs-bar .ant-tabs-tab::after {
+  content: "";
+  position: absolute;
+  left: var(--hover-bar-pad);
+  right: var(--hover-bar-pad);
+  bottom: 0;
+  height: var(--hover-bar-h);
+  background: #91c3ff;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform .22s ease;
+}
+.app-tabs-bar .ant-tabs-tab:hover::after { transform: scaleX(1); }
+/* 激活时隐藏预览条（让位给 ink-bar） */
+.app-tabs-bar .ant-tabs-tab-active::after { display: none; }
+
+/* 关闭按钮：16×16，圆角，hover 有底色；默认略淡，hover 显示 */
+.app-tabs-bar .tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--close-size);
+  height: var(--close-size);
+  border-radius: 4px;
+  color: #bfbfbf;
+  opacity: .9;
+  transition: background .12s ease, color .12s ease;
+}
+.app-tabs-bar .ant-tabs-tab:hover .tab-close { opacity: 1; }
+.app-tabs-bar .tab-close:hover {
+  background: rgba(0,0,0,.06);
+  color: #666;
+}
+
+/* 底部分隔线 */
+.app-tabs-bar { border-bottom: 1px solid #f0f0f0; }
+
+/* 让 tab 自身成为 flex 容器 */
+.app-tabs-bar .ant-tabs-tab {
+  display: flex;
+  align-items: center;
+  height: var(--tab-h, 36px);
+}
+
+/* 关键：让按钮占满整格，并水平居中内容 */
+.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn {
+  flex: 1 1 auto;          /* 占满可用宽度 */
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* 水平居中 */
+  height: 100%;
+}
+
+/* 你的自定义 label 再次居中，避免 Dropdown 包裹导致内容宽度仅等于文字 */
+.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn > .tab-label-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;  /* 再保险地居中 */
+  width: 100%;              /* 让它跟随按钮宽度 */
+  gap: 8px;                 /* 文本与关闭按钮的间距 */
+}
+
+/* 关闭按钮尺寸与手感 */
+.app-tabs-bar .tab-close {
+  width: 16px;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: #9aa0a6;
+  transition: background .12s ease, color .12s ease;
+}
+.app-tabs-bar .tab-close:hover { background: rgba(0,0,0,.06); color: #555; }

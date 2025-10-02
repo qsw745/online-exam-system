@@ -1,7 +1,7 @@
 import LogDetailModal from '@/features/logs/components/LogDetailModal'
 import LogsFilters from '@/features/logs/components/LogsFilters'
 import LogsTable from '@/features/logs/components/LogsTable'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useLogs } from '@/shared/hooks/useLogs'
 import { Button, Card, Pagination, Space, Typography } from 'antd'
@@ -29,7 +29,7 @@ export default function LogsPage() {
 
   return (
     <div >
-      <AppBreadcrumb />
+    
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <Space>
           <FileText style={{ width: 24, height: 24, color: '#1677ff' }} />

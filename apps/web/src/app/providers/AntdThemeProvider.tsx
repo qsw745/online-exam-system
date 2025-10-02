@@ -28,7 +28,7 @@ export const useTheme = () => {
 export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [mode, setMode] = useState<Mode>(detectInitialMode)
 
-  // ← 语言（驱动 antd locale）
+  // 语言（驱动 antd locale）
   const [lang, setLang] = useState<string>(() => {
     try {
       return localStorage.getItem('language') || 'zh-CN'
@@ -55,11 +55,21 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
 
   const toggle = () => setMode(p => (p === 'dark' ? 'light' : 'dark'))
 
+  // 统一抬高全局弹层(Modal/Drawer/Dropdown/Tooltip/Select等)的基础 z-index
+  // 你的侧栏≈1100/1200、头部≈1000、标签栏≈999~1200；设到 3500 足够压住它们
+  const POPUP_Z = 3500
+
   const themeConfig: ThemeConfig = useMemo(
     () => ({
       algorithm: mode === 'dark' ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
       cssVar: { key: 'app' },
-      token: { colorPrimary: '#3b82f6', borderRadius: 8, fontSize: 14, controlHeight: 36 },
+      token: {
+        colorPrimary: '#3b82f6',
+        borderRadius: 8,
+        fontSize: 14,
+        controlHeight: 36,
+        zIndexPopupBase: POPUP_Z, // ★ 新增：全局弹层基准层级
+      },
       components: {
         Layout: {
           headerBg: mode === 'dark' ? '#0f172a' : '#0B1220',

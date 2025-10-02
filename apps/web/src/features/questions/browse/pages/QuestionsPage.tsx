@@ -1,5 +1,5 @@
 // src/features/questions/browse/pages/QuestionsPage.tsx
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useQuestionsQuery } from '@/shared/hooks/useQuestionsQuery'
@@ -85,7 +85,7 @@ export default function QuestionsPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-      <AppBreadcrumb />
+  
       <Card>
         <PageHeader
           viewType={q.viewType}

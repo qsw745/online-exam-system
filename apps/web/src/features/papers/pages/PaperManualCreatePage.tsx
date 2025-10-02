@@ -1,6 +1,6 @@
 import { api } from '@/shared/api/core/httpClient'
 import { papersApi } from '@/shared/api/endpoints/papers'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import dayjs from '@/shared/utils/dayjs'
 import { PlusOutlined } from '@ant-design/icons'
 import {
@@ -258,7 +258,7 @@ export default function PaperManualCreatePage() {
 
   return (
     <div style={{ minWidth: 1200, margin: '0 auto' }}>
-      <AppBreadcrumb />
+    
       <Affix offsetTop={0}>
         <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12 }}>
           <Row align="middle" justify="space-between">

@@ -1,18 +1,25 @@
-// src/pages/errors/ServerError500.tsx
+import React from 'react'
 import { Button, Result } from 'antd'
-import { useNavigate } from 'react-router-dom'
 
 export default function ServerError500() {
-  const nav = useNavigate()
   return (
     <Result
       status="500"
       title="500"
-      subTitle="抱歉，服务器出错了。"
+      subTitle="抱歉，服务器发生错误。"
       extra={
-        <Button type="primary" onClick={() => nav('/dashboard')}>
-          返回首页
-        </Button>
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+          <a
+            href="/"
+            onClick={e => {
+              e.preventDefault()
+              window.location.assign('/') // 不依赖 React Router
+            }}
+          >
+            <Button type="primary">返回首页</Button>
+          </a>
+          <Button onClick={() => window.location.reload()}>刷新页面</Button>
+        </div>
       }
     />
   )

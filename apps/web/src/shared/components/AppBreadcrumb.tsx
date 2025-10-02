@@ -97,12 +97,12 @@ export default function AppBreadcrumb({
       className={className}
       style={{
         background: '#fff',
-        borderBottom: '1px solid #f0f0f0',
-        padding: '8px 12px',
+        // borderBottom: '1px solid #f0f0f0',
+        // padding: '8px 12px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        marginBottom: 8,
+        // marginBottom: 8,
         ...style,
       }}
     >

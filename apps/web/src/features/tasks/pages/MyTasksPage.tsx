@@ -7,7 +7,7 @@ import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 const { RangePicker } = DatePicker
 
 const MyTasksPage: React.FC = () => {
@@ -52,7 +52,7 @@ const MyTasksPage: React.FC = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {/* <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks/list' }, { title: '我的任务' }]} /> */}
-      <AppBreadcrumb/>
+  
 
       <Card title="我的任务" variant="outlined">
         <Space wrap>

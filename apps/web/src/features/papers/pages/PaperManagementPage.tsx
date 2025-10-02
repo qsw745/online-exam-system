@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { createPaginationConfig } from '@/shared/constants/pagination'
 import { usePapersList } from '@/shared/hooks/usePapersList'
@@ -37,7 +37,7 @@ export default function PaperManagementPage() {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <AppBreadcrumb />
+   
       <Card
         title={
           <Space direction="vertical" size={4} style={{ width: '100%' }}>

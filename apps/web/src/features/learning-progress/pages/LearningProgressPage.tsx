@@ -1,4 +1,4 @@
-import AppBreadcrumb from '@/shared/components/AppBreadcrumb'
+
 import { useLearningProgress } from '@/shared/hooks/useLearningProgress'
 import { Col, Row, Space, Spin, Typography } from 'antd'
 import { TrendingUp } from 'lucide-react'
@@ -24,7 +24,7 @@ export default function LearningProgressPage() {
 
   return (
     <div >
-      <AppBreadcrumb />
+ 
       <div className="flex items-center justify-between mb-6">
         <Space>
           <TrendingUp style={{ width: 24, height: 24, color: '#1890ff' }} />

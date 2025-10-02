@@ -24,6 +24,7 @@
 |   |   |   |   DynamicSidebar.tsx
 |   |   |   |   pageRegistry.ts
 |   |   |   |   ProtectedLayout.tsx
+|   |   |   |   RouterRoot.tsx
 |   |   |   routes.tsx
 |   +-- features
 |   |   +-- admin
@@ -374,6 +375,9 @@
 |   |   |   |   |   question-normalize.ts
 |   |   |   |   http.ts
 |   |   +-- components
+|   |   |   +-- css
+|   |   |   |   |   header.css
+|   |   |   |   |   TabsBar.css
 |   |   |   +-- ui
 |   |   |   |   |   Button.tsx
 |   |   |   |   |   ConfirmDialog.tsx
@@ -391,6 +395,8 @@
 |   |   |   |   IconRenderer.tsx
 |   |   |   |   index.ts
 |   |   |   |   Layout.tsx
+|   |   |   |   LayoutOffsetVars.tsx
+|   |   |   |   LayoutSwitchDrawer.tsx
 |   |   |   |   LoadingSpinner.tsx
 |   |   |   |   OrgTreePanel.tsx
 |   |   |   |   RefreshButton.tsx
@@ -398,11 +404,13 @@
 |   |   |   |   StatsCard.tsx
 |   |   |   |   StatsCardGroup.tsx
 |   |   |   |   TabsBar.tsx
+|   |   |   |   TopNav.tsx
 |   |   +-- constants
 |   |   |   |   pagination.ts
 |   |   +-- contexts
 |   |   |   |   AuthContext.tsx
 |   |   |   |   LanguageContext.tsx
+|   |   |   |   LayoutContext.tsx
 |   |   |   |   MenuPermissionContext.tsx
 |   |   |   |   TabsContext.tsx
 |   |   +-- hooks
