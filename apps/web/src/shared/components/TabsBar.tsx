@@ -1,9 +1,12 @@
-// src/shared/components/TabsBar.tsx
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { useTabs } from '@/shared/contexts/TabsContext'
-import { Dropdown, Tabs, type MenuProps } from 'antd'
+import { getTitle as getRegisteredTitle } from '@/shared/contexts/tabsTitleRegistry'
+import type { MenuProps } from 'antd'
+import { Dropdown } from 'antd'
 import {
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Maximize2,
   Minimize2,
   Minus,
@@ -13,19 +16,34 @@ import {
   Split,
   X,
 } from 'lucide-react'
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import './css/TabsBar.css'
+
+const SCROLL_STEP = 260
+const HOME_PATH = '/dashboard' // 仪表盘路径
 
 export const TabsBar: React.FC = () => {
   const navigate = useNavigate()
   const { tabs, activeKey, closeTab, closeOthers, closeAll } = useTabs()
   const { showTabs, mode, collapsed } = useLayout()
+  if (!showTabs) return null
 
   const hasSider = mode === 'side' || mode === 'mix'
   const siderOffset = hasSider ? (collapsed ? 64 : 240) : 0
 
-  // 当前激活位置 & 左右可关列表
+  /* ---------- 全屏（可选） ---------- */
+  const [fullscreen, setFullscreen] = useState(false)
+  const toggleFullscreen = () => {
+    setFullscreen(s => {
+      const next = !s
+      if (next) document.body.setAttribute('data-content-fullscreen', '1')
+      else document.body.removeAttribute('data-content-fullscreen')
+      return next
+    })
+  }
+
+  /* ---------- 顶部更多菜单 ---------- */
   const activeIndex = useMemo(() => tabs.findIndex(t => t.key === activeKey), [tabs, activeKey])
   const leftKeys = useMemo(
     () =>
@@ -48,18 +66,6 @@ export const TabsBar: React.FC = () => {
     [tabs, activeIndex]
   )
 
-  // 全屏切换（可选）
-  const [fullscreen, setFullscreen] = useState(false)
-  const toggleFullscreen = () => {
-    setFullscreen(s => {
-      const next = !s
-      if (next) document.body.setAttribute('data-content-fullscreen', '1')
-      else document.body.removeAttribute('data-content-fullscreen')
-      return next
-    })
-  }
-
-  // —— 全局菜单（右侧下拉按钮） ——
   const globalMenuItems: MenuProps['items'] = useMemo(
     () => [
       { key: 'reload', icon: <RotateCw size={16} />, label: '重新加载' },
@@ -116,107 +122,176 @@ export const TabsBar: React.FC = () => {
     }
   }
 
-  // —— 每个标签的右键菜单 ——（和你截图一致）
-  const buildTabContextMenu = (key: string): MenuProps['items'] => [
-    { key: `reload:${key}`, icon: <RotateCw size={16} />, label: '重新加载' },
-    { type: 'divider' as const },
-    { key: `close:${key}`, icon: <X size={16} />, label: '关闭当前标签页' },
-    {
-      key: `closeLeft:${key}`,
-      icon: <PanelLeftClose size={16} />,
-      label: '关闭左侧标签页',
-      disabled: key === activeKey ? leftKeys.length === 0 : false,
-    },
-    {
-      key: `closeRight:${key}`,
-      icon: <PanelRightClose size={16} />,
-      label: '关闭右侧标签页',
-      disabled: key === activeKey ? rightKeys.length === 0 : false,
-    },
-    { type: 'divider' as const },
-    { key: `closeOthers:${key}`, icon: <Split size={16} />, label: '关闭其他标签页' },
-    { key: `closeAll:${key}`, icon: <Minus size={16} />, label: '关闭全部标签页' },
-  ]
+  /* ---------- 展示数据 ---------- */
+  const items = useMemo(
+    () =>
+      tabs.map(t => ({
+        key: t.key,
+        title: getRegisteredTitle(t.key) || t.title,
+        closable: t.closable !== false,
+      })),
+    [tabs]
+  )
 
-  const onTabMenuClick: MenuProps['onClick'] = ({ key }) => {
-    // key 形如 "close:xxx"
-    const [action, tabKey] = String(key).split(':')
+  /* ---------- 滚动/箭头 ---------- */
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const [canLeft, setCanLeft] = useState(false)
+  const [canRight, setCanRight] = useState(false)
+  const [overflowing, setOverflowing] = useState(false)
+
+  const updateScrollState = () => {
+    const wrap = wrapRef.current
+    if (!wrap) return
+    const overflow = wrap.scrollWidth - wrap.clientWidth > 1
+    setOverflowing(overflow)
+    setCanLeft(wrap.scrollLeft > 1)
+    setCanRight(wrap.scrollLeft + wrap.clientWidth < wrap.scrollWidth - 1)
+  }
+
+  useEffect(() => {
+    const wrap = wrapRef.current
+    const list = listRef.current
+    if (!wrap || !list) return
+
+    const onScroll = () => updateScrollState()
+    wrap.addEventListener('scroll', onScroll, { passive: true })
+
+    const ro = new ResizeObserver(updateScrollState)
+    ro.observe(wrap)
+    ro.observe(list)
+
+    requestAnimationFrame(() => {
+      updateScrollState()
+      requestAnimationFrame(updateScrollState)
+      Promise.resolve().then(updateScrollState)
+      setTimeout(updateScrollState, 0)
+    })
+
+    window.addEventListener('resize', updateScrollState)
+    return () => {
+      wrap.removeEventListener('scroll', onScroll)
+      ro.disconnect()
+      window.removeEventListener('resize', updateScrollState)
+    }
+  }, [tabs.length])
+
+  const scrollBy = (dx: number) => wrapRef.current?.scrollBy({ left: dx, behavior: 'smooth' })
+
+  useEffect(() => {
+    const wrap = wrapRef.current
+    const list = listRef.current
+    if (!wrap || !list) return
+    const activeEl = list.querySelector<HTMLDivElement>(`.scroll-item[data-key="${activeKey}"]`)
+    if (!activeEl) return
+    const wRect = wrap.getBoundingClientRect()
+    const aRect = activeEl.getBoundingClientRect()
+    if (aRect.left < wRect.left) wrap.scrollBy({ left: aRect.left - wRect.left - 16, behavior: 'smooth' })
+    else if (aRect.right > wRect.right) wrap.scrollBy({ left: aRect.right - wRect.right + 16, behavior: 'smooth' })
+  }, [activeKey])
+
+  /* ---------- 右键菜单（细化规则） ---------- */
+  type CtxItem = { k: string; icon: JSX.Element; label: string }
+  type CtxState = { show: boolean; x: number; y: number; key: string | null; items: CtxItem[] }
+  const [menu, setMenu] = useState<CtxState>({ show: false, x: 0, y: 0, key: null, items: [] })
+
+  const isDashboard = (k: string) => {
+    const t = tabs.find(t => t.key === k)
+    return t ? t.closable === false || t.key === HOME_PATH : k === HOME_PATH
+  }
+
+  const buildCtxItems = (clickedKey: string): CtxItem[] => {
+    const all = tabs
+    const total = all.length
+    const includeDashboard = all.some(t => t.closable === false || t.key === HOME_PATH)
+
+    // 1) 仪表盘：仅“重新加载”
+    if (isDashboard(clickedKey)) {
+      return [{ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' }]
+    }
+
+    const isActive = clickedKey === activeKey
+    const idx = all.findIndex(t => t.key === clickedKey)
+    const hasLeft = all.slice(0, idx).some(t => t.closable !== false)
+    const hasRight = all.slice(idx + 1).some(t => t.closable !== false)
+
+    // 2) 只有两个标签且包含仪表盘：右击非仪表盘
+    //    仅当该标签“被激活”时显示“重新加载”，否则不显示
+    if (total === 2 && includeDashboard) {
+      const list: CtxItem[] = []
+      if (isActive) list.push({ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' })
+      list.push({ k: 'close', icon: <X size={14} />, label: '关闭当前标签页' })
+      list.push({ k: 'closeAll', icon: <Minus size={14} />, label: '关闭全部标签页' })
+      return list
+    }
+
+    // 3) 常规（>=3 标签）
+    const list: CtxItem[] = []
+    if (isActive) {
+      list.push({ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' })
+    }
+    list.push({ k: 'close', icon: <X size={14} />, label: '关闭当前标签页' })
+    if (total >= 3) {
+      list.push({ k: 'closeOthers', icon: <Split size={14} />, label: '关闭其他标签页' })
+    }
+    list.push({ k: 'closeAll', icon: <Minus size={14} />, label: '关闭全部标签页' })
+    if (hasLeft) list.push({ k: 'closeLeft', icon: <PanelLeftClose size={14} />, label: '关闭左侧标签页' })
+    if (hasRight) list.push({ k: 'closeRight', icon: <PanelRightClose size={14} />, label: '关闭右侧标签页' })
+    return list
+  }
+
+  useEffect(() => {
+    const hide = () => setMenu(m => ({ ...m, show: false }))
+    document.addEventListener('click', hide)
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') hide()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('click', hide)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [])
+
+  const onContextAction = (action: string) => {
+    const tabKey = menu.key || activeKey
     switch (action) {
       case 'reload':
-        if (tabKey === activeKey) navigate(0)
-        else navigate(tabKey) // 先切过去再刷新（可选）
+        tabKey === activeKey ? navigate(0) : navigate(tabKey)
         break
       case 'close':
         closeTab(tabKey)
         break
       case 'closeLeft': {
         const idx = tabs.findIndex(t => t.key === tabKey)
-        const ks = tabs
+        tabs
           .slice(0, idx)
           .filter(t => t.closable !== false)
-          .map(t => t.key)
-        ks.forEach(k => closeTab(k))
+          .forEach(t => closeTab(t.key))
         break
       }
       case 'closeRight': {
         const idx = tabs.findIndex(t => t.key === tabKey)
-        const ks = tabs
+        tabs
           .slice(idx + 1)
           .filter(t => t.closable !== false)
-          .map(t => t.key)
-        ks.forEach(k => closeTab(k))
+          .forEach(t => closeTab(t.key))
         break
       }
-      case 'closeOthers': {
+      case 'closeOthers':
         closeOthers(tabKey)
         break
-      }
       case 'closeAll':
         closeAll()
         break
     }
+    setMenu(m => ({ ...m, show: false }))
   }
-
-  if (!showTabs) return null
-
-  // 构造带右键菜单的自定义 label
-  // 片段：构造 items（替换你当前的 items useMemo）
-  const items = useMemo(
-    () =>
-      tabs.map(t => ({
-        key: t.key,
-        // line 类型没有 closable 概念，改用自定义 label
-        label: (
-          <Dropdown
-            menu={{ items: buildTabContextMenu(t.key), onClick: onTabMenuClick }}
-            trigger={['contextMenu']}
-            placement="bottomLeft"
-          >
-            <span className="tab-label-wrap" title={t.title}>
-              <span>{t.title}</span>
-              {t.closable !== false && (
-                <span
-                  className="tab-close"
-                  onClick={e => {
-                    e.stopPropagation()
-                    closeTab(t.key)
-                  }}
-                  aria-label="关闭标签"
-                  title="关闭"
-                >
-                  <X size={14} strokeWidth={2} />
-                </span>
-              )}
-            </span>
-          </Dropdown>
-        ),
-      })),
-    [tabs]
-  )
 
   return (
     <div
-      className="app-tabs-bar"
+      className="tags-view"
+      data-overflow={overflowing ? '1' : '0'}
       style={{
         position: 'fixed',
         top: fullscreen ? 0 : 47,
@@ -227,43 +302,101 @@ export const TabsBar: React.FC = () => {
         background: '#fff',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <Tabs
-            className="app-tabs-bar-tabs"
-            type="line"
-            size="small"
-            hideAdd
-            items={items}
-            activeKey={activeKey}
-            onChange={k => navigate(k)}
-            onEdit={(targetKey, action) => action === 'remove' && typeof targetKey === 'string' && closeTab(targetKey)}
-            tabBarExtraContent={
-              <Dropdown
-                menu={{ items: globalMenuItems, onClick: onGlobalMenuClick }}
-                trigger={['click']}
-                placement="bottomRight"
+      {/* 左箭头（隐藏时不占位） */}
+      <span
+        className="arrow-left"
+        style={{
+          display: overflowing ? 'flex' : 'none',
+        //   opacity: canLeft ? 1 : 0.35,
+          pointerEvents: canLeft ? 'auto' : 'none',
+        }}
+        title="向左查看更多"
+        onClick={() => scrollBy(-SCROLL_STEP)}
+      >
+        <ChevronLeft size={18} />
+      </span>
+
+      {/* 滚动区 */}
+      <div className="scroll-container" ref={wrapRef}>
+        <div
+          className="tab select-none"
+          ref={listRef}
+          style={{ transform: 'translateX(0px)', transition: 'transform .5s ease-in-out' }}
+        >
+          {items.map(({ key, title, closable }) => {
+            const isActive = key === activeKey
+            return (
+              <div
+                key={key}
+                data-key={key}
+                className={`scroll-item ${closable ? 'is-closable' : ''} ${isActive ? 'is-active' : ''}`}
+                role="tab"
+                aria-selected={isActive}
+                onClick={() => navigate(key)}
+                onContextMenu={e => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setMenu({ show: true, x: e.clientX, y: e.clientY, key, items: buildCtxItems(key) })
+                }}
+                title={title}
               >
-                <button
-                  aria-label="更多标签操作"
-                  title="更多标签操作"
-                  style={{
-                    height: 26,
-                    width: 26,
-                    display: 'grid',
-                    placeItems: 'center',
-                    border: '1px solid transparent',
-                    background: 'transparent',
-                    borderRadius: 6,
-                    cursor: 'pointer',
-                  }}
-                >
-                  <ChevronDown size={16} />
-                </button>
-              </Dropdown>
-            }
-          />
+                <span className="tag-title">{title}</span>
+                {closable && (
+                  <span
+                    className="tag-close"
+                    aria-label="关闭标签"
+                    title="关闭"
+                    onClick={e => {
+                      e.stopPropagation()
+                      closeTab(key)
+                    }}
+                  >
+                    <X size={14} strokeWidth={2} />
+                  </span>
+                )}
+                <span className={isActive ? 'schedule-active' : 'schedule-out'} />
+              </div>
+            )
+          })}
         </div>
+      </div>
+
+      {/* 右箭头（隐藏时不占位） */}
+      <span
+        className="arrow-right"
+        style={{
+          display: overflowing ? 'flex' : 'none',
+        //   opacity: canRight ? 1 : 0.35,
+          pointerEvents: canRight ? 'auto' : 'none',
+        }}
+        title="向右查看更多"
+        onClick={() => scrollBy(SCROLL_STEP)}
+      >
+        <ChevronRight size={18} />
+      </span>
+
+      {/* 右键菜单（按规则动态渲染） */}
+      <ul className="contextmenu" style={{ left: menu.x, top: menu.y, display: menu.show ? 'block' : 'none' }}>
+        {menu.items.map(i => (
+          <div key={i.k} style={{ display: 'flex', alignItems: 'center' }}>
+            <li onClick={() => onContextAction(i.k)}>
+              {i.icon} {i.label}
+            </li>
+          </div>
+        ))}
+      </ul>
+
+      {/* 右上“更多” */}
+      <div className="el-dropdown">
+        <Dropdown
+          menu={{ items: globalMenuItems, onClick: onGlobalMenuClick }}
+          trigger={['click']}
+          placement="bottomRight"
+        >
+          <span className="arrow-down" role="button" aria-haspopup="menu" title="更多标签操作">
+            <ChevronDown size={16} />
+          </span>
+        </Dropdown>
       </div>
     </div>
   )

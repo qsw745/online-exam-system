@@ -1,135 +1,212 @@
-/* 顶部细线去掉 */
-.app-tabs-bar .ant-tabs-nav::before { display: none !important; }
-
-/* 官方蓝色 ink-bar（line 类型才生效） */
-.app-tabs-bar .ant-tabs-ink-bar {
-  height: 3px;
-  background: #609fff;
-  border-radius: 2px;
-}
-
-/* —— 全局可调参数 —— */
-.app-tabs-bar {
-  --tab-h: 36px;            /* 统一高度 */
-  --tab-px: 16px;           /* 左右内边距 */
-  --tab-gap: 0px;           /* 标签间距(想要紧挨着就 0) */
-  --tab-minw: 116px;        /* 每个标签最小宽度，防止太窄 */
-  --split: #e5e7eb;         /* 分隔线颜色 */
-  --hover-bar-h: 2px;       /* 悬停预览条厚度 */
-  --hover-bar-pad: 0px;     /* 预览条左右缩进 */
-  --close-size: 16px;       /* 关闭按钮盒子大小 */
-}
-
-/* 紧挨着的一条带子 */
-.app-tabs-bar .ant-tabs-nav-list { column-gap: var(--tab-gap) !important; }
-.app-tabs-bar .ant-tabs-tab { margin: 0 !important; }
-
-/* 标签容器：高度 + 内边距 + 最小宽度 + 垂直居中 */
-.app-tabs-bar .ant-tabs-tab {
-  position: relative;
-  height: var(--tab-h);
-  padding: 0 var(--tab-px);
-  min-width: var(--tab-minw);
-  display: flex;
-  align-items: center;               /* 垂直居中关键1 */
+/* 基础参数（默认：不溢出时左右安全区为 0 / 仅更多按钮） */
+.tags-view {
+  --tab-h: 36px;
+  --tab-px: 12px;
+  --tab-gap: 0px;
+  --tab-minw: 96px;
+  --split: #e5e7eb;
+  --hover-bar-h: 2px;
+  --hover-bar-pad: 0px;
+  --close-size: 16px;
+  --arrow-w: 28px;
+  --more-w: 36px;
+  --right-safe: var(--more-w);
+  --left-safe: 0;
+  border-bottom: 1px solid #f0f0f0;
   background: #fff;
+  position: relative;
 }
 
-/* 把 antd 包裹按钮也撑满并居中，修掉“看起来有点靠上”的问题 */
-.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn {
-  display: flex;                     /* 垂直居中关键2 */
-  align-items: center;               /* 垂直居中关键3 */
-  height: 100%;
-  line-height: 1;
+/* 溢出时再启用左右安全区与遮挡 cover（防穿透） */
+.tags-view[data-overflow='1'] {
+  --right-safe: calc(var(--arrow-w) + var(--more-w) + 8px);
+  --left-safe: var(--arrow-w);
 }
-
-/* label 容器横排对齐 */
-.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn > span {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;                          /* 文字与关闭按钮间距 */
+.tags-view::before,
+.tags-view::after {
+  display: none;
 }
-
-/* 激活态左右“边框”，第一项不画左边 */
-.app-tabs-bar .ant-tabs-tab-active {
-  box-shadow: inset 1px 0 0 var(--split), inset -1px 0 0 var(--split);
-}
-.app-tabs-bar .ant-tabs-tab-active:first-child {
-  box-shadow: inset -1px 0 0 var(--split);
-}
-
-/* 悬停的“蓝色预览条”，从 0 → 100% 动画 */
-.app-tabs-bar .ant-tabs-tab::after {
-  content: "";
+.tags-view[data-overflow='1']::before,
+.tags-view[data-overflow='1']::after {
+  content: '';
   position: absolute;
-  left: var(--hover-bar-pad);
-  right: var(--hover-bar-pad);
+  top: 0;
   bottom: 0;
-  height: var(--hover-bar-h);
-  background: #91c3ff;
-  transform: scaleX(0);
-  transform-origin: left center;
-  transition: transform .22s ease;
+  background: #fff;
+  z-index: 8;
+  pointer-events: none;
+  display: block;
 }
-.app-tabs-bar .ant-tabs-tab:hover::after { transform: scaleX(1); }
-/* 激活时隐藏预览条（让位给 ink-bar） */
-.app-tabs-bar .ant-tabs-tab-active::after { display: none; }
+.tags-view[data-overflow='1']::before {
+  left: 0;
+  width: var(--left-safe);
+  box-shadow: 5px 0 5px -6px #ccc;
+}
+.tags-view[data-overflow='1']::after {
+  right: var(--more-w);
+  width: calc(var(--right-safe) - var(--more-w));
+  border-right: 0.5px solid #ccc;
+  box-shadow: -5px 0 5px -6px #ccc;
+}
 
-/* 关闭按钮：16×16，圆角，hover 有底色；默认略淡，hover 显示 */
-.app-tabs-bar .tab-close {
+/* 箭头（隐藏=display:none，不占位） */
+.arrow-left,
+.arrow-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--arrow-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  color: rgba(0, 0, 0, 0.75);
+  z-index: 10;
+ 
+  cursor: e-resize;
+}
+.arrow-left {
+  left: 0;
+}
+.arrow-right {
+  right: var(--more-w);
+}
+
+/* 滚动区与条带 */
+.scroll-container {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  gap: var(--tab-gap);
+  width: max-content;
+  margin: 0;
+  padding: 0 var(--right-safe) 0 var(--left-safe);
+  user-select: none;
+}
+
+/* 单个标签 */
+.scroll-item {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  min-width: var(--tab-minw);
+  height: var(--tab-h);
+  padding: 0 var(--tab-px);
+  background: #fff;
+  cursor: pointer;
+}
+.scroll-item.is-active {
+  box-shadow: inset 1px 0 0 var(--split), inset -1px 0 0 var(--split);
+}
+.tab .scroll-item.is-active:first-child {
+  box-shadow: inset -1px 0 0 var(--split);
+}
+
+.tag-title {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #303133;
+}
+.tag-close {
+  margin-left: 6px;
   width: var(--close-size);
   height: var(--close-size);
-  border-radius: 4px;
-  color: #bfbfbf;
-  opacity: .9;
-  transition: background .12s ease, color .12s ease;
-}
-.app-tabs-bar .ant-tabs-tab:hover .tab-close { opacity: 1; }
-.app-tabs-bar .tab-close:hover {
-  background: rgba(0,0,0,.06);
-  color: #666;
-}
-
-/* 底部分隔线 */
-.app-tabs-bar { border-bottom: 1px solid #f0f0f0; }
-
-/* 让 tab 自身成为 flex 容器 */
-.app-tabs-bar .ant-tabs-tab {
-  display: flex;
-  align-items: center;
-  height: var(--tab-h, 36px);
-}
-
-/* 关键：让按钮占满整格，并水平居中内容 */
-.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn {
-  flex: 1 1 auto;          /* 占满可用宽度 */
-  display: flex;
-  align-items: center;
-  justify-content: center;  /* 水平居中 */
-  height: 100%;
-}
-
-/* 你的自定义 label 再次居中，避免 Dropdown 包裹导致内容宽度仅等于文字 */
-.app-tabs-bar .ant-tabs-tab .ant-tabs-tab-btn > .tab-label-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;  /* 再保险地居中 */
-  width: 100%;              /* 让它跟随按钮宽度 */
-  gap: 8px;                 /* 文本与关闭按钮的间距 */
-}
-
-/* 关闭按钮尺寸与手感 */
-.app-tabs-bar .tab-close {
-  width: 16px;
-  height: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 4px;
   color: #9aa0a6;
-  transition: background .12s ease, color .12s ease;
+  opacity: 0.9;
+  transition: background 0.12s ease, color 0.12s ease;
 }
-.app-tabs-bar .tab-close:hover { background: rgba(0,0,0,.06); color: #555; }
+.scroll-item:hover .tag-close {
+  opacity: 1;
+}
+.tag-close:hover {
+  background: rgba(0, 0, 0, 0.06);
+  color: #555;
+}
+
+/* 下划线：active 与 hover */
+.schedule-active,
+.schedule-out {
+  position: absolute;
+  left: var(--hover-bar-pad);
+  right: var(--hover-bar-pad);
+  bottom: 0;
+  height: var(--hover-bar-h);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.22s ease, background 0.12s ease;
+  background: #91c3ff;
+}
+.scroll-item.is-active .schedule-active {
+  transform: scaleX(1);
+  background: #609fff;
+}
+.scroll-item:hover .schedule-out {
+  transform: scaleX(1);
+}
+
+/* 右上更多 */
+.el-dropdown {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--more-w);
+  display: grid;
+  place-items: center;
+  z-index: 11;
+  background: #fff;
+}
+.arrow-down {
+  height: 26px;
+  width: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 自绘右键菜单 */
+.contextmenu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 135px;
+  padding: 6px 0;
+  margin: 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+.contextmenu li {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.contextmenu li:hover {
+  background: #f5f7fa;
+}

@@ -17,6 +17,11 @@ html, body {
 #root {
   min-height: 100vh;
 }
+/* 禁用整页横向滚动条 */
+html, body, #root {
+  width: 100%;
+  overflow-x: hidden;
+}
 
 /* 暗色主题支持 */
 .dark {

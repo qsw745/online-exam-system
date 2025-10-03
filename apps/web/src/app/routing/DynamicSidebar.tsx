@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { Drawer, Menu, Tooltip } from 'antd'
 import { useLocation } from 'react-router-dom'
 import { IconRenderer } from '@/shared/components/IconRenderer'
@@ -7,8 +7,9 @@ import { MenuItem, useMenuPermissions } from '@/shared/contexts/MenuPermissionCo
 import { useTabs } from '@/shared/contexts/TabsContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { ChevronsLeft, ChevronsRight } from 'lucide-react'
+import '../css/DynamicSidebar.css'
 
-/* ---------- 工具 ---------- */
+/* ---------- 小工具 ---------- */
 const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p || '')
 const norm = (p: string) => (p || '').replace(/\/+$/, '') || '/'
 const cleanPath = (p?: string | null) =>
@@ -34,7 +35,7 @@ const shouldShowInMenu = (m: any) => {
   return true
 }
 
-/** 在混合模式下：优先使用 activeRootId；没有时根据当前地址自动推断根菜单 */
+/** 混合模式：优先 activeRootId；否则按当前地址推断根 */
 function pickMixRoot(menus: MenuItem[], activeRootId?: string | null, pathname = '/') {
   const roots = (menus || []).filter(shouldShowInMenu)
   let root = roots.find(r => String((r as any).id) === String(activeRootId || ''))
@@ -125,7 +126,6 @@ function findActiveIdByPath(menus: MenuItem[], pathname: string): string | undef
   dfs(menus, 1)
   return best?.id
 }
-
 function collectAncestorIds(parent: Map<string, string | null>, id?: string): string[] {
   const out: string[] = []
   let cur = id
@@ -138,15 +138,81 @@ function collectAncestorIds(parent: Map<string, string | null>, id?: string): st
   return out
 }
 
-const HEADER_H = 55
-const BOTTOM_CTRL_H = 44 // 底部固定控制条高度
+/* ====== 底部控制 SVG ====== */
+type SvgIconProps = React.SVGProps<SVGSVGElement> & { size?: number; collapsed?: boolean }
+const IconCollapse = ({ size = 16, collapsed, style, ...rest }: SvgIconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    aria-hidden="false"
+    style={{ transform: collapsed ? 'rotateY(180deg)' : 'none', outline: 'none', ...style }}
+    {...rest}
+  >
+    <path fill="currentColor" d="M21 18v2H3v-2zM7 3.5v10l-5-5zM21 11v2h-9v-2zm0-7v2h-9V4z" />
+  </svg>
+)
 
-/* ======================== 桌面侧栏（side + mix） ======================== */
+const HEADER_H = 55
+const BOTTOM_CTRL_H = 44
+
+/* ====== 新增：仪表盘路径查找 + 跳转 ====== */
+const DASHBOARD_CANDIDATES = ['/dashboard', '/home', '/'] // 可按需再加别名
+function findDashboardPath(menus: MenuItem[]): string {
+  const list: any[] = menus || []
+  const all: any[] = []
+  const dfs = (arr: any[]) =>
+    arr?.forEach(m => {
+      all.push(m)
+      m.children && dfs(m.children)
+    })
+  dfs(list)
+  for (const c of DASHBOARD_CANDIDATES) {
+    const pc = cleanPath(c)
+    const hit = all.find(m => cleanPath((m as any).path || '') === pc)
+    if (hit) return pc
+  }
+  return '/dashboard' // 兜底
+}
+
+/* ======================== 桌面侧栏 ======================== */
 export default function DynamicSidebar({ className = '', width = 240 }: { className?: string; width?: number }) {
   const { mode, collapsed, showBrand, activeRootId, toggleCollapsed } = useLayout()
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
   const { addOrActivate } = useTabs()
+
+  const [hovered, setHovered] = useState(false)
+  const asideRef = useRef<HTMLDivElement>(null)
+
+  const [inlineCollapsed, setInlineCollapsed] = useState(collapsed)
+  const [hideLabel, setHideLabel] = useState(collapsed)
+
+  useEffect(() => {
+    if (collapsed) {
+      setHideLabel(true)
+      const t = setTimeout(() => setInlineCollapsed(true), 100)
+      return () => clearTimeout(t)
+    } else {
+      setInlineCollapsed(false)
+      setHideLabel(true)
+      const el = asideRef.current
+      const finish = () => setHideLabel(false)
+      if (el) {
+        const onEnd = (e: TransitionEvent) => {
+          if (e.propertyName === 'width') {
+            finish()
+            el.removeEventListener('transitionend', onEnd)
+          }
+        }
+        el.addEventListener('transitionend', onEnd)
+        return () => el.removeEventListener('transitionend', onEnd)
+      } else {
+        const t = setTimeout(finish, 240)
+        return () => clearTimeout(t)
+      }
+    }
+  }, [collapsed])
 
   // 顶部模式不渲染侧栏
   if (mode === 'top') return null
@@ -172,9 +238,17 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
     setOpenKeys(mustOpenAncestors)
   }, [mustOpenAncestors, collapsed])
 
+  const dashboardPath = useMemo(() => findDashboardPath(menus), [menus]) // ← 仪表盘路径
+  const goDashboard = () => {
+    const p = cleanPath(dashboardPath)
+    ;(window as any).scrollTo?.(0, 0)
+    addOrActivate({ key: p, title: '仪表盘', closable: p !== '/' })
+  }
+
   const siderW = collapsed ? 64 : width
   const brandH = showBrand ? HEADER_H : 0
 
+  /* ====== 加载 / 错误骨架 ====== */
   if (loading) {
     return (
       <aside
@@ -212,9 +286,15 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
     )
   }
 
+  /* ====== 主体 ====== */
   return (
     <aside
+      ref={asideRef}
       className={`app-sider ${className || ''}`}
+      data-collapsed={collapsed ? '1' : '0'}
+      data-hide-label={hideLabel ? '1' : '0'}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
         position: 'fixed',
         zIndex: 1100,
@@ -224,43 +304,61 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
         width: siderW,
         background: '#fff',
         borderRight: '1px solid #f0f0f0',
+        overflowX: 'hidden',
         overflow: 'hidden',
+        boxSizing: 'border-box',
+        cursor: 'default',
       }}
     >
-      {/* 顶部品牌区 */}
+      {/* 顶部品牌区 —— 点击返回仪表盘 */}
       {showBrand && (
-        <div
-          style={{
-            height: HEADER_H,
-            display: 'flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '0 12px',
-            boxSizing: 'border-box',
-          }}
-        >
-          <img
-            src="/brand-logo.svg"
-            alt="Logo"
-            width={20}
-            height={20}
-            style={{ display: 'block' }}
-            onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-          />
-          {!collapsed && <strong style={{ fontSize: 14 }}>在线考试系统</strong>}
-        </div>
+        <Tooltip title="回到仪表盘">
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="回到仪表盘"
+            onClick={goDashboard}
+            onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && goDashboard()}
+            style={{
+              height: HEADER_H,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              padding: '0 12px',
+              boxSizing: 'border-box',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <img
+              src="/brand-logo.svg"
+              alt="Logo"
+              width={20}
+              height={20}
+              style={{ display: 'block' }}
+              onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+            />
+            {!collapsed && (
+              <strong className="brand-title" style={{ fontSize: 14 }}>
+                在线考试系统
+              </strong>
+            )}
+          </div>
+        </Tooltip>
       )}
 
       {/* 菜单滚动区（预留底部固定区域高度） */}
-      <div style={{ height: `calc(100% - ${brandH + BOTTOM_CTRL_H}px)`, overflowY: 'auto' }}>
+      <div className="menu-wrap" style={{ height: `calc(100% - ${brandH + BOTTOM_CTRL_H}px)`, overflowY: 'auto' }}>
         <Menu
           mode="inline"
           selectable
-          inlineCollapsed={collapsed}
+          inlineCollapsed={inlineCollapsed}
           triggerSubMenuAction="hover"
           items={items}
           selectedKeys={selectedId ? [selectedId] : []}
           openKeys={collapsed ? undefined : openKeys}
+          style={{ borderRight: 0, width: '100%' }}
+          motion={{ motionAppear: false, motionEnter: true, motionLeave: true, motionDeadline: 300 }}
           onOpenChange={nextKeys => {
             if (collapsed) return
             const next = nextKeys as string[]
@@ -295,18 +393,19 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
               if (parentId) setOpenKeys(prev => Array.from(new Set([...prev, parentId])))
             }
           }}
-          style={{ borderRight: 0, padding: 8 }}
         />
       </div>
 
-      {/* 右侧边缘中部悬浮折叠按钮 */}
+      {/* 右侧悬浮折叠按钮（可选） */}
       <div
+        className="hover-toggle"
         style={{
           position: 'absolute',
           top: '50%',
           right: 2,
           transform: 'translateY(-50%)',
           zIndex: 1200,
+          pointerEvents: hovered ? 'auto' : 'none',
         }}
       >
         <Tooltip title={collapsed ? '点击展开' : '点击折叠'} placement="right">
@@ -330,8 +429,9 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
         </Tooltip>
       </div>
 
-      {/* 底部固定控制条（不随菜单滚动） */}
+      {/* 底部固定控制 */}
       <div
+        className="bottom-collapse"
         style={{
           position: 'absolute',
           left: 0,
@@ -340,29 +440,20 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           height: BOTTOM_CTRL_H,
           borderTop: '1px solid #f0f0f0',
           background: '#fff',
-          display: 'grid',
-          placeItems: 'center',
+          display: 'flex',
+          alignItems: 'center',
+          paddingLeft: 16,
         }}
       >
-        <Tooltip title={collapsed ? '点击展开' : '点击折叠'}>
-          <button
-            onClick={toggleCollapsed}
-            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
-            style={{
-              width: 32,
-              height: 32,
-              display: 'grid',
-              placeItems: 'center',
-              borderRadius: 8,
-              border: '1px solid rgba(0,0,0,.08)',
-              background: '#fff',
-              boxShadow: '0 2px 8px rgba(0,0,0,.06)',
-              cursor: 'pointer',
-            }}
-          >
-            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
-          </button>
-        </Tooltip>
+        <IconCollapse
+          collapsed={collapsed}
+          size={16}
+          style={{ cursor: 'pointer' }}
+          onClick={toggleCollapsed}
+          onMouseDown={e => e.preventDefault()}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
       </div>
     </aside>
   )

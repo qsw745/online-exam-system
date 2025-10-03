@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react'
 import { Menu } from 'antd'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { IconRenderer } from '@/shared/components/IconRenderer'
 import { useTabs } from '@/shared/contexts/TabsContext'
 import { useMenuPermissions, type MenuItem } from '@/shared/contexts/MenuPermissionContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
+import { registerTitle } from '@/shared/contexts/tabsTitleRegistry'
 
 /* ---------- 工具 ---------- */
 const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p)
@@ -24,11 +25,10 @@ const showable = (m: any) => {
   }
   return true
 }
-/** 统一清洗路径：去多余斜杠 + 去掉结尾的 -index 或 /index */
 const cleanPath = (p?: string | null) =>
   ('/' + (p || '')).replace(/\/{2,}/g, '/').replace(/(?:\/index|-index)(?=\/?$)/, '')
 
-/** 找某节点的“第一个可访问子页面”路径（遇到静态 path 就返回） */
+/** 找“第一个可访问子页面”的静态路径 */
 function firstLeafPath(node?: any): string | null {
   if (!node) return null
   const raw = (node.path || '').trim()
@@ -44,12 +44,11 @@ function firstLeafPath(node?: any): string | null {
 type AntdItem = Required<Required<React.ComponentProps<typeof Menu>['items']>[number]>
 
 /* ---------- 构建顶部菜单 ---------- */
-/** mix=true 时仅构建“根级 items”；否则构建整棵（可下拉） */
 function buildItems(menus: MenuItem[], mix: boolean) {
   const items: AntdItem[] = []
-  const id2path = new Map<string, string>() // 任意节点自身 path
-  const id2title = new Map<string, string>() // 任意节点标题
-  const id2firstLeaf = new Map<string, string | null>() // 任意节点“第一个可访问子页面”
+  const id2path = new Map<string, string>()
+  const id2title = new Map<string, string>()
+  const id2firstLeaf = new Map<string, string | null>()
 
   const mkIcon = (m: any) => <IconRenderer icon={m.icon || 'lucide:LayoutDashboard'} size={16} />
 
@@ -63,7 +62,6 @@ function buildItems(menus: MenuItem[], mix: boolean) {
         if (p) id2path.set(id, p)
       }
       id2firstLeaf.set(id, firstLeafPath(m))
-
       const children = (m.children || []).filter(showable)
       if (children.length) {
         return { key: id, icon: mkIcon(m), label: m.title, children: walk(children) } as AntdItem
@@ -81,7 +79,7 @@ function buildItems(menus: MenuItem[], mix: boolean) {
         if (p) id2path.set(id, p)
       }
       id2firstLeaf.set(id, firstLeafPath(m))
-      return { key: id, icon: mkIcon(m), label: m.title } as AntdItem // ✅ 只根级，无 children
+      return { key: id, icon: mkIcon(m), label: m.title } as AntdItem
     })
 
   items.push(...(mix ? rootsOnly(menus) : walk(menus)))
@@ -89,6 +87,7 @@ function buildItems(menus: MenuItem[], mix: boolean) {
 }
 
 export default function TopNav({ style }: { style?: React.CSSProperties }) {
+  const navigate = useNavigate()
   const { addOrActivate } = useTabs()
   const { menus } = useMenuPermissions()
   const layout = useLayout() as any
@@ -102,10 +101,9 @@ export default function TopNav({ style }: { style?: React.CSSProperties }) {
 
   const { items, id2path, id2title, id2firstLeaf } = useMemo(() => buildItems(roots, mode === 'mix'), [roots, mode])
 
-  // 选中态：mix 优先用 activeRootId；否则根据当前地址匹配
+  // 选中态：mix 用 activeRootId；否则用当前路径匹配
   const selectedKeys = useMemo(() => {
     if (mode === 'mix' && activeRootId) return [activeRootId]
-
     const pn = norm(cleanPath(location.pathname))
     let best: { id: string; len: number } | null = null
     for (const [id, p] of id2path) {
@@ -114,7 +112,6 @@ export default function TopNav({ style }: { style?: React.CSSProperties }) {
         if (!best || np.length > best.len) best = { id, len: np.length }
       }
     }
-    // 如果没命中任何自身 path，再用“第一个可访问子页面”来匹配根
     if (!best && mode === 'mix') {
       for (const [id, fp] of id2firstLeaf) {
         if (!fp) continue
@@ -135,19 +132,25 @@ export default function TopNav({ style }: { style?: React.CSSProperties }) {
       style={{ borderBottom: 'none', height: 47, ...style }}
       onClick={({ key }) => {
         const id = String(key)
+        const title = id2title.get(id) || ''
 
-        // 混合模式：点击根菜单只切根 & 跳转到自身 path 或第一个可访问子叶
-        if (mode === 'mix' && setActiveRootId) setActiveRootId(id)
-
+        // ★ 混合模式：优先跳“第一个可访问子页”，避免先到根路径再被重定向
         const target =
-          id2path.get(id) ||
-          id2firstLeaf.get(id) || // 无自身 path 就用第一个子页面
-          null
+          mode === 'mix'
+            ? id2firstLeaf.get(id) || id2path.get(id) || null
+            : id2path.get(id) || id2firstLeaf.get(id) || null
 
-        if (target) {
-          const title = id2title.get(id) || ''
-          const clean = cleanPath(target)
-          addOrActivate({ key: clean, title, closable: clean !== '/' })
+        if (!target) return
+        const clean = cleanPath(target)
+
+        // 登记“最终目标路径 → 中文标题”，供 TabsProvider 使用
+        if (title) registerTitle(clean, title)
+
+        if (mode === 'mix') {
+          if (typeof setActiveRootId === 'function') setActiveRootId(id)
+          navigate(clean) // 只跳转，交给 TabsProvider 建标签（避免重复）
+        } else {
+          addOrActivate({ key: clean, title: title || clean, closable: clean !== '/' })
         }
       }}
     />

@@ -1,0 +1,155 @@
+/* ====== Motion tokens ====== */
+:root {
+  --sider-w: 240px;
+  --sider-w-collapsed: 64px;
+  --dur-fast: 180ms;
+  --dur-med: 240ms;
+  --ease-smooth: cubic-bezier(.22,.61,.36,1);
+}
+
+/* 全局兜底，彻底去掉页面的横向滚动条 */
+html, body, #root { overflow-x: hidden; }
+
+/* 侧栏自身禁止 x 滚动 */
+.app-sider { overflow-x: hidden; }
+
+/* 折叠状态下，antd 默认 80px，改成 64px */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed {
+  width: var(--sider-w-collapsed) !important;
+}
+
+/* 折叠时把图标区域内边距调小一些，让图标居中好看 */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-item,
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline: 16px !important;
+}
+
+/* 滚动容器也禁掉 x 滚动（双保险） */
+.app-sider .ant-menu,
+.app-sider .ant-menu-root {
+  overflow-x: hidden;
+}
+
+/* 侧栏宽度平滑 */
+.app-sider {
+  transition: width var(--dur-med) var(--ease-smooth), box-shadow var(--dur-fast) ease;
+  will-change: width;
+}
+
+/* 菜单整体的轻微位移和淡入淡出（更“顺”） */
+.app-sider .menu-wrap {
+  transition: transform var(--dur-fast) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+}
+.app-sider[data-collapsed="1"] .menu-wrap {
+  transform: translateX(-6px);
+  opacity: .85;
+}
+
+
+
+.app-sider[data-collapsed="1"] .ant-menu-title-content {
+  opacity: 0;
+}
+
+/* 品牌文字淡入淡出/位移（如果你显示品牌名） */
+.app-sider .brand-title {
+  transition: opacity var(--dur-fast) var(--ease-smooth), transform var(--dur-fast) var(--ease-smooth);
+}
+.app-sider[data-collapsed="1"] .brand-title {
+  opacity: 0;
+  transform: translateX(-6px);
+}
+
+/* 右侧悬浮按钮显隐（可选） */
+.app-sider .hover-toggle {
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.app-sider:hover .hover-toggle {
+  opacity: 1;
+}
+
+/* 头部/内容跟随侧栏一起平滑移动（如有） */
+.app-header,
+.app-tabs-bar,
+.app-content-shift {
+  transition: left var(--dur-med) var(--ease-smooth), width var(--dur-med) var(--ease-smooth), margin-left var(--dur-med) var(--ease-smooth);
+}
+
+/* 底部 SVG：去除点击高亮与外框 */
+.app-sider .bottom-collapse svg {
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform var(--dur-fast) var(--ease-smooth), opacity var(--dur-fast) var(--ease-smooth);
+}
+.app-sider .bottom-collapse svg:focus { outline: none; }
+
+/* 减少动画的系统偏好 */
+@media (prefers-reduced-motion: reduce) {
+  .app-sider,
+  .app-sider .menu-wrap,
+  .app-sider .ant-menu-title-content,
+  .app-header,
+  .app-tabs-bar,
+  .app-content-shift {
+    transition: none !important;
+  }
+}
+
+/* 用独立的 data-hide-label 控制标题显隐（兼容展开过渡期） */
+.app-sider .ant-menu-title-content {
+  transition: opacity 120ms cubic-bezier(.22,.61,.36,1);
+}
+.app-sider[data-hide-label="1"] .ant-menu-title-content {
+  opacity: 0;
+}
+
+/* 侧栏自身包含边框尺寸，避免 64px 宽 + 1px 边框导致的总宽漂移 */
+.app-sider { box-sizing: border-box; }
+
+/* 折叠时，让 antd 菜单宽度跟随侧栏，而不是写死 80/64 像素 */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed {
+  width: 100% !important;           /* 关键 */
+  border-inline-end: 0 !important;   /* 防止菜单自身再画一条分割线 */
+  overflow-x: hidden;
+}
+
+/* 折叠态：把条目文字完全隐藏，图标居中显示 */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-item,
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline: 0 !important;      /* 去掉左右内边距 */
+  text-align: center;                /* 居中容器里的内容 */
+}
+
+/* 折叠态：图标保持 18×18，并在条目内居中 */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-item,
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed > .ant-menu-submenu > .ant-menu-submenu-title {
+  padding-inline: 0 !important;
+  display: flex;                 /* 用 flex 居中，不用放大图标盒 */
+  align-items: center;
+  justify-content: center;
+}
+
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed .ant-menu-item-icon {
+  margin-inline-end: 0 !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px !important;        /* 关键：盒子也是 18 */
+  height: 18px !important;
+}
+
+/* 双保险：有些图标组件会覆盖宽高，限制内部 svg 一起为 18 */
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed .ant-menu-item-icon > svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+
+.app-sider[data-collapsed="1"] .ant-menu-inline-collapsed .ant-menu-title-content {
+  display: none !important;          /* 防止文本残留撑宽 */
+}
+
+/* （可选）菜单项高度一致，选中态的圆角块更居中好看 */
+.app-sider .ant-menu-item,
+.app-sider .ant-menu-submenu-title { height: 40px; line-height: 40px; }

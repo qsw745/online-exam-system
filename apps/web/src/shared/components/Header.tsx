@@ -685,7 +685,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         }}
       >
         {/* 左区 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0, marginLeft: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0,  }}>
           {mode === 'side' ? (
             <AppBreadcrumb />
           ) : showBrandInHeader ? (
