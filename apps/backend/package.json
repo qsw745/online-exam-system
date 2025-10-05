@@ -5,13 +5,12 @@
   "description": "Online Exam System Backend",
   "main": "dist/app.js",
   "scripts": {
-    "dev": "nodemon",
-    "start": "tsx src/bootstrap.ts",
-    "start:prod": "node dist/bootstrap.js",
+    "dev": "concurrently -k -n SVC,TYPE \"pnpm dev:server\" \"pnpm typecheck:watch\"",
+    "dev:server": "tsx watch src/app.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:watch": "tsc -w --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
-    "migrate:make": "knex --knexfile knexfile.js migrate:make",
-    "migrate:latest": "knex --knexfile knexfile.js migrate:latest",
-    "migrate:rollback": "knex --knexfile knexfile.js migrate:rollback"
+    "lint": "eslint \"src/**/*.{ts,tsx}\""
   },
   "keywords": [],
   "author": "",
@@ -28,6 +27,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.18.3",
     "express-validator": "^7.2.1",
+    "ioredis": "^5.8.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "multer": "^2.0.2",
@@ -39,7 +39,8 @@
     "ua-parser-js": "^2.0.5",
     "winston": "^3.17.0",
     "winston-daily-rotate-file": "^5.0.0",
-    "zod": "^4.1.5"
+    "zod": "^4.1.5",
+    "tsconfig-paths": "^4.2.0"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.9",
