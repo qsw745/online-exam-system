@@ -28,7 +28,8 @@ export class PasswordResetController {
       const { email } = await svc.validate(token)
       return (res as any).ok({ valid: true, email }, '令牌有效')
     } catch (e: any) {
-      return (res as any).badRequest(e?.message || '重置令牌无效或已过期', { code: CODES.AUTH_BAD_TOKEN })
+      // 没有 AUTH_BAD_TOKEN 常量，使用 VALIDATION_ERROR + 400
+      return (res as any).badRequest(e?.message || '重置令牌无效或已过期', { code: CODES.VALIDATION_ERROR })
     }
   }
 

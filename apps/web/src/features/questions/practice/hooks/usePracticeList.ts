@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { api, isSuccess, questionsApi } from '@/shared/api/http'
 import { useDebounce } from '@/shared/hooks/useDebounce'
+import type { ApiResult as CoreApiResult } from '@/shared/api/core/types'
 
 export interface QuestionListItem {
   id: string | number
@@ -12,16 +13,13 @@ export interface QuestionListItem {
 export type QuestionType = 'all' | 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
 export type Difficulty = 'all' | 'easy' | 'medium' | 'hard'
 
-interface ApiResult<T> {
-  success: boolean
-  data: T
-  error?: any
-}
-
-function asApiResult<T = any>(res: any): ApiResult<T> {
-  const d = res?.data ?? res
-  if (d && typeof d === 'object' && ('success' in d || 'data' in d || 'error' in d)) return d as ApiResult<T>
-  return { success: true, data: d } as unknown as ApiResult<T>
+function asApiResult<T = any>(res: any): CoreApiResult<T> {
+  const d = (res as any)?.data ?? res
+  if (d && typeof d === 'object' && ('success' in d || 'data' in d || 'error' in d)) {
+    return d as CoreApiResult<T>
+  }
+  // 兜底成成功结构
+  return { success: true, data: d } as unknown as CoreApiResult<T>
 }
 
 export function usePracticeList() {
@@ -42,9 +40,7 @@ export function usePracticeList() {
 
   const params = useMemo(() => {
     const p: any = { page, limit: pageSize }
-    if (debouncedSearch.trim()) {
-      p.search = debouncedSearch.trim()
-    }
+    if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
     if (type !== 'all') {
       p.type = type
       p.question_type = type
@@ -53,16 +49,14 @@ export function usePracticeList() {
       p.difficulty = difficulty
       p.level = difficulty
     }
-    if (selectedTags.length) {
-      p.tags = selectedTags.join(',')
-    }
+    if (selectedTags.length) p.tags = selectedTags.join(',')
     return p
   }, [page, pageSize, debouncedSearch, type, difficulty, selectedTags])
 
   const reloadTags = useCallback(async () => {
     try {
       const r = await questionsApi.getTags()
-      if (isSuccess(r) && Array.isArray(r.data)) setAllTags(r.data)
+      if (isSuccess<any>(r as any) && Array.isArray((r as any).data)) setAllTags((r as any).data)
       else setAllTags([])
     } catch {
       setAllTags([])

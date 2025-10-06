@@ -3,17 +3,16 @@ import { PlusOutlined } from '@ant-design/icons'
 import { App, Button, Card, Input, Layout, Pagination, Space, Table } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 
-
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks/useOrgTree'
 
-import type { Role } from '@/shared/api/endpoints/roles'
 import { useOrgRoles } from '@/features/roles/hooks/useOrgRoles'
-import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
 import { useRoleMembers } from '@/features/roles/hooks/useRoleMembers'
+import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
+import type { Role } from '@/shared/api/endpoints/roles'
 
-import RoleFormModal from '@/features/roles/components/RoleFormModal'
 import { PermissionModal } from '@/features/roles/components/PermissionModal'
+import RoleFormModal from '@/features/roles/components/RoleFormModal'
 import RoleMembersModal from '@/features/roles/components/RoleMembersModal'
 import UserSelectModal from '@/features/roles/components/UserSelectModal'
 
@@ -69,7 +68,6 @@ export default function RoleManagementPage() {
 
   return (
     <App>
-    
       <Layout style={{ height: '100%', background: 'transparent' }}>
         {/* 左侧机构树 */}
         <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
@@ -197,6 +195,7 @@ export default function RoleManagementPage() {
       </Layout>
 
       {/* 权限设置（传入 orgId，后端优先 role.org_id） */}
+      {/* 权限设置 */}
       <PermissionModal
         open={perms.open}
         role={perms.role}
@@ -204,7 +203,9 @@ export default function RoleManagementPage() {
         checkedKeys={perms.selected}
         setCheckedKeys={perms.setSelected}
         onRefreshMenus={() => (perms.role && selectedOrgId ? perms.openFor(perms.role, selectedOrgId) : undefined)}
-        onOk={perms.save}
+        onOk={async () => {
+          await perms.save()
+        }} // 👈 包一层
         onCancel={() => perms.setOpen(false)}
       />
 
@@ -242,9 +243,19 @@ export default function RoleManagementPage() {
       />
 
       {/* 新建/编辑角色 */}
+      {/* 新建/编辑角色 */}
       <RoleFormModal
         open={formOpen}
-        role={editingRole}
+        role={
+          editingRole
+            ? {
+                id: editingRole.id,
+                name: editingRole.name,
+                code: editingRole.code,
+                description: editingRole.description ?? undefined, // 👈 null 转 undefined
+              }
+            : null
+        }
         onCancel={() => setFormOpen(false)}
         onOk={async payload => {
           if (!selectedOrgId) {

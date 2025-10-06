@@ -2,7 +2,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { InputNumber } from 'antd'
 import { HolderOutlined } from '@ant-design/icons'
-import type { MenuDTO } from '@shared/api/endpoints/menu'
+import type { MenuDTO } from '@/shared/api/endpoints/menu'
 import React from 'react'
 
 export default function SortableMenuItem({

@@ -1,13 +1,32 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Drawer, Menu, Tooltip } from 'antd'
-import { useLocation } from 'react-router-dom'
 import { IconRenderer } from '@/shared/components/IconRenderer'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import { MenuItem, useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
-import { useTabs } from '@/shared/contexts/TabsContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
+import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
+import { useTabs } from '@/shared/contexts/TabsContext'
+import { Drawer, Menu, Tooltip } from 'antd'
 import { ChevronsLeft, ChevronsRight } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import '../css/DynamicSidebar.css'
+
+// 宽松菜单类型，避免联合类型在 filter/map 后收敛成 never
+type AnyMenu = {
+  id?: string | number
+  title?: string
+  path?: string
+  redirect?: string
+  icon?: string
+  children?: AnyMenu[]
+  meta?: any
+  is_hidden?: any
+  isHidden?: any
+  hidden?: any
+}
+
+/** 把未知值安全转成菜单数组，彻底避免 never[] 推断 */
+function asMenus(v: unknown): AnyMenu[] {
+  return Array.isArray(v) ? (v as AnyMenu[]) : []
+}
 
 /* ---------- 小工具 ---------- */
 const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p || '')
@@ -28,31 +47,29 @@ function readHiddenRaw(m: any): any {
 const isHiddenFlag = (v: any) =>
   v === true || v === 1 || (typeof v === 'string' && ['1', 'true', 'yes'].includes(v.trim().toLowerCase()))
 const safeNotHidden = (m: any) => !isHiddenFlag(readHiddenRaw(m))
-const shouldShowInMenu = (m: any) => {
+const shouldShowInMenu = (m: AnyMenu) => {
   if (!safeNotHidden(m)) return false
   const p = (m?.path ?? '').trim()
   if (p && hasDynamic(p)) return false
   return true
 }
 
-/** 混合模式：优先 activeRootId；否则按当前地址推断根 */
-function pickMixRoot(menus: MenuItem[], activeRootId?: string | null, pathname = '/') {
-  const roots = (menus || []).filter(shouldShowInMenu)
-  let root = roots.find(r => String((r as any).id) === String(activeRootId || ''))
-  if (root) return root
-
+/** 混合模式：按当前地址推断根 */
+function pickMixRoot(menus: AnyMenu[], _activeRootId?: string | null, pathname = '/') {
+  const roots = asMenus(menus).filter(shouldShowInMenu)
   const pn = norm(cleanPath(pathname))
-  let matched: MenuItem | null = null
-
-  const dfs = (list: MenuItem[], top: MenuItem) => {
-    for (const m of list || []) {
+  let matched: AnyMenu | null = null
+  const dfs = (list: AnyMenu[], top: AnyMenu) => {
+    const arr = asMenus(list)
+    for (const m of arr) {
       if (!shouldShowInMenu(m)) continue
-      const raw = (m as any).path
+      const raw = m?.path
       if (raw && !hasDynamic(raw)) {
         const p = norm(cleanPath(raw))
         if (pn === p || pn.startsWith(p + '/')) matched = top
       }
-      if ((m as any).children?.length) dfs((m as any).children, top)
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids, top)
       if (matched) return
     }
   }
@@ -64,7 +81,7 @@ function pickMixRoot(menus: MenuItem[], activeRootId?: string | null, pathname =
 }
 
 /* ---------- 构建 items & 映射 ---------- */
-function buildMenuArtifacts(menus: MenuItem[]) {
+function buildMenuArtifacts(menus: AnyMenu[]) {
   type AntdItem = any
   const items: AntdItem[] = []
   const id2path = new Map<string, string>()
@@ -73,59 +90,72 @@ function buildMenuArtifacts(menus: MenuItem[]) {
   const parent = new Map<string, string | null>()
   const rootOpenableKeys: string[] = []
 
-  const walk = (list: MenuItem[], parentId: string | null): AntdItem[] =>
-    (list || []).filter(shouldShowInMenu).map(m => {
-      const id = String((m as any).id)
+  const walk = (list: AnyMenu[], parentId: string | null): AntdItem[] => {
+    const arr = asMenus(list).filter(shouldShowInMenu)
+    return arr.map(m => {
+      const id = String(m?.id ?? '')
       parent.set(id, parentId)
-      id2title.set(id, (m as any).title)
+      id2title.set(id, String(m?.title ?? ''))
 
-      const pathRaw = (m as any).path
+      const pathRaw = m?.path
       if (pathRaw && !hasDynamic(pathRaw)) {
         const p = cleanPath(pathRaw)
         if (p) id2path.set(id, p)
       }
-      const redirectRaw = (m as any).redirect
+      const redirectRaw = m?.redirect
       if (redirectRaw) id2redirect.set(id, cleanPath(redirectRaw))
 
-      const iconName = (m as any).icon || 'lucide:LayoutDashboard'
+      const iconName = m?.icon || 'lucide:LayoutDashboard'
       const icon = <IconRenderer icon={iconName} size={18} />
-      const children = ((m as any).children || []).filter(shouldShowInMenu)
+      const children = asMenus(m?.children).filter(shouldShowInMenu)
 
       if (children.length) {
         if (parentId === null) rootOpenableKeys.push(id)
-        return { key: id, icon, label: (m as any).title, title: (m as any).title, children: walk(children, id) }
+        return { key: id, icon, label: m?.title, title: m?.title, children: walk(children, id) }
       }
-      return { key: id, icon, label: (m as any).title, title: (m as any).title }
+      return { key: id, icon, label: m?.title, title: m?.title }
     })
+  }
 
-  items.push(...walk(menus as any, null))
+  items.push(...walk(asMenus(menus), null))
   return { items, id2path, id2title, id2redirect, parent, rootOpenableKeys }
 }
 
-/* ---------- 选中态：用清洗后的 path 匹配 ---------- */
-function findActiveIdByPath(menus: MenuItem[], pathname: string): string | undefined {
+/** 用原始变量跟踪最优匹配，彻底规避 best?.id 的属性访问 */
+function findActiveIdByPath(menus: AnyMenu[], pathname: string): string | undefined {
   const pn = norm(cleanPath(pathname))
-  let best: { id: string; depth: number; len: number } | null = null
-  const dfs = (list: MenuItem[], depth: number) => {
-    for (const raw of list || []) {
-      if (!safeNotHidden(raw)) continue
-      const m: any = raw
-      if (m.path && !hasDynamic(m.path)) {
-        const p = norm(cleanPath(m.path))
+
+  let bestId: string | undefined
+  let bestDepth = -1
+  let bestLen = -1
+
+  const dfs = (list: AnyMenu[], depth: number) => {
+    const arr = asMenus(list)
+    for (const m of arr) {
+      if (!safeNotHidden(m)) continue
+      const mp = m?.path
+      if (mp && !hasDynamic(mp)) {
+        const p = norm(cleanPath(mp))
         if (pn === p || pn.startsWith(p + '/')) {
-          const id = String(m.id)
-          const len = p.length
-          if (!best || depth > best.depth || (depth === best.depth && len > best.len)) {
-            best = { id, depth, len }
+          const id = m?.id != null ? String(m.id) : ''
+          if (id) {
+            if (depth > bestDepth || (depth === bestDepth && p.length > bestLen)) {
+              bestId = id
+              bestDepth = depth
+              bestLen = p.length
+            }
           }
         }
       }
-      if (m.children?.length) dfs(m.children, depth + 1)
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids, depth + 1)
     }
   }
-  dfs(menus, 1)
-  return best?.id
+
+  dfs(asMenus(menus), 1)
+  return bestId
 }
+
 function collectAncestorIds(parent: Map<string, string | null>, id?: string): string[] {
   const out: string[] = []
   let cur = id
@@ -156,28 +186,30 @@ const IconCollapse = ({ size = 16, collapsed, style, ...rest }: SvgIconProps) =>
 const HEADER_H = 55
 const BOTTOM_CTRL_H = 44
 
-/* ====== 新增：仪表盘路径查找 + 跳转 ====== */
-const DASHBOARD_CANDIDATES = ['/dashboard', '/home', '/'] // 可按需再加别名
-function findDashboardPath(menus: MenuItem[]): string {
-  const list: any[] = menus || []
-  const all: any[] = []
-  const dfs = (arr: any[]) =>
-    arr?.forEach(m => {
+/* ====== 仪表盘路径查找 + 跳转 ====== */
+const DASHBOARD_CANDIDATES = ['/dashboard', '/home', '/']
+function findDashboardPath(menus: AnyMenu[]): string {
+  const list = asMenus(menus)
+  const all: AnyMenu[] = []
+  const dfs = (arr: AnyMenu[]) => {
+    for (const m of asMenus(arr)) {
       all.push(m)
-      m.children && dfs(m.children)
-    })
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids)
+    }
+  }
   dfs(list)
   for (const c of DASHBOARD_CANDIDATES) {
     const pc = cleanPath(c)
-    const hit = all.find(m => cleanPath((m as any).path || '') === pc)
+    const hit = all.find(m => cleanPath(m?.path || '') === pc)
     if (hit) return pc
   }
-  return '/dashboard' // 兜底
+  return '/dashboard'
 }
 
 /* ======================== 桌面侧栏 ======================== */
 export default function DynamicSidebar({ className = '', width = 240 }: { className?: string; width?: number }) {
-  const { mode, collapsed, showBrand, activeRootId, toggleCollapsed } = useLayout()
+  const { mode, collapsed, showBrand, toggleCollapsed } = useLayout()
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
   const { addOrActivate } = useTabs()
@@ -219,10 +251,10 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
 
   // mix：只展示当前“根菜单”的 children；side：展示整棵
   const scopedMenus = useMemo(() => {
-    if (mode !== 'mix') return menus
-    const root = pickMixRoot(menus, activeRootId, location.pathname)
-    return (root?.children as any[]) || []
-  }, [menus, mode, activeRootId, location.pathname])
+    if (mode !== 'mix') return asMenus(menus)
+    const root = pickMixRoot(asMenus(menus), undefined, location.pathname)
+    return asMenus((root as AnyMenu)?.children)
+  }, [menus, mode, location.pathname])
 
   const { items, id2path, id2title, id2redirect, parent, rootOpenableKeys } = useMemo(
     () => buildMenuArtifacts(scopedMenus),
@@ -238,7 +270,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
     setOpenKeys(mustOpenAncestors)
   }, [mustOpenAncestors, collapsed])
 
-  const dashboardPath = useMemo(() => findDashboardPath(menus), [menus]) // ← 仪表盘路径
+  const dashboardPath = useMemo(() => findDashboardPath(asMenus(menus)), [menus])
   const goDashboard = () => {
     const p = cleanPath(dashboardPath)
     ;(window as any).scrollTo?.(0, 0)
@@ -466,11 +498,11 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
   const { addOrActivate } = useTabs()
 
   const { items, id2path, id2title } = useMemo(() => {
-    const built = buildMenuArtifacts(menus)
+    const built = buildMenuArtifacts(asMenus(menus))
     return { items: built.items, id2path: built.id2path, id2title: built.id2title }
   }, [menus])
 
-  const selectedId = useMemo(() => findActiveIdByPath(menus, location.pathname), [menus, location.pathname])
+  const selectedId = useMemo(() => findActiveIdByPath(asMenus(menus), location.pathname), [menus, location.pathname])
 
   return (
     <Drawer

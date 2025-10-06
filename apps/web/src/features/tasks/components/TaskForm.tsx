@@ -1,5 +1,6 @@
 import { DatePicker, Form, Input, Radio, Select, Space, TreeSelect, Button } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
+import type { Dayjs } from 'dayjs'
 
 import React, { useEffect } from 'react'
 import { useUsersGroupedTree } from '../hooks/useUsersGroupedTree'
@@ -14,8 +15,8 @@ export type TaskFormValues = {
   type: 'practice' | 'exam'
   paper_id?: string | number
   exam_id?: string | number
-  start_time: dayjs
-  end_time: dayjs
+  start_time?: Dayjs
+  end_time?: Dayjs
   assigned_department_ids?: Array<string | number>
   assigned_user_ids?: Array<string | number>
 }
@@ -31,20 +32,18 @@ export const TaskForm: React.FC<{
   const { loading: loadingDepts, treeData: deptTree, load: loadDepts } = useDepartmentsTree()
   const { loading: loadingPapers, options: paperOptions, load: loadPapers } = usePapersOptions()
 
-  // 加载选项
   useEffect(() => {
     loadDepts()
     loadPapers()
     reloadUsers()
   }, [loadDepts, loadPapers, reloadUsers])
 
-  // ✅ 详情数据异步回来后回填（initialValues 不会二次生效）
   useEffect(() => {
     if (!initial) return
     form.setFieldsValue({
       title: initial.title,
       description: initial.description,
-      status: (initial.status as any) ?? 'not_started', // 允许 published 等值正确回显
+      status: (initial.status as any) ?? 'not_started',
       type: (initial.type as any) || 'practice',
       paper_id:
         initial.paper_id != null
@@ -90,7 +89,7 @@ export const TaskForm: React.FC<{
         onSubmit({
           title: String(v.title || '').trim(),
           description: String(v.description || '').trim(),
-          status: v.status, // 直接传回英文枚举
+          status: v.status,
           type: v.type,
           paper_id: v.type === 'exam' ? toNum(v.paper_id) : undefined,
           exam_id: v.type === 'exam' ? toNum(v.exam_id) : undefined,
@@ -115,11 +114,7 @@ export const TaskForm: React.FC<{
           </Form.Item>
 
           <Form.Item label="任务状态" name="status" style={{ minWidth: 220 }}>
-            <Select
-              disabled={readOnly}
-              options={TASK_STATUS_OPTIONS} // ✅ 统一来源：后端任意状态都能回显
-              getPopupContainer={t => t.parentElement!}
-            />
+            <Select disabled={readOnly} options={TASK_STATUS_OPTIONS} getPopupContainer={t => t.parentElement!} />
           </Form.Item>
 
           <Form.Item shouldUpdate={(p, c) => p.type !== c.type} noStyle>

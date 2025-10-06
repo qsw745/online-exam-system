@@ -1,5 +1,5 @@
 // apps/backend/src/modules/wrong-questions/services/wrong-question.service.ts
-import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.entity.js'
+import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.model'
 import { WrongQuestionRepository } from '../repositories/wq.repository.js'
 
 export class WrongQuestionService {

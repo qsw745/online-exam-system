@@ -1,7 +1,7 @@
 // apps/backend/src/modules/wrong-questions/repositories/wq.repository.ts
 import type { Pool, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { pool } from '@/config/database.js'
-import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.entity.js'
+import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.model'
 
 // 将传入的时间统一转换为 MySQL 可接受的类型（优先返回 Date 对象）
 function toMySQLDate(v?: unknown): Date | null {

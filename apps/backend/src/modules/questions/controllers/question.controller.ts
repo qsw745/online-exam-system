@@ -1,17 +1,28 @@
-// src/features/questions/controllers/question.controller.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth'
 import type { ApiResponse } from '@/types/response'
 import { CODES } from '@/types/response'
-import type { QuestionData, QuestionListData } from '../domain/question.model'
+import type { Response } from 'express'
+import type { QuestionData } from '../domain/question.model'
 import { QuestionService } from '../services/question.service'
 
+type Res<T = any> = Response<T> & {
+  ok<D = any>(data?: D, message?: string, extra?: any): Res<T>
+  created<D = any>(data?: D, message?: string, extra?: any): Res<T>
+  badRequest(message?: string, extra?: any): Res<T>
+  unauthorized(message?: string, extra?: any): Res<T>
+  forbidden(message?: string, extra?: any): Res<T>
+  notFound(message?: string, extra?: any): Res<T>
+  tooMany(message?: string, extra?: any): Res<T>
+  conflict(message?: string, extra?: any): Res<T>
+  internal(message?: string, extra?: any): Res<T>
+  fail(code: string, httpStatus?: number, message?: string, extra?: any): Res<T>
+}
 const svc = new QuestionService()
 
 export class QuestionController {
   /** 批量获取题目详情（ids: number[]） */
-  static async getBatchByIds(req: AuthRequest, res: Response<ApiResponse<any[]>>) {
+  static async getBatchByIds(req: AuthRequest, res: Res<ApiResponse<any[]>>) {
     try {
       const idsRaw = Array.isArray(req.body?.ids) ? req.body.ids : []
       const ids = idsRaw.map((x: any) => Number(x)).filter((n: any) => Number.isFinite(n))
@@ -23,21 +34,40 @@ export class QuestionController {
     }
   }
 
-  /** 列表查询（带筛选/分页） */
-  static async list(req: AuthRequest, res: Response<ApiResponse<QuestionListData>>) {
+  /** 列表查询（带筛选/分页/查重） */
+  static async list(req: AuthRequest, res: Res<ApiResponse<any>>) {
     try {
       const question_type = req.query.type as any
       const difficulty = req.query.difficulty as any
-      const search = req.query.search as string | undefined
+      const search = (req.query.search || req.query.keyword) as string | undefined
       const page = req.query.page ? parseInt(req.query.page as string) : 1
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10
       const tagsParam = req.query.tags
       const tags = Array.isArray(tagsParam)
-          ? (tagsParam as string[])
-          : typeof tagsParam === 'string'
-              ? tagsParam.split(',').map(s => s.trim()).filter(Boolean)
-              : []
+        ? (tagsParam as string[])
+        : typeof tagsParam === 'string'
+        ? tagsParam
+            .split(',')
+            .map(s => s.trim())
+            .filter(Boolean)
+        : []
 
+      // 重复开关（兼容多种写法）
+      const dup = String(req.query.duplicates || '').toLowerCase()
+      const grouped =
+        String(req.query.grouped || '').toLowerCase() === 'true' || dup.includes('group') || dup === 'grouped'
+
+      if (dup === 'title_type' || dup === 'title+type' || dup === 'true' || grouped) {
+        if (grouped) {
+          const data = await svc.listDuplicatesGrouped({ question_type, search, page, limit })
+          return res.ok(data, '获取成功')
+        }
+        // 平铺重复列表
+        const data = await svc.listDuplicates({ question_type, search, page, limit })
+        return res.ok(data, '获取成功')
+      }
+
+      // 普通列表
       const data = await svc.list({ question_type, difficulty, search, tags, page, limit })
       return res.ok(data, '获取成功')
     } catch (e: any) {
@@ -46,7 +76,7 @@ export class QuestionController {
   }
 
   /** 获取单题详情 */
-  static async getById(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
+  static async getById(req: AuthRequest, res: Res<ApiResponse<QuestionData>>) {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的题目ID', { code: CODES.VALIDATION_ERROR })
@@ -59,7 +89,7 @@ export class QuestionController {
   }
 
   /** 创建题目 */
-  static async create(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
+  static async create(req: AuthRequest, res: Res<ApiResponse<QuestionData>>) {
     try {
       const data = await svc.create({ id: req.user?.id, username: req.user?.username }, req.body, {
         ip: req.ip,
@@ -73,7 +103,7 @@ export class QuestionController {
   }
 
   /** 更新题目 */
-  static async update(req: AuthRequest, res: Response<ApiResponse<QuestionData>>) {
+  static async update(req: AuthRequest, res: Res<ApiResponse<QuestionData>>) {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的题目ID', { code: CODES.VALIDATION_ERROR })
@@ -91,7 +121,7 @@ export class QuestionController {
   }
 
   /** 删除题目 */
-  static async delete(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async delete(req: AuthRequest, res: Res<ApiResponse<null>>) {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的题目ID', { code: CODES.VALIDATION_ERROR })
@@ -108,8 +138,8 @@ export class QuestionController {
 
   /** 批量导入 */
   static async bulkImport(
-      req: AuthRequest,
-      res: Response<ApiResponse<{ success_count: number; fail_count: number; errors: string[] }>>
+    req: AuthRequest,
+    res: Res<ApiResponse<{ success_count: number; fail_count: number; errors: string[] }>>
   ) {
     const rid = (req as any).id || req.header('x-request-id') || undefined
     try {
@@ -128,9 +158,7 @@ export class QuestionController {
   }
 
   // ===== 练习 / 错题本 =====
-
-  /** 记录练习结果 */
-  static async recordPractice(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async recordPractice(req: AuthRequest, res: Res<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       if (!userId) return res.unauthorized('未授权访问或用户ID无效')
@@ -143,8 +171,7 @@ export class QuestionController {
     }
   }
 
-  /** 获取错题本 */
-  static async getWrongQuestions(req: AuthRequest, res: Response<ApiResponse<any>>) {
+  static async getWrongQuestions(req: AuthRequest, res: Res<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
       if (!userId) return res.unauthorized('未授权访问或用户ID无效')
@@ -158,8 +185,7 @@ export class QuestionController {
     }
   }
 
-  /** 标记已掌握 */
-  static async markAsMastered(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async markAsMastered(req: AuthRequest, res: Res<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const questionId = Number(req.params.questionId)
@@ -172,8 +198,7 @@ export class QuestionController {
     }
   }
 
-  /** 从错题本移除 */
-  static async removeFromWrongQuestions(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async removeFromWrongQuestions(req: AuthRequest, res: Res<ApiResponse<null>>) {
     try {
       const userId = req.user?.id
       const questionId = Number(req.params.questionId)
@@ -186,8 +211,7 @@ export class QuestionController {
     }
   }
 
-  /** 练习统计 */
-  static async getPracticeStats(req: AuthRequest, res: Response<ApiResponse<any>>) {
+  static async getPracticeStats(req: AuthRequest, res: Res<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
       if (!userId) return res.unauthorized('未授权访问')
@@ -198,8 +222,7 @@ export class QuestionController {
     }
   }
 
-  /** 已练习题目ID列表 */
-  static async getPracticedQuestions(req: AuthRequest, res: Response<ApiResponse<number[]>>) {
+  static async getPracticedQuestions(req: AuthRequest, res: Res<ApiResponse<number[]>>) {
     try {
       const userId = req.user?.id
       if (!userId) return res.unauthorized('未授权访问')
@@ -210,8 +233,7 @@ export class QuestionController {
     }
   }
 
-  /** 标签列表 */
-  static async getTags(_req: AuthRequest, res: Response<ApiResponse<string[]>>) {
+  static async getTags(_req: AuthRequest, res: Res<ApiResponse<string[]>>) {
     try {
       const tags = await svc.tags()
       return res.ok(tags, '获取成功')
@@ -220,8 +242,7 @@ export class QuestionController {
     }
   }
 
-  /** 知识点列表 */
-  static async getKnowledgePoints(_req: AuthRequest, res: Response<ApiResponse<any[]>>) {
+  static async getKnowledgePoints(_req: AuthRequest, res: Res<ApiResponse<any[]>>) {
     try {
       const data = await svc.knowledgePoints()
       return res.ok(data, '获取成功')

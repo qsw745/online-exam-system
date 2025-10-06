@@ -51,7 +51,7 @@ export default function MenuManagementPage({ mode, unitId = null }: Props) {
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <Card
         title={title}
-        variant="filled"
+        variant="outlined" // <-- from "filled" to "outlined"
         styles={{ body: { paddingTop: 16 } }}
         extra={
           !readOnly ? (

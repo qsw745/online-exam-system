@@ -1,0 +1,99 @@
+// apps/web/src/features/logs/pages/SystemLogsPage.tsx
+import React from 'react'
+import { Button, Card, Pagination, Space, Typography } from 'antd'
+import { Cpu, Download } from 'lucide-react'
+import SystemFiltersBar from '@/features/logs/components/SystemFiltersBar'
+import SystemLogsTable from '@/features/logs/components/SystemLogsTable'
+import { useLogs } from '@/features/logs/hooks/useLogs'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+
+const { Title } = Typography
+
+// 本页需要的默认筛选（与 useLogs 里一致即可）
+const DEFAULT_FILTERS = {
+  level: 'all' as const,
+  action: '',
+  username: '',
+  module: '',
+  status: '' as '' | 'success' | 'fail',
+  dateRange: null as any,
+}
+
+export default function SystemLogsPage() {
+  const {
+    logs,
+    total,
+    loading,
+    filters,
+    setFilters,
+    page,
+    setPage,
+    pageSize,
+    setPageSize,
+    fetchLogs,
+    exportLogs,
+    resetFilters, // 有则用；没有就用 DEFAULT_FILTERS
+  } = useLogs('system')
+
+  return (
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <Space>
+          <Cpu style={{ width: 22, height: 22, color: '#1677ff' }} />
+          <Title level={2} style={{ margin: 0 }}>
+            系统日志
+          </Title>
+        </Space>
+        <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={exportLogs}>
+          导出
+        </Button>
+      </div>
+
+      <Card style={{ marginBottom: 12,  }}>
+        <SystemFiltersBar
+          filters={filters as any}
+          onChange={patch => setFilters(prev => ({ ...prev, ...patch }))}
+          onSearch={() => {
+            setPage(1)
+            fetchLogs()
+          }}
+          onReset={() => {
+            if (resetFilters) {
+              resetFilters() // ✅ 直接调用
+            } else {
+              setFilters(DEFAULT_FILTERS) // ✅ 没有就手动重置
+            }
+            setPage(1)
+            fetchLogs()
+          }}
+          loading={loading}
+        />
+      </Card>
+
+      <Card>
+        <SystemLogsTable data={logs} loading={loading} />
+        {!loading && (
+          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+            <Pagination
+              {...createPaginationConfig()}
+              current={page}
+              total={total}
+              pageSize={pageSize}
+              onChange={(p, size) => {
+                setPage(p)
+                if (size && size !== pageSize) {
+                  setPageSize(size)
+                  setPage(1)
+                }
+              }}
+              onShowSizeChange={(_, size) => {
+                setPageSize(size)
+                setPage(1)
+              }}
+            />
+          </div>
+        )}
+      </Card>
+    </div>
+  )
+}

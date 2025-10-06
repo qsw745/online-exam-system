@@ -5,9 +5,9 @@ import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import 'dotenv/config'
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response } from 'express'
+import { execSync } from 'node:child_process'
 import * as fs from 'node:fs'
 import * as path from 'node:path'
-import { execSync } from 'node:child_process'
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
 
@@ -15,10 +15,10 @@ import 'tsconfig-paths/register'
 import { HttpError } from '@/common/errors/http-error'
 
 // 统一响应 & 请求ID & 日志等中间件
-import { responseEnvelope } from '@/common/middleware/response'
 import { optionalAuth } from '@/common/middleware/auth'
 import { httpLogger } from '@/common/middleware/http-logger'
 import { requestId } from '@/common/middleware/requestId'
+import { responseEnvelope } from '@/common/middleware/response'
 
 // 路由（默认导出：Router 或 工厂函数）
 import apiRoutesOrFactory from '@/routes'
@@ -27,11 +27,9 @@ import apiRoutesOrFactory from '@/routes'
 import { syncMenus } from './bootstrap/syncMenus'
 
 // 时间格式
-import {formatTime, log} from '@/infrastructure/logging/logger'
+import { formatTime, log } from '@/infrastructure/logging/logger'
 
-// 业务状态码
 import { CODES } from '@/types/response'
-
 /** uploads 目录 */
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
@@ -54,10 +52,10 @@ app.use(responseEnvelope())
 // 3) CORS
 const FRONTEND_ORIGIN = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
 app.use(
-    cors({
-      origin: FRONTEND_ORIGIN,
-      credentials: true,
-    })
+  cors({
+    origin: FRONTEND_ORIGIN,
+    credentials: true,
+  })
 )
 
 // 4) 解析体
@@ -73,7 +71,7 @@ app.use(httpLogger())
 
 /** 健康检查（统一响应） */
 app.get('/api/health', (_req: Request, res: Response) => {
-  res.ok({ ok: true, time: formatTime() }, 'OK')
+  return res.ok({ ok: true, time: formatTime() }, 'OK')
 })
 
 /** 将业务路由挂载到 /api */
@@ -154,20 +152,20 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const log = (req as any).log ?? console
 
   const isHttpErr =
-      err instanceof HttpError ||
-      (err && (err as any).name === 'HttpError') ||
-      (err && (err as any).name === 'ValidationError')
+    err instanceof HttpError ||
+    (err && (err as any).name === 'HttpError') ||
+    (err && (err as any).name === 'ValidationError')
 
   const status =
-      (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
+    (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
 
   const code: string | undefined =
-      (isHttpErr && (err as any).code) || (typeof (err as any)?.code === 'string' ? (err as any).code : undefined)
+    (isHttpErr && (err as any).code) || (typeof (err as any)?.code === 'string' ? (err as any).code : undefined)
 
   const details = (isHttpErr && (err as any).details) || (err as any)?.details
   const ctx = (isHttpErr && (err as any).ctx) || (err as any)?.ctx
 
-      // 触发 httpLogger 的错误日志
+  // 触发 httpLogger 的错误日志
   ;(req as any).onError?.(err)
 
   const top = pickTopBusinessFrame((err as any)?.stack)
@@ -175,13 +173,13 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   const sql = extractSqlish(err)
 
   const short =
-      `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
-      (top ? ` @/ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
+    `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
+    (top ? ` @/ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
 
   const reqDump =
-      req.method === 'GET' || req.method === 'HEAD'
-          ? { params: req.params, query: req.query }
-          : { params: req.params, query: req.query, body: safeJson(req.body) }
+    req.method === 'GET' || req.method === 'HEAD'
+      ? { params: req.params, query: req.query }
+      : { params: req.params, query: req.query, body: safeJson(req.body) }
 
   // 结构化错误日志
   log[status >= 500 ? 'error' : 'warn']?.('controller error', {
@@ -226,7 +224,8 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (status === 403) return res.forbidden(msg, { code: code ?? CODES.AUTH_FORBIDDEN, error: errorPayload })
   if (status === 404) return res.fail(code ?? CODES.NOT_FOUND, 404, msg, { error: errorPayload })
   if (status === 429) return res.tooMany(msg, { code: code ?? CODES.RATE_LIMITED, error: errorPayload })
-  if (status >= 400 && status < 500) return res.badRequest(msg, { code: code ?? CODES.VALIDATION_ERROR, error: errorPayload })
+  if (status >= 400 && status < 500)
+    return res.badRequest(msg, { code: code ?? CODES.VALIDATION_ERROR, error: errorPayload })
   return res.internal(msg, { code: code ?? CODES.INTERNAL_ERROR, error: errorPayload })
 }
 

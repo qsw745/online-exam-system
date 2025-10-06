@@ -20,21 +20,21 @@ export default {
   'app.operation_failed': '操作失败',
   'app.loading_questions': '加载题目列表...',
   'app.home': '返回首页',
-  
+
   // 语言名称
   'language.zh-CN': '简体中文',
   'language.en-US': 'English',
-  
+
   // 导航
   'nav.dashboard': '仪表盘',
   'nav.questions': '题库',
   'nav.exams': '考试',
   'nav.results': '成绩',
-  'nav.profile': '个人资料',
+  'nav.profile': '个人信息',
   'nav.settings': '设置',
   'nav.admin': '管理',
   'nav.logout': '退出登录',
-  
+
   // 设置页面
   'settings.title': '设置',
   'settings.notifications': '通知设置',
@@ -56,7 +56,7 @@ export default {
   'settings.private': '私密',
   'settings.save_changes': '保存更改',
   'settings.saving_changes': '保存中...',
-  
+
   // 登录和注册
   'auth.login': '登录',
   'auth.register': '注册',
@@ -77,7 +77,6 @@ export default {
   'auth.terms': '用户协议',
   'auth.privacy': '隐私政策',
   'user.loading': '加载用户信息...',
-
 
   // 仪表盘
   'dashboard.welcome': '欢迎回来',
@@ -101,9 +100,9 @@ export default {
   'dashboard.results_api_undefined': '成绩数据接口未定义',
   'dashboard.stats_load_error': '加载统计数据失败',
   'dashboard.tasks_load_error': '加载任务数据失败',
-  
+
   // 个人资料页面
-  'profile.title': '个人资料',
+  'profile.title': '个人信息',
   'profile.nickname': '昵称',
   'profile.school': '学校',
   'profile.class': '班级',
@@ -130,7 +129,8 @@ export default {
   'dashboard.no_tasks': '暂无任务',
   'dashboard.no_results': '暂无成绩',
   'dashboard.score': '得分',
-  
+  'settings.preferences': '偏好设置',
+  'settings.account': '账户管理',
   // 考试
   'exam.start': '开始考试',
   'exam.submit': '提交答案',
@@ -147,7 +147,7 @@ export default {
   'exam.submit_error': '提交答案失败，请重试',
   'exam.not_exist': '试卷不存在',
   'exam.not_exist_desc': '该试卷可能已被删除或您没有访问权限',
-  
+
   // 结果
   'results.title': '考试结果',
   'results.score': '得分',
@@ -167,10 +167,10 @@ export default {
   'results.status_not_started': '未开始',
   'results.all_status': '所有状态',
   'results.search_placeholder': '搜索试卷标题...',
-   'results.no_records': '暂无考试记录',
-   'results.no_records_desc': '当前筛选条件下没有找到任何考试记录',
-   
-   // 题目页面
+  'results.no_records': '暂无考试记录',
+  'results.no_records_desc': '当前筛选条件下没有找到任何考试记录',
+
+  // 题目页面
   'questions.title': '题目列表',
   'questions.description': '浏览和练习所有可用的题目',
   'questions.search_placeholder': '搜索题目标题或知识点...',
@@ -188,7 +188,6 @@ export default {
   'questions.favorite_error': '收藏操作错误',
   'questions.loading': '加载题目中...',
 
-  
   // 错误
   'error.unknown': '发生未知错误',
   'error.network': '网络错误',
@@ -200,21 +199,19 @@ export default {
   'error.load_notifications': '加载通知失败',
   'error.load_unread_count': '加载未读通知数量失败',
   'error.logout': '退出登录失败',
-  
+
   // 主题
   'theme.toggle_light': '切换到亮色模式',
   'theme.toggle_dark': '切换到暗色模式',
-  
+
   // 通知
   'notifications.title': '通知',
   'notifications.empty': '暂无通知',
 
   // 任务
-'tasks.loading': '加载任务列表...',
-'tasks.load_error': '加载任务失败',
+  'tasks.loading': '加载任务列表...',
+  'tasks.load_error': '加载任务失败',
 
-// 错题本
-'wrongQuestions.loading': '加载错题本中...',
-
-
-};
+  // 错题本
+  'wrongQuestions.loading': '加载错题本中...',
+}

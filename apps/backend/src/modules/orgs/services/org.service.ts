@@ -1,8 +1,8 @@
 // apps/backend/src/modules/orgs/services/org.service.ts
+import HttpError from '@/common/errors/http-error'
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
 import { OrgRepository } from '../repositories/org.repository'
-import HttpError from '@/common/errors/http-error'
 
 /** ---------- tree & cycle utils ---------- */
 function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] {
@@ -14,11 +14,12 @@ function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] 
 
 function createsCycle(rows: Array<Pick<IOrg, 'id' | 'parent_id'>>, nodeId: number, newParentId?: number | null) {
   if (newParentId == null) return false
-  const map = new Map<number, { parent_id: number | null | undefined }>(rows.map(r => [r.id, r]))
+  // 用 parent_id 的规范化值作为 Map 的 value
+  const map = new Map<number, number | null>(rows.map(r => [r.id, r.parent_id ?? null] as [number, number | null]))
   let cur: number | null | undefined = newParentId
   while (cur != null) {
     if (cur === nodeId) return true
-    cur = map.get(cur)?.parent_id ?? null
+    cur = map.get(cur) ?? null
   }
   return false
 }
@@ -69,7 +70,7 @@ export class OrgService {
 
   async create(
     user: { id?: number; username?: string } | undefined,
-    payload: { name: string; code?: string; parent_id?: number | null; is_active?: boolean | 0 | 1 },
+    payload: { name: string; code?: string; parent_id?: number | string | null; is_active?: boolean | 0 | 1 },
     reqMeta?: { ip?: string; ua?: string }
   ) {
     const { name, code, parent_id, is_active } = payload
@@ -77,8 +78,9 @@ export class OrgService {
 
     // parent_id 规范化
     let parentId: number | null = null
+
     if (parent_id !== undefined && parent_id !== null && parent_id !== '') {
-      const n = Number(parent_id)
+      const n = Number(parent_id) // 既支持字符串也支持数字
       if (!Number.isNaN(n)) parentId = n
     }
 

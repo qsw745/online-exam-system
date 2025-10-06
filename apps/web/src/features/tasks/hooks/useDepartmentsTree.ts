@@ -20,17 +20,15 @@ export function useDepartmentsTree() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      // ✅ 正确 await
-      let payload: any[] = []
+      let payload: any = [] // 👈 关键：用 any 而不是 any[]
       if ((http as any).orgsApi?.tree) {
         const arr: OrgNode[] = await (http as any).orgsApi.tree()
         payload = Array.isArray(arr) ? arr : []
       } else if ((http as any).api?.get) {
         const r = await (http as any).api.get('/orgs/tree')
-        payload = Array.isArray(r?.data) ? r.data : []
+        payload = (r as any)?.data ?? r
       }
 
-      // 兼容后端返回扁平/树两种结构
       const list = payload?.departments ?? payload?.items ?? payload?.list ?? (Array.isArray(payload) ? payload : [])
 
       setRaw(Array.isArray(list) ? list : [])
@@ -46,20 +44,18 @@ export function useDepartmentsTree() {
   const treeData = useMemo(() => {
     if (!raw.length) return []
 
-    // 若已有 children，直接递归映射
     const hasChildren = raw.some(n => Array.isArray((n as any).children))
     if (hasChildren) {
       const mapNode = (n: OrgNode): any => ({
         title: n.name || n.title || `部门${n.id}`,
         value: String(n.id),
-        key: String(n.id), // ✅ key===value
+        key: String(n.id),
         selectable: true,
         children: (n.children || []).map(mapNode),
       })
       return raw.map(mapNode)
     }
 
-    // 否则按 parent_id 组树
     const map = new Map<number, any>()
     const roots: any[] = []
 

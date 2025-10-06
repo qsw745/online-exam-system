@@ -1,6 +1,6 @@
 import { pool } from '@/config/database.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import type { Competition } from '../domain/leaderboard.types.js'
+import type { Competition } from '../domain/leaderboard.model'
 
 export class CompetitionRepository {
   async list(filter: { status?: string; type?: string }) {

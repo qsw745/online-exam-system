@@ -55,11 +55,7 @@ export interface ExamListResult {
 
 /** ===== Helpers: 兼容不同后端返回结构 ===== */
 function pickList(res: any): ExamListResult {
-  // 兼容：
-  // 1) { exams, total, page, limit }
-  // 2) { data: { exams, total, page, limit } }
-  // 3) { data: [...] }
-  const d = res?.data ?? {}
+  const d = (res as any)?.data ?? res ?? {}
   const payload = d.data ?? d
 
   if (Array.isArray(payload)) {
@@ -78,13 +74,8 @@ function pickList(res: any): ExamListResult {
 }
 
 function pickPaper(res: any): ExamPaper | null {
-  // 兼容：
-  // 1) { exam: {...} } / { paper: {...} }
-  // 2) { data: { exam | paper } }
-  // 3) 直接返回试卷对象
-  const d = res?.data
-  if (!d) return null
-  const p = d.exam ?? d.paper ?? d.data?.exam ?? d.data?.paper ?? d.data ?? d
+  const d = (res as any)?.data ?? res
+  const p = d?.exam ?? d?.paper ?? d?.data?.exam ?? d?.data?.paper ?? d?.data ?? d
   if (p && p.id && Array.isArray(p.questions)) return p as ExamPaper
   return null
 }
@@ -106,7 +97,7 @@ export const exams = {
     return pickPaper(res)
   },
 
-  /** 部分业务是“任务 -> 试卷”，优先 /tasks/:id/exam，失败再回退 /exams/:id */
+  /** 任务 -> 试卷，优先 /tasks/:id/exam，失败再回退 /exams/:id */
   async getTaskPaper(taskId: string): Promise<ExamPaper | null> {
     const res = await api.get(`/tasks/${taskId}/exam`).catch(() => api.get(`/exams/${taskId}`))
     return pickPaper(res)
@@ -120,7 +111,7 @@ export const exams = {
   /** 交卷（保持原有签名），返回 resultId/true */
   async submit(taskId: string, submitData: { answers: Record<string, number[]>; time_spent: number }) {
     const res = await api.post(`/tasks/${taskId}/submit`, submitData)
-    const d = res?.data
+    const d = (res as any)?.data ?? res
     return d?.resultId ?? d?.id ?? true
   },
 }

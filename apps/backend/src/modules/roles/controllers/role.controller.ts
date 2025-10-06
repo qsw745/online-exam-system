@@ -2,38 +2,50 @@ import type { Request, Response } from 'express'
 import type { CreateRoleRequest, UpdateRoleRequest } from '../domain/role.model.js'
 import { DuplicateCodeError, RoleService, slugifyCode } from '../services/role.service.js'
 import { UnitRepo } from '../../menus/repositories/unit-menu.repository.js'
-
+// ✅ 在此文件顶部加上：
+type Res<T = any> = Response<T> & {
+  ok<D = any>(data?: D, message?: string, extra?: any): Res<T>
+  created<D = any>(data?: D, message?: string, extra?: any): Res<T>
+  badRequest(message?: string, extra?: any): Res<T>
+  unauthorized(message?: string, extra?: any): Res<T>
+  forbidden(message?: string, extra?: any): Res<T>
+  notFound(message?: string, extra?: any): Res<T>
+  tooMany(message?: string, extra?: any): Res<T>
+  conflict(message?: string, extra?: any): Res<T>   // 👈 新增
+  internal(message?: string, extra?: any): Res<T>
+  fail(code: string, httpStatus?: number, message?: string, extra?: any): Res<T>
+}
 /** ===== 组织下的角色（供 /orgs/:orgId/roles 使用） ===== */
-export const listRolesByOrg = async (req: Request, res: Response) => {
-    try {
-        const orgId = Number(req.params.orgId)
-        const page = req.query.page ? parseInt(String(req.query.page), 10) : 1
-        const pageSize = req.query.pageSize ? parseInt(String(req.query.pageSize), 10) : 10
-        const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : undefined
-        const { roles, total } = await RoleService.getRolesWithPagination(page, pageSize, keyword, orgId)
-        return res.ok({ roles, total, page, pageSize })
-    } catch (e) {
-        console.error('listRolesByOrg 失败:', e)
-        return res.internal('获取组织下角色失败')
-    }
+export const listRolesByOrg = async (req: Request, res: Res) => {
+  try {
+    const orgId = Number(req.params.orgId)
+    const page = req.query.page ? parseInt(String(req.query.page), 10) : 1
+    const pageSize = req.query.pageSize ? parseInt(String(req.query.pageSize), 10) : 10
+    const keyword = typeof req.query.keyword === 'string' ? req.query.keyword.trim() : undefined
+    const { roles, total } = await RoleService.getRolesWithPagination(page, pageSize, keyword, orgId)
+    return res.ok({ roles, total, page, pageSize })
+  } catch (e) {
+    console.error('listRolesByOrg 失败:', e)
+    return res.internal('获取组织下角色失败')
+  }
 }
 
-export const createRoleUnderOrg = async (req: Request, res: Response) => {
-    try {
-        const orgId = Number(req.params.orgId)
-        const payload: CreateRoleRequest = { ...req.body, org_id: orgId }
-        if (!payload?.name) return res.badRequest('角色名称不能为空')
-        const role = await RoleService.createRoleUnderOrg(orgId, payload)
-        return res.created(role, '角色创建成功')
-    } catch (e: any) {
-        console.error('createRoleUnderOrg 失败:', e)
-        if (e instanceof DuplicateCodeError) return res.conflict(e.message)
-        if (e?.code === 'ER_DUP_ENTRY') return res.conflict('角色编码已存在，请使用其他编码')
-        return res.internal(e?.message || '创建角色失败')
-    }
+export const createRoleUnderOrg = async (req: Request, res: Res) => {
+  try {
+    const orgId = Number(req.params.orgId)
+    const payload: CreateRoleRequest = { ...req.body, org_id: orgId }
+    if (!payload?.name) return res.badRequest('角色名称不能为空')
+    const role = await RoleService.createRoleUnderOrg(orgId, payload)
+    return res.created(role, '角色创建成功')
+  } catch (e: any) {
+    console.error('createRoleUnderOrg 失败:', e)
+    if (e instanceof DuplicateCodeError) return res.conflict(e.message)
+    if (e?.code === 'ER_DUP_ENTRY') return res.conflict('角色编码已存在，请使用其他编码')
+    return res.internal(e?.message || '创建角色失败')
+  }
 }
 
-export const updateRoleUnderOrg = async (req: Request, res: Response) => {
+export const updateRoleUnderOrg = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -49,7 +61,7 @@ export const updateRoleUnderOrg = async (req: Request, res: Response) => {
     }
 }
 
-export const deleteRoleUnderOrg = async (req: Request, res: Response) => {
+export const deleteRoleUnderOrg = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -66,7 +78,7 @@ export const deleteRoleUnderOrg = async (req: Request, res: Response) => {
 }
 
 /** ===== 角色→单位菜单（优先使用 role.org_id） ===== */
-export const getRoleEffectiveMenus = async (req: Request, res: Response) => {
+export const getRoleEffectiveMenus = async (req: Request, res: Res) => {
     try {
         const roleId = Number(req.params.id)
         if (!Number.isFinite(roleId)) return res.badRequest('无效的角色ID')
@@ -90,7 +102,7 @@ export const getRoleEffectiveMenus = async (req: Request, res: Response) => {
 }
 
 /** ===== 原有 /roles 的其余接口（保持不变） ===== */
-export const getAllRoles = async (req: Request, res: Response) => {
+export const getAllRoles = async (req: Request, res: Res) => {
     try {
         const page = req.query.page ? parseInt(String(req.query.page), 10) : undefined
         const pageSize = req.query.pageSize ? parseInt(String(req.query.pageSize), 10) : undefined
@@ -108,7 +120,7 @@ export const getAllRoles = async (req: Request, res: Response) => {
     }
 }
 
-export const getRoleById = async (req: Request, res: Response) => {
+export const getRoleById = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -121,7 +133,7 @@ export const getRoleById = async (req: Request, res: Response) => {
     }
 }
 
-export const createRole = async (req: Request, res: Response) => {
+export const createRole = async (req: Request, res: Res) => {
     try {
         const payload: CreateRoleRequest = req.body
         if (!payload?.name) return res.badRequest('角色名称不能为空')
@@ -135,7 +147,7 @@ export const createRole = async (req: Request, res: Response) => {
     }
 }
 
-export const updateRole = async (req: Request, res: Response) => {
+export const updateRole = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -151,7 +163,7 @@ export const updateRole = async (req: Request, res: Response) => {
     }
 }
 
-export const deleteRole = async (req: Request, res: Response) => {
+export const deleteRole = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -168,7 +180,7 @@ export const deleteRole = async (req: Request, res: Response) => {
 }
 
 /** 菜单权限 */
-export const getRoleMenus = async (req: Request, res: Response) => {
+export const getRoleMenus = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         if (!Number.isFinite(id)) return res.badRequest('无效的角色ID')
@@ -179,7 +191,7 @@ export const getRoleMenus = async (req: Request, res: Response) => {
         return res.internal('获取角色菜单权限失败')
     }
 }
-export const setRoleMenus = async (req: Request, res: Response) => {
+export const setRoleMenus = async (req: Request, res: Res) => {
     try {
         const id = Number(req.params.id)
         const menuIds: number[] = req.body?.menuIds || []
@@ -194,7 +206,7 @@ export const setRoleMenus = async (req: Request, res: Response) => {
 }
 
 /** 用户 ⇄ 角色（原有接口） */
-export const getUserRoles = async (req: Request, res: Response) => {
+export const getUserRoles = async (req: Request, res: Res) => {
     try {
         const uid = Number(req.params.userId)
         if (!Number.isFinite(uid)) return res.badRequest('无效的用户ID')
@@ -205,7 +217,7 @@ export const getUserRoles = async (req: Request, res: Response) => {
         return res.internal('获取用户角色失败')
     }
 }
-export const setUserRoles = async (req: Request, res: Response) => {
+export const setUserRoles = async (req: Request, res: Res) => {
     try {
         const uid = Number(req.params.userId)
         const roleIds: number[] = req.body?.roleIds || []
@@ -220,7 +232,7 @@ export const setUserRoles = async (req: Request, res: Response) => {
 }
 
 /** 角色 ⇄ 用户（增删单个用户） */
-export const getRoleUsers = async (req: Request, res: Response) => {
+export const getRoleUsers = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.roleId)
         if (!Number.isFinite(rid)) return res.badRequest('无效的角色ID')
@@ -231,7 +243,7 @@ export const getRoleUsers = async (req: Request, res: Response) => {
         return res.internal('获取角色用户列表失败')
     }
 }
-export const addUsersToRole = async (req: Request, res: Response) => {
+export const addUsersToRole = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.roleId)
         const userIds: number[] = req.body?.userIds || []
@@ -244,7 +256,7 @@ export const addUsersToRole = async (req: Request, res: Response) => {
         return res.internal(e?.message || '添加用户到角色失败')
     }
 }
-export const removeUserFromRole = async (req: Request, res: Response) => {
+export const removeUserFromRole = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.roleId)
         const uid = Number(req.params.userId)
@@ -258,7 +270,7 @@ export const removeUserFromRole = async (req: Request, res: Response) => {
 }
 
 /** 编码工具 */
-export const checkCode = async (req: Request, res: Response) => {
+export const checkCode = async (req: Request, res: Res) => {
     try {
         const raw = String(req.query.code ?? '').trim()
         const code = slugifyCode(raw)
@@ -270,7 +282,7 @@ export const checkCode = async (req: Request, res: Response) => {
         return res.internal('校验编码失败')
     }
 }
-export const suggestCode = async (req: Request, res: Response) => {
+export const suggestCode = async (req: Request, res: Res) => {
     try {
         const name = String(req.query.name ?? '').trim()
         if (!name) return res.badRequest('name 不能为空')
@@ -283,7 +295,7 @@ export const suggestCode = async (req: Request, res: Response) => {
 }
 
 /** 下一个排序值 */
-export const getNextSortOrder = async (_req: Request, res: Response) => {
+export const getNextSortOrder = async (_req: Request, res: Res) => {
     try {
         const n = await RoleService.getNextSortOrder()
         return res.ok(n)
@@ -294,7 +306,7 @@ export const getNextSortOrder = async (_req: Request, res: Response) => {
 }
 
 /** ===== 角色 ⇄ 机构（基于 roles.org_id 的一对一实现） ===== */
-export const getRoleOrgs = async (req: Request, res: Response) => {
+export const getRoleOrgs = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.id)
         if (!Number.isFinite(rid)) return res.badRequest('无效的角色ID')
@@ -306,7 +318,7 @@ export const getRoleOrgs = async (req: Request, res: Response) => {
     }
 }
 
-export const addRoleOrgs = async (req: Request, res: Response) => {
+export const addRoleOrgs = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.id)
         const orgIds: number[] = (req.body?.orgIds || []).map(Number).filter(Number.isFinite)
@@ -320,7 +332,7 @@ export const addRoleOrgs = async (req: Request, res: Response) => {
     }
 }
 
-export const removeRoleOrg = async (req: Request, res: Response) => {
+export const removeRoleOrg = async (req: Request, res: Res) => {
     try {
         const rid = Number(req.params.id)
         const oid = Number(req.params.orgId)

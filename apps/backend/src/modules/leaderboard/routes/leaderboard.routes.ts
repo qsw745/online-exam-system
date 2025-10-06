@@ -4,7 +4,7 @@ import { body, param, query } from 'express-validator'
 import { LeaderboardController } from '../controllers/leaderboard.controller'
 import { validateRequest } from '@/common/middleware/validation'
 import { authenticateToken } from '@/common/middleware/auth'
-import type { AuthRequest } from 'types/auth'
+import type { AuthRequest } from '@/types/auth'
 
 const router = Router()
 const wrap =

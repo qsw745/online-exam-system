@@ -69,9 +69,20 @@ router.put(
     wrap(OrgUserController.moveUser)
 )
 /** -------- 组织下的角色 -------- */
-router.get('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(listRolesByOrg))
-router.post('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(createRoleUnderOrg))
-router.put('/:orgId/roles/:id', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(updateRoleUnderOrg))
-router.delete('/:orgId/roles/:id', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(deleteRoleUnderOrg))
+router.get('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(listRolesByOrg as any))
+router.post('/:orgId/roles', requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(createRoleUnderOrg as any))
+router.put(
+  '/:orgId/roles/:id',
+  requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]),
+  wrap(updateRoleUnderOrg as any)
+)
+router.delete(
+  '/:orgId/roles/:id',
+  requireRoleByIds([ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]),
+  wrap(deleteRoleUnderOrg as any)
+)
+
+
+
 export { router as orgRoutes }
 export default router

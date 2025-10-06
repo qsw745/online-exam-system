@@ -4,7 +4,20 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { questionsApi } from '@/shared/api/http'
 import type { OptionDTO, QuestionType } from '../types/question'
-import { buildPayload, normalizeFromServer } from '../utils/question-normalize'
+import { buildPayload, normalizeFromServer } from '../api/normalizers/question-normalize'
+import type { ApiResult } from '@/shared/api/core/types'
+
+// 统一抽取后端错误文案
+function pickErrMsg<T = unknown>(r?: ApiResult<T>): string {
+  if (!r) return ''
+  if ((r as any).message && (r as any).success) return String((r as any).message) // 兼容有 message 的成功返回
+  if (!r.success) {
+    const err = (r as any).error
+    if (typeof err === 'string') return err
+    if (err?.message) return String(err.message)
+  }
+  return ''
+}
 
 export function useQuestionEditor() {
   const { id } = useParams<{ id: string }>()
@@ -47,7 +60,7 @@ export function useQuestionEditor() {
     setInitialLoading(true)
     try {
       const res = await questionsApi.getById(id)
-      if (!res?.success) return message.error(res?.message || '获取题目详情失败')
+      if (!res?.success) return message.error(pickErrMsg(res) || '获取题目详情失败')
       const q = normalizeFromServer(res.data)
       setContent(q.content)
       setType(q.question_type)
@@ -111,7 +124,9 @@ export function useQuestionEditor() {
         score: 10,
       })
       const res = isEdit && id ? await questionsApi.update(id, payload) : await questionsApi.create(payload)
-      if (!res?.success) return message.error(res?.message || (isEdit ? '题目更新失败' : '题目创建失败'))
+      if (!res?.success) {
+        return message.error(pickErrMsg(res) || (isEdit ? '题目更新失败' : '题目创建失败'))
+      }
       message.success(isEdit ? '题目更新成功' : '题目创建成功')
       navigate('/admin/questions')
     } catch (e: any) {

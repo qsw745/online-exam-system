@@ -3,7 +3,7 @@ import type { PoolConnection, RowDataPacket } from 'mysql2/promise'
 import { LeaderboardRepository } from '../repositories/leaderboard.repository.js'
 import { CompetitionRepository } from '../repositories/competition.repository.js'
 import { AchievementRepository } from '../repositories/achievement.repository.js'
-import type { Competition, Leaderboard, LeaderboardRecord } from '../domain/leaderboard.types.js'
+import type { Competition, Leaderboard, LeaderboardRecord } from '../domain/leaderboard.model.js'
 
 export class LeaderboardService {
   private lbRepo = new LeaderboardRepository()

@@ -16,8 +16,8 @@ export { default as useLeaderboard } from './useLeaderboard'
 export * from './useLearningProgress'
 export { default as useLearningProgress } from './useLearningProgress'
 
-export * from './useLogs'
-export { default as useLogs } from './useLogs'
+export * from '../../features/logs/hooks/useLogs'
+export { default as useLogs } from '../../features/logs/hooks/useLogs'
 
 export * from '../../features/exams/hooks/useResults'
 export { default as useResults } from '../../features/exams/hooks/useResults'
@@ -40,8 +40,8 @@ export { default as useTheme } from './useTheme'
 
 // —— 题目浏览相关 ——
 // 直接使用 shared 版本，不从 features 再导出，避免循环依赖
-export * from './useQuestionsQuery'
-export { default as useQuestionsQuery } from './useQuestionsQuery'
+export * from '../../features/questions/hooks/useQuestionsQuery'
+export { default as useQuestionsQuery } from '../../features/questions/hooks/useQuestionsQuery'
 
 // —— 用户组织相关 ——
 // 修复：转发到 features 下实际实现，避免找不到本地文件

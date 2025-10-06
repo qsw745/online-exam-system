@@ -1,6 +1,6 @@
 import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2/promise'
-import type { Leaderboard, LeaderboardRecord } from '../domain/leaderboard.types.js'
+import type { Leaderboard, LeaderboardRecord } from '../domain/leaderboard.model'
 
 export class LeaderboardRepository {
   async list(params: { category?: string; type?: string; active?: string }) {

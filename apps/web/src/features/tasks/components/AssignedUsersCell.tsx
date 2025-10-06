@@ -1,7 +1,7 @@
 // features/tasks/components/AssignedUsersCell.tsx
 import { Space, Tag, Typography } from 'antd'
 import React from 'react'
-import type { AssignedUser } from '../types'
+import type { AssignedUser } from '@/shared/types/index'
 const { Text } = Typography
 export const AssignedUsersCell: React.FC<{ users?: AssignedUser[] }> = ({ users }) => {
   if (!users || users.length === 0) {

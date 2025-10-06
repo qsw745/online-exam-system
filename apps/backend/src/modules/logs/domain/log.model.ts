@@ -2,7 +2,7 @@
 import type { RowDataPacket } from 'mysql2'
 
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'fatal'
-export type LogType = 'user' | 'system' | 'audit' | 'login' | 'exam'
+export type LogType = 'user' | 'system' | 'audit' | 'login' | 'exam' | 'organization'
 
 export interface LogRow extends RowDataPacket {
   id: number

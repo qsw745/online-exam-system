@@ -8,6 +8,8 @@
 |   |   dev-stop.sh
 +-- src
 |   +-- app
+|   |   +-- css
+|   |   |   |   DynamicSidebar.css
 |   |   +-- errors
 |   |   |   |   Forbidden403.tsx
 |   |   |   |   NotFound404.tsx
@@ -292,6 +294,12 @@
 |   |   |   +-- hooks
 |   |   |   |   |   useUserSettings.ts
 |   |   |   +-- pages
+|   |   |   |   +-- tabs
+|   |   |   |   |   |   AccountTab.tsx
+|   |   |   |   |   |   PreferencesTab.tsx
+|   |   |   |   |   |   ProfileTab.tsx
+|   |   |   |   |   |   SecurityTab.tsx
+|   |   |   |   |   SettingsPage.tsx
 |   |   |   |   |   UserSettingsPage.tsx
 |   |   +-- tasks
 |   |   |   +-- components
@@ -374,6 +382,7 @@
 |   |   |   |   |   import-normalize.ts
 |   |   |   |   |   question-normalize.ts
 |   |   |   |   http.ts
+|   |   |   |   nprogress-axios.ts
 |   |   +-- components
 |   |   |   +-- css
 |   |   |   |   |   header.css
@@ -400,6 +409,7 @@
 |   |   |   |   LoadingSpinner.tsx
 |   |   |   |   OrgTreePanel.tsx
 |   |   |   |   RefreshButton.tsx
+|   |   |   |   RouteProgress.tsx
 |   |   |   |   SectionCard.tsx
 |   |   |   |   StatsCard.tsx
 |   |   |   |   StatsCardGroup.tsx
@@ -413,6 +423,7 @@
 |   |   |   |   LayoutContext.tsx
 |   |   |   |   MenuPermissionContext.tsx
 |   |   |   |   TabsContext.tsx
+|   |   |   |   tabsTitleRegistry.ts
 |   |   +-- hooks
 |   |   |   |   index.ts
 |   |   |   |   useAnalytics.ts
@@ -445,6 +456,7 @@
 |   |   +-- styles
 |   |   |   |   antd-override.css
 |   |   |   |   antd-theme.ts
+|   |   |   |   nprogress.css
 |   |   |   |   theme.css
 |   |   +-- types
 |   |   |   |   admin-settings.ts

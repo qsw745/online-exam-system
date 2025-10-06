@@ -184,7 +184,7 @@ export const BindUserModal: React.FC<{
         </Space>
       }
       width={1000}
-      maskClosable={false}
+  
       destroyOnHidden
       styles={{ body: { padding: 0 } }}
     >

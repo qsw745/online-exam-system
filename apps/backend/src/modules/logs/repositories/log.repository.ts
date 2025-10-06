@@ -6,7 +6,35 @@ import type { RowDataPacket } from 'mysql2'
 const J = (v: any) => (v === undefined || v === null ? null : JSON.stringify(v))
 
 export const LogRepository = {
-  /** 单表 logs 通用写入（统一口） */
+    /** 从日志表推断在线用户：按 user_id 取最近一次登录成功日志 */
+    async queryOnlineUsersFromLogs(limit = 500) {
+        const sql = `
+      SELECT l1.user_id AS id,
+             l1.username,
+             l1.ip_address,
+             l1.user_agent,
+             l1.created_at AS login_time
+      FROM logs l1
+      INNER JOIN (
+        SELECT user_id, MAX(id) AS max_id
+        FROM logs
+        WHERE log_type = 'login' AND (status IS NULL OR status = 'success')
+        GROUP BY user_id
+      ) last ON last.user_id = l1.user_id AND last.max_id = l1.id
+      ORDER BY l1.created_at DESC
+      LIMIT ?
+    `
+        const [rows] = await pool.query<RowDataPacket[]>(sql, [Number(limit)])
+        return rows as Array<{
+            id: number | null
+            username: string | null
+            ip_address: string | null
+            user_agent: string | null
+            login_time: string
+        }>
+    },
+
+    /** 单表 logs 通用写入（统一口） */
   async insert(input: Required<Pick<LogInput, 'type'>> & Omit<LogInput, 'type'>) {
     const sql = `
       INSERT INTO logs

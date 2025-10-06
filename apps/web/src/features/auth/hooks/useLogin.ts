@@ -492,7 +492,7 @@ export function useLogin() {
   ])
 
   // 开发期调试（可删）
-  // @ts-expect-error
+
   if (typeof window !== 'undefined')
     (window as any).__loginDebug = { isLocked, lockUntil, lockRemainingSec, lockedNextTryAt, lockTryRemainSec }
 

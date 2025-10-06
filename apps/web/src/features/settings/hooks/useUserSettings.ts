@@ -2,18 +2,18 @@
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { App } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { UserSettings } from '@/shared/types/settings'
 import { api } from '@/shared/api/http'
 
-// ✅ 统一走用户端点（而不是 /admin/settings）
+// 仅走用户偏好端点，不触发 /admin/settings
 const settingsEndpoint = '/users/settings'
+
 const settingsService = {
   async get(): Promise<UserSettings | null> {
     try {
       const r = await api.get<any>(settingsEndpoint)
-      // 兼容 {success,data} 或直出
-      const d = (r as any)?.data ?? r
+      const d = (r as any)?.data ?? r // 兼容 {success,data} 或直出
       return (d?.data ?? d ?? null) as UserSettings | null
     } catch {
       return null
@@ -21,9 +21,8 @@ const settingsService = {
   },
   async save(payload: UserSettings): Promise<boolean> {
     try {
-      // ✅ 与你下方 userSettingsApi 保持一致，使用 POST
+      // 统一在点击“保存”时才请求
       const r = await api.post<any>(settingsEndpoint, payload)
-      // 兼容 {success} 或空 200
       return (r as any)?.success !== false
     } catch {
       return false
@@ -45,12 +44,17 @@ export function useUserSettings() {
   const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(false)
 
-  // 当前设置 & 原始设置
   const [settings, setSettings] = useState<UserSettings>(DEFAULTS)
   const [initial, setInitial] = useState<UserSettings>(DEFAULTS)
 
-  // 初始加载
+  // —— 防止 React 18 StrictMode 开发环境下 effect 执行两次而重复请求
+  const loadedOnceRef = useRef(false)
+
+  // 初始加载（不在这里保存语言到服务端）
   const load = useCallback(async () => {
+    if (loadedOnceRef.current) return
+    loadedOnceRef.current = true
+
     setInitialLoading(true)
     try {
       if (user?.id) {
@@ -58,39 +62,41 @@ export function useUserSettings() {
         const merged = { ...DEFAULTS, ...(data ?? {}) }
         setSettings(merged)
         setInitial(merged)
-        if (merged.appearance?.language) setLanguage(merged.appearance.language)
       } else {
-        const localLang = (localStorage.getItem('language') as any) || language || 'zh-CN'
+        const localLang = (localStorage.getItem('language') as any) || 'zh-CN'
         const merged = { ...DEFAULTS, appearance: { language: localLang } }
         setSettings(merged)
         setInitial(merged)
-        setLanguage(localLang)
       }
     } finally {
       setInitialLoading(false)
     }
-  }, [user?.id, setLanguage, language])
+  }, [user?.id])
 
   useEffect(() => {
     load()
   }, [load])
 
-  // 语言选择变化 → 立即生效 & 持久化 & 通知 antd 切换 locale
+  // 语言切换：只本地应用，不请求后端（避免你看到的多次请求）
   useEffect(() => {
     const lang = settings?.appearance?.language || 'zh-CN'
-    setLanguage(lang)
+    if (lang !== language) {
+      setLanguage(lang) // 切 UI
+    }
     try {
-      localStorage.setItem('language', lang)
+      localStorage.setItem('language', lang) // 本地记忆
     } catch {}
     if (typeof window !== 'undefined') {
+      // 通知其他需要响应语言变化的地方（不发请求）
       window.dispatchEvent(new CustomEvent('app-language-changed', { detail: lang }))
       document.documentElement.lang = lang
     }
-  }, [settings?.appearance?.language, setLanguage])
+  }, [settings?.appearance?.language, language, setLanguage])
 
-  // 和“原始值”做深比较
+  // “是否修改过”判断
   const isDirty = useMemo(() => JSON.stringify(settings) !== JSON.stringify(initial), [settings, initial])
 
+  // 只有点击“保存”才请求后端
   const save = useCallback(async () => {
     setLoading(true)
     try {
@@ -98,10 +104,10 @@ export function useUserSettings() {
         const ok = await settingsService.save(settings)
         if (!ok) throw new Error('save failed')
       } else {
-        // 未登录：只持久化语言
+        // 未登录：只落本地语言，不请求
         localStorage.setItem('language', settings.appearance.language)
       }
-      setInitial(settings) // ✅ 保存成功后刷新基准
+      setInitial(settings) // 保存成功后刷新基准
       message.success(t('settings.success'))
     } catch (e: any) {
       console.error(e)
@@ -113,7 +119,6 @@ export function useUserSettings() {
   }, [settings, user?.id, message, t])
 
   const reset = useCallback(() => {
-    // 恢复到“当前初始值”，而不是 DEFAULTS
     setSettings(initial)
   }, [initial])
 
@@ -123,7 +128,7 @@ export function useUserSettings() {
     loading,
     settings,
     setSettings,
-    save,
+    save, // ← 只在这里才会请求
     reset,
     isDirty,
   }

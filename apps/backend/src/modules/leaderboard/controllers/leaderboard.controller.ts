@@ -1,112 +1,104 @@
-import type { Response } from 'express'
-import type { ApiResponse } from 'types/response.js'
-import type { AuthRequest } from 'types/auth.js'
-import type { Leaderboard, LeaderboardRecord, Competition } from '../domain/leaderboard.types.js'
+import type { AuthRequest } from '@/types/auth.js'
+import type { Res } from '@/types/response.js'
+import type { Leaderboard, LeaderboardRecord, Competition } from '../domain/leaderboard.model.js'
 import { LeaderboardService } from '../services/leaderboard.service.js'
 
 const service = new LeaderboardService()
 
 export class LeaderboardController {
-  static async getLeaderboards(req: AuthRequest, res: Response<ApiResponse<{ leaderboards: Leaderboard[] }>>) {
+  static async getLeaderboards(req: AuthRequest, res: Res) {
     try {
       const leaderboards = await service.listLeaderboards({
         category: req.query.category as string | undefined,
         type: req.query.type as string | undefined,
         active: req.query.active as string | undefined,
       })
-      res.json({ success: true, data: { leaderboards } })
-    } catch (e) {
-      res.status(500).json({ success: false, error: '获取排行榜列表失败' })
+      return res.ok<{ leaderboards: Leaderboard[] }>({ leaderboards })
+    } catch {
+      return res.internal('获取排行榜列表失败')
     }
   }
 
-  static async getLeaderboardData(
-    req: AuthRequest,
-    res: Response<ApiResponse<{ leaderboard: Leaderboard; records: LeaderboardRecord[] }>>
-  ) {
+  static async getLeaderboardData(req: AuthRequest, res: Res) {
     try {
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: '无效的排行榜ID' })
+      if (!Number.isInteger(id)) return res.internal('无效的排行榜ID')
       const page = Number(req.query.page || 1)
       const limit = Number(req.query.limit || 50)
       const { leaderboard, records } = await service.getLeaderboardWithRecords(id, page, limit)
-      if (!leaderboard) return res.status(404).json({ success: false, error: '排行榜不存在' })
-      res.json({ success: true, data: { leaderboard, records } })
+      if (!leaderboard) return res.internal('排行榜不存在')
+      return res.ok<{ leaderboard: Leaderboard; records: LeaderboardRecord[] }>({ leaderboard, records })
     } catch {
-      res.status(500).json({ success: false, error: '获取排行榜数据失败' })
+      return res.internal('获取排行榜数据失败')
     }
   }
 
-  static async getUserRank(
-    req: AuthRequest,
-    res: Response<ApiResponse<{ rank: LeaderboardRecord | null; total: number }>>
-  ) {
+  static async getUserRank(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return res.unauthorized('未授权访问')
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: '无效的排行榜ID' })
+      if (!Number.isInteger(id)) return res.internal('无效的排行榜ID')
       const data = await service.getUserRankAndTotal(id, userId)
-      res.json({ success: true, data })
+      return res.ok<{ rank: LeaderboardRecord | null; total: number }>(data)
     } catch {
-      res.status(500).json({ success: false, error: '获取用户排名失败' })
+      return res.internal('获取用户排名失败')
     }
   }
 
-  static async updateLeaderboardData(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async updateLeaderboardData(req: AuthRequest, res: Res) {
     try {
-      if (!req.user?.id || req.user?.role !== 'admin') {
-        return res.status(403).json({ success: false, error: '权限不足' })
+      if (!req.user?.id || (req as any).user?.role !== 'admin') {
+        return res.unauthorized('权限不足')
       }
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: '无效的排行榜ID' })
+      if (!Number.isInteger(id)) return res.internal('无效的排行榜ID')
       await service.recalcLeaderboard(id)
-      res.json({ success: true, data: null })
+      return res.ok<null>(null)
     } catch (e) {
-      if ((e as Error).message === 'NOT_FOUND') {
-        return res.status(404).json({ success: false, error: '排行榜不存在' })
-      }
-      res.status(500).json({ success: false, error: '更新排行榜数据失败' })
+      const msg = (e as Error)?.message
+      if (msg === 'NOT_FOUND') return res.internal('排行榜不存在')
+      return res.internal('更新排行榜数据失败')
     }
   }
 
-  static async getCompetitions(req: AuthRequest, res: Response<ApiResponse<{ competitions: Competition[] }>>) {
+  static async getCompetitions(req: AuthRequest, res: Res) {
     try {
       const competitions = await service.listCompetitions({
         status: req.query.status as string | undefined,
         type: req.query.type as string | undefined,
       })
-      res.json({ success: true, data: { competitions } })
+      return res.ok<{ competitions: Competition[] }>({ competitions })
     } catch {
-      res.status(500).json({ success: false, error: '获取竞赛列表失败' })
+      return res.internal('获取竞赛列表失败')
     }
   }
 
-  static async joinCompetition(req: AuthRequest, res: Response<ApiResponse<null>>) {
+  static async joinCompetition(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return res.unauthorized('未授权访问')
       const id = Number(req.params.id)
-      if (!Number.isInteger(id)) return res.status(400).json({ success: false, error: '无效的竞赛ID' })
+      if (!Number.isInteger(id)) return res.internal('无效的竞赛ID')
       await service.joinCompetition(userId, id, (req.body?.team_name as string | undefined) ?? null)
-      res.json({ success: true, data: null })
+      return res.ok<null>(null)
     } catch (e) {
       const msg = (e as Error).message
-      if (msg === 'NOT_OPEN') return res.status(404).json({ success: false, error: '竞赛不存在或不在报名期间' })
-      if (msg === 'DUP') return res.status(400).json({ success: false, error: '您已经参加了这个竞赛' })
-      if (msg === 'FULL') return res.status(400).json({ success: false, error: '竞赛参与人数已满' })
-      res.status(500).json({ success: false, error: '参加竞赛失败' })
+      if (msg === 'NOT_OPEN') return res.internal('竞赛不存在或不在报名期间')
+      if (msg === 'DUP') return res.internal('您已经参加了这个竞赛')
+      if (msg === 'FULL') return res.internal('竞赛参与人数已满')
+      return res.internal('参加竞赛失败')
     }
   }
 
-  static async getUserAchievements(req: AuthRequest, res: Response<ApiResponse<{ achievements: any[] }>>) {
+  static async getUserAchievements(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: '未授权访问' })
+      if (!userId) return res.unauthorized('未授权访问')
       const achievements = await service.listUserAchievements(userId)
-      res.json({ success: true, data: { achievements } })
+      return res.ok<{ achievements: any[] }>({ achievements })
     } catch {
-      res.status(500).json({ success: false, error: '获取用户成就失败' })
+      return res.internal('获取用户成就失败')
     }
   }
 }

@@ -1,14 +1,14 @@
-import { App, Spin } from 'antd'
-import dayjs from '@/shared/utils/dayjs'
-import { BarChart3 } from 'lucide-react'
-import React, { useMemo, useState } from 'react'
+import { RefreshButton } from '@/shared/components/RefreshButton'
 import { useAnalytics, type DateRange } from '@/shared/hooks/useAnalytics'
+import dayjs from '@/shared/utils/dayjs'
+import { App, Spin } from 'antd'
+import { BarChart3 } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { AnalyticsFilters } from '../components/AnalyticsFilters'
 import { OverviewStats } from '../components/OverviewStats'
-import { SubjectsTable } from '../components/SubjectsTable'
-import { StudentsTable } from '../components/StudentsTable'
 import type { StudentRow } from '../components/StudentsTable'
-import { RefreshButton } from '@/shared/components/RefreshButton'
+import { StudentsTable } from '../components/StudentsTable'
+import { SubjectsTable } from '../components/SubjectsTable'
 
 export default function AnalyticsPage() {
   const { message } = App.useApp()
@@ -25,7 +25,7 @@ export default function AnalyticsPage() {
 
   // 错误提示（只在有错误且非 loading 时提示一次）
   if (!isLoading && isError && error) {
-    message.error(error.message || '获取统计数据失败')
+    message.error((error as any)?.message || '获取统计数据失败')
   }
 
   // 分页切片
@@ -38,8 +38,7 @@ export default function AnalyticsPage() {
   }, [data?.students, currentPage, pageSize])
 
   return (
-      <div className="p-6">
-        
+    <div className="p-6">
       {/* 标题 & 筛选 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">

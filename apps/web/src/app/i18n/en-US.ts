@@ -20,11 +20,11 @@ export default {
   'app.operation_failed': 'Operation failed',
   'app.loading_questions': 'Loading questions list...',
   'app.home': 'Back to Home',
-  
+
   // Language Names
   'language.zh-CN': 'Simplified Chinese',
   'language.en-US': 'English',
-  
+
   // Navigation
   'nav.dashboard': 'Dashboard',
   'nav.questions': 'Questions',
@@ -34,7 +34,7 @@ export default {
   'nav.settings': 'Settings',
   'nav.admin': 'Admin',
   'nav.logout': 'Logout',
-  
+
   // Settings Page
   'settings.title': 'Settings',
   'settings.notifications': 'Notification Settings',
@@ -56,7 +56,8 @@ export default {
   'settings.private': 'Private',
   'settings.save_changes': 'Save Changes',
   'settings.saving_changes': 'Saving...',
-  
+  'settings.preferences': 'preferences',
+
   // Login and Register
   'auth.login': 'Login',
   'auth.register': 'Register',
@@ -66,7 +67,7 @@ export default {
   'auth.role': 'Role',
   'auth.remember': 'Remember me',
   'auth.forgot': 'Forgot password?',
-  'auth.no_account': 'Don\'t have an account?',
+  'auth.no_account': "Don't have an account?",
   'auth.has_account': 'Already have an account?',
   'auth.login_now': 'Login now',
   'auth.register_now': 'Register now',
@@ -76,7 +77,7 @@ export default {
   'auth.agree_terms': 'I agree to',
   'auth.terms': 'Terms of Service',
   'auth.privacy': 'Privacy Policy',
-  
+
   // Dashboard
   'dashboard.welcome': 'Welcome back',
   'dashboard.upcoming': 'Upcoming Exams',
@@ -99,7 +100,7 @@ export default {
   'dashboard.load_error': 'Failed to load dashboard data',
   'dashboard.status_not_started': 'Not Started',
   'dashboard.status_in_progress': 'In Progress',
-  
+
   // Profile Page
   'profile.title': 'Profile',
   'profile.nickname': 'Nickname',
@@ -124,7 +125,7 @@ export default {
   'dashboard.no_tasks': 'No Tasks',
   'dashboard.no_results': 'No Results',
   'dashboard.score': 'Score',
-  
+
   // Exam
   'exam.start': 'Start Exam',
   'exam.submit': 'Submit Answer',
@@ -141,7 +142,7 @@ export default {
   'exam.submit_error': 'Failed to submit answer, please try again',
   'exam.not_exist': 'Exam does not exist',
   'exam.not_exist_desc': 'This exam may have been deleted or you do not have access to it',
-  
+
   // Results
   'results.title': 'Exam Results',
   'results.description': 'View all your exam records and scores',
@@ -160,10 +161,10 @@ export default {
   'results.status_not_started': 'Not Started',
   'results.all_status': 'All Status',
   'results.search_placeholder': 'Search exam title...',
-   'results.no_records': 'No Exam Records',
-   'results.no_records_desc': 'No exam records found under current filter criteria',
-    
-    // Questions Page
+  'results.no_records': 'No Exam Records',
+  'results.no_records_desc': 'No exam records found under current filter criteria',
+
+  // Questions Page
   'questions.title': 'Questions List',
   'questions.description': 'Browse and practice all available questions',
   'questions.search_placeholder': 'Search question title or knowledge point...',
@@ -180,7 +181,7 @@ export default {
   'questions.load_error': 'Failed to load questions',
   'questions.favorite_error': 'Favorite operation error',
   'results.review': 'Review',
-  
+
   // Errors
   'error.unknown': 'An unknown error occurred',
   'error.network': 'Network error',
@@ -192,12 +193,12 @@ export default {
   'error.load_notifications': 'Failed to load notifications',
   'error.load_unread_count': 'Failed to load unread notification count',
   'error.logout': 'Failed to logout',
-  
+
   // Theme
   'theme.toggle_light': 'Switch to light mode',
   'theme.toggle_dark': 'Switch to dark mode',
-  
+
   // Notifications
   'notifications.title': 'Notifications',
   'notifications.empty': 'No notifications',
-};
+}

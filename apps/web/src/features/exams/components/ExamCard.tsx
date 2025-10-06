@@ -1,10 +1,22 @@
 // src/features/exams/components/ExamCard.tsx
-import { Card, Button, Space, Typography, Tag } from 'antd'
+
+import { Button, Card, Space, Tag, Typography } from 'antd'
 import { BookOpen, Clock, Play, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import type { Exam } from '@/shared/api/http'
 const { Title, Paragraph } = Typography
-
+// ✅ 本地最小化类型（避免从 http 导入不存在的类型）
+type Exam = {
+  id: string | number
+  title: string
+  status: 'draft' | 'published' | 'archived' | (string & {})
+  description?: string
+  duration: number
+  total_score: number
+  question_count?: number
+  participant_count?: number
+  start_time?: string
+  end_time?: string
+}
 function formatDuration(minutes: number) {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
@@ -16,10 +28,9 @@ function StatusBadge({ status }: { status: Exam['status'] }) {
     published: { label: '已发布', color: 'success' as const },
     archived: { label: '已归档', color: 'error' as const },
   }
-  const cfg = map[status] ?? map.draft
+  const cfg = map[status as keyof typeof map] ?? map.draft
   return <Tag color={cfg.color}>{cfg.label}</Tag>
 }
-
 export function ExamCard({ exam }: { exam: Exam }) {
   return (
     <Card

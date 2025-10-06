@@ -1,9 +1,9 @@
-// components/RolesTable.tsx
+// src/features/roles/components/RolesTable.tsx
 import { Button, Dropdown, Modal, Space, Table, Tag } from 'antd'
 import { DeleteOutlined, EditOutlined, MoreOutlined, SettingOutlined, TeamOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import React from 'react'
-import type { Role } from '../types'
+import type { Role } from '@/shared/api/endpoints/roles'
 
 export function RolesTable({
   data,

@@ -9,11 +9,13 @@ export interface ProfileDTO {
 }
 
 export interface UpdateProfilePayload {
-    avatar?: string | null
-    nickname?: string | null
-    email?: string | null
-    phone?: string | null
-    bio?: string | null
+  avatar?: string | null
+  nickname?: string | null
+  email?: string | null
+  phone?: string | null
+  bio?: string | null
+  school?: string | null // ✅ 新增
+  class_name?: string | null // ✅ 新增
 }
 
 export interface UpdateAvatarPayload {

@@ -1,8 +1,9 @@
-import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
 import type { MenuDTO } from '@/shared/api/endpoints/menu'
-import { Button, Popconfirm, Space, Tag, Tree } from 'antd'
-import type { DataNode, TreeProps } from 'antd/es/tree'
+import { CopyOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { Button, Popconfirm, Space, Spin, Tag, Tree } from 'antd' // <-- 引入 Spin
+
 import { buildTreeData } from '@/shared/utils/tree'
+import type { DataNode, TreeProps } from 'antd/es/tree'
 
 export default function MenuTree({
   menus,
@@ -84,14 +85,15 @@ export default function MenuTree({
   const treeData: DataNode[] = buildTreeData(menus, renderTitle)
 
   return (
-    <Tree
-      treeData={treeData}
-      defaultExpandAll
-      showLine
-      draggable={!readOnly}
-      blockNode
-      loading={loading as any}
-      onDrop={readOnly ? undefined : onDrop}
-    />
+    <Spin spinning={loading}>
+      <Tree
+        treeData={treeData}
+        defaultExpandAll
+        showLine
+        draggable={!readOnly}
+        blockNode
+        onDrop={readOnly ? undefined : onDrop}
+      />
+    </Spin>
   )
 }

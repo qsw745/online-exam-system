@@ -1,6 +1,6 @@
 import type { Pool, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import { pool } from '@/config/database.js'
-import type { UserDTO, UserRole, UserStatus, UserSettings } from '../domain/user.entity.js'
+import type { UserDTO, UserRole, UserStatus, UserSettings } from '../domain/user.model'
 
 export class UserRepository {
   constructor(private readonly db: Pool = pool) {}

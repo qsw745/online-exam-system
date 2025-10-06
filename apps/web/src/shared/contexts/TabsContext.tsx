@@ -2,16 +2,7 @@
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { useMenuPermissions, type MenuItem } from '@/shared/contexts/MenuPermissionContext'
 import { getTitle as getRegisteredTitle } from '@/shared/contexts/tabsTitleRegistry'
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 
 export type TabItem = { key: string; title: string; closable?: boolean }
@@ -48,8 +39,11 @@ const sameOrChild = (cur: string, base: string) => cur === base || cur.startsWit
 /** 从菜单树解析“最合适的中文标题” */
 function resolveTitleFromMenus(menus: MenuItem[], fullPath: string): string | null {
   const target = normalizePath(fullPath)
-  // 在菜单树里找“静态 path 命中且最长”的节点
-  let best: { title: string; len: number } | null = null
+
+  // 用两个标量代替 { title, len } 对象，避免闭包里把对象推断成 never
+  let bestTitle: string | null = null
+  let bestLen = -1
+
   const walk = (list: MenuItem[]) => {
     for (const m of list || []) {
       const raw = (m as any).path
@@ -57,16 +51,21 @@ function resolveTitleFromMenus(menus: MenuItem[], fullPath: string): string | nu
         const p = cleanPath(raw)
         if (sameOrChild(target, p)) {
           const t = (m as any).title || ''
-          if (!best || p.length > best.len) best = { title: t, len: p.length }
+          if (p.length > bestLen) {
+            bestTitle = t
+            bestLen = p.length
+          }
         }
       }
       const cs = (m as any).children
       if (cs?.length) walk(cs)
     }
   }
+
   walk(menus)
-  return best?.title ?? null
+  return bestTitle
 }
+
 
 /** 统一的“规范标题”：注册表中文 > 菜单中文 > 首页固定中文 > 路径最后一段 */
 function makeDesiredTitle(path: string, menus: MenuItem[]) {
@@ -128,16 +127,16 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     const cur = normalizePath(location.pathname || '/')
 
     const mergedMap = new Map<string, TabItem>()
-    for (const t of list) {
+    for (const t of list as TabItem[]) {
       const k = normalizePath(t.key)
       mergedMap.set(k, {
         key: k,
-        title: makeDesiredTitle(k, menus), // ← 用菜单中文统一覆盖
+        title: makeDesiredTitle(k, menus),
         closable: k !== HOME_PATH,
       })
     }
-    let merged = Array.from(mergedMap.values())
-
+    // 初次装载：Map → Array 时显式类型
+    let merged: TabItem[] = Array.from(mergedMap.values())
     if (!merged.length) {
       const first: TabItem = { key: cur, title: makeDesiredTitle(cur, menus), closable: cur !== HOME_PATH }
       merged = [first]
@@ -151,8 +150,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       persist(merged, active)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [persistTabs, menus]) // ← 菜单变化时也会把标题更新为中文
+  }, [persistTabs, menus])
 
+  // 路由变化 → 同步标签 & 始终覆写为中文标题
   // 路由变化 → 同步标签 & 始终覆写为中文标题
   useEffect(() => {
     if (programNavRef.current) programNavRef.current = false
@@ -161,16 +161,26 @@ export function TabsProvider({ children }: { children: ReactNode }) {
 
     setActiveKey(prev => (prev === cur ? prev : cur))
     setTabs(prev => {
-      const withoutParents = prev.filter(t => !(t.key !== cur && cur.startsWith(t.key + '/')))
+      const prevTabs: TabItem[] = Array.isArray(prev) ? (prev as TabItem[]) : []
+      const withoutParents: TabItem[] = prevTabs.filter(t => !(t.key !== cur && cur.startsWith(t.key + '/')))
       const exists = withoutParents.some(t => t.key === cur)
 
       if (exists) {
-        const next = withoutParents.map(t => (t.key === cur ? { ...t, title: desiredTitle } : t))
+        // ★ 这里用显式 push，避免 map 条件分支把类型推成 never
+        const next: TabItem[] = []
+        for (const t of withoutParents) {
+          if (t.key === cur) {
+            next.push({ key: t.key, title: desiredTitle, closable: t.closable })
+          } else {
+            next.push(t)
+          }
+        }
         persist(next, cur)
         return next
       }
+
       const t: TabItem = { key: cur, title: desiredTitle, closable: cur !== HOME_PATH }
-      const next = [...withoutParents, t]
+      const next: TabItem[] = [...withoutParents, t]
       persist(next, cur)
       return next
     })
@@ -234,7 +244,9 @@ export function TabsProvider({ children }: { children: ReactNode }) {
       const target = normalizePath(key)
       setTabs(prev => {
         const me = prev.find(t => t.key === target)
-        const next = me ? [me] : [{ key: HOME_PATH, title: makeDesiredTitle(HOME_PATH, menus), closable: false }]
+        const next: TabItem[] = me
+          ? [me]
+          : [{ key: HOME_PATH, title: makeDesiredTitle(HOME_PATH, menus), closable: false }]
         const to = me ? me.key : HOME_PATH
         if (normalizePath(location.pathname) !== to) {
           programNavRef.current = true
@@ -248,9 +260,11 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     [location.pathname, navigate, persist, menus]
   )
 
+  // closeAll：★ 兜底 also 显式为 TabItem[]
   const closeAll = useCallback(() => {
     const home = HOME_PATH
-    const only = [{ key: home, title: makeDesiredTitle(home, menus), closable: false }]
+    const only: TabItem[] = [{ key: home, title: makeDesiredTitle(home, menus), closable: false }]
+
     setTabs(only)
     setActiveKey(home)
     persist(only, home)
@@ -264,7 +278,8 @@ export function TabsProvider({ children }: { children: ReactNode }) {
     (key: string, title: string) => {
       const k = normalizePath(key)
       setTabs(prev => {
-        const next = prev.map(t => (t.key === k ? { ...t, title } : t))
+        const prevTabs: TabItem[] = Array.isArray(prev) ? (prev as TabItem[]) : []
+        const next: TabItem[] = prevTabs.map(t => (t.key === k ? ({ ...t, title } as TabItem) : t))
         persist(next, activeKey)
         return next
       })

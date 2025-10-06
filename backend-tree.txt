@@ -95,10 +95,6 @@
 |   |   2025-09-11.log.gz
 |   |   2025-09-12.log.gz
 |   |   2025-09-16.log.gz
-|   |   2025-09-18.log.gz
-|   |   2025-09-18-error.log
-|   |   2025-09-19.log
-|   |   2025-09-19-error.log
 |   |   2025-09-21.log
 |   |   2025-09-21-error.log
 |   |   2025-09-22.log
@@ -109,8 +105,12 @@
 |   |   2025-09-30-error.log
 |   |   2025-10-01.log.gz
 |   |   2025-10-01-error.log
-|   |   2025-10-02.log
+|   |   2025-10-02.log.gz
 |   |   2025-10-02-error.log
+|   |   2025-10-03.log.gz
+|   |   2025-10-03-error.log
+|   |   2025-10-04.log
+|   |   2025-10-04-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts

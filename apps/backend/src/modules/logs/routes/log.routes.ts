@@ -1,4 +1,3 @@
-// apps/backend/src/modules/analytics/routes/log.routes.ts
 import { authenticateToken, requireRole } from '@/common/middleware/auth'
 import { Router, type RequestHandler, type Response } from 'express'
 import type { AuthRequest } from '@/types/auth'
@@ -6,10 +5,10 @@ import { LogController } from '../controllers/log.controller'
 
 const router = Router()
 const wrap =
-  (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
-  (req, res, next) => {
-    Promise.resolve(handler(req as AuthRequest, res)).catch(next)
-  }
+    (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
+        (req, res, next) => {
+            Promise.resolve(handler(req as AuthRequest, res)).catch(next)
+        }
 
 router.use(authenticateToken)
 
@@ -21,5 +20,11 @@ router.get('/audit', requireRole(['admin']), wrap(LogController.getAuditLogs))
 router.get('/login', wrap(LogController.getLoginLogs))
 router.get('/exam/:examId', wrap(LogController.getExamLogs))
 router.post('/cleanup', requireRole(['admin']), wrap(LogController.cleanupLogs))
+
+/** ✅ 在线用户 */
+router.get('/online', wrap(LogController.getOnlineUsers))
+/** ✅ 强退（两种兼容写法） */
+router.post('/online/kick', requireRole(['admin']), wrap(LogController.kickOnlineUser))
+router.delete('/online/:id', requireRole(['admin']), wrap(LogController.kickOnlineUser))
 
 export default router

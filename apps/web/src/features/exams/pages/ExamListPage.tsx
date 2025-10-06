@@ -19,7 +19,6 @@ export default function ExamListPage() {
 
   return (
     <div style={{ padding: 8 }}>
-   
       {/* 标题 */}
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>
@@ -88,7 +87,6 @@ export default function ExamListPage() {
             total={total}
             pageSize={limit}
             onChange={onPageChange}
-            showSizeChanger
             {...createPaginationConfig({ pageSizeOptions: ['6', '10', '12', '18', '24'] })}
           />
         </div>

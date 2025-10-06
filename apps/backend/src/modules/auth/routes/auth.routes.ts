@@ -1,7 +1,8 @@
-// apps/backend/src/modules/auth/routes.ts
+// apps/backend/src/modules/auth/routes/auth.routes.ts
 import { Router, type RequestHandler, type Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import { AuthController } from '../controllers/auth.controller.js'
+import { PasswordResetController } from '../controllers/password-reset.controller.js'
 
 const router = Router()
 
@@ -20,6 +21,7 @@ router.post('/refresh', wrap(AuthController.refresh))
 router.post('/logout', wrap(AuthController.logout))
 
 // 兼容旧路由（建议迁到 password-reset.routes.ts）
-router.post('/password-reset/forgot', wrap(AuthController.forgotPassword))
+router.post('/password-reset/forgot', wrap(PasswordResetController.forgotPassword))
 
 export { router as authRoutes }
+export default router

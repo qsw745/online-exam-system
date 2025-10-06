@@ -1,6 +1,6 @@
 // src/features/tasks/pages/MyTasksPage.tsx
 import React from 'react'
-import { Breadcrumb, Card, Pagination, Space, Input, Select, DatePicker, Button, App } from 'antd'
+import { Card, Pagination, Space, Input, Select, DatePicker, Button, App } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
@@ -14,7 +14,6 @@ const MyTasksPage: React.FC = () => {
   const nav = useNavigate()
   const { message } = App.useApp()
 
-  // 仅“我的任务”
   const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset } = useTasksQuery(10, {
     scope: 'mine',
   })
@@ -38,11 +37,9 @@ const MyTasksPage: React.FC = () => {
         nav(`/learning/practice/${r.id}`)
         return
       }
-      // 后端已兼容：这里传 taskId，若页面后来直接用 exam/:id 也没关系
       const res: any = await tasksApi.startExam(r.id)
       if (!isSuccess(res)) throw new Error(res?.message || '开始考试失败')
       const payload = res.data
-      // 跳现有 /exam/:examId，并把 payload 兜底塞进 state（ExamPage 可直接用）
       nav(`/exam/${payload.examId}`, { state: { ...payload, taskId: r.id } })
     } catch (e: any) {
       message.error(e?.message || '开始考试失败')
@@ -51,9 +48,6 @@ const MyTasksPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      {/* <Breadcrumb items={[{ title: '任务管理', href: '/admin/tasks/list' }, { title: '我的任务' }]} /> */}
-  
-
       <Card title="我的任务" variant="outlined">
         <Space wrap>
           <Input
@@ -103,7 +97,6 @@ const MyTasksPage: React.FC = () => {
         <TasksTable
           data={rows as any}
           loading={loading}
-          onView={(id: string) => nav(`/admin/tasks/detail/${id}`)}
           showPublishActions={false}
           showStartAction
           onStart={handleStart}

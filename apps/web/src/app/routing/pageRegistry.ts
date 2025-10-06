@@ -8,7 +8,7 @@ const MenuManagementPage = lazy(() => import('@/features/menu/pages/MenuManageme
 const SystemMenusPage =lazy(()=> import('@/features/menu/pages/SystemMenusPage'))
 const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage'))
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
-const LogsPage = lazy(() => import('@/features/logs/pages/LogsPage'))
+
 const SystemSettingsPage = lazy(() => import('@/features/admin-settings/pages/SystemSettingsPage'))
 
 // ===== Tasks =====
@@ -48,6 +48,12 @@ const NotificationsPage = lazy(() => import('@/features/notifications/pages/Noti
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage'))
 const UserSettingsPage = lazy(() => import('@/features/settings/pages/UserSettingsPage'))
 const WrongQuestionsPage = lazy(() => import('@/features/wrong-questions/pages/WrongQuestionsPage'))
+const LoginLogsPage = lazy(() => import('@/features/logs/pages/LoginLogsPage'))
+const OperationLogsPage = lazy(() => import('@/features/logs/pages/OperationLogsPage'))
+const SystemLogsPage = lazy(() => import('@/features/logs/pages/SystemLogsPage'))
+
+// 可选：在线用户
+const OnlineUsersPage = lazy(() => import('@/features/logs/pages/OnlineUsersPage'))
 
 // ===== Errors =====
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
@@ -72,7 +78,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'learning-progress': LearningProgressPage,
   notifications: NotificationsPage,
   profile: ProfilePage,
-  settings: UserSettingsPage,
+
   'wrong-questions': WrongQuestionsPage,
 
   // Admin
@@ -80,12 +86,12 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-org': OrgManagementPage,
   'admin-role': RoleManagementPage,
 
-//   'menu-functions': MenuManagementPage,
+  //   'menu-functions': MenuManagementPage,
   'menu-functions': SystemMenusPage,
   'menu-units': UnitMenusPage,
   'user-manage': UserManagementPage,
   'admin-user': UserManagementPage, // 兼容
-  logs: LogsPage,
+
   'system-settings': SystemSettingsPage,
 
   // Tasks
@@ -106,6 +112,14 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'question-detail': QuestionDetailPage,
   'question-edit': QuestionEditPage,
 
+  //   Logs
+  // ✅ 日志中心
+  'logs-login': LoginLogsPage,
+  'logs-ops': OperationLogsPage,
+  'logs-system': SystemLogsPage,
+
+  // 可选：在线用户
+  'online-users': OnlineUsersPage,
   // Errors
   'errors-403': Forbidden403,
   'errors-404': NotFound404,

@@ -1,10 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // 没装 @types/node 时做最小声明
-import {log} from "@/infrastructure/logging/logger";
+import { log } from '@/infrastructure/logging/logger'
 
 declare const process: any
 
-import type { EmailConfig, EmailTemplate } from 'types/password-reset.js'
+import type { EmailConfig, EmailTemplate } from '@/types/password-reset.js'
 
 class EmailService {
   private transporter: any | null = null
@@ -44,7 +44,8 @@ class EmailService {
           log.error('邮件服务配置验证失败:', error?.message || error)
           this.isConfigured = false
         } else {
-          log.log('邮件服务配置验证成功')
+          // 避免 log.log(Level) 类型冲突，使用 info
+          log.info('邮件服务配置验证成功')
           this.isConfigured = true
         }
       })

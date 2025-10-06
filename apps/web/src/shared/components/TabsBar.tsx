@@ -191,7 +191,8 @@ export const TabsBar: React.FC = () => {
   }, [activeKey])
 
   /* ---------- 右键菜单（细化规则） ---------- */
-  type CtxItem = { k: string; icon: JSX.Element; label: string }
+  type CtxItem = { k: string; icon: React.ReactNode; label: string }
+
   type CtxState = { show: boolean; x: number; y: number; key: string | null; items: CtxItem[] }
   const [menu, setMenu] = useState<CtxState>({ show: false, x: 0, y: 0, key: null, items: [] })
 
@@ -307,7 +308,7 @@ export const TabsBar: React.FC = () => {
         className="arrow-left"
         style={{
           display: overflowing ? 'flex' : 'none',
-        //   opacity: canLeft ? 1 : 0.35,
+          //   opacity: canLeft ? 1 : 0.35,
           pointerEvents: canLeft ? 'auto' : 'none',
         }}
         title="向左查看更多"
@@ -366,7 +367,7 @@ export const TabsBar: React.FC = () => {
         className="arrow-right"
         style={{
           display: overflowing ? 'flex' : 'none',
-        //   opacity: canRight ? 1 : 0.35,
+          //   opacity: canRight ? 1 : 0.35,
           pointerEvents: canRight ? 'auto' : 'none',
         }}
         title="向右查看更多"

@@ -1,7 +1,9 @@
+// 不用改 ts-nocheck，这里仅影响本配置文件的类型检查，不影响 src 代码
 // @ts-nocheck
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tsconfigPaths from 'vite-tsconfig-paths'
+import checker from 'vite-plugin-checker'
 import path from 'path'
 
 export default defineConfig({
@@ -18,10 +20,18 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react(), tsconfigPaths()],
+  plugins: [
+    react(),
+    tsconfigPaths(),
+    // ✅ 开发时在终端 + 浏览器浮层显示 TypeScript 报错，和构建保持一致
+    checker({
+      typescript: true,
+      // 如需同时检查 ESLint，可再加：
+      // eslint: { lintCommand: 'eslint "./src/**/*.{ts,tsx}"' }
+    }),
+  ],
   resolve: {
     alias: {
-      // ✅ 强制全项目仅用这份 React/ReactDOM，避免出现第二份 React 导致 Hook 报错
       react: path.resolve(process.cwd(), 'node_modules/react'),
       'react-dom': path.resolve(process.cwd(), 'node_modules/react-dom'),
       dayjs: path.resolve(process.cwd(), 'node_modules/dayjs'),

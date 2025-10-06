@@ -1,7 +1,7 @@
 // apps/web/src/features/analytics/components/ResultDetailContent.tsx
 import React from 'react'
 import { Alert, Descriptions, Divider, List, Skeleton, Space, Tag, Typography } from 'antd'
-import type { ResultDetail } from '@/shared/types/grades'
+
 
 const { Text, Paragraph, Title } = Typography
 
@@ -24,7 +24,7 @@ function renderAnswer(type: string, val: string | null, options?: string[] | nul
   return <Text>{val}</Text>
 }
 
-const ResultDetailContent: React.FC<{ loading: boolean; data: ResultDetail | null }> = ({ loading, data }) => {
+const ResultDetailContent: React.FC<{ loading: boolean; data: any | null }> = ({ loading, data }) => {
   if (loading) return <Skeleton active paragraph={{ rows: 6 }} />
   if (!data) return <Alert type="warning" message="未找到该考试结果" />
 

@@ -1,18 +1,17 @@
-
-import { PlusOutlined } from '@ant-design/icons'
-import { App, Button, Card, Input, Pagination, Space, Table, Layout } from 'antd'
-import React, { useEffect, useMemo, useState } from 'react'
-import AddOrgModal from '../components/AddOrgModal'
-import OrgDetailCard from '../components/OrgDetailCard'
-import { useOrgManage } from '../hooks/useOrgManage'
-import { useOrgRoles } from '@/features/roles/hooks/useOrgRoles'
 import { PermissionModal } from '@/features/roles/components/PermissionModal'
 import RoleFormModal from '@/features/roles/components/RoleFormModal'
 import RoleMembersModal from '@/features/roles/components/RoleMembersModal'
+import { useOrgRoles } from '@/features/roles/hooks/useOrgRoles'
 import { useRoleMembers } from '@/features/roles/hooks/useRoleMembers'
 import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
 import type { Role } from '@/shared/api/endpoints/roles'
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
+import { PlusOutlined } from '@ant-design/icons'
+import { App, Button, Card, Input, Layout, Pagination, Space, Table } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import AddOrgModal from '../components/AddOrgModal'
+import OrgDetailCard from '../components/OrgDetailCard'
+import { useOrgManage } from '../hooks/useOrgManage'
 
 const { Sider, Content } = Layout
 const { Search } = Input
@@ -67,7 +66,6 @@ export default function OrgManagementPage() {
 
   return (
     <App>
-   
       <Layout style={{ height: '100%', background: 'transparent' }}>
         <Sider width={320} theme="light" style={{ borderRight: '1px solid #f0f0f0' }}>
           <div style={{ padding: 12 }}>
@@ -228,7 +226,9 @@ export default function OrgManagementPage() {
         checkedKeys={perms.selected}
         setCheckedKeys={perms.setSelected}
         onRefreshMenus={() => (perms.role && orgId ? perms.openFor(perms.role, orgId) : undefined)}
-        onOk={perms.save}
+        onOk={async () => {
+          await perms.save()
+        }} // <-- 这里改成包一层
         onCancel={() => perms.setOpen(false)}
       />
 
@@ -255,7 +255,16 @@ export default function OrgManagementPage() {
       {/* 新建/编辑角色 */}
       <RoleFormModal
         open={formOpen}
-        role={editingRole}
+        role={
+          editingRole
+            ? {
+                id: editingRole.id,
+                name: editingRole.name,
+                code: editingRole.code,
+                description: editingRole.description ?? undefined, // <-- 避免传 null
+              }
+            : null
+        }
         onCancel={() => setFormOpen(false)}
         onOk={async payload => {
           if (!orgId) return

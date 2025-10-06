@@ -152,9 +152,9 @@ export const discussionsApi = {
     }
     // 兜底：从 /discussions 里读 categories
     try {
-      const res2 = await api.get('/discussions', { params: { limit: 1 } })
-      const d: any = res2?.data ?? res2
-      const cats = d?.data?.categories ?? d?.categories ?? []
+     const res2 = await api.get('/discussions', { params: { limit: 1 } })
+     const d: any = (res2 as any)?.data ?? res2
+     const cats = d?.data?.categories ?? d?.categories ?? []
       if (Array.isArray(cats)) {
         return cats.map((x: any) => ({
           id: Number(pick(x, 'id')),

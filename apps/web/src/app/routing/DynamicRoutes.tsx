@@ -128,8 +128,10 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
     const { clean, alias } = normalizeRel(rel)
 
     // 主路由：用“干净路径”
+    // ✅ index 路由不能带 children
     if (!clean) {
-      out.push({ index: true, element, children: nestedChildren })
+      out.push({ index: true, element }) // 只保留 element
+      if (nestedChildren?.length) out.push(...nestedChildren) // 子路由平铺
     } else {
       out.push({ path: clean, element, children: nestedChildren })
     }

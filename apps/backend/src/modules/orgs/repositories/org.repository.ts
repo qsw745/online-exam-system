@@ -121,7 +121,8 @@ export class OrgRepository {
   }
 
   static async allForCycleCheck(): Promise<Array<Pick<IOrg, 'id' | 'parent_id'>>> {
-    const [rows] = await pool.query<Array<Pick<IOrg, 'id' | 'parent_id'>>>('SELECT id, parent_id FROM organizations')
-    return rows
+    type OrgIdParentRow = RowDataPacket & { id: number; parent_id: number | null } // 🔧 新增最小行类型
+    const [rows] = await pool.query<OrgIdParentRow[]>('SELECT id, parent_id FROM organizations')
+    return rows.map(r => ({ id: r.id, parent_id: r.parent_id }))
   }
 }

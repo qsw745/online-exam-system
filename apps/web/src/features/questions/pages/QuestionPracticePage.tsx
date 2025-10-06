@@ -40,7 +40,6 @@ export default function QuestionPracticePage() {
     <>
       {view === 'list' && (
         <div style={{ minWidth: 1200, margin: '0 auto' }}>
-         
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Card>
               <Title level={3} style={{ margin: 0 }}>
@@ -85,12 +84,13 @@ export default function QuestionPracticePage() {
               current={page}
               pageSize={pageSize}
               total={total}
-              onChange={(p: number, s: number) => {
+              onChange={(p: number) => {
                 setPage(p)
+              }}
+              onSizeChange={(c: number, s: number) => {
+                setPage(c)
                 setPageSize(s)
               }}
-              showSizeChanger
-              showQuickJumper
             />
           </Space>
         </div>

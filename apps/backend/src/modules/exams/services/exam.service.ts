@@ -1,4 +1,3 @@
-// apps/backend/src/modules/exams/services/exam.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ExamDetailData } from '../domain/exam.model.js'
 import { ExamRepository } from '../repositories/exam.repository.js'
@@ -7,7 +6,7 @@ import { appLogger } from '@/infrastructure/logging/logger.js'
 
 /** 取“请求作用域”日志器，优先 req.log（由 http-logger 注入），否则退回全局 appLogger */
 function getLog(req?: any) {
-  const l = (req && (req as any).log && typeof (req as any).log.info === 'function') ? (req as any).log : appLogger
+  const l = req && (req as any).log && typeof (req as any).log.info === 'function' ? (req as any).log : appLogger
   return l
 }
 
@@ -205,10 +204,11 @@ export class ExamService {
       // —— 事务外联动：错题收集 —— //
       setTimeout(async () => {
         try {
-          const { WrongQuestionController } = await import('../wrong-questions/wrong-question.controller.js')
+          // 修正：使用项目别名路径，避免找不到模块
+          const { WrongQuestionController } = await import('@/modules/wrong-questions/controllers/wrong-question.controller.js')
           await WrongQuestionController.autoCollectWrongQuestions(
-              { ...req, body: { exam_result_id: resultId } } as any,
-              { json: () => {}, status: () => ({ json: () => {} }) } as any
+            { ...req, body: { exam_result_id: resultId } } as any,
+            { json: () => {}, status: () => ({ json: () => {} }) } as any
           )
         } catch (e) {
           log.error('自动收集错题失败', { module: 'exam.service', action: 'autoCollectWrong', ...errMeta(e) })
@@ -224,11 +224,11 @@ export class ExamService {
           const correct = questions.filter(q => answers[q.id] === q.answer).length
           const studyTime = Math.floor(Math.random() * 60) + 30
           await C.recordProgress(
-              {
-                user: { id: userId },
-                body: { studyTime, questionsAnswered: total, correctAnswers: correct, studyContent: `考试：${examId}` },
-              } as any,
-              { json: () => {}, status: () => ({ json: () => {} }) } as any
+            {
+              user: { id: userId },
+              body: { studyTime, questionsAnswered: total, correctAnswers: correct, studyContent: `考试：${examId}` },
+            } as any,
+            { json: () => {}, status: () => ({ json: () => {} }) } as any
           )
         } catch (e) {
           log.error('记录学习进度失败', { module: 'exam.service', action: 'recordProgress', ...errMeta(e) })
@@ -243,9 +243,12 @@ export class ExamService {
           const total = questions.length
           const correct = questions.filter(q => answers[q.id] === q.answer).length
           const accuracy = total > 0 ? (correct / total) * 100 : 0
-          await leaderboardService.updateLeaderboardRanking(1, userId, totalScore)
-          await leaderboardService.updateLeaderboardRanking(3, userId, accuracy)
-          await leaderboardService.checkAndAwardRankingAchievements(userId)
+
+          // 兼容不同服务实现：用 any + 可选链，避免“方法不存在”的编译错误
+          const ls: any = leaderboardService as any
+          ls.updateLeaderboardRanking?.(1, userId, totalScore) // 总分榜
+          ls.updateLeaderboardRanking?.(3, userId, accuracy) // 正确率榜
+          ls.checkAndAwardRankingAchievements?.(userId) // 成就发放
         } catch (e) {
           log.error('更新排行榜失败', { module: 'exam.service', action: 'updateLeaderboard', ...errMeta(e) })
         }

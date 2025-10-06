@@ -1,13 +1,13 @@
 import React from 'react'
 import { Button, Input, Select } from 'antd'
-import { Download, Plus, Trash2, Upload } from 'lucide-react'
+import { Download, Plus, Trash2, Upload, CopyCheck } from 'lucide-react'
 
 const { Search } = Input
 
 type Props = {
   search: string
   onSearch: (v: string) => void
-  onQuery: () => void // ← 新增：点击“查询”或回车触发
+  onQuery: () => void
   type: string
   onTypeChange: (v: string) => void
   selectedTags: string[]
@@ -18,6 +18,8 @@ type Props = {
   onOpenAdd: () => void
   onOpenExport: () => void
   selectedCount: number
+  dupOnly: boolean
+  onToggleDup: (next: boolean) => void
 }
 
 export default function QuestionToolbar({
@@ -34,34 +36,63 @@ export default function QuestionToolbar({
   onOpenAdd,
   onOpenExport,
   selectedCount,
+  dupOnly,
+  onToggleDup,
 }: Props) {
-  // 左侧筛选区与右侧操作区——用 flex + wrap，避免小屏溢出
+  // 本地关键字，只在点击“查询”时提交
+  const [keyword, setKeyword] = React.useState(search)
+  React.useEffect(() => setKeyword(search ?? ''), [search])
+
+  const submitQuery = React.useCallback(
+    (v?: string) => {
+      const k = typeof v === 'string' ? v : keyword
+      onSearch(k ?? '')
+      onQuery()
+    },
+    [keyword, onSearch, onQuery]
+  )
+
   return (
     <div
       style={{
         display: 'flex',
-        flexWrap: 'wrap',
+        alignItems: 'center',
         gap: 12,
-        alignItems: 'stretch',
-        justifyContent: 'space-between',
+        // ★ 永远单行
+        flexWrap: 'nowrap',
+        // ★ 宽度不够时，横向滚动，不换行
+        overflowX: 'auto',
       }}
     >
-      {/* 左侧：搜索 + 类型 + 标签 */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', flex: '1 1 520px' }}>
+      {/* 左侧：搜索 + 类型 + 标签（单行，不换行） */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flex: 1,
+          // ★ 允许子项在单行下收缩
+          minWidth: 0,
+          // ★ 不换行
+          flexWrap: 'nowrap',
+        }}
+      >
         <Search
-          placeholder="搜索题目..."
-          value={search}
-          onChange={e => onSearch(e.target.value)}
-          onSearch={onQuery} // 支持回车或点按钮
-          enterButton="查询" // ← 新增“查询”按钮
+          placeholder="按标题搜索…"
+          value={keyword}
+          onChange={e => setKeyword(e.target.value)}
+          onSearch={v => submitQuery(v)}
+          enterButton="查询"
           allowClear
-          style={{ flex: '1 1 280px', minWidth: 220, maxWidth: 520 }}
+          // ★ 占据剩余空间，可收缩
+          style={{ flex: '1 1 420px', minWidth: 220 }}
         />
 
         <Select
           value={type}
           onChange={onTypeChange}
-          style={{ flex: '0 1 160px', minWidth: 140 }}
+          // ★ 固定宽度，不会把行撑高
+          style={{ flex: '0 0 160px' }}
           options={[
             { value: 'all', label: '所有类型' },
             { value: 'single_choice', label: '单选题' },
@@ -79,16 +110,36 @@ export default function QuestionToolbar({
           placeholder="按标签筛选（可多选）"
           value={selectedTags}
           onChange={onTagsChange}
-          notFoundContent="暂无数据" // ← 无数据时显示中文
-          maxTagCount="responsive" // ← 自动收拢，避免挤爆布局
-          dropdownMatchSelectWidth={false} // 更贴近触发器宽度
-          style={{ flex: '1 1 260px', minWidth: 220, maxWidth: 520 }}
+          notFoundContent="暂无数据"
+          maxTagCount="responsive"
+          popupMatchSelectWidth={false}
+          // ★ 可收缩的固定基准宽度
+          style={{ flex: '0 1 340px', minWidth: 180 }}
           options={allTags.map(t => ({ label: t, value: t }))}
         />
       </div>
 
-      {/* 右侧：操作按钮（自动换行） */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
+      {/* 右侧：操作按钮（单行，不换行） */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          flex: '0 0 auto',
+          // ★ 防止按钮组自身换行
+          flexWrap: 'nowrap',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        <Button
+          type={dupOnly ? 'primary' : 'default'}
+          ghost={dupOnly}
+          icon={<CopyCheck size={16} />}
+          onClick={() => onToggleDup(!dupOnly)}
+        >
+          {dupOnly ? '仅看重复(开)' : '仅看重复'}
+        </Button>
+
         {selectedCount > 0 && (
           <Button danger icon={<Trash2 size={16} />} onClick={onBatchDelete}>
             批量删除 ({selectedCount})

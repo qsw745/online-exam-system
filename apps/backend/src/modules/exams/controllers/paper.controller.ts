@@ -41,8 +41,10 @@ export class PaperController {
   static async updateQuestionOrder(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const orders = req.body?.orders
-      if (!Array.isArray(orders) || orders.length === 0)
-        return (res as any).badRequest('无效的题目顺序数据', { code: CODES.VALIDATION_ERROR })
+      if (!Array.isArray(orders) || orders.length === 0) {
+        // 使用 400 + VALIDATION_ERROR，避免 BAD_REQUEST 常量不存在
+        return (res as any).fail(CODES.VALIDATION_ERROR, 400, '无效的题目顺序数据')
+      }
       await svc.updateOrder(Number(req.params.id), orders)
       return (res as any).ok(null, '更新题目顺序成功')
     } catch (e: any) {
@@ -113,11 +115,8 @@ export class PaperController {
       return (res as any).created(data, '智能组卷成功')
     } catch (e: any) {
       // 输入校验或题库不足 → 400；其余视为 500
-      if (e?.code === 'BAD_REQUEST') {
-        return (res as any).badRequest(e.message || '请求参数错误', { code: CODES.VALIDATION_ERROR })
-      }
-      if (e?.code === 'NOT_ENOUGH_QUESTIONS') {
-        return (res as any).fail(CODES.BAD_REQUEST, 400, e.message || '题库数量不足')
+      if (e?.code === 'BAD_REQUEST' || e?.code === 'NOT_ENOUGH_QUESTIONS') {
+        return (res as any).fail(CODES.VALIDATION_ERROR, 400, e.message || '请求参数错误')
       }
       return (res as any).internal(e?.message || '智能组卷失败', { code: CODES.INTERNAL_ERROR })
     }
@@ -131,37 +130,39 @@ export class PaperController {
       return (res as any).internal(e?.message || '创建试卷失败', { code: CODES.INTERNAL_ERROR })
     }
   }
-    /** ✅ 题库检索（分页） */
-    static async searchBank(req: AuthRequest, res: Response<ApiResponse<any>>) {
-        try {
-            const page = Math.max(1, Number(req.query.page ?? 1))
-            const limit = Math.max(1, Math.min(100, Number(req.query.limit ?? 10)))
-            const search = (req.query.search as string) || ''
-            const difficulty = (req.query.difficulty as any) || undefined
-            const type = (req.query.type as any) || undefined
 
-            const { items, total } = await svc.searchBank({ page, limit, search, difficulty, type })
-            return (res as any).ok({ items, total }, '获取题库成功')
-        } catch (e: any) {
-            return (res as any).internal(e?.message || '获取题库失败', { code: CODES.INTERNAL_ERROR })
-        }
+  /** ✅ 题库检索（分页） */
+  static async searchBank(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    try {
+      const page = Math.max(1, Number(req.query.page ?? 1))
+      const limit = Math.max(1, Math.min(100, Number(req.query.limit ?? 10)))
+      const search = (req.query.search as string) || ''
+      const difficulty = (req.query.difficulty as any) || undefined
+      const type = (req.query.type as any) || undefined
+
+      const { items, total } = await svc.searchBank({ page, limit, search, difficulty, type })
+      return (res as any).ok({ items, total }, '获取题库成功')
+    } catch (e: any) {
+      return (res as any).internal(e?.message || '获取题库失败', { code: CODES.INTERNAL_ERROR })
     }
-    /** ✅ 向试卷添加“手工录入题目”（以快照写入 paper_questions） */
-    static async addCustomQuestion(req: AuthRequest, res: Response<ApiResponse<{ id: number }>>) {
-        try {
-            const paperId = Number(req.params.id)
-            const b = req.body ?? {}
-            const data = await svc.addCustomQuestion(paperId, {
-                type: b.question_type,
-                content: b.content,
-                options: b.options,
-                answer: b.answer,
-                score: Number(b.score || 5),
-                order: Number(b.order || 1),
-            })
-            return (res as any).created(data, '手工题添加成功')
-        } catch (e: any) {
-            return (res as any).internal(e?.message || '添加手工题失败', { code: CODES.INTERNAL_ERROR })
-        }
+  }
+
+  /** ✅ 向试卷添加“手工录入题目”（以快照写入 paper_questions） */
+  static async addCustomQuestion(req: AuthRequest, res: Response<ApiResponse<{ id: number }>>) {
+    try {
+      const paperId = Number(req.params.id)
+      const b = req.body ?? {}
+      const data = await svc.addCustomQuestion(paperId, {
+        type: b.question_type,
+        content: b.content,
+        options: b.options,
+        answer: b.answer,
+        score: Number(b.score || 5),
+        order: Number(b.order || 1),
+      })
+      return (res as any).created(data, '手工题添加成功')
+    } catch (e: any) {
+      return (res as any).internal(e?.message || '添加手工题失败', { code: CODES.INTERNAL_ERROR })
     }
+  }
 }

@@ -7,7 +7,6 @@ import ResultDetailContent from '@/features/analytics/components/ResultDetailCon
 import { useGrades } from '@/features/analytics/hooks/useGrades'
 import { api, isSuccess } from '@/shared/api/http'
 
-import type { ResultDetail } from '@/shared/types/grades'
 import { App, Card, Divider, Drawer, Skeleton, Space, Typography } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 const { Title, Text } = Typography
@@ -43,8 +42,7 @@ const GradeManagementPage: React.FC = () => {
   // ========= 详情抽屉 =========
   const [detailOpen, setDetailOpen] = useState(false)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [detail, setDetail] = useState<ResultDetail | null>(null)
-
+  const [detail, setDetail] = useState<any | null>(null)
   const openDetail = async (id: number | string) => {
     setDetailOpen(true)
     setDetailLoading(true)
@@ -115,7 +113,6 @@ const GradeManagementPage: React.FC = () => {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-   
       <div>
         <Title level={2} style={{ marginBottom: 4 }}>
           成绩管理

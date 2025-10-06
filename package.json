@@ -18,5 +18,9 @@
     "@types/nodemailer": "^6.4.19",
     "concurrently": "^9.2.1",
     "wait-on": "^8.0.4"
+  },
+  "dependencies": {
+    "mysql2": "3.10.0",
+    "tsconfig-paths": "4.2.0"
   }
 }

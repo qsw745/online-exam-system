@@ -1,15 +1,16 @@
+version: '3.9'
+
 services:
   proxy:
     image: caddy:2
     container_name: proxy
     ports:
-      - "80:80"
-      # - "443:443"  # 如果有证书/域名要用 HTTPS，再打开
+      - '80:80'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
       - web
-      - backend    # 加上这行，保证后端起来后再反代
+      - backend
 
   web:
     build:
@@ -17,7 +18,8 @@ services:
       dockerfile: ./apps/web/Dockerfile
     container_name: web
     expose:
-      - "80"       # 仅在容器网络可见（Caddy 可访问，宿主机不可直接访问）
+      - '80'
+    restart: unless-stopped
 
   backend:
     build:
@@ -27,8 +29,35 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      # ===== Redis：直接连同一 compose 网络里的 redis 服务 =====
+      - REDIS_URL=redis://redis:6379/0
+      - REDIS_PREFIX=online-exam
+      - SESSION_LIST_LIMIT=1000
+      # ===== 数据库：连宿主机（Windows/macOS Docker Desktop 支持这个域名）=====
+      - DB_HOST=host.docker.internal
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=exam_system
+      # 你其它用到的 ENV 也可放到这里
     expose:
-      - "3000"     # 用 expose 即可，交给 Caddy 代理
-    # 如果你想让宿主机也能直连后端，再保留：
-    # ports:
-    #   - "3000:3000"
+      - '3000'
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
+    # 内网即可，不需要映射到宿主机端口
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  redis-data:

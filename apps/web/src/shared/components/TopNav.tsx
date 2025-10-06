@@ -6,7 +6,11 @@ import { useTabs } from '@/shared/contexts/TabsContext'
 import { useMenuPermissions, type MenuItem } from '@/shared/contexts/MenuPermissionContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { registerTitle } from '@/shared/contexts/tabsTitleRegistry'
-
+// ✅ 额外引入类型
+import type { MenuProps } from 'antd'
+// ✅ 规范化 antd Menu items 的类型
+type AntdItems = NonNullable<MenuProps['items']>
+type AntdItem  = AntdItems[number]
 /* ---------- 工具 ---------- */
 const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p)
 const norm = (p: string) => (p || '').replace(/\/+$/, '') || '/'
@@ -41,18 +45,16 @@ function firstLeafPath(node?: any): string | null {
   return null
 }
 
-type AntdItem = Required<Required<React.ComponentProps<typeof Menu>['items']>[number]>
-
 /* ---------- 构建顶部菜单 ---------- */
+// ↓↓↓ 用 AntdItems 返回，不再自己声明空数组再 push
 function buildItems(menus: MenuItem[], mix: boolean) {
-  const items: AntdItem[] = []
   const id2path = new Map<string, string>()
   const id2title = new Map<string, string>()
   const id2firstLeaf = new Map<string, string | null>()
 
   const mkIcon = (m: any) => <IconRenderer icon={m.icon || 'lucide:LayoutDashboard'} size={16} />
 
-  const walk = (list: MenuItem[]): AntdItem[] =>
+  const walk = (list: MenuItem[]): AntdItems =>
     (list || []).filter(showable).map((m: any) => {
       const id = String(m.id)
       id2title.set(id, m.title)
@@ -64,12 +66,12 @@ function buildItems(menus: MenuItem[], mix: boolean) {
       id2firstLeaf.set(id, firstLeafPath(m))
       const children = (m.children || []).filter(showable)
       if (children.length) {
-        return { key: id, icon: mkIcon(m), label: m.title, children: walk(children) } as AntdItem
+        return { key: id, icon: mkIcon(m), label: m.title, children: walk(children) }
       }
-      return { key: id, icon: mkIcon(m), label: m.title } as AntdItem
+      return { key: id, icon: mkIcon(m), label: m.title }
     })
 
-  const rootsOnly = (list: MenuItem[]): AntdItem[] =>
+  const rootsOnly = (list: MenuItem[]): AntdItems =>
     (list || []).filter(showable).map((m: any) => {
       const id = String(m.id)
       id2title.set(id, m.title)
@@ -79,10 +81,11 @@ function buildItems(menus: MenuItem[], mix: boolean) {
         if (p) id2path.set(id, p)
       }
       id2firstLeaf.set(id, firstLeafPath(m))
-      return { key: id, icon: mkIcon(m), label: m.title } as AntdItem
+      return { key: id, icon: mkIcon(m), label: m.title }
     })
 
-  items.push(...(mix ? rootsOnly(menus) : walk(menus)))
+  // ✅ 直接得到最终 items
+  const items: AntdItems = mix ? rootsOnly(menus) : walk(menus)
   return { items, id2path, id2title, id2firstLeaf }
 }
 

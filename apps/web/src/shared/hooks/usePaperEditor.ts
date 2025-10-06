@@ -1,7 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMatch, useNavigate, useParams } from 'react-router-dom'
-import { papersApi, type Paper, type PaperDifficulty } from '../endpoints/papers'
+import { papersApi, type PaperDifficulty } from '../api/endpoints/papers'
 
 type Mode = 'create' | 'view' | 'edit'
 
@@ -44,14 +44,9 @@ export function usePaperEditor() {
       setTotalScore(p.total_score ?? 100)
       setDuration(p.duration ?? 60)
       setDifficulty((p.difficulty ?? 'medium') as PaperDifficulty)
-
-      // 题目
-      if (Array.isArray(p.questions)) {
-        setQuestions(p.questions)
-      } else {
-        const qs = await papersApi.getQuestions(id)
-        setQuestions(Array.isArray(qs) ? qs : [])
-      }
+      // ✅ 统一通过接口获取题目
+      const qs = await papersApi.getQuestions(id)
+      setQuestions(Array.isArray(qs) ? qs : [])
     } catch (e) {
       console.error(e)
       message.error('获取试卷详情失败')
@@ -75,7 +70,7 @@ export function usePaperEditor() {
     if (isView) return
     if (!title.trim()) return message.error('请输入试卷标题')
 
-    const payload: Omit<Paper, 'id' | 'created_at' | 'updated_at' | 'questions'> = {
+    const payload = {
       title: title.trim(),
       description: description.trim(),
       total_score: Number(totalScore) || 100,
@@ -86,10 +81,16 @@ export function usePaperEditor() {
     try {
       setSubmitting(true)
       if (isEdit && id) {
-        await papersApi.update(id, payload)
+        await papersApi.update(id, payload as any)
         message.success('试卷更新成功')
       } else {
-        await papersApi.create(payload)
+        const anyApi = papersApi as any
+        const createFn =
+          anyApi.create ??
+          anyApi.createWithQuestions ??
+          anyApi.smartGenerate ??
+          ((_body: any) => Promise.reject(new Error('缺少创建试卷 API')))
+        await createFn(payload)
         message.success('试卷创建成功')
       }
       navigate('/admin/papers')

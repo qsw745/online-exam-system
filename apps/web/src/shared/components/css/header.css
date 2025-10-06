@@ -77,3 +77,7 @@
 .app-header .app-topnav .ant-menu-submenu::after {
   bottom: 0; /* 留在内部 47px 容器的底部 */
 }
+
+.ant-modal-content .ant-modal-close{
+    display: none;
+}

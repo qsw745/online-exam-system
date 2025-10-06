@@ -18,7 +18,10 @@ export default function QuestionTypesCard({
             type="number"
             min={1}
             value={config.totalQuestions}
-            onChange={e => setQType('single_choice' as any, q.single_choice) || null /* 保持布局 */}
+            onChange={e => {
+              // 保持现有布局逻辑（如需真正更新 totalQuestions，应由上层提供 setter）
+              setQType('single_choice' as any, q.single_choice)
+            }}
           />
         </Form.Item>
         <div className="grid grid-cols-2 gap-3">

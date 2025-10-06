@@ -1,17 +1,24 @@
 import { Card, Empty, List, Space, Typography } from 'antd'
 import { BookmarkPlus, Calendar } from 'lucide-react'
 import React from 'react'
-import type { Result } from '@/shared/api/http'
+
 import dayjs from '@/shared/utils/dayjs'
 import { Link } from 'react-router-dom'
 
 const { Text } = Typography
 
+type RecentResult = {
+  id: string | number
+  paper_title: string
+  created_at: string
+  score: number
+  total_score: number
+}
 export const RecentResultsList: React.FC<{
   title: string
   viewAllText: string
   emptyText: string
-  results: Result[]
+  results: RecentResult[] // ✅ 使用本地类型
   locale: 'zh-CN' | 'en-US'
   label: { submit: string; score: string }
 }> = ({ title, viewAllText, emptyText, results, locale, label }) => {

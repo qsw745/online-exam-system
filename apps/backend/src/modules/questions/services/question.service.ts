@@ -1,10 +1,8 @@
-// apps/backend/src/modules/questions/services/question.service.ts
-import HttpError from '@/common/errors/http-error'
+import { default as HttpError, default as httpError } from '@/common/errors/http-error'
+import { log } from '@/infrastructure/logging/logger'
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
-import httpError from "@/common/errors/http-error";
-import {log} from "@/infrastructure/logging/logger";
 
 function ensureArrayFromMaybeCsv(input: any): string[] {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
@@ -23,22 +21,22 @@ function ensureArrayFromMaybeCsv(input: any): string[] {
 }
 
 export class QuestionService {
-    async batch(ids: number[]) {
-        const rows = await QuestionRepository.findByIds(ids)
-        const map = new Map<number, any>()
-        rows.forEach(q => {
-            try {
-                if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
-                if (q.knowledge_points && typeof q.knowledge_points === 'string') q.knowledge_points = JSON.parse(q.knowledge_points)
-                if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
-            } catch {}
-            map.set((q as any).id, q)
-        })
-        // 按传入 ids 顺序返回
-        return ids.map(id => map.get(id)).filter(Boolean)
-    }
+  async batch(ids: number[]) {
+    const rows = await QuestionRepository.findByIds(ids)
+    const map = new Map<number, any>()
+    rows.forEach(q => {
+      try {
+        if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
+        if (q.knowledge_points && typeof q.knowledge_points === 'string')
+          q.knowledge_points = JSON.parse(q.knowledge_points)
+        if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
+      } catch {}
+      map.set((q as any).id, q)
+    })
+    return ids.map(id => map.get(id)).filter(Boolean)
+  }
 
-    async list(params: {
+  async list(params: {
     question_type?: IQuestion['question_type']
     difficulty?: IQuestion['difficulty']
     search?: string
@@ -60,8 +58,8 @@ export class QuestionService {
       values.push(difficulty)
     }
     if (search) {
-      conditions.push('content LIKE ?')
-      values.push(`%${search}%`)
+      conditions.push('(title LIKE ? OR content LIKE ?)')
+      values.push(`%${search}%`, `%${search}%`)
     }
     if (tags.length > 0) {
       for (const t of tags) {
@@ -164,13 +162,7 @@ export class QuestionService {
       resourceType: 'question',
       resourceId: id,
       status: 'success',
-      details: {
-        题目类型: question_type,
-        标题: questionTitle,
-        难度: difficulty,
-        标签: ensureArrayFromMaybeCsv(tags),
-      },
-      // 关键：写入 IP/UA
+      details: { 题目类型: question_type, 标题: questionTitle, 难度: difficulty, 标签: ensureArrayFromMaybeCsv(tags) },
       ipAddress: _reqMeta?.ip,
       userAgent: _reqMeta?.ua,
     })
@@ -432,17 +424,106 @@ export class QuestionService {
       userAgent: _reqMeta?.ua,
     })
 
-    log.warn('[bulk-import] completed', {
-      total: questions.length,
-      successCount,
-      failCount,
-      sampleError: errors[0],
-    })
+    log.warn('[bulk-import] completed', { total: questions.length, successCount, failCount, sampleError: errors[0] })
 
     return { success_count: successCount, fail_count: failCount, errors }
   }
 
-  // practice & wrong questions
+  // ===== 查重（平铺）======
+  async listDuplicates(params: {
+    question_type?: IQuestion['question_type']
+    search?: string
+    page: number
+    limit: number
+  }): Promise<QuestionListData> {
+    const { question_type, search, page, limit } = params
+    const offset = (page - 1) * limit
+
+    const [rows, total] = await Promise.all([
+      QuestionRepository.listDupByTitleType(search, question_type, limit, offset),
+      QuestionRepository.countDupByTitleType(search, question_type),
+    ])
+
+    const parsed = rows.map(q => {
+      try {
+        if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
+        if (q.knowledge_points && typeof q.knowledge_points === 'string')
+          q.knowledge_points = JSON.parse(q.knowledge_points)
+        if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
+      } catch {}
+      const totalInGroup = Number((q as any).dup_total || 0)
+      const idxInGroup = Number((q as any).dup_index || 0)
+      ;(q as any).display_title =
+        totalInGroup > 1 ? `【重复×${totalInGroup}｜${idxInGroup}/${totalInGroup}】${q.title}` : q.title
+      return q
+    })
+
+    return {
+      questions: parsed,
+      pagination: { total, totalPages: Math.ceil(total / limit), currentPage: page, pageSize: limit },
+    }
+  }
+
+  // ===== 查重（分组）======
+  async listDuplicatesGrouped(params: {
+    question_type?: IQuestion['question_type']
+    search?: string
+    page: number
+    limit: number
+  }) {
+    const { question_type, search, page, limit } = params
+
+    const [groupKeys, totalGroups] = await Promise.all([
+      QuestionRepository.listDupGroupKeysByTitleType(search, question_type, limit, (page - 1) * limit),
+      QuestionRepository.countDupGroupsByTitleType(search, question_type),
+    ])
+
+    if (groupKeys.length === 0) {
+      return {
+        grouped: true as const,
+        groups: [],
+        pagination: { totalGroups, totalPages: Math.ceil(totalGroups / limit), currentPage: page, pageSize: limit },
+      }
+    }
+
+    const allItems = await QuestionRepository.listByTitleTypePairs(groupKeys)
+
+    const parseItem = (q: IQuestion) => {
+      try {
+        if (q.options && typeof q.options === 'string') q.options = JSON.parse(q.options)
+        if (q.knowledge_points && typeof q.knowledge_points === 'string')
+          q.knowledge_points = JSON.parse(q.knowledge_points)
+        if (q.tags && typeof q.tags === 'string') q.tags = JSON.parse(q.tags)
+      } catch {}
+      const totalInGroup = Number((q as any).dup_total || 0)
+      const idxInGroup = Number((q as any).dup_index || 0)
+      ;(q as any).display_title =
+        totalInGroup > 1 ? `【重复×${totalInGroup}｜${idxInGroup}/${totalInGroup}】${q.title}` : q.title
+      return q
+    }
+
+    const map = new Map<string, IQuestion[]>()
+    for (const it of allItems) {
+      const key = `${it.title}__${it.question_type}`
+      if (!map.has(key)) map.set(key, [])
+      map.get(key)!.push(parseItem(it))
+    }
+
+    const groups = groupKeys.map((k: { title: string; question_type: string; dup_count: number }) => ({
+      title: k.title,
+      question_type: k.question_type,
+      dup_count: k.dup_count,
+      items: map.get(`${k.title}__${k.question_type}`) || [],
+    }))
+
+    return {
+      grouped: true as const,
+      groups,
+      pagination: { totalGroups, totalPages: Math.ceil(totalGroups / limit), currentPage: page, pageSize: limit },
+    }
+  }
+
+  // ===== practice & wrong =====
   async recordPractice(userId: number, body: { question_id: number; is_correct: boolean; answer: any }) {
     const { question_id, is_correct, answer } = body
     await QuestionRepository.insertPractice(userId, question_id, is_correct, answer)
@@ -478,30 +559,20 @@ export class QuestionService {
   async markAsMastered(userId: number, questionId: number) {
     await QuestionRepository.setMastered(userId, questionId)
   }
-
   async removeFromWrong(userId: number, questionId: number) {
     await QuestionRepository.removeWrong(userId, questionId)
   }
-
   async stats(userId: number) {
     const s = await QuestionRepository.stats(userId)
     const rate = s.totalPractice > 0 ? ((s.correct / s.totalPractice) * 100).toFixed(1) : '0.0'
-    return {
-      totalPractice: s.totalPractice,
-      correctRate: rate,
-      wrongQuestions: s.wrong,
-      masteredQuestions: s.mastered,
-    }
+    return { totalPractice: s.totalPractice, correctRate: rate, wrongQuestions: s.wrong, masteredQuestions: s.mastered }
   }
-
   async practicedIds(userId: number) {
     return QuestionRepository.practicedIds(userId)
   }
-
   async tags() {
     return QuestionRepository.tagsAgg()
   }
-
   async knowledgePoints() {
     return QuestionRepository.knowledgeAgg()
   }

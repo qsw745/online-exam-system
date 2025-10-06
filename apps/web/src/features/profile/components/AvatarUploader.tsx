@@ -1,7 +1,6 @@
-// features/profile/components/AvatarUploader.tsx
-import { Avatar } from 'antd'
-import { Upload } from 'lucide-react'
-import React from 'react'
+import { Avatar, Modal, Tooltip } from 'antd'
+import { Upload, User as UserIcon, Maximize2 } from 'lucide-react'
+import React, { useId, useState } from 'react'
 
 export default function AvatarUploader({
   src,
@@ -9,17 +8,33 @@ export default function AvatarUploader({
   email,
   subtitle,
 }: {
-  src: string
+  src?: string | null
   onPick: (file: File) => void
   email?: string
   subtitle?: string
 }) {
+  const inputId = useId()
+  const safeSrc = src || undefined
+  const [previewOpen, setPreviewOpen] = useState(false)
+
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
       <div style={{ position: 'relative' }}>
-        <Avatar size={96} src={src} alt="avatar" />
+        <Tooltip title={safeSrc ? '点击查看大图' : undefined}>
+          <Avatar
+            size={96}
+            src={safeSrc}
+            alt="avatar"
+            style={{ cursor: safeSrc ? 'zoom-in' : 'default' }}
+            onClick={() => safeSrc && setPreviewOpen(true)}
+          >
+            {!safeSrc ? <UserIcon size={28} /> : null}
+          </Avatar>
+        </Tooltip>
+
+        {/* 右下角上传按钮 */}
         <label
-          htmlFor="avatar-upload"
+          htmlFor={inputId}
           style={{
             position: 'absolute',
             bottom: 0,
@@ -37,7 +52,7 @@ export default function AvatarUploader({
         >
           <Upload style={{ width: 16, height: 16 }} />
           <input
-            id="avatar-upload"
+            id={inputId}
             type="file"
             accept="image/*"
             style={{ display: 'none' }}
@@ -47,11 +62,49 @@ export default function AvatarUploader({
             }}
           />
         </label>
+
+        {/* 左上角查看图标 */}
+        {safeSrc ? (
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            title="查看大图"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              border: 'none',
+              background: 'rgba(0,0,0,.45)',
+              color: '#fff',
+              width: 24,
+              height: 24,
+              borderTopLeftRadius: 999,
+              borderBottomRightRadius: 8,
+              display: 'grid',
+              placeItems: 'center',
+              cursor: 'zoom-in',
+            }}
+          >
+            <Maximize2 size={14} />
+          </button>
+        ) : null}
       </div>
+
       <div style={{ display: 'flex', flexDirection: 'column' }}>
         {email ? <span style={{ fontWeight: 600 }}>{email}</span> : null}
         {subtitle ? <span style={{ color: '#999' }}>{subtitle}</span> : null}
       </div>
+
+      <Modal
+        open={previewOpen}
+        onCancel={() => setPreviewOpen(false)}
+        footer={null}
+        centered
+        destroyOnHidden
+        styles={{ body: { padding: 0 } }} // ← 替代 bodyStyle
+      >
+        {safeSrc ? <img src={safeSrc} alt="avatar preview" style={{ display: 'block', width: '100%' }} /> : null}
+      </Modal>
     </div>
   )
 }

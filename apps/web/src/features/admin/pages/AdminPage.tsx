@@ -18,7 +18,7 @@ import PaperManagementPage from '@/features/papers/pages/PaperManagementPage'
 import SmartPaperCreatePage from '@/features/papers/pages/SmartPaperCreatePage'
 
 import TaskCreatePage from '@/features/tasks/pages/TaskCreatePage'
-import TaskManagementPage from '@/features/tasks/pages/TasksPage'
+
 
 import UserManagementPage from '@/features/users/pages/UserManagementPage'
 
@@ -122,9 +122,8 @@ export default function AdminPage() {
           <Route path="/paper-detail/:id" element={<PaperCreatePage />} />
           <Route path="/paper-edit/:id" element={<PaperCreatePage />} />
 
-          <Route path="/tasks" element={<TaskManagementPage />} />
-          <Route path="/tasks/maintenance" element={<TaskManagementPage />} />
-          <Route path="/tasks/assignments" element={<TaskManagementPage />} />
+    
+       
           <Route path="/task-create" element={<TaskCreatePage />} />
           <Route path="/task-edit/:id" element={<TaskCreatePage />} />
           <Route path="/task-detail/:id" element={<TaskCreatePage />} />
@@ -132,7 +131,6 @@ export default function AdminPage() {
           <Route path="/analytics" element={<DataAnalyticsPage />} />
           <Route path="/grades" element={<GradeManagementPage />} />
 
-          <Route path="/menus" element={<MenuManagementPage />} />
           <Route path="/roles" element={<RoleManagementPage />} />
           <Route path="/notifications" element={<NotificationManagementPage />} />
           <Route path="/settings" element={<SettingsPage />} />

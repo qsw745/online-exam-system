@@ -1,6 +1,5 @@
-import type { Response } from 'express'
-import type { AuthRequest } from 'types/auth.js'
-import type { ApiResponse } from 'types/response.js'
+import type { AuthRequest } from '@/types/auth.js'
+import type { Res } from '@/types/response.js'
 import type {
   LearningAchievement,
   LearningGoal,
@@ -16,10 +15,10 @@ import { LearningProgressService } from '../services/learning-progress.service.j
 const service = new LearningProgressService()
 
 export class LearningProgressController {
-  async recordProgress(req: AuthRequest, res: Response<ApiResponse<LearningProgress>>) {
+  async recordProgress(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const { subjectId, studyTime, questionsAnswered, correctAnswers, studyContent } = req.body
       const progress = await service.recordProgress({
         userId,
@@ -29,35 +28,31 @@ export class LearningProgressController {
         correctAnswers,
         studyContent,
       })
-      res.json({ success: true, message: '学习进度记录成功', data: progress })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '记录学习进度失败' })
+      return res.ok<LearningProgress>(progress, '学习进度记录成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '记录学习进度失败')
     }
   }
 
-  async getProgressStats(req: AuthRequest, res: Response<ApiResponse<ProgressStats>>) {
+  async getProgressStats(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const stats = await service.getProgressStats(
         userId,
         String(req.query.period || '7d'),
         req.query.subjectId ? Number(req.query.subjectId) : undefined
       )
-      res.json({ success: true, data: stats })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习进度统计失败' })
+      return res.ok<ProgressStats>(stats)
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习进度统计失败')
     }
   }
 
-  async getLearningTrack(req: AuthRequest, res: Response<ApiResponse<LearningTrack[]>>) {
+  async getLearningTrack(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const { startDate, endDate, subjectId } = req.query
       const data = await service.getLearningTrack(
         userId,
@@ -65,105 +60,91 @@ export class LearningProgressController {
         String(endDate),
         subjectId ? Number(subjectId) : undefined
       )
-      res.json({ success: true, data })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习轨迹失败' })
+      return res.ok<LearningTrack[]>(data)
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习轨迹失败')
     }
   }
 
-  async setLearningGoal(req: AuthRequest, res: Response<ApiResponse<LearningGoal>>) {
+  async setLearningGoal(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const goal = await service.setLearningGoal({ userId, ...req.body })
-      res.json({ success: true, message: '学习目标设置成功', data: goal })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '设置学习目标失败' })
+      return res.ok<LearningGoal>(goal, '学习目标设置成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '设置学习目标失败')
     }
   }
 
-  async getLearningGoals(req: AuthRequest, res: Response<ApiResponse<LearningGoal[]>>) {
+  async getLearningGoals(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const goals = await service.getLearningGoals(userId, req.query.status as string, req.query.goalType as string)
-      res.json({ success: true, data: goals })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习目标失败' })
+      return res.ok<LearningGoal[]>(goals)
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习目标失败')
     }
   }
 
-  async updateGoalProgress(req: AuthRequest, res: Response<ApiResponse<LearningGoal>>) {
+  async updateGoalProgress(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const goal = await service.updateGoalProgress(
         Number(req.params.goalId),
         userId,
         Number(req.body.currentValue),
         req.body.status
       )
-      res.json({ success: true, message: '学习目标进度更新成功', data: goal })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '更新学习目标进度失败' })
+      return res.ok<LearningGoal>(goal, '学习目标进度更新成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '更新学习目标进度失败')
     }
   }
 
-  async getLearningAchievements(req: AuthRequest, res: Response<ApiResponse<LearningAchievement[]>>) {
+  async getLearningAchievements(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const achievements = await service.getLearningAchievements(userId)
-      res.json({ success: true, data: achievements })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习成就失败' })
+      return res.ok<LearningAchievement[]>(achievements)
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习成就失败')
     }
   }
 
-  async unlockAchievement(req: AuthRequest, res: Response<ApiResponse<LearningAchievement>>) {
+  async unlockAchievement(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const ach = await service.unlockAchievement(userId, String(req.body.achievementType), req.body.achievementData)
-      res.json({ success: true, message: '学习成就解锁成功', data: ach })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '解锁学习成就失败' })
+      return res.ok<LearningAchievement>(ach, '学习成就解锁成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '解锁学习成就失败')
     }
   }
 
-  async getLearningReport(req: AuthRequest, res: Response<ApiResponse<LearningReport>>) {
+  async getLearningReport(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const report = await service.getLearningReport(
         userId,
         String(req.query.period || 'week'),
         req.query.subjectId ? Number(req.query.subjectId) : undefined
       )
-      res.json({ success: true, message: '获取学习报告成功', data: report })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习报告失败' })
+      return res.ok<LearningReport>(report, '获取学习报告成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习报告失败')
     }
   }
 
-  async getProgressRecords(req: AuthRequest, res: Response<ApiResponse<ProgressRecord[]>>) {
+  async getProgressRecords(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const { start_date, end_date, subject, limit = 20 } = req.query
       const records = await service.getProgressRecords(
         userId,
@@ -172,24 +153,20 @@ export class LearningProgressController {
         subject as string | undefined,
         Number(limit)
       )
-      res.json({ success: true, message: '获取学习记录成功', data: records })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取学习记录失败' })
+      return res.ok<ProgressRecord[]>(records, '获取学习记录成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '获取学习记录失败')
     }
   }
 
-  async getSubjects(req: AuthRequest, res: Response<ApiResponse<Subject[]>>) {
+  async getSubjects(req: AuthRequest, res: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.status(401).json({ success: false, error: 'UNAUTHORIZED', message: '用户未登录' })
+      if (!userId) return res.unauthorized('用户未登录')
       const subjects = await service.getSubjects(userId)
-      res.json({ success: true, message: '获取科目列表成功', data: subjects })
-    } catch (e) {
-      res
-        .status(500)
-        .json({ success: false, error: 'INTERNAL_ERROR', message: (e as Error).message || '获取科目列表失败' })
+      return res.ok<Subject[]>(subjects, '获取科目列表成功')
+    } catch (e: any) {
+      return res.internal(e?.message || '获取科目列表失败')
     }
   }
 }

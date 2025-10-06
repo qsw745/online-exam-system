@@ -3,7 +3,8 @@ import { api, favoritesApi } from '@/shared/api/http'
 
 export async function getQuestionById(id: string) {
   const r = await api.get(`/questions/${id}`)
-  const d = r?.data?.data ?? r?.data ?? r
+  const anyr = r as any
+  const d = anyr?.data?.data ?? anyr?.data ?? r
   return (d?.question ?? d) as any
 }
 
@@ -11,11 +12,11 @@ export async function getQuestionById(id: string) {
 async function getFirstFavoriteList(): Promise<any | null> {
   try {
     const lists = await (favoritesApi as any).list?.()
-    const arr = (lists?.data ?? lists) as any
+    const arr = ((lists as any)?.data ?? lists) as any
     if (Array.isArray(arr) && arr.length) return arr[0]
     if (!(favoritesApi as any).create) return null
     const created = await (favoritesApi as any).create?.({ name: '默认收藏' })
-    return created?.data ?? created ?? null
+    return (created as any)?.data ?? created ?? null
   } catch {
     return null
   }
@@ -27,7 +28,7 @@ export async function isQuestionFavorited(questionId: string): Promise<boolean> 
     if (!fav) return false
     const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
     const items = await (favoritesApi as any).items?.(fid)
-    const list = (items?.data ?? items) as any[]
+    const list = (((items as any)?.data ?? items) as any[]) || []
     const qidNum = Number(questionId)
     return (
       Array.isArray(list) && list.some(it => Number(it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id) === qidNum)
@@ -51,7 +52,7 @@ export async function removeQuestionFromFavorites(questionId: string) {
   const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
   if (!(favoritesApi as any).removeItem) throw new Error('当前收藏接口不支持删除项目')
   const items = await (favoritesApi as any).items?.(fid)
-  const list = (items?.data ?? items) as any[]
+  const list = (((items as any)?.data ?? items) as any[]) || []
   const qidNum = Number(questionId)
   const hit = Array.isArray(list)
     ? list.find(it => Number(it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id) === qidNum)

@@ -18,7 +18,7 @@ const TABS_H = 40
 const Layout: React.FC = () => {
   const { user, loading } = useAuth()
   const location = useLocation()
-  const { mode, showTabs, activeRootId } = useLayout()
+  const { mode, showTabs } = useLayout()
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)

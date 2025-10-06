@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck:watch": "tsc -w --noEmit -p tsconfig.json",
     "build": "rimraf node_modules/.vite-temp && vite build",
     "build:prod": "rimraf node_modules/.vite-temp && tsc -b && cross-env BUILD_MODE=prod vite build",
     "preview": "vite preview"
@@ -23,6 +25,7 @@
     "dayjs": "^1.11.13",
     "lucide-react": "^0.540.0",
     "node-forge": "^1.3.1",
+    "nprogress": "^0.2.0",
     "papaparse": "^5.5.3",
     "react": "^19.1.1",
     "react-datepicker": "^8.7.0",
@@ -35,6 +38,7 @@
   },
   "devDependencies": {
     "@types/node": "^24.3.0",
+    "@types/nprogress": "^0.2.3",
     "@types/react": "^19.1.12",
     "@types/react-datepicker": "^7.0.0",
     "@types/react-dom": "^19.1.9",
@@ -43,6 +47,7 @@
     "rimraf": "^5.0.5",
     "typescript": "^5.4.5",
     "vite": "^5.4.19",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vite-tsconfig-paths": "^5.1.4",
+    "vite-plugin-checker": "^0.7.0"
   }
 }

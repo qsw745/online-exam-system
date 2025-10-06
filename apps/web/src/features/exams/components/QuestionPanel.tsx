@@ -1,4 +1,4 @@
-// src/features/exams/components/QuestionPanel.tsx
+// apps/web/src/features/exams/components/QuestionPanel.tsx
 import { Flag } from 'lucide-react'
 import type { Question } from '@/shared/api/http'
 
@@ -13,8 +13,10 @@ export function QuestionPanel(props: {
 }) {
   const { question, index, total, flagged, onToggleFlag, value = [], onChange } = props
 
-  const isSingle = question.type === 'single'
-  const isTf = question.type === 'true_false'
+  // ✅ 统一题型判断
+  const qType = ((question as any).type ?? (question as any).question_type ?? '') as string
+  const isSingle = qType === 'single' || qType === 'single_choice'
+  const isTf = qType === 'true_false' || qType === 'tf' || qType === 'judge'
 
   const toggle = (optIndex: number) => {
     if (isSingle || isTf) {
@@ -22,14 +24,17 @@ export function QuestionPanel(props: {
       return
     }
     // 多选
-    if (value.includes(optIndex)) {
-      onChange(value.filter(i => i !== optIndex))
-    } else {
-      onChange([...value, optIndex])
-    }
+    if (value.includes(optIndex)) onChange(value.filter(i => i !== optIndex))
+    else onChange([...value, optIndex])
   }
 
-  const tfOptions = ['正确', '错误']
+  const tfOptions: string[] = ['正确', '错误']
+
+  // ✅ 字段兼容：content / options
+  const contentHtml: string = (question as any).content ?? (question as any).stem ?? (question as any).title ?? ''
+  const optionList: Array<any> = isTf ? tfOptions : (question as any).options ?? (question as any).choices ?? []
+
+  const qid = String((question as any).id ?? index)
 
   return (
     <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
@@ -49,11 +54,11 @@ export function QuestionPanel(props: {
       </div>
 
       <div className="prose max-w-none mb-6">
-        <div dangerouslySetInnerHTML={{ __html: question.content || '' }} />
+        <div dangerouslySetInnerHTML={{ __html: contentHtml || '' }} />
       </div>
 
       <div className="space-y-4">
-        {(isTf ? tfOptions : question.options).map((opt, i) => {
+        {(optionList as any[]).map((opt: any, i: number) => {
           const label = typeof opt === 'string' ? opt : opt?.content || ''
           const checked = value.includes(i)
           return (
@@ -63,7 +68,7 @@ export function QuestionPanel(props: {
             >
               <input
                 type={isSingle || isTf ? 'radio' : 'checkbox'}
-                name={`q-${question.id}`}
+                name={`q-${qid}`}
                 checked={checked}
                 onChange={() => toggle(i)}
                 className="w-4 h-4 text-primary"

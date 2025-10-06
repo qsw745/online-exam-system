@@ -1,7 +1,7 @@
+import type { UserDTO } from '@/shared/api/http'
+import type { CreateNotificationForm } from '@/shared/hooks/useNotifications'
 import { Button, Checkbox, Form, Input, Modal, Select, Space } from 'antd'
 import { Send } from 'lucide-react'
-import type { CreateNotificationForm } from '@/shared/hooks/useNotifications'
-import type { UserDTO } from '@/shared/api/http'
 const { TextArea } = Input
 const { Option } = Select
 
@@ -65,11 +65,18 @@ export default function NotificationFormModal({
                 ) : (
                   <Form.Item name="user_ids" label="接收用户" rules={[{ required: true, message: '请选择接收用户' }]}>
                     <Select mode="multiple" placeholder="请选择接收通知的用户" showSearch optionFilterProp="children">
-                      {users.map(u => (
-                        <Option key={u.id} value={u.id}>
-                          {u.real_name || u.username}（{u.role}）
-                        </Option>
-                      ))}
+                      {users.map(u => {
+                        const displayName =
+                          (u as any).real_name ??
+                          (u as any).nickname ??
+                          u.username ??
+                          (u.email ? u.email.split('@')[0] : '用户')
+                        return (
+                          <Option key={u.id} value={u.id}>
+                            {displayName}（{u.role}）
+                          </Option>
+                        )
+                      })}
                     </Select>
                   </Form.Item>
                 )

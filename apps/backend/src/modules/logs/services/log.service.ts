@@ -1,11 +1,12 @@
 // apps/backend/src/modules/logs/services/log.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import HttpError from '@/common/errors/http-error'
+import { getClientIp } from '@/common/utils/request-ip'
+import { CODES } from '@/types/response'
 import type { Request } from 'express'
 import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
-import { getClientIp } from '@/common/utils/request-ip'
-import HttpError from '@/common/errors/http-error'
-import { CODES } from '@/types/response'
+import Geo, { type GeoLocation } from '@/common/utils/geo'
 
 // ---------- 轻量 UA 解析 ----------
 type ClientType = 'desktop' | 'mobile' | 'tablet' | 'bot'
@@ -17,17 +18,13 @@ type ClientInfo = {
   type: ClientType
 }
 
-/** 返回 os/browser/device + type（desktop/mobile/tablet/bot） */
 function parseUA(uaRaw: string): ClientInfo {
   const ua = uaRaw || ''
+  const isBot = /(bot|spider|crawler|bingbot|googlebot|yandex|headless|phantom|scrapy|python-requests|curl|wget)/i.test(
+    ua
+  )
+  if (isBot) return { label: 'Bot · Unknown · Unknown', os: 'Unknown', browser: 'Unknown', device: 'Bot', type: 'bot' }
 
-  // 1) 爬虫/脚本
-  const isBot = /(bot|spider|crawler|bingbot|googlebot|yandex|headless|phantom|scrapy|python-requests|curl|wget)/i.test(ua)
-  if (isBot) {
-    return { label: 'Bot · Unknown · Unknown', os: 'Unknown', browser: 'Unknown', device: 'Bot', type: 'bot' }
-  }
-
-  // 2) 设备类型
   const isIPad = /iPad/.test(ua)
   const isIPhone = /iPhone/.test(ua)
   const isAndroid = /Android/.test(ua)
@@ -40,36 +37,61 @@ function parseUA(uaRaw: string): ClientInfo {
     device = isIPad ? 'iPad' : 'Tablet'
     type = 'tablet'
   } else if (isMobile) {
-    if (isIPhone) device = 'iPhone'
-    else if (isAndroid) device = ua.match(/Android.*; ([^;)]*)\)/)?.[1]?.trim() || 'Android'
-    else device = 'Mobile'
+    device = isIPhone ? 'iPhone' : isAndroid ? ua.match(/Android.*; ([^;)]*)\)/)?.[1]?.trim() || 'Android' : 'Mobile'
     type = 'mobile'
   }
 
-  // 3) OS
-  const os =
-      /Windows NT 11/.test(ua) ? 'Windows 11' :
-          /Windows NT 10/.test(ua) ? 'Windows 10' :
-              /Windows NT 6\.3/.test(ua) ? 'Windows 8.1' :
-                  /Windows NT 6\.1/.test(ua) ? 'Windows 7' :
-                      /Macintosh|Mac OS X/.test(ua) ? (/(iPhone|iPad|iPod)/.test(ua) ? 'iOS' : 'macOS') :
-                          isAndroid ? 'Android' :
-                              /Linux/.test(ua) ? 'Linux' : 'Unknown'
+  const os = /Windows NT 11/.test(ua)
+    ? 'Windows 11'
+    : /Windows NT 10/.test(ua)
+    ? 'Windows 10'
+    : /Windows NT 6\.3/.test(ua)
+    ? 'Windows 8.1'
+    : /Windows NT 6\.1/.test(ua)
+    ? 'Windows 7'
+    : /Macintosh|Mac OS X/.test(ua)
+    ? /(iPhone|iPad|iPod)/.test(ua)
+      ? 'iOS'
+      : 'macOS'
+    : isAndroid
+    ? 'Android'
+    : /Linux/.test(ua)
+    ? 'Linux'
+    : 'Unknown'
 
-  // 4) Browser（判定顺序很重要）
-  const browser =
-      /Edg\/\d+/.test(ua) ? 'Edge' :
-          (/Chrome\/\d+/.test(ua) && !/Edg\/\d+/.test(ua)) ? 'Chrome' :
-              (/Safari\/\d+/.test(ua) && /Version\/\d+/.test(ua) && !/Chrome\/\d+/.test(ua)) ? 'Safari' :
-                  /Firefox\/\d+/.test(ua) ? 'Firefox' :
-                      /MSIE|Trident\//.test(ua) ? 'IE' : 'Unknown'
+  const browser = /Edg\/\d+/.test(ua)
+    ? 'Edge'
+    : /Chrome\/\d+/.test(ua) && !/Edg\/\d+/.test(ua)
+    ? 'Chrome'
+    : /Safari\/\d+/.test(ua) && /Version\/\d+/.test(ua) && !/Chrome\/\d+/.test(ua)
+    ? 'Safari'
+    : /Firefox\/\d+/.test(ua)
+    ? 'Firefox'
+    : /MSIE|Trident\//.test(ua)
+    ? 'IE'
+    : 'Unknown'
 
   return { label: `${device} · ${os} · ${browser}`, os, browser, device, type }
 }
 
-// rows 附带 client（含 type）
-const attachClient = (rows: LogRow[]) =>
-    rows.map(r => ({ ...r, client: parseUA(r.user_agent || '') }))
+const attachClient = (rows: any[]) => rows.map(r => ({ ...r, client: parseUA(r.user_agent || '') }))
+
+// ---------- Geo 附加（带 IP 缓存） ----------
+async function attachGeo<T extends { ip_address?: string | null }>(rows: T[]) {
+  const cache = new Map<string, GeoLocation>()
+  const out = await Promise.all(
+    rows.map(async r => {
+      const ip = r.ip_address || ''
+      let geo = cache.get(ip)
+      if (!geo) {
+        geo = await Geo.lookup(ip)
+        cache.set(ip, geo)
+      }
+      return { ...r, geo, location: geo.label }
+    })
+  )
+  return out
+}
 
 // ---------- 请求元信息 ----------
 const metaFromReq = (req?: Pick<Request, 'ip' | 'get' | 'headers' | 'socket'> | null) => ({
@@ -77,39 +99,29 @@ const metaFromReq = (req?: Pick<Request, 'ip' | 'get' | 'headers' | 'socket'> | 
   userAgent: req?.get?.('User-Agent') || (req as any)?.headers?.['user-agent'] || undefined,
 })
 
-// ---------- level 推断（英文 + 中文关键字） ----------
+// ---------- level 推断 ----------
 function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   if (input.level) return input.level
-
   const action = String(input.action || '')
   const msg = String(input.message || '')
   const status = String(input.status || '')
-
-  // 明确失败
   if (/failed|error/i.test(status) || /失败|错误|异常|未授权|无权限/.test(msg)) return 'error'
-
-  // 危险/破坏性操作 → warn
   if (
-      /(delete|remove|reset|ban|disable|unpublish|offline)/i.test(action) ||
-      /(删除|移除|解绑|重置|禁用|停用|下线)/.test(action + msg)
-  ) {
+    /(delete|remove|reset|ban|disable|unpublish|offline)/i.test(action) ||
+    /(删除|移除|解绑|重置|禁用|停用|下线)/.test(action + msg)
+  )
     return 'warn'
-  }
-
-  // 常规变更 → info
   if (
-      /(create|insert|register|login|update|publish|start|submit|upload|import|export)/i.test(action) ||
-      /(创建|新增|登录|更新|发布|开始|提交|上传|导入|导出)/.test(action + msg)
-  ) {
+    /(create|insert|register|login|update|publish|start|submit|upload|import|export)/i.test(action) ||
+    /(创建|新增|登录|更新|发布|开始|提交|上传|导入|导出)/.test(action + msg)
+  )
     return 'info'
-  }
-
   return 'info'
 }
 
 // ---------- Service ----------
 export class LogService {
-  /** 统一写日志入口（message 建议中文） */
+  /** 统一写日志入口 */
   static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
     await LogRepository.insert({
@@ -129,38 +141,38 @@ export class LogService {
   }
 
   async getLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
-    const { rows, total, page, limit } =
-        await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
-    return { logs: attachClient(rows), total, page, limit }
+    if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
+    const rows2 = await attachGeo(rows)
+    return { logs: attachClient(rows2), total, page, limit }
   }
 
   async getSystemLogs(role: string | undefined, q: LogQueryParams) {
-    const { rows, total, page, limit } =
-        await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
-    return { logs: attachClient(rows), total, page, limit }
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
+    const rows2 = await attachGeo(rows)
+    return { logs: attachClient(rows2), total, page, limit }
   }
 
   async getAuditLogs(role: string | undefined, q: LogQueryParams) {
-    const { rows, total, page, limit } =
-        await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
-    return { logs: attachClient(rows), total, page, limit }
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
+    const rows2 = await attachGeo(rows)
+    return { logs: attachClient(rows2), total, page, limit }
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
-    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
-    const { rows, total, page, limit } =
-        await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
-    return { logs: attachClient(rows), total, page, limit }
+    if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
+    const rows2 = await attachGeo(rows)
+    return { logs: attachClient(rows2), total, page, limit }
   }
 
   async getExamLogs(user: { id?: number; role?: string } | undefined, examId: number, q: LogQueryParams) {
-    if (!user?.id) throw new HttpError('未授权访问', 401, CODES.AUTH_UNAUTHORIZED)
+    if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
     return LogRepository.queryExamLogs({ currentUserId: user.id, role: user.role }, examId, q)
   }
 
   async cleanupLogs(role: string | undefined, daysToKeep: number) {
-    if (role !== 'admin') throw new HttpError('权限不足', 403, CODES.AUTH_FORBIDDEN)
+    if (role !== 'admin') throw new HttpError('权限不足', 403, { code: CODES.AUTH_FORBIDDEN })
     if (!Number.isFinite(daysToKeep) || daysToKeep < 0) throw new HttpError('daysToKeep 必须为非负数字')
     const affected = await LogRepository.cleanupOlderThan(new Date(Date.now() - daysToKeep * 86400_000))
     return { message: '日志清理完成', affected }
@@ -169,7 +181,50 @@ export class LogService {
   async exportLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new Error('未授权访问')
     const rows = await LogRepository.exportLogs({ currentUserId: user.id, role: user.role }, q)
-    return attachClient(rows)
+    const rows2 = await attachGeo(rows)
+    return attachClient(rows2)
+  }
+
+  /** 在线用户列表（从最近登录日志推断），附带 UA + 地点 */
+  async getOnlineUsers(user: { id?: number; role?: string } | undefined) {
+    if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const rows = await LogRepository.queryOnlineUsersFromLogs()
+    const rows2 = await attachGeo(rows as any)
+    return (rows2 || []).map(r => {
+      const client = parseUA((r as any).user_agent || '')
+      return {
+        id: (r as any).id ?? 0,
+        username: (r as any).username ?? '未知',
+        ip_address: (r as any).ip_address ?? '',
+        login_time: (r as any).login_time,
+        client,
+        os: client.os,
+        browser: client.browser,
+        // 👇 标准化地点字段
+        location: (r as any).location,
+        geo: (r as any).geo,
+        country: (r as any).geo?.country,
+        region: (r as any).geo?.region,
+        city: (r as any).geo?.city,
+      }
+    })
+  }
+
+  /** 强退：示例 */
+  async kickOnlineUser(user: { id?: number; role?: string } | undefined, targetId: string | number) {
+    if ((user as any)?.role !== 'admin') throw new HttpError('权限不足', 403, { code: CODES.AUTH_FORBIDDEN })
+    await LogRepository.insert({
+      type: 'login',
+      level: 'info',
+      userId: user?.id,
+      username: (user as any)?.username ?? 'admin',
+      action: 'force_logout',
+      message: '管理员强制下线',
+      resourceType: 'session',
+      resourceId: typeof targetId === 'string' ? Number(targetId) || undefined : targetId,
+      status: 'success',
+    })
+    return { id: targetId }
   }
 }
 

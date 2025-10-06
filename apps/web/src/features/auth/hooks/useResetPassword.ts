@@ -1,7 +1,7 @@
+import { resetPassword as apiReset, validateResetToken as apiValidate } from '@/shared/api/endpoints/auth'
+import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { App } from 'antd'
-import { validateResetToken as apiValidate, resetPassword as apiReset } from '@/shared/api/endpoints/auth'
 
 export type ResetValues = { password: string; confirmPassword: string }
 
@@ -58,7 +58,8 @@ export function useResetPassword(rawToken: string | null) {
       }
       try {
         setValidating(true)
-        const res = await apiValidate(token)
+        // ✅ 最小返回形状，避免 TS 在联合里报错
+        const res = (await apiValidate(token)) as { success?: boolean; data?: { valid?: boolean } }
         if (!mounted) return
         if (res?.success && res?.data?.valid) {
           setTokenValid(true)

@@ -1,8 +1,13 @@
 import { Card, Col, Row, Statistic } from 'antd'
-import { FileText, Clock, TrendingUp, Trophy } from 'lucide-react'
+import { Clock, FileText, TrendingUp, Trophy } from 'lucide-react'
 import React from 'react'
-import type { Stats } from '@/shared/api/http'
 
+type Stats = {
+  total_tasks: number
+  completed_tasks: number
+  average_score: number
+  best_score: number
+}
 export const DashboardStatsCards: React.FC<{
   stats: Stats
   labels: {

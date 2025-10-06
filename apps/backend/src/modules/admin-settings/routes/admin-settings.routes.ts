@@ -9,20 +9,20 @@ import { AdminSettingsController } from '../controllers/admin-settings.controlle
 const router = Router()
 const ALLOWED_ROLES = new Set(['admin', 'teacher'])
 
-function requireRole(_roles = ALLOWED_ROLES) {
-    return (req: AuthRequest, res: Response, next: NextFunction) => {
-        const role = req.user?.role
-        if (!role) return res.status(401).json({ success: false, error: '未授权访问' })
-        if (!_roles.has(role)) return res.status(403).json({ success: false, error: '无权限' })
-        next()
-    }
+function requireRole(_roles = ALLOWED_ROLES): RequestHandler {
+  return (req: Request, res: Response, next: NextFunction) => {
+    const role = (req as AuthRequest).user?.role
+    if (!role) return res.status(401).json({ success: false, error: '未授权访问' })
+    if (!_roles.has(role)) return res.status(403).json({ success: false, error: '无权限' })
+    next()
+  }
 }
 
 const wrap =
-    (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
-        (req: Request, res: Response, next: NextFunction) => {
-            Promise.resolve(handler(req as AuthRequest, res)).catch(next)
-        }
+  (handler: (req: AuthRequest, res: Response) => Promise<unknown> | unknown): RequestHandler =>
+  (req: Request, res: Response, next: NextFunction) => {
+    Promise.resolve(handler(req as AuthRequest, res)).catch(next)
+  }
 
 // ✅ 统一先要求“已登录”
 router.use(authenticateToken)
@@ -32,30 +32,30 @@ router.get('/settings', wrap(AdminSettingsController.getSettings))
 
 // ✅ 仅 admin/teacher 可修改系统设置
 router.put(
-    '/settings',
-    requireRole(),
-    [
-        body('systemName').optional().isString().isLength({ min: 1, max: 100 }),
-        body('allowUserRegistration').optional().isBoolean(),
-        body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
-        body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
+  '/settings',
+  requireRole(),
+  [
+    body('systemName').optional().isString().isLength({ min: 1, max: 100 }),
+    body('allowUserRegistration').optional().isBoolean(),
+    body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
+    body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
 
-        // 新增校验
-        body('enableCaptcha').optional().isBoolean(),
-        body('captchaAfterFailed').optional().isInt({ min: 1, max: 20 }), // ← 与 service/repo 字段对齐
+    // 新增校验
+    body('enableCaptcha').optional().isBoolean(),
+    body('captchaAfterFailed').optional().isInt({ min: 1, max: 20 }),
 
-        body('enableStrongPassword').optional().isBoolean(),
-        body('strongPasswordRules').optional().isObject(),
-        body('strongPasswordRules.minLength').optional().isInt({ min: 6, max: 64 }),
-        body('strongPasswordRules.requireUpper').optional().isBoolean(),
-        body('strongPasswordRules.requireLower').optional().isBoolean(),
-        body('strongPasswordRules.requireNumber').optional().isBoolean(),
-        body('strongPasswordRules.requireSymbol').optional().isBoolean(),
-        body('strongPasswordRules.forbidRepeated').optional().isBoolean(),
-        body('strongPasswordRules.forbidCommon').optional().isBoolean(),
-    ],
-    validateRequest,
-    wrap(AdminSettingsController.updateSettings)
+    body('enableStrongPassword').optional().isBoolean(),
+    body('strongPasswordRules').optional().isObject(),
+    body('strongPasswordRules.minLength').optional().isInt({ min: 6, max: 64 }),
+    body('strongPasswordRules.requireUpper').optional().isBoolean(),
+    body('strongPasswordRules.requireLower').optional().isBoolean(),
+    body('strongPasswordRules.requireNumber').optional().isBoolean(),
+    body('strongPasswordRules.requireSymbol').optional().isBoolean(),
+    body('strongPasswordRules.forbidRepeated').optional().isBoolean(),
+    body('strongPasswordRules.forbidCommon').optional().isBoolean(),
+  ],
+  validateRequest,
+  wrap(AdminSettingsController.updateSettings)
 )
 
 export { router as adminSettingsRoutes }

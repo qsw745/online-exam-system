@@ -1,8 +1,8 @@
 // src/features/questions/browse/pages/QuestionsPage.tsx
 
+import { useQuestionsQuery } from '@/features/questions/hooks/useQuestionsQuery'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
-import { useQuestionsQuery } from '@/shared/hooks/useQuestionsQuery'
 import { Card, Col, Input, Row, Select, Space, Spin, Typography } from 'antd'
 import React from 'react'
 import { Link } from 'react-router-dom'
@@ -16,7 +16,8 @@ const { Title, Text } = Typography
 export default function QuestionsPage() {
   const { user, loading: authLoading } = useAuth()
   const { t } = useLanguage()
-  const q = useQuestionsQuery(user || null)
+  const uid = Number((user as any)?.id)
+  const q = useQuestionsQuery(Number.isFinite(uid) ? { id: uid } : null)
 
   const emptyFavSet = React.useMemo(() => new Set<string>(), [])
 
@@ -85,7 +86,6 @@ export default function QuestionsPage() {
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
-  
       <Card>
         <PageHeader
           viewType={q.viewType}
@@ -137,8 +137,8 @@ export default function QuestionsPage() {
 
       {q.viewType === 'all' && q.items.length > 0 && (
         <PaginationBar
-          current={q.pg.currentPage}
-          total={q.pg.totalQuestions}
+          current={q.pg.current}
+          total={q.pg.total}
           pageSize={q.pg.pageSize}
           onChange={q.setPage}
           onSizeChange={(_c: number, size: number) => q.setPageSize(size)}

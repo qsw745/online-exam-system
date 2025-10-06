@@ -1,14 +1,14 @@
-import LogDetailModal from '@/features/logs/components/LogDetailModal'
-import LogsFilters from '@/features/logs/components/LogsFilters'
-import LogsTable from '@/features/logs/components/LogsTable'
-
-import { createPaginationConfig } from '@/shared/constants/pagination'
-import { useLogs } from '@/shared/hooks/useLogs'
+import React from 'react'
 import { Button, Card, Pagination, Space, Typography } from 'antd'
-import { Download, FileText } from 'lucide-react'
+import { Download, LogIn } from 'lucide-react'
+import LoginFiltersBar from '@/features/logs/components/LoginFiltersBar'
+import LoginLogsTable from '@/features/logs/components/LoginLogsTable'
+import { createPaginationConfig } from '@/shared/constants/pagination'
+import { useLogs } from '@/features/logs/hooks/useLogs'
+
 const { Title } = Typography
-// 日志组件
-export default function LogsPage() {
+
+export default function LoginLogsPage() {
   const {
     logs,
     total,
@@ -20,41 +20,44 @@ export default function LogsPage() {
     pageSize,
     setPageSize,
     fetchLogs,
-    detailOpen,
-    currentLog,
-    openDetail,
-    closeDetail,
     exportLogs,
-  } = useLogs()
+    resetFilters,
+  } = useLogs('login')
 
   return (
-    <div >
-    
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
-          <FileText style={{ width: 24, height: 24, color: '#1677ff' }} />
+          <LogIn style={{ width: 22, height: 22, color: '#1677ff' }} />
           <Title level={2} style={{ margin: 0 }}>
-            日志管理
+            登录日志
           </Title>
         </Space>
         <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={exportLogs}>
-          导出日志
+          导出
         </Button>
       </div>
 
-      <Card style={{ marginBottom: 24 }}>
-        <LogsFilters
-          filters={filters}
+      {/* 顶部横向筛选条（与截图一致） */}
+      <Card style={{ marginBottom: 12, }}>
+        <LoginFiltersBar
+          filters={filters as any}
           onChange={patch => setFilters(prev => ({ ...prev, ...patch }))}
-          onApply={() => {
+          onSearch={() => {
             setPage(1)
             fetchLogs()
           }}
+          onReset={() => {
+            resetFilters()
+            setPage(1)
+            fetchLogs()
+          }}
+          loading={loading}
         />
       </Card>
 
       <Card>
-        <LogsTable data={logs} loading={loading} onRowDblClick={openDetail} />
+        <LoginLogsTable data={logs} loading={loading} page={page} pageSize={pageSize} />
         {!loading && (
           <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
             <Pagination
@@ -77,8 +80,6 @@ export default function LogsPage() {
           </div>
         )}
       </Card>
-
-      <LogDetailModal open={detailOpen} log={currentLog} onClose={closeDetail} />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { api } from '@/shared/api/http'
-import dayjs, { Dayjs } from 'dayjs'
+import { Dayjs } from 'dayjs'
 
 export type LogLevel = 'info' | 'warning' | 'error'
 
@@ -22,7 +22,7 @@ export type LogEntry = {
   details?: unknown
   ip_address: string
   user_agent: string
-  client?: ClientInfo // ⬅️ 新增
+  client?: ClientInfo
   level: LogLevel | string
   status?: string
   created_at: string
@@ -68,6 +68,21 @@ export const logsApi = {
     return parseList(res as any)
   },
 
+  async listLogin(filters: LogFilters, page = 1, limit = 20): Promise<ListResult> {
+    const res = await api.get('/logs/login', { params: toQuery(filters, page, limit) })
+    return parseList(res as any)
+  },
+
+  async listAudit(filters: LogFilters, page = 1, limit = 20): Promise<ListResult> {
+    const res = await api.get('/logs/audit', { params: toQuery(filters, page, limit) })
+    return parseList(res as any)
+  },
+
+  async listSystem(filters: LogFilters, page = 1, limit = 20): Promise<ListResult> {
+    const res = await api.get('/logs/system', { params: toQuery(filters, page, limit) })
+    return parseList(res as any)
+  },
+
   async exportCsv(filters: LogFilters) {
     const res = await api.get('/logs/export', {
       params: { ...toQuery(filters), format: 'csv' },
@@ -76,3 +91,5 @@ export const logsApi = {
     return (res as any)?.data ?? (res as unknown as Blob)
   },
 }
+
+export default logsApi

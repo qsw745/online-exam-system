@@ -3,10 +3,13 @@ import NotFound404 from '@/app/errors/NotFound404'
 import ServerError500 from '@/app/errors/ServerError500'
 import DynamicRoutes from '@/app/routing/DynamicRoutes'
 import RouterRoot from '@/app/routing/RouterRoot' // 确保路径指向 src/app/routing/RouterRoot.tsx
+import SettingsPage from '@/features/settings/pages/SettingsPage'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import NProgress from 'nprogress'
 import { lazy, Suspense, type ReactElement } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 
+NProgress.configure({ showSpinner: false, trickleSpeed: 120 }) // 可调
 const withSuspense = (el: ReactElement) => (
   <Suspense fallback={<LoadingSpinner center="page" text="页面加载中…" />}>{el}</Suspense>
 )
@@ -36,6 +39,11 @@ export const router = createBrowserRouter([
       { path: 'register', element: withSuspense(<RegisterPage />) },
       { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
       { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
+      // ✅ 放在 "*" 之前
+      {
+        path: 'settings',
+        element: <SettingsPage />, // ✅ 仅一个
+      },
 
       // ✅ 动态业务路由（/ 之下所有路径）
       { path: '*', element: <DynamicRoutes /> },

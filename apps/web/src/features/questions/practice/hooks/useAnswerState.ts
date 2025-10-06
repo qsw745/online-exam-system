@@ -1,7 +1,13 @@
 // features/questions/practice/hooks/useAnswerState.ts
 import { useCallback, useState } from 'react'
-import type { NormalizedQuestion } from '../types/question'
 import { isAnswerCorrect } from '../utils/answer'
+
+type AnswerableQuestion = {
+  type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
+  options?: any[]
+  correctIndices?: number[]
+  correct_answer?: number[] | string
+}
 
 export function useAnswerState() {
   const [selected, setSelected] = useState<number[]>([])
@@ -19,7 +25,7 @@ export function useAnswerState() {
   }, [])
 
   const choose = useCallback(
-    (q: NormalizedQuestion, idx: number) => {
+    (q: AnswerableQuestion, idx: number) => {
       if (answered) return
       if (q.type === 'single_choice' || q.type === 'true_false') setSelected([idx])
       else if (q.type === 'multiple_choice') {
@@ -30,7 +36,7 @@ export function useAnswerState() {
   )
 
   const submit = useCallback(
-    (q: NormalizedQuestion) => {
+    (q: AnswerableQuestion) => {
       const ok = isAnswerCorrect(q, selected, text)
       setCorrect(ok)
       setAnswered(true)

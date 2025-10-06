@@ -1,10 +1,9 @@
 // features/questions/pages/QuestionEditorPage.tsx
-import { Button, Card, Col, Divider, Form, Input, Row, Select, Typography } from 'antd'
+import { Button, Card, Col, Divider, Form, Input, Row, Select, Typography, Checkbox, Space } from 'antd'
 import { useQuestionEditor } from '../../../shared/hooks/useQuestionEditor'
 import KnowledgePointsField from '../components/KnowledgePointsField'
-import OptionsEditor from '../components/OptionsEditor'
 import QuestionHeader from '../components/QuestionHeader'
-import { ShortAnswerEditor } from '../components/ShortAnswerEditor'
+import { ShortAnswerEditor } from '../components/TrueFalseEditor'
 import TagsField from '../components/TagsField'
 import { TrueFalseEditor } from '../components/TrueFalseEditor'
 const { TextArea } = Input
@@ -78,13 +77,34 @@ export default function QuestionEditorPage() {
 
           {(type === 'single_choice' || type === 'multiple_choice') && (
             <Form.Item label={<Text strong>选项 *</Text>}>
-              <OptionsEditor
-                options={options}
-                onAdd={addOption}
-                onRemove={removeOption}
-                onChange={changeOption}
-                disabled={isView}
-              />
+              <Space direction="vertical" style={{ width: '100%' }}>
+                {options.map((opt, idx) => (
+                  <div key={idx} style={{ display: 'flex', gap: 8 }}>
+                    <Checkbox
+                      checked={!!opt.is_correct}
+                      disabled={isView}
+                      onChange={e => changeOption(idx, { is_correct: e.target.checked })}
+                      style={{ marginTop: 6 }}
+                    />
+                    <Input
+                      placeholder={`选项 ${idx + 1}`}
+                      value={opt.content}
+                      disabled={isView}
+                      onChange={e => changeOption(idx, { content: e.target.value })}
+                    />
+                    {!isView && (
+                      <Button danger onClick={() => removeOption(idx)}>
+                        删除
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                {!isView && (
+                  <Button type="dashed" onClick={addOption} style={{ width: 160 }}>
+                    新增选项
+                  </Button>
+                )}
+              </Space>
             </Form.Item>
           )}
 

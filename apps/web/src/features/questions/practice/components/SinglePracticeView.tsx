@@ -79,13 +79,15 @@ export default function SinglePracticeView({ ids, startIndex, onExit }: Props) {
       try {
         setLoading(true)
         setError(null)
-        let data: Question | undefined = cacheRef.current.get(qid)
+        let data = cacheRef.current.get(qid)
         if (!data) {
-          data = await getQuestionById(qid)
-          cacheRef.current.set(qid, data)
+          const fetched = (await getQuestionById(qid)) as Question | undefined
+          if (!fetched) throw new Error('题目不存在')
+          cacheRef.current.set(qid, fetched as Question)
+          data = fetched as Question
         }
         if (!mounted) return
-        setQ(data!)
+        setQ(data)
         setSelected([])
         setText('')
         setAnswered(false)
