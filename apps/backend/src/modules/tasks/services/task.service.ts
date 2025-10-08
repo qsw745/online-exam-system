@@ -8,6 +8,53 @@ import type {
   UpdateTaskInput,
 } from '../domain/task.model.js'
 import { TaskRepository } from '../repositories/task.repository.js'
+let RC: any = null,
+  RL: any = null,
+  RClient: any = null
+;(async () => {
+  try {
+    RC = (await import('@/common/redis/cache')).default || (await import('@/common/redis/cache'))
+  } catch {}
+  try {
+    RL = (await import('@/common/redis/lock')).default || (await import('@/common/redis/lock'))
+  } catch {}
+  try {
+    RClient = (await import('@/common/redis/client')).default || (await import('@/common/redis/client'))
+  } catch {}
+})()
+const TASK_TTL = 90
+const kList = (q: any) => `task:list:${JSON.stringify(q)}`
+const kTask = (id: number, u: number, r: string) => `task:${id}:${u}:${r}`
+const kExam = (id: number, u: number) => `task:${id}:exam:${u}`
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = TASK_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdel(...ks: string[]) {
+  try {
+    for (const k of ks) await RC?.del?.(k)
+  } catch {}
+}
+async function cdelByPattern(p: string) {
+  try {
+    const ks = await RC?.keys?.(p)
+    if (ks?.length) await RC?.del?.(ks)
+  } catch {}
+}
+async function publishToUser(uid: number, payload: any) {
+  try {
+    await RClient?.publish?.(`ws:user:${uid}`, JSON.stringify(payload))
+  } catch {}
+}
 
 function uniqueNums(arr: number[]) {
   return Array.from(new Set(arr.filter(n => Number.isFinite(n) && n > 0)))
@@ -34,13 +81,21 @@ export class TaskService {
   }
 
   async list(q: TaskListQuery): Promise<TaskListResult> {
-    return this.repo.list(q)
+    const ck = kList(q)
+    const hit = await cget<TaskListResult>(ck)
+    if (hit) return hit
+    const data = await this.repo.list(q)
+    await cset(ck, data, 60)
+    return data
   }
-
-  async get(taskId: number, userId: number, role: 'admin' | 'teacher' | 'student'): Promise<TaskWithAssigned | null> {
-    return this.repo.getForAccess(taskId, userId, role)
+  async get(taskId: number, userId: number, role: 'admin' | 'teacher' | 'student') {
+    const ck = kTask(taskId, userId, role)
+    const hit = await cget(ck)
+    if (hit) return hit
+    const d = await this.repo.getForAccess(taskId, userId, role)
+    if (d) await cset(ck, d, 60)
+    return d
   }
-
   async create(
     input: CreateTaskInput & { paper_id?: number; assigned_department_ids?: number[] }
   ): Promise<TaskWithAssigned> {
@@ -319,22 +374,22 @@ export class TaskService {
     let task = await this.repo.getForAccess(originalId, userId, role)
     let taskId = originalId
     const isStudent = role === 'student' // 👈 缓存
-  if (!task) {
-    if (isStudent) {
-      const maybeTaskId = await this.repo.findTaskIdByExamForUser(originalId, userId)
-      if (maybeTaskId) {
-        task = await this.repo.getForAccess(maybeTaskId, userId, 'student')
-        taskId = maybeTaskId
-      }
-    } else {
-      const anyTaskId = await this.repo.findAnyTaskIdByExam(originalId)
-      if (anyTaskId) {
-        // 这里不要再 role === 'student' 三元了，直接用 isStudent
-        task = await this.repo.getForAccess(anyTaskId, userId, isStudent ? 'student' : 'admin')
-        taskId = anyTaskId
+    if (!task) {
+      if (isStudent) {
+        const maybeTaskId = await this.repo.findTaskIdByExamForUser(originalId, userId)
+        if (maybeTaskId) {
+          task = await this.repo.getForAccess(maybeTaskId, userId, 'student')
+          taskId = maybeTaskId
+        }
+      } else {
+        const anyTaskId = await this.repo.findAnyTaskIdByExam(originalId)
+        if (anyTaskId) {
+          // 这里不要再 role === 'student' 三元了，直接用 isStudent
+          task = await this.repo.getForAccess(anyTaskId, userId, isStudent ? 'student' : 'admin')
+          taskId = anyTaskId
+        }
       }
     }
-  }
 
     if (!task) throw new Error('无权限：该任务未分配给你或不存在')
 

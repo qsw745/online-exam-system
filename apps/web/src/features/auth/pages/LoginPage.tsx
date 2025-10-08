@@ -55,6 +55,7 @@ const LoginPage: React.FC = () => {
     submitDisabled,
     inputsDisabled,
     isLocked,
+    lockRemainingSec, // ✅ 取出剩余秒
     lockCountdownText,
     lockUiHint,
     lockTryRemainSec,
@@ -90,6 +91,8 @@ const LoginPage: React.FC = () => {
   }, [authLoading, user, navigate])
 
   if (!authLoading && user) return null
+
+  const lockedNow = isLocked && lockRemainingSec > 0 // ✅ 只要还在锁期就显示
 
   return (
     <div
@@ -129,7 +132,7 @@ const LoginPage: React.FC = () => {
           </Text>
         </div>
 
-        {isLocked && (
+        {lockedNow && (
           <Alert
             type="warning"
             showIcon

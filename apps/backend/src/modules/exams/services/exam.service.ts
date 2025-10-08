@@ -1,16 +1,50 @@
+// apps/backend/src/modules/exams/services/exam.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import type { ExamDetailData } from '../domain/exam.model.js'
 import { ExamRepository } from '../repositories/exam.repository.js'
 import LogService from '@/modules/logs/services/log.service.js'
 import { appLogger } from '@/infrastructure/logging/logger.js'
 
+let RC: any = null
+let RL: any = null
+;(async () => {
+  try {
+    const mod: any = await import('@/common/redis/cache')
+    RC = mod?.default ?? mod
+  } catch {}
+  try {
+    const mod: any = await import('@/common/redis/lock')
+    RL = mod?.default ?? mod
+  } catch {}
+})()
+
+const EXAM_TTL = 300
+const kExam = (id: number) => `exam:${id}`
+
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = EXAM_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdel(...ks: string[]) {
+  try {
+    for (const k of ks) await RC?.del?.(k)
+  } catch {}
+}
+
 /** 取“请求作用域”日志器，优先 req.log（由 http-logger 注入），否则退回全局 appLogger */
 function getLog(req?: any) {
   const l = req && (req as any).log && typeof (req as any).log.info === 'function' ? (req as any).log : appLogger
   return l
 }
-
-/** 将 Error/任意异常转成可序列化的 meta */
 function errMeta(e: any) {
   if (e instanceof Error) return { message: e.message, stack: e.stack, name: e.name }
   return { error: e }
@@ -18,13 +52,16 @@ function errMeta(e: any) {
 
 export class ExamService {
   async list(params: { page: number; limit: number; status?: string; search?: string }) {
-    // 查询类不记审计日志
     return ExamRepository.list(params)
   }
 
-  async getById(examId: number): Promise<ExamDetailData> {
-    // 查看详情通常不记审计日志
-    return ExamRepository.getDetail(examId)
+  async getById(examId: number): Promise<ExamDetailData | null> {
+    const ck = kExam(examId)
+    const hit = await cget<ExamDetailData>(ck)
+    if (hit) return hit
+    const data = await ExamRepository.getDetail(examId)
+    if (data) await cset(ck, data, 300)
+    return data
   }
 
   async create(userId: number, payload: any) {
@@ -51,6 +88,7 @@ export class ExamService {
         },
       })
 
+      await cdel(kExam(Number(exam.id)))
       return exam
     } catch (e: any) {
       await LogService.log({
@@ -91,7 +129,7 @@ export class ExamService {
           新题目数量: Array.isArray(payload?.questions) ? payload.questions.length : undefined,
         },
       })
-
+      await cdel(kExam(examId))
       return exam
     } catch (e: any) {
       await LogService.log({
@@ -123,6 +161,7 @@ export class ExamService {
         message: `删除考试「${existed.title}」成功`,
         details: { 标题: existed.title },
       })
+      await cdel(kExam(examId))
     } catch (e: any) {
       await LogService.log({
         type: 'audit',
@@ -183,7 +222,7 @@ export class ExamService {
 
   async submit(userId: number, examId: number, answers: Record<number, any>, req: any) {
     const log = getLog(req)
-    try {
+    const doSubmit = async () => {
       const { resultId, questions, totalScore } = await ExamRepository.submitAndScore(examId, userId, answers)
 
       await LogService.log({
@@ -204,8 +243,9 @@ export class ExamService {
       // —— 事务外联动：错题收集 —— //
       setTimeout(async () => {
         try {
-          // 修正：使用项目别名路径，避免找不到模块
-          const { WrongQuestionController } = await import('@/modules/wrong-questions/controllers/wrong-question.controller.js')
+          const { WrongQuestionController } = await import(
+            '@/modules/wrong-questions/controllers/wrong-question.controller.js'
+          )
           await WrongQuestionController.autoCollectWrongQuestions(
             { ...req, body: { exam_result_id: resultId } } as any,
             { json: () => {}, status: () => ({ json: () => {} }) } as any
@@ -221,7 +261,7 @@ export class ExamService {
           const mod = await import('@/modules/learning-progress/controllers/learning-progress.controller.js')
           const C = (mod as any).LearningProgressController ?? (mod as any).learningProgressController
           const total = questions.length
-          const correct = questions.filter(q => answers[q.id] === q.answer).length
+          const correct = questions.filter((q: any) => answers[q.id] === q.answer).length
           const studyTime = Math.floor(Math.random() * 60) + 30
           await C.recordProgress(
             {
@@ -241,10 +281,9 @@ export class ExamService {
           const { LeaderboardService } = await import('@/modules/leaderboard/services/leaderboard.service.js')
           const leaderboardService = new LeaderboardService()
           const total = questions.length
-          const correct = questions.filter(q => answers[q.id] === q.answer).length
+          const correct = questions.filter((q: any) => answers[q.id] === q.answer).length
           const accuracy = total > 0 ? (correct / total) * 100 : 0
 
-          // 兼容不同服务实现：用 any + 可选链，避免“方法不存在”的编译错误
           const ls: any = leaderboardService as any
           ls.updateLeaderboardRanking?.(1, userId, totalScore) // 总分榜
           ls.updateLeaderboardRanking?.(3, userId, accuracy) // 正确率榜
@@ -253,6 +292,17 @@ export class ExamService {
           log.error('更新排行榜失败', { module: 'exam.service', action: 'updateLeaderboard', ...errMeta(e) })
         }
       }, 0)
+
+      // 写入后删除缓存
+      await cdel(kExam(examId))
+      return { score: totalScore, correctCount: undefined }
+    }
+
+    const withLock = RL?.withLock as undefined | ((k: string, ttlSec: number, fn: () => Promise<any>) => Promise<any>)
+    if (withLock) return withLock(`lock:exam:submit:${examId}:${userId}`, 5, doSubmit)
+
+    try {
+      return await doSubmit()
     } catch (e: any) {
       await LogService.log({
         type: 'audit',
@@ -264,7 +314,6 @@ export class ExamService {
         level: 'error',
         message: `提交考试失败：${e?.message || '未知错误'}`,
       })
-      // 同时把异常也写入结构化日志，便于排查
       getLog(req).error('提交考试失败', { module: 'exam.service', action: 'submit', ...errMeta(e) })
       throw e
     }

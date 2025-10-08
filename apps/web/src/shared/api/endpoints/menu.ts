@@ -6,7 +6,12 @@ function pickData<T = unknown>(res: any): T {
   if (res?.success && res?.data !== undefined) return res.data as T
   return res as T
 }
-
+// 新增可选项
+type UserMenusOpts = {
+  strict?: boolean // 默认 true：严格按授权
+  nocache?: boolean // 仅当你要强制刷新一次
+  transport?: 'header' | 'query' // 想放 URL 也行，默认 header
+}
 /** 与后端一致：menu_type 使用 'menu' | 'button' | 'link' */
 export interface MenuDTO {
   id: number
@@ -88,16 +93,32 @@ export const menuApi = {
   _userMenusCache: new Map<string, MenuDTO[]>(),
   _userMenusInFlight: new Map<string, Promise<MenuDTO[]>>(),
 
-  async userMenus(userId: number, orgId?: number): Promise<MenuDTO[]> {
+  async userMenus(userId: number, orgId?: number, opts: UserMenusOpts = {}): Promise<MenuDTO[]> {
+    const strict = opts.strict ?? true // 建议前端默认严格
+    const nocache = opts.nocache ?? false
+    const transport = opts.transport ?? 'header'
+
     const headers: Record<string, any> = {}
+    const params: Record<string, any> = {}
+
     if (orgId != null) headers['x-org-id'] = String(orgId)
-    const key = `${userId}|${orgId ?? ''}`
+
+    if (transport === 'header') {
+      headers['x-strict'] = strict ? '1' : '0'
+      if (nocache) headers['x-nocache'] = '1'
+    } else {
+      params.strict = strict ? 1 : 0
+      if (nocache) params.nocache = 1
+    }
+
+    // 👇 缓存 key 加上 strict 维度，避免命中“非严格/旧”结果
+    const key = `${userId}|${orgId ?? ''}|s=${strict ? 1 : 0}`
 
     if (this._userMenusCache.has(key)) return this._userMenusCache.get(key)!
     if (this._userMenusInFlight.has(key)) return this._userMenusInFlight.get(key)!
 
     const p = api
-      .get(`${BASE}/users/${userId}/menus`, { headers })
+      .get(`${BASE}/users/${userId}/menus`, { headers, params })
       .then(r => {
         const data = pickData<MenuDTO[]>(r) || []
         this._userMenusCache.set(key, data)

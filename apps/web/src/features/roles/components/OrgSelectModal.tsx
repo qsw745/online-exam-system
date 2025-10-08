@@ -42,7 +42,7 @@ export default function OrgSelectModal({
       open={open}
       maskClosable={false}
       onCancel={onCancel}
-      destroyOnHidden
+      destroyOnHidden // ✅ antd v5 正确属性
       footer={[
         <Button key="cancel" onClick={onCancel}>
           取 消
@@ -63,7 +63,6 @@ export default function OrgSelectModal({
             checkable
             blockNode
             selectable={false}
-            // ✅ 关键：把后端的 { id, name, children } 映射给 Tree
             fieldNames={{ key: 'id', title: 'name', children: 'children' }}
             treeData={treeData as any}
             checkedKeys={checked}

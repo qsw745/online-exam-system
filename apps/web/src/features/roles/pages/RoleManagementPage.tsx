@@ -1,6 +1,5 @@
-// apps/web/src/features/roles/pages/RoleManagementPage.tsx
-import { PlusOutlined } from '@ant-design/icons'
-import { App, Button, Card, Input, Layout, Pagination, Space, Table } from 'antd'
+import { MoreOutlined, PlusOutlined } from '@ant-design/icons'
+import { App, Button, Card, Dropdown, Grid, Input, Layout, Modal, Pagination, Space, Table, type MenuProps } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 
 import { OrgTreePanel, type OrgRawNode } from '@/shared/components/OrgTreePanel'
@@ -15,26 +14,25 @@ import { PermissionModal } from '@/features/roles/components/PermissionModal'
 import RoleFormModal from '@/features/roles/components/RoleFormModal'
 import RoleMembersModal from '@/features/roles/components/RoleMembersModal'
 import UserSelectModal from '@/features/roles/components/UserSelectModal'
+import OrgSelectModal from '@/features/roles/components/OrgSelectModal'
 
 const { Sider, Content } = Layout
 const { Search } = Input
 
 export default function RoleManagementPage() {
   const { message } = App.useApp()
+  const screens = Grid.useBreakpoint()
 
-  /** ===== 左侧机构树，仅用于筛选；不展示机构详情 ===== */
-  const { tree, loading: treeLoading, search, setSearch, filteredTree, refetch } = useOrgTree()
-
+  /** ===== 左侧机构树，仅用于筛选 ===== */
+  const { loading: treeLoading, search, setSearch, filteredTree, refetch } = useOrgTree()
   const treeForPanel = useMemo<OrgRawNode[]>(() => (filteredTree as unknown as OrgRawNode[]) || [], [filteredTree])
   const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
   const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
 
-  // 第一次加载树并默认选中根
   useEffect(() => {
     void refetch()
   }, [refetch])
 
-  // 树变化时，若未选中则默认选中第一项
   useEffect(() => {
     if (!treeForPanel?.length) return
     const firstId = (function first(nodes: OrgRawNode[]): number | null {
@@ -59,12 +57,17 @@ export default function RoleManagementPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedOrgId])
 
-  const perms = useRolePermissions() // openFor(role, orgId?) 需支持 orgId
+  const perms = useRolePermissions()
   const members = useRoleMembers()
 
   // 新建/编辑角色
   const [formOpen, setFormOpen] = useState(false)
   const [editingRole, setEditingRole] = useState<Partial<Role> | null>(null)
+
+  // —— 机构选择弹窗（“按机构添加”用）——
+  const [orgPickerOpen, setOrgPickerOpen] = useState(false)
+  const [orgChecked, setOrgChecked] = useState<React.Key[]>([])
+  const handleOpenOrgSelect = () => setOrgPickerOpen(true)
 
   return (
     <App>
@@ -88,20 +91,20 @@ export default function RoleManagementPage() {
             selectedOrgId={selectedOrgId}
             onSelect={handleOrgSelect}
             onRefresh={() => refetch()}
-            onAdd={() => {}} // 角色管理不提供新增机构入口
+            onAdd={() => {}}
             title="机构"
           />
         </Sider>
 
-        {/* 右侧仅角色列表（无机构详情） */}
+        {/* 右侧角色列表 */}
         <Content style={{ padding: 16 }}>
-          <Card title={`角色（${orgRoles.total}）`}>
+          <Card title={`角色（${orgRoles.total}）`} bodyStyle={{ overflowX: 'auto' }}>
             <div className="flex justify-between items-center mb-3">
-              <Space>
+              <Space wrap>
                 <Search
                   placeholder="搜索角色名称或编码"
                   allowClear
-                  style={{ width: 300 }}
+                  style={{ width: 300, maxWidth: '100%' }}
                   value={orgRoles.keyword}
                   onChange={e => {
                     const v = e.target.value
@@ -129,6 +132,7 @@ export default function RoleManagementPage() {
               dataSource={orgRoles.list}
               loading={orgRoles.loading}
               pagination={false}
+              scroll={{ x: 'max-content' }}
               columns={[
                 { title: 'ID', dataIndex: 'id', width: 80 },
                 { title: '名称', dataIndex: 'name' },
@@ -141,37 +145,109 @@ export default function RoleManagementPage() {
                 },
                 {
                   title: '操作',
-                  width: 260,
-                  render: (_, r) => (
-                    <Space>
-                      <Button
-                        size="small"
-                        onClick={() => {
-                          setEditingRole({
-                            id: r.id,
-                            name: r.name,
-                            code: r.code,
-                            description: r.description || '',
-                          })
-                          setFormOpen(true)
-                        }}
-                      >
-                        编辑
-                      </Button>
-                      <Button
-                        size="small"
-                        onClick={() => perms.openFor({ id: r.id, name: r.name }, selectedOrgId ?? undefined)}
-                      >
-                        权限
-                      </Button>
-                      <Button size="small" onClick={() => members.openFor({ id: r.id, name: r.name })}>
-                        成员
-                      </Button>
-                      <Button size="small" danger onClick={() => orgRoles.remove(r.id)}>
-                        删除
-                      </Button>
-                    </Space>
-                  ),
+                  width: 200,
+                  render: (_, r) => {
+                    // 小屏或窄容器：收纳为“更多”
+                    const compact = !screens.lg
+                    if (compact) {
+                      const items: MenuProps['items'] = [
+                        {
+                          key: 'edit',
+                          label: '编辑',
+                        },
+                        {
+                          key: 'perm',
+                          label: '权限',
+                        },
+                        {
+                          key: 'members',
+                          label: '成员',
+                        },
+                        { type: 'divider' as const },
+                        {
+                          key: 'delete',
+                          label: <span style={{ color: '#ff4d4f' }}>删除</span>,
+                        },
+                      ]
+                      const onClick: MenuProps['onClick'] = ({ key }) => {
+                        switch (key) {
+                          case 'edit':
+                            setEditingRole({
+                              id: r.id,
+                              name: r.name,
+                              code: r.code,
+                              description: (r as any).description || '',
+                            })
+                            setFormOpen(true)
+                            break
+                          case 'perm':
+                            perms.openFor({ id: r.id, name: r.name } as any, selectedOrgId ?? undefined)
+                            break
+                          case 'members':
+                            members.openFor({ id: r.id, name: r.name } as any)
+                            break
+                          case 'delete':
+                            Modal.confirm({
+                              title: '确定删除该角色？',
+                              okText: '删除',
+                              okButtonProps: { danger: true },
+                              onOk: () => orgRoles.remove(r.id),
+                            })
+                            break
+                        }
+                      }
+                      return (
+                        <Dropdown menu={{ items, onClick }} trigger={['click']}>
+                          <Button size="small" icon={<MoreOutlined />}>
+                            更多
+                          </Button>
+                        </Dropdown>
+                      )
+                    }
+
+                    // 大屏：原四个按钮
+                    return (
+                      <Space size={[8, 8]} wrap>
+                        <Button
+                          size="small"
+                          onClick={() => {
+                            setEditingRole({
+                              id: r.id,
+                              name: r.name,
+                              code: r.code,
+                              description: (r as any).description || '',
+                            })
+                            setFormOpen(true)
+                          }}
+                        >
+                          编辑
+                        </Button>
+                        <Button
+                          size="small"
+                          onClick={() => perms.openFor({ id: r.id, name: r.name } as any, selectedOrgId ?? undefined)}
+                        >
+                          权限
+                        </Button>
+                        <Button size="small" onClick={() => members.openFor({ id: r.id, name: r.name } as any)}>
+                          成员
+                        </Button>
+                        <Button
+                          size="small"
+                          danger
+                          onClick={() =>
+                            Modal.confirm({
+                              title: '确定删除该角色？',
+                              okText: '删除',
+                              okButtonProps: { danger: true },
+                              onOk: () => orgRoles.remove(r.id),
+                            })
+                          }
+                        >
+                          删除
+                        </Button>
+                      </Space>
+                    )
+                  },
                 },
               ]}
             />
@@ -194,7 +270,6 @@ export default function RoleManagementPage() {
         </Content>
       </Layout>
 
-      {/* 权限设置（传入 orgId，后端优先 role.org_id） */}
       {/* 权限设置 */}
       <PermissionModal
         open={perms.open}
@@ -205,18 +280,20 @@ export default function RoleManagementPage() {
         onRefreshMenus={() => (perms.role && selectedOrgId ? perms.openFor(perms.role, selectedOrgId) : undefined)}
         onOk={async () => {
           await perms.save()
-        }} // 👈 包一层
+        }}
         onCancel={() => perms.setOpen(false)}
       />
 
-      {/* 成员管理（机构内角色不需要“角色⇄机构”能力，传空即可） */}
+      {/* 成员管理 */}
       <RoleMembersModal
         open={members.open}
         role={members.role}
         loading={members.loading}
         members={members.members}
-        roleOrgs={[]}
-        orgsLoading={false}
+        roleOrgs={members.roleOrgs}
+        orgsLoading={members.orgsLoading}
+        onOpenOrgSelect={handleOpenOrgSelect}
+        onRemoveOrg={members.removeOrg}
         onClose={() => members.setOpen(false)}
         onRemove={async (userId: number) => {
           await members.remove(userId)
@@ -224,8 +301,6 @@ export default function RoleManagementPage() {
         onOpenUserSelect={async () => {
           await members.openUserSelect()
         }}
-        onOpenOrgSelect={() => {}}
-        onRemoveOrg={async () => {}}
         onRefresh={() => (members.role ? members.openFor(members.role) : undefined)}
       />
 
@@ -243,16 +318,15 @@ export default function RoleManagementPage() {
       />
 
       {/* 新建/编辑角色 */}
-      {/* 新建/编辑角色 */}
       <RoleFormModal
         open={formOpen}
         role={
           editingRole
             ? {
-                id: editingRole.id,
+                id: editingRole.id!,
                 name: editingRole.name,
                 code: editingRole.code,
-                description: editingRole.description ?? undefined, // 👈 null 转 undefined
+                description: editingRole.description ?? undefined,
               }
             : null
         }
@@ -265,6 +339,38 @@ export default function RoleManagementPage() {
           if (editingRole?.id) await orgRoles.update(editingRole.id as number, payload as any)
           else await orgRoles.create(payload as any)
           setFormOpen(false)
+        }}
+      />
+
+      {/* 机构选择弹窗 */}
+      <OrgSelectModal
+        open={orgPickerOpen}
+        loading={treeLoading}
+        treeData={treeForPanel}
+        checked={orgChecked}
+        onCheck={setOrgChecked}
+        onCancel={() => {
+          setOrgPickerOpen(false)
+          setOrgChecked([])
+        }}
+        onOk={async () => {
+          if (!members.role) {
+            message.warning('请先选择一个角色')
+            return
+          }
+          const orgIds = Array.from(new Set(orgChecked.map(Number).filter(Number.isFinite))) as number[]
+          if (!orgIds.length) {
+            message.warning('请先选择一个机构')
+            return
+          }
+          try {
+            await members.addOrgs(orgIds)
+            message.success('已关联机构')
+            setOrgPickerOpen(false)
+            setOrgChecked([])
+          } catch (e: any) {
+            message.error(e?.message || '关联机构失败')
+          }
         }}
       />
     </App>

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react'
-import { Card, Typography, Button, Modal, Form, Input, Space } from 'antd'
+// src/features/settings/pages/tabs/AccountTab.tsx
+import { api } from '@/shared/api/http'
 import { useAuth } from '@/shared/contexts/AuthContext'
-// 如需接后端，解开这行并按你的接口路径替换：
-// import { api } from '@/shared/api/http'
+import { App, Button, Card, Form, Input, Modal, Space, Typography } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { isSuccess, getErr, type ApiResult } from '@/shared/api/core/types'
 
 const { Title, Text } = Typography
 
@@ -62,9 +63,11 @@ function RowItem({ title, desc, onEdit }: { title: React.ReactNode; desc: React.
 
 /* ---------- 主页面 ---------- */
 export default function AccountTab() {
+  const { message, modal } = App.useApp()
   const { user } = useAuth()
 
-  // 这些值可以从后端状态初始化；这里从 user 兜底
+  // 这些值来源两处：1) user_settings（推荐），2) user 兜底
+  // 为减少额外查询，这里先用 user 兜底，保存时写 user_settings
   const [boundPhone, setBoundPhone] = useState<string | undefined>((user as any)?.phone)
   const [securitySet, setSecuritySet] = useState<boolean>((user as any)?.security_set ?? false)
   const [backupEmail, setBackupEmail] = useState<string | undefined>((user as any)?.backup_email)
@@ -75,16 +78,20 @@ export default function AccountTab() {
   const nextPwd = Form.useWatch('next', pwdForm)
   const strength = useMemo(() => pwdStrength(nextPwd || ''), [nextPwd])
 
-  const submitPassword = async () => {
-    const values = await pwdForm.validateFields()
-    // TODO: 接后端
-    // await api.put('/account/password', values)
-    Modal.success({ title: '已更新密码' })
-    setPwdOpen(false)
-    pwdForm.resetFields()
-  }
+ const submitPassword = async () => {
+   const v = await pwdForm.validateFields()
+   try {
+     const r = await api.put<ApiResult<unknown>>('/users/me/password', { current: v.current, next: v.next })
+     if (!isSuccess(r)) throw new Error(getErr(r, '修改密码失败'))
+     Modal.success({ title: '已更新密码', content: '下次登录请使用新密码。' })
+     setPwdOpen(false)
+     pwdForm.resetFields()
+   } catch (e: any) {
+     message.error(e?.message || '修改密码失败')
+   }
+ }
 
-  /* ======= 绑定手机 ======= */
+  /* ======= 密保手机 ======= */
   const [phoneOpen, setPhoneOpen] = useState(false)
   const [phoneForm] = Form.useForm<{ phone: string; code: string }>()
   const [phoneCountdown, setPhoneCountdown] = useState(0)
@@ -99,15 +106,23 @@ export default function AccountTab() {
       phoneForm.validateFields(['phone'])
       return
     }
-    // await api.post('/account/phone/send-code', { phone })
+    // 如果你有短信服务端点，在此调用；没有就直接允许保存
+    // await api.post('/verification/sms', { phone, scene: 'bind_phone' })
     setPhoneCountdown(60)
+    message.success('验证码已发送（演示）')
   }
   const submitPhone = async () => {
     const values = await phoneForm.validateFields()
-    // await api.put('/account/phone', values)
-    setBoundPhone(values.phone)
-    Modal.success({ title: '已更新密保手机' })
-    setPhoneOpen(false)
+    try {
+      await api.post('/users/settings', {
+        security: { phone: values.phone }, // 建议放 user_settings.security 下
+      })
+      setBoundPhone(values.phone)
+      Modal.success({ title: '已更新密保手机' })
+      setPhoneOpen(false)
+    } catch (e: any) {
+      message.error(e?.message || '更新密保手机失败')
+    }
   }
 
   /* ======= 密保问题 ======= */
@@ -115,10 +130,16 @@ export default function AccountTab() {
   const [qaForm] = Form.useForm<{ q: string; a: string }>()
   const submitQA = async () => {
     const values = await qaForm.validateFields()
-    // await api.put('/account/security-question', values)
-    setSecuritySet(true)
-    Modal.success({ title: '已设置密保问题' })
-    setQaOpen(false)
+    try {
+      await api.post('/users/settings', {
+        security: { question: values.q, answer: values.a },
+      })
+      setSecuritySet(true)
+      Modal.success({ title: '已设置密保问题' })
+      setQaOpen(false)
+    } catch (e: any) {
+      message.error(e?.message || '设置密保问题失败')
+    }
   }
 
   /* ======= 备用邮箱 ======= */
@@ -136,15 +157,23 @@ export default function AccountTab() {
       emailForm.validateFields(['email'])
       return
     }
-    // await api.post('/account/backup-email/send-code', { email })
+    // 如果你有邮箱验证码端点，在此调用
+    // await api.post('/verification/email', { email, scene: 'bind_backup_email' })
     setEmailCountdown(60)
+    message.success('验证码已发送（演示）')
   }
   const submitEmail = async () => {
     const values = await emailForm.validateFields()
-    // await api.put('/account/backup-email', values)
-    setBackupEmail(values.email)
-    Modal.success({ title: '已更新备用邮箱' })
-    setEmailOpen(false)
+    try {
+      await api.post('/users/settings', {
+        security: { backup_email: values.email },
+      })
+      setBackupEmail(values.email)
+      Modal.success({ title: '已更新备用邮箱' })
+      setEmailOpen(false)
+    } catch (e: any) {
+      message.error(e?.message || '更新备用邮箱失败')
+    }
   }
 
   return (
@@ -159,8 +188,7 @@ export default function AccountTab() {
           title="账户密码"
           desc={
             <span>
-              当前密码强度：
-              <b style={{ color: strength.color }}>{strength.label}</b>
+              当前密码强度：<b style={{ color: strength.color }}>{strength.label}</b>
             </span>
           }
           onEdit={() => setPwdOpen(true)}
@@ -204,7 +232,7 @@ export default function AccountTab() {
         onOk={submitPassword}
         okText="保存"
         cancelText="取消"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={pwdForm} layout="vertical">
           <Form.Item name="current" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
@@ -250,7 +278,7 @@ export default function AccountTab() {
         onOk={submitPhone}
         okText="保存"
         cancelText="取消"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={phoneForm} layout="vertical">
           <Form.Item
@@ -291,7 +319,7 @@ export default function AccountTab() {
         onOk={submitQA}
         okText="保存"
         cancelText="取消"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={qaForm} layout="vertical">
           <Form.Item
@@ -315,7 +343,7 @@ export default function AccountTab() {
         onOk={submitEmail}
         okText="保存"
         cancelText="取消"
-        destroyOnHidden
+        destroyOnClose
       >
         <Form form={emailForm} layout="vertical">
           <Form.Item

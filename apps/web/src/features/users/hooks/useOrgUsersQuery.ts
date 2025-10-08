@@ -79,10 +79,12 @@ export function useOrgUsersQuery(orgId: number | null) {
   }
 
   // 返回新密码字符串（如果后端有返回）
-  const resetPassword = async (id: number | string) => {
-    const r = await usersApi.resetPassword(id)
+  // 返回 true/新密码字符串（后端也可返回，但这里不依赖）
+  const resetPassword = async (id: number | string, newPwd?: string | null) => {
+    const r = await usersApi.resetPassword(id, newPwd ?? undefined)
+    // 兼容旧 ApiResult：有 data.password 就返回；否则返回 null/true
     const data = unwrap<any>(r, '重置密码失败') ?? {}
-    return data.password ?? data.newPassword ?? data.tempPassword ?? data.defaultPassword ?? null
+    return data.password ?? true
   }
 
   const toggleStatus = async (id: number | string, status: 'active' | 'disabled') => {

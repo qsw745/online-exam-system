@@ -107,7 +107,8 @@ export const usersApi = {
   updateStatus: (id: string | number, status: 'active' | 'disabled') =>
     api.put<void>(`/users/${id}/status`, { status }),
 
-  resetPassword: (id: string | number) => api.put<void>(`/users/${id}/reset-password`, {}),
+  resetPassword: (id: string | number, password?: string) =>
+    api.put<void>(`/users/${id}/reset-password`, password ? { password } : {}),
 }
 
 /** 兼容旧命名（如代码里还出现 import { users } ...） */

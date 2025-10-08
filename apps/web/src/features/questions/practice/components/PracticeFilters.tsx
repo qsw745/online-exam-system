@@ -1,10 +1,11 @@
 import React, { useRef, useState } from 'react'
-import { Button, Card, Col, Input, Row, Segmented, Select, Space, Typography } from 'antd'
+import { Button, Card, Col, Input, Row, Select, Segmented, Space, Typography } from 'antd'
+import type { Difficulty, QuestionType } from '@/features/questions/practice/hooks/usePracticeList'
 
 const { Text } = Typography
 
+// 和后端保持一致的取值
 const TYPE_OPTIONS = [
-  { value: 'all', label: '全部类型' },
   { value: 'single_choice', label: '单选题' },
   { value: 'multiple_choice', label: '多选题' },
   { value: 'true_false', label: '判断题' },
@@ -19,39 +20,41 @@ const DIFF_OPTIONS = [
 ] as const
 
 type Props = {
-  type: string
-  difficulty: string
+  /** ✅ 多选题型（精确类型） */
+  types: QuestionType[]
+  difficulty: Difficulty
   search: string
   selectedTags: string[]
   allTags: string[]
-  onTypeChange: (v: any) => void
-  onDifficultyChange: (v: any) => void
+
+  /** 回调（精确类型） */
+  onTypesChange: (v: QuestionType[]) => void
+  onDifficultyChange: (v: Difficulty) => void
   onSearch: (kw: string) => void
   onTagsChange: (tags: string[]) => void
   onEnterSingle: (startIndex: number) => void
   onEnterBulk: () => void
 }
 
-export default function PracticeFilters(props: Props) {
-  const {
-    type,
-    difficulty,
-    search,
-    selectedTags,
-    allTags,
-    onTypeChange,
-    onDifficultyChange,
-    onSearch,
-    onTagsChange,
-    onEnterSingle,
-    onEnterBulk,
-  } = props
+export default function PracticeFilters({
+  types,
+  difficulty,
+  search,
+  selectedTags,
+  allTags,
+  onTypesChange,
+  onDifficultyChange,
+  onSearch,
+  onTagsChange,
+  onEnterSingle,
+  onEnterBulk,
+}: Props) {
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const firstCardIndex = useRef(0)
 
   return (
     <Card>
-      {/* 第 1 行：搜索 + 练习模式/按钮（在小屏栈叠） */}
+      {/* 第 1 行：搜索 + 练习模式/按钮 */}
       <Row gutter={[12, 12]} align="middle">
         <Col xs={24} lg={12}>
           <Input.Search
@@ -87,23 +90,41 @@ export default function PracticeFilters(props: Props) {
         </Col>
       </Row>
 
-      {/* 第 2 行：题型 + 难度 */}
+      {/* 第 2 行：题型(多选) + 难度 */}
       <Row gutter={[12, 12]} align="middle" style={{ marginTop: 8 }}>
         <Col xs={24} lg={12}>
           <Space wrap>
             <Text type="secondary">题型：</Text>
-            <Segmented value={type} options={TYPE_OPTIONS as any} onChange={onTypeChange} />
+            <Select
+              mode="multiple"
+              allowClear
+              style={{ minWidth: 280 }}
+              placeholder="选择题型（可多选）"
+              value={types as string[]}
+              // antd onChange推断为string[]，这里断言回到QuestionType[]
+              onChange={vals => onTypesChange(vals as QuestionType[])}
+              maxTagCount="responsive"
+              options={TYPE_OPTIONS as any}
+            />
+            {/* “全部类型”快捷按钮：清空选择 */}
+            <Button onClick={() => onTypesChange([])}>全部类型</Button>
           </Space>
         </Col>
         <Col xs={24} lg={12}>
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Text type="secondary">难度：</Text>
-            <Segmented value={difficulty} options={DIFF_OPTIONS as any} onChange={onDifficultyChange} />
+            <Select
+              value={difficulty}
+              style={{ width: 140 }}
+              // antd onChange推断为string，这里断言回到Difficulty
+              onChange={v => onDifficultyChange(v as Difficulty)}
+              options={DIFF_OPTIONS as any}
+            />
           </Space>
         </Col>
       </Row>
 
-      {/* 第 3 行：标签（整行，宽度受控，响应式不挤） */}
+      {/* 第 3 行：标签 */}
       <Row gutter={[12, 12]} style={{ marginTop: 8 }}>
         <Col span={24}>
           <Select

@@ -13,25 +13,28 @@ import type {
 export type MenuUpdate = { id: number; parent_id?: number | null; sort_order?: number }
 
 export class MenuRepository {
-// menu.repository.ts 内增补
+  // menu.repository.ts 内增补
   static async findMenusByFilter(filter: { is_system?: 0 | 1; unit_id?: number }): Promise<Menu[]> {
     const where: string[] = []
     const vals: any[] = []
-    if (filter.is_system !== undefined) { where.push('is_system=?'); vals.push(filter.is_system) }
-    if (filter.unit_id !== undefined)   { where.push('unit_id=?');   vals.push(filter.unit_id) }
+    if (filter.is_system !== undefined) {
+      where.push('is_system=?')
+      vals.push(filter.is_system)
+    }
+    if (filter.unit_id !== undefined) {
+      where.push('unit_id=?')
+      vals.push(filter.unit_id)
+    }
     const sql =
-        'SELECT * FROM menus' +
-        (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
-        ' ORDER BY sort_order ASC, id ASC'
+      'SELECT * FROM menus' + (where.length ? ` WHERE ${where.join(' AND ')}` : '') + ' ORDER BY sort_order ASC, id ASC'
     const [rows] = await pool.query<RowDataPacket[]>(sql, vals)
     return rows as unknown as Menu[]
   }
 
   static async menuExistsAndEnabled(menuId: number): Promise<boolean> {
-    const [[row]] = await pool.query<RowDataPacket[]>(
-        'SELECT 1 FROM menus WHERE id=? AND is_disabled=0 LIMIT 1',
-        [menuId]
-    )
+    const [[row]] = await pool.query<RowDataPacket[]>('SELECT 1 FROM menus WHERE id=? AND is_disabled=0 LIMIT 1', [
+      menuId,
+    ])
     return !!row
   }
 
@@ -254,30 +257,29 @@ export class MenuRepository {
     return (row as any)?.org_id ?? null
   }
 
-    static async isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
-        const [[row]] = await pool.query<RowDataPacket[]>(
-            `
-                SELECT 1 FROM (
-                                  -- 机构内分配的角色
-                                  SELECT r.id, r.code, r.is_disabled
-                                  FROM user_org_roles uor
-                                           JOIN roles r ON r.id = uor.role_id
-                                  WHERE uor.user_id = ? AND uor.org_id = ?
-                                  UNION ALL
-                                  -- 全局分配的角色（仅接受 org_id 为 NULL 或 = 当前 orgId）
-                                  SELECT r2.id, r2.code, r2.is_disabled
-                                  FROM user_roles ur
-                                           JOIN roles r2 ON r2.id = ur.role_id
-                                  WHERE ur.user_id = ? AND (r2.org_id IS NULL OR r2.org_id = ?)
-                              ) T
-                WHERE T.is_disabled = 0 AND T.code IN ('admin', 'super_admin')
-                    LIMIT 1
-            `,
-            [userId, orgId, userId, orgId]
-        )
-        return !!row
-    }
-
+  static async isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
+    const [[row]] = await pool.query<RowDataPacket[]>(
+      `
+    SELECT 1 FROM (
+      -- 仅限：该用户在该机构直接授予的角色
+      SELECT r.code, r.is_disabled
+        FROM user_org_roles uor
+        JOIN roles r ON r.id = uor.role_id
+       WHERE uor.user_id = ? AND uor.org_id = ?
+      UNION ALL
+      -- 以及用户的全局/本机构角色
+      SELECT r2.code, r2.is_disabled
+        FROM user_roles ur
+        JOIN roles r2 ON r2.id = ur.role_id
+       WHERE ur.user_id = ? AND (r2.org_id IS NULL OR r2.org_id = ?)
+    ) t
+    WHERE t.is_disabled = 0 AND t.code IN ('admin','super_admin')
+    LIMIT 1
+    `,
+      [userId, orgId, userId, orgId]
+    )
+    return !!row
+  }
 
   // user_menus (个性化授权)
   static async upsertUserMenuPermission(
@@ -302,91 +304,103 @@ export class MenuRepository {
     return res.affectedRows > 0
   }
 
-    static async queryUserMenuPermissionRows(userId: number, orgId: number): Promise<RowDataPacket[]> {
-        // 同时兼容：
-        // - user_org_roles（机构内分配）
-        // - user_roles（全局分配；仅接受 roles.org_id 为 NULL 或匹配当前 orgId 的角色）
-        const [rows] = await pool.query<RowDataPacket[]>(
-            `
-                WITH role_ids AS (
-                    SELECT uor.role_id
-                    FROM user_org_roles uor
-                    WHERE uor.user_id = ? AND uor.org_id = ?
-                    UNION
-                    SELECT ur.role_id
-                    FROM user_roles ur
-                             JOIN roles r ON r.id = ur.role_id
-                    WHERE ur.user_id = ? AND (r.org_id IS NULL OR r.org_id = ?)
-                ),
-                     role_menu_union AS (
-                         SELECT DISTINCT rm.menu_id
-                         FROM role_menus rm
-                                  JOIN role_ids ri ON ri.role_id = rm.role_id
-                     )
-                SELECT
-                    m.id AS menu_id,
-                    COALESCE(um.name, m.name)                 AS menu_name,
-                    COALESCE(um.title, m.title)               AS menu_title,
-                    COALESCE(um.path, m.path)                 AS path,
-                    COALESCE(um.component, m.component)       AS component,
-                    COALESCE(um.icon, m.icon)                 AS icon,
-                    COALESCE(um.parent_sys_id, m.parent_id)   AS parent_id,
-                    COALESCE(um.sort_order, m.sort_order)     AS sort_order,
-                    m.level                                   AS level,
-                    COALESCE(um.menu_type, m.menu_type)       AS menu_type,
-                    COALESCE(um.permission_code, m.permission_code) AS permission_code,
-                    COALESCE(um.redirect, m.redirect)         AS redirect,
-                    COALESCE(um.meta, m.meta)                 AS meta,
-                    CASE
-                        WHEN uum.permission_type='deny'  THEN FALSE
-                        WHEN uum.permission_type='grant' THEN TRUE
-                        WHEN rmu.menu_id IS NOT NULL     THEN TRUE
-                        ELSE FALSE
-                        END AS has_permission,
-                    CASE
-                        WHEN uum.permission_type='deny'  THEN 'deny'
-                        WHEN uum.permission_type='grant' THEN 'user'
-                        WHEN rmu.menu_id IS NOT NULL     THEN 'role'
-                        ELSE 'none'
-                        END AS permission_source
-                FROM menus m
-                         LEFT JOIN unit_menus um
-                                   ON um.sys_menu_id = m.id AND um.unit_id = ?
-                         LEFT JOIN user_menus uum
-                                   ON uum.menu_id = m.id AND uum.user_id = ?
-                         LEFT JOIN role_menu_union rmu
-                                   ON rmu.menu_id = m.id
-                WHERE
-                    COALESCE(um.is_disabled, m.is_disabled) = 0
-                  AND COALESCE(um.menu_type, m.menu_type) IN ('menu','link','page')
-                ORDER BY COALESCE(um.sort_order, m.sort_order), m.id
-            `,
-            // 参数顺序：uor(user, org), ur(user), roles.org_id filter(org), um.unit_id, uum.user_id
-            [userId, orgId, userId, orgId, orgId, userId]
-        )
-        return rows
-    }
+  static async queryUserMenuPermissionRows(userId: number, orgId: number): Promise<RowDataPacket[]> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+      `
+      WITH role_ids AS (
+        -- 用户在该机构直接授予的角色
+        SELECT uor.role_id
+          FROM user_org_roles uor
+         WHERE uor.user_id = ? AND uor.org_id = ?
+        UNION
+        -- 用户的全局/本机构角色
+        SELECT ur.role_id
+          FROM user_roles ur
+          JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = ? AND (r.org_id IS NULL OR r.org_id = ?)
+        UNION
+        -- 该机构被关联到的角色（role_orgs），机构内所有用户共享
+        SELECT ro.role_id
+          FROM role_orgs ro
+         WHERE ro.org_id = ?
+      ),
+      role_menu_union AS (
+        SELECT DISTINCT rm.menu_id
+          FROM role_menus rm
+          JOIN role_ids ri ON ri.role_id = rm.role_id
+      )
+      SELECT
+        m.id AS menu_id,
+        COALESCE(um.name, m.name)                         AS menu_name,
+        COALESCE(um.title, m.title)                       AS menu_title,
+        COALESCE(um.path, m.path)                         AS path,
+        COALESCE(um.component, m.component)               AS component,
+        COALESCE(um.icon, m.icon)                         AS icon,
+        COALESCE(um.parent_sys_id, m.parent_id)           AS parent_id,
+        COALESCE(um.sort_order, m.sort_order)             AS sort_order,
+        m.level                                           AS level,
+        COALESCE(um.menu_type, m.menu_type)               AS menu_type,
+        COALESCE(um.permission_code, m.permission_code)   AS permission_code,
+        COALESCE(um.redirect, m.redirect)                 AS redirect,
+        COALESCE(um.meta, m.meta)                         AS meta,
+        CASE
+          WHEN uum.permission_type='deny'  THEN FALSE
+          WHEN uum.permission_type='grant' THEN TRUE
+          WHEN rmu.menu_id IS NOT NULL     THEN TRUE
+          ELSE FALSE
+        END AS has_permission,
+        CASE
+          WHEN uum.permission_type='deny'  THEN 'deny'
+          WHEN uum.permission_type='grant' THEN 'user'
+          WHEN rmu.menu_id IS NOT NULL     THEN 'role'
+          ELSE 'none'
+        END AS permission_source
+      FROM menus m
+      LEFT JOIN unit_menus um
+             ON um.sys_menu_id = m.id AND um.unit_id = ?
+      LEFT JOIN user_menus uum
+             ON uum.menu_id = m.id AND uum.user_id = ?
+      LEFT JOIN role_menu_union rmu
+             ON rmu.menu_id = m.id
+      WHERE COALESCE(um.is_disabled, m.is_disabled) = 0
+        AND COALESCE(um.menu_type, m.menu_type) IN ('menu','link','page')
+      ORDER BY COALESCE(um.sort_order, m.sort_order), m.id
+      `,
+      // 参数：uor(user, org), ur(user, org-filter), role_orgs(org), um.unit_id, uum.user_id
+      [userId, orgId, userId, orgId, orgId, orgId, userId]
+    )
+    return rows
+  }
 
   static async checkUserMenuPermissionInOrg(userId: number, orgId: number, menuId: number): Promise<boolean> {
     const [[row]] = await pool.query<RowDataPacket[]>(
-      `SELECT
-         CASE
-           WHEN um.permission_type='deny'  THEN 0
-           WHEN um.permission_type='grant' THEN 1
-           WHEN rm.menu_id IS NOT NULL     THEN 1
-           ELSE 0
-         END AS has_permission
-       FROM menus m
-       LEFT JOIN user_menus um ON um.menu_id=m.id AND um.user_id=?
-       LEFT JOIN (
-         SELECT DISTINCT rm.menu_id
-         FROM user_org_roles uor
-         JOIN role_menus rm ON rm.role_id=uor.role_id
-         WHERE uor.user_id=? AND uor.org_id=?
-       ) rm ON rm.menu_id=m.id
-       WHERE m.id=? AND m.is_disabled=0
-       LIMIT 1`,
-      [userId, userId, orgId, menuId]
+      `
+      SELECT
+        CASE
+          WHEN um.permission_type='deny'  THEN 0
+          WHEN um.permission_type='grant' THEN 1
+          WHEN EXISTS (
+            SELECT 1
+              FROM role_menus rm
+              WHERE rm.menu_id = m.id
+                AND rm.role_id IN (
+                  SELECT uor.role_id FROM user_org_roles uor WHERE uor.user_id=? AND uor.org_id=?
+                  UNION
+                  SELECT ur.role_id FROM user_roles ur
+                         JOIN roles r ON r.id=ur.role_id
+                   WHERE ur.user_id=? AND (r.org_id IS NULL OR r.org_id=?)
+                  UNION
+                  SELECT ro.role_id FROM role_orgs ro WHERE ro.org_id=?
+                )
+          ) THEN 1
+          ELSE 0
+        END AS has_permission
+      FROM menus m
+      LEFT JOIN user_menus um ON um.menu_id=m.id AND um.user_id=?
+      WHERE m.id=? AND m.is_disabled=0
+      LIMIT 1
+      `,
+      [userId, orgId, userId, orgId, orgId, userId, menuId]
     )
     return !!(row as any)?.has_permission
   }

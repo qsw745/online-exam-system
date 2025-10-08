@@ -18,7 +18,7 @@ router.use(authenticateToken)
 // 当前用户
 router.get('/me', wrap(UserController.getCurrentUser))
 router.put('/me', wrap(UserController.updateCurrentUser))
-
+router.put('/me/password', wrap(UserController.changePassword)) // ✅ 新增
 // ✅ 上传头像：使用 multer 的 single('avatar')，而不是把 upload 直接作为中间件
 router.post('/me/avatar', upload.single('avatar'), wrap(UserController.uploadAvatar))
 

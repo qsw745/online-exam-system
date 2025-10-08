@@ -24,10 +24,10 @@ const CODE_LOCKED = 'AUTH_LOCKED'
 const CODE_LOCKED_LEGACY = 'LOCKED'
 const HTTP_UNAUTH = 401
 
-const keyFor = (b: string, em: string) => `${b}:${(em || '').trim().toLowerCase()}`
-const failedKey = (em: string) => keyFor('login_failed_count', em)
-const lockKey = (em: string) => keyFor('login_lock_until_ms', em)
-const lockTryKey = (em: string) => keyFor('login_locked_next_try_at', em) // 锁定期“下次可重试时间”（10s 冷却）
+const keyFor = (b: string, em: string) => (em ? `${b}:${em.trim().toLowerCase()}` : '')
+const failedKey = (em: string) => keyFor('login_failed_count', em) || 'login_failed_count:__none__'
+const lockKey = (em: string) => keyFor('login_lock_until_ms', em) || 'login_lock_until_ms:__none__'
+const lockTryKey = (em: string) => keyFor('login_locked_next_try_at', em) || 'login_locked_next_try_at:__none__'
 
 type Settings = {
   enableCaptcha: boolean
@@ -145,7 +145,7 @@ export function useLogin() {
   )
   const lockRetryCountdownText = useMemo(() => `${lockTryRemainSec}s`, [lockTryRemainSec])
 
-  // ✅ 只禁用“提交按钮”，输入框不因锁定禁用（仅在 loading 时禁）
+  // 只禁用按钮（10s 冷却），输入框不受锁定影响
   const submitDisabled = useMemo(
     () => loading || (isLocked && lockTryRemainSec > 0),
     [loading, isLocked, lockTryRemainSec]
@@ -205,11 +205,29 @@ export function useLogin() {
 
   // 恢复锁定 + 10s 重试时间（基于当前 email）
   useEffect(() => {
-    if (!email) return
-    const lu = Number(localStorage.getItem(lockKey(email)) || 0)
+    if (!email) {
+      setLockUntil(null)
+      setLockedNextTryAt(0)
+      return
+    }
+    const luRaw = localStorage.getItem(lockKey(email))
+    const lu = Number(luRaw || 0)
     setLockUntil(Number.isFinite(lu) && lu > Date.now() ? lu : null)
-    const tu = Number(localStorage.getItem(lockTryKey(email)) || 0)
-    setLockedNextTryAt(Number.isFinite(tu) ? tu : 0)
+
+    const tuRaw = localStorage.getItem(lockTryKey(email))
+    const tu = Number(tuRaw || 0)
+    setLockedNextTryAt(Number.isFinite(tu) && tu > Date.now() ? tu : 0)
+
+    if (Number.isFinite(lu) && lu > 0 && lu <= Date.now()) {
+      try {
+        localStorage.removeItem(lockKey(email))
+      } catch {}
+    }
+    if (Number.isFinite(tu) && tu > 0 && tu <= Date.now()) {
+      try {
+        localStorage.removeItem(lockTryKey(email))
+      } catch {}
+    }
   }, [email])
 
   // 全局 1s tick
@@ -223,13 +241,17 @@ export function useLogin() {
     }
   }, [])
 
-  // 锁定过期清理
+  // 锁定过期清理（到点立即彻底清理）
   useEffect(() => {
     if (!lockUntil) return
     if (Date.now() >= lockUntil) {
       setLockUntil(null)
+      setLockedNextTryAt(0)
       try {
-        localStorage.removeItem(lockKey(email))
+        if (email) {
+          localStorage.removeItem(lockKey(email))
+          localStorage.removeItem(lockTryKey(email))
+        }
       } catch {}
     }
   }, [nowTick, lockUntil, email])
@@ -370,30 +392,42 @@ export function useLogin() {
       const serverSaysLocked = code === CODE_LOCKED || code === CODE_LOCKED_LEGACY || status === 423
 
       if (serverSaysLocked) {
-        // —— 进入/维持锁定：以后端为准 —— //
-        const untilMs: number | undefined = data?.unlockAt
-        const remainingSec: number | undefined = data?.remainingSec
-        const finalUntil =
-          typeof untilMs === 'number' && untilMs > Date.now()
-            ? untilMs
-            : typeof remainingSec === 'number' && remainingSec > 0
-            ? Date.now() + remainingSec * 1000
-            : Date.now() + (retryAfterSec ? retryAfterSec * 1000 : 60_000)
+        // ✅ 仅当后端明确锁定时，前端进入锁态
+        const untilMsFromServer: number | undefined = data?.unlockAt
+        const remainSecFromServer: number | undefined = data?.remainingSec
+        const retry = Number.isFinite(retryAfterSec) && (retryAfterSec as number) > 0 ? (retryAfterSec as number) : 0
 
-        setLockUntil(finalUntil)
-        try {
-          localStorage.setItem(lockKey(email), String(finalUntil))
-        } catch {}
+        let finalUntil = 0
+        if (typeof untilMsFromServer === 'number' && untilMsFromServer > Date.now()) {
+          finalUntil = untilMsFromServer
+        } else if (typeof remainSecFromServer === 'number' && remainSecFromServer > 0) {
+          finalUntil = Date.now() + remainSecFromServer * 1000
+        } else if (retry > 0) {
+          finalUntil = Date.now() + retry * 1000
+        }
 
-        // 10s 再试点
-        const nextTry = Date.now() + 10_000
-        setLockedNextTryAt(nextTry)
-        try {
-          localStorage.setItem(lockTryKey(email), String(nextTry))
-        } catch {}
+        if (finalUntil > Date.now()) {
+          setLockUntil(finalUntil)
+          try {
+            localStorage.setItem(lockKey(email), String(finalUntil))
+          } catch {}
+          const nextTry = Date.now() + 10_000
+          setLockedNextTryAt(nextTry)
+          try {
+            localStorage.setItem(lockTryKey(email), String(nextTry))
+          } catch {}
+          const secs = Math.max(1, Math.ceil((finalUntil - Date.now()) / 1000))
+          message.error(`账号已临时锁定 ${secs} 秒`)
+        } else {
+          // 边界：后端几乎到点，不做本地锁
+          setLockUntil(null)
+          setLockedNextTryAt(0)
+          try {
+            localStorage.removeItem(lockKey(email))
+            localStorage.removeItem(lockTryKey(email))
+          } catch {}
+        }
 
-        const secs = Math.max(1, Math.ceil((finalUntil - Date.now()) / 1000))
-        message.error(`账号已临时锁定 ${secs} 秒`)
         if (captchaRequired) {
           setCaptcha('')
           await loadCaptcha()
@@ -422,11 +456,7 @@ export function useLogin() {
         return
       }
       if (isBadCreds) {
-        if (captchaRequired) {
-          setCaptcha('')
-          await loadCaptcha()
-        }
-
+        // ❌ 不再本地加锁，由后端决定
         const fk = failedKey(email)
         const cur = Number(localStorage.getItem(fk) || 0) || 0
         const next = cur + 1
@@ -434,7 +464,7 @@ export function useLogin() {
           localStorage.setItem(fk, String(next))
         } catch {}
 
-        // 触发验证码阈值
+        // 只负责触发验证码阈值
         if (settings?.enableCaptcha && next >= captchaThreshold) {
           setCaptchaByThreshold(true)
           if (!captchaRequired) {
@@ -443,24 +473,7 @@ export function useLogin() {
           }
         }
 
-        // 达到锁定阈值：本地立即进入锁定（避免等待服务端下一次判定）
-        if (next >= lockAfter) {
-          const until = Date.now() + lockMinutes * 60_000
-          setLockUntil(until)
-          try {
-            localStorage.setItem(lockKey(email), String(until))
-          } catch {}
-          const nextTry = Date.now() + 10_000
-          setLockedNextTryAt(nextTry)
-          try {
-            localStorage.setItem(lockTryKey(email), String(nextTry))
-          } catch {}
-          const secs = Math.max(1, Math.ceil((until - Date.now()) / 1000))
-          message.error(`账号已临时锁定 ${secs} 秒`)
-        } else {
-          // 普通输错：不禁用按钮
-          message.error(msg || '用户名或密码错误')
-        }
+        message.error(msg || '用户名或密码错误')
         return
       }
 
@@ -486,12 +499,10 @@ export function useLogin() {
     signIn,
     loadCaptcha,
     captchaThreshold,
-    lockAfter,
-    lockMinutes,
+    lockAfter, // 仍可保留（不再用于本地锁），仅为依赖稳定
+    lockMinutes, // 同上
     settings?.enableCaptcha,
   ])
-
-  // 开发期调试（可删）
 
   if (typeof window !== 'undefined')
     (window as any).__loginDebug = { isLocked, lockUntil, lockRemainingSec, lockedNextTryAt, lockTryRemainSec }

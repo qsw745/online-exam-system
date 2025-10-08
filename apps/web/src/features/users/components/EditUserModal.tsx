@@ -116,13 +116,7 @@ export const EditUserModal: React.FC<{
           </Radio.Group>
         </Form.Item>
 
-        <Form.Item label="角色" name="role">
-          <Select placeholder="选择角色" allowClear>
-            <Option value="student">学生</Option>
-            <Option value="teacher">教师</Option>
-            <Option value="admin">管理员</Option>
-          </Select>
-        </Form.Item>
+      
 
         {/* 保存一个隐藏字段用于记录原始 orgId，避免误清空 */}
         <Form.Item name="__originalOrgId" hidden>

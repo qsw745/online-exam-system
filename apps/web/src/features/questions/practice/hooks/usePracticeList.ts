@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import { api, isSuccess, questionsApi } from '@/shared/api/http'
 import { useDebounce } from '@/shared/hooks/useDebounce'
@@ -8,10 +9,14 @@ export interface QuestionListItem {
   content?: string
   difficulty?: string
   question_type?: string
+  // 兼容你的卡片组件
+  title?: string
+  type?: string
 }
 
-export type QuestionType = 'all' | 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
 export type Difficulty = 'all' | 'easy' | 'medium' | 'hard'
+/** ✅ 多选题型 */
+export type QuestionType = 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
 
 function asApiResult<T = any>(res: any): CoreApiResult<T> {
   const d = (res as any)?.data ?? res
@@ -24,7 +29,8 @@ function asApiResult<T = any>(res: any): CoreApiResult<T> {
 
 export function usePracticeList() {
   const [search, setSearch] = useState('')
-  const [type, setType] = useState<QuestionType>('all')
+  /** ✅ 多选题型：默认空数组表示“全部类型” */
+  const [types, setTypes] = useState<QuestionType[]>([])
   const [difficulty, setDifficulty] = useState<Difficulty>('all')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [allTags, setAllTags] = useState<string[]>([])
@@ -41,22 +47,26 @@ export function usePracticeList() {
   const params = useMemo(() => {
     const p: any = { page, limit: pageSize }
     if (debouncedSearch.trim()) p.search = debouncedSearch.trim()
-    if (type !== 'all') {
-      p.type = type
-      p.question_type = type
-    }
     if (difficulty !== 'all') {
       p.difficulty = difficulty
-      p.level = difficulty
+      p.level = difficulty // 若后端用 level
     }
     if (selectedTags.length) p.tags = selectedTags.join(',')
+
+    // ✅ 多选题型：数组 + CSV 双通道（后端读其一）
+    if (types.length) {
+      p.types = types // axios 序列化为 ?types=a&types=b
+      p.types_csv = types.join(',') // 兼容 ?types_csv=a,b
+    }
+
     return p
-  }, [page, pageSize, debouncedSearch, type, difficulty, selectedTags])
+  }, [page, pageSize, debouncedSearch, difficulty, selectedTags, types])
 
   const reloadTags = useCallback(async () => {
     try {
       const r = await questionsApi.getTags()
-      if (isSuccess<any>(r as any) && Array.isArray((r as any).data)) setAllTags((r as any).data)
+      const d = asApiResult<string[]>(r)
+      if (isSuccess(d) && Array.isArray((d as any).data)) setAllTags((d as any).data)
       else setAllTags([])
     } catch {
       setAllTags([])
@@ -78,15 +88,28 @@ export function usePracticeList() {
         if (!isSuccess(norm)) throw new Error((norm as any).error || '获取题目失败')
 
         const d = norm.data as any
-        const items: QuestionListItem[] = Array.isArray(d) ? d : d?.questions ?? d?.items ?? []
+        // 兼容多种返回：数组 / { items } / { list } / { questions }
+        const items: any[] = Array.isArray(d) ? d : d?.items ?? d?.list ?? d?.questions ?? []
         const totalFromApi =
           (d?.total as number) ?? (d?.totalQuestions as number) ?? (d?.pagination?.total as number) ?? items.length
 
+        // ✅ 兼容卡片组件字段
+        const normalized = (items ?? []).map((it: any) => ({
+          id: it.id ?? it.question_id,
+          title: it.title ?? it.content ?? it.stem,
+          type: it.type ?? it.question_type, // 给 QuestionCardGrid 用
+          question_type: it.question_type ?? it.type, // 也保留原字段
+          difficulty: it.difficulty ?? it.level,
+          ...it,
+        }))
+
         if (!mounted) return
-        setList(items)
-        setTotal(Number(totalFromApi || items.length))
+        setList(normalized)
+        setTotal(Number(totalFromApi || normalized.length))
       } catch (e: any) {
         if (!mounted) return
+        setList([])
+        setTotal(0)
         setError(e?.message || '获取题目失败')
       } finally {
         if (mounted) setLoading(false)
@@ -100,7 +123,7 @@ export function usePracticeList() {
   // 任一筛选变化回到第一页
   useEffect(() => {
     setPage(1)
-  }, [type, difficulty, debouncedSearch, selectedTags])
+  }, [types, difficulty, debouncedSearch, selectedTags])
 
   return {
     list,
@@ -109,15 +132,22 @@ export function usePracticeList() {
     pageSize,
     loading,
     error,
-    type,
+
+    /** ✅ 多选题型 */
+    types,
+    setTypes,
+
     difficulty,
-    search,
-    selectedTags,
-    allTags,
-    setType,
     setDifficulty,
+
+    search,
     setSearch,
+
+    selectedTags,
     setSelectedTags,
+
+    allTags,
+
     setPage,
     setPageSize,
   }

@@ -4,6 +4,44 @@ import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
 
+let RC: any = null
+let RL: any = null
+;(async () => {
+  try {
+    RC = (await import('@/common/redis/cache')).default || (await import('@/common/redis/cache'))
+  } catch {}
+  try {
+    RL = (await import('@/common/redis/lock')).default || (await import('@/common/redis/lock'))
+  } catch {}
+})()
+const Q_TTL = 120
+const kQL = (p: any) => `q:list:${JSON.stringify(p)}`
+const kQ = (id: number) => `q:${id}`
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = Q_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdel(...ks: string[]) {
+  try {
+    for (const k of ks) await RC?.del?.(k)
+  } catch {}
+}
+async function cdelByPattern(pat: string) {
+  try {
+    const ks = await RC?.keys?.(pat)
+    if (ks?.length) await RC?.del?.(ks)
+  } catch {}
+}
+
 function ensureArrayFromMaybeCsv(input: any): string[] {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
   if (typeof input === 'string') {
@@ -36,23 +74,27 @@ export class QuestionService {
     return ids.map(id => map.get(id)).filter(Boolean)
   }
 
+  // ✅ 支持多题型筛选
   async list(params: {
-    question_type?: IQuestion['question_type']
+    question_types?: IQuestion['question_type'][] // <-- 多选
     difficulty?: IQuestion['difficulty']
     search?: string
     tags?: string[]
     page: number
     limit: number
   }): Promise<QuestionListData> {
-    const { question_type, difficulty, search, tags = [], page, limit } = params
+    const { question_types = [], difficulty, search, tags = [], page, limit } = params
     const offset = (page - 1) * limit
 
     const conditions: string[] = []
     const values: any[] = []
-    if (question_type) {
-      conditions.push('question_type = ?')
-      values.push(question_type)
+
+    if (question_types.length > 0) {
+      const placeholders = question_types.map(() => '?').join(', ')
+      conditions.push(`question_type IN (${placeholders})`)
+      values.push(...question_types)
     }
+
     if (difficulty) {
       conditions.push('difficulty = ?')
       values.push(difficulty)
@@ -67,6 +109,7 @@ export class QuestionService {
         values.push(t)
       }
     }
+
     const whereSql = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
     const [rows, total] = await Promise.all([
       QuestionRepository.list(whereSql, values, limit, offset),

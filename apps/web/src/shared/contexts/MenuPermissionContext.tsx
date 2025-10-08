@@ -63,36 +63,36 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     walk(menuTree)
     return list
   }
-
-  const fetchUserMenus = async () => {
-    if (!user?.id) {
-      setMenus([])
-      setPermissions([])
-      setError(null)
-      return
-    }
-    setLoading(true)
-    setError(null)
-    try {
-      const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
-      const data = await menuApi.userMenus(Number(user.id), orgId)
-
-      // 后端已返回树结构；这里直接用
-      const menuTree: MenuItem[] = Array.isArray(data)
-        ? (data as any)
-        : (data as any)?.data ?? (data as any)?.items ?? (data as any)?.list ?? []
-
-      setMenus(menuTree)
-      setPermissions(extractPermissions(menuTree))
-    } catch (err: any) {
-      console.error('获取用户菜单失败:', err)
-      setMenus([])
-      setPermissions([])
-      setError(err?.message || '获取菜单权限失败')
-    } finally {
-      setLoading(false)
-    }
+const fetchUserMenus = async () => {
+   if (!user?.id) {
+     setMenus([])
+     setPermissions([])
+     setError(null)
+     return
+   }
+  setLoading(true)
+  setError(null)
+  try {
+    const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
+    const data = await menuApi.userMenus(Number(user.id), orgId, {
+      strict: true, // ✅ 用严格模式
+      nocache: true, // ✅ 第一次强刷后端缓存（只在你怀疑后端缓存脏时用一次）
+      transport: 'header', // ✅ 参数走请求头，不占 URL
+    })
+    const menuTree: MenuItem[] = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    setMenus(menuTree)
+    setPermissions(extractPermissions(menuTree))
+  } catch (err: any) {
+    console.error('获取用户菜单失败:', err)
+    setMenus([])
+    setPermissions([])
+    setError(err?.message || '获取菜单权限失败')
+  } finally {
+    setLoading(false)
   }
+}
+
+
 
   useEffect(() => {
     // 只在 user.id/当前 org 变化时拉一次

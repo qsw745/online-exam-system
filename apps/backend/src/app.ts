@@ -10,6 +10,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
+import { redisReady, isRedisReady } from '@/common/redis/client' // ← 保留这一行即可，去掉上面的 `import '@/common/redis/client'`
 
 // 业务错误类型
 import { HttpError } from '@/common/errors/http-error'
@@ -30,6 +31,7 @@ import { syncMenus } from './bootstrap/syncMenus'
 import { formatTime, log } from '@/infrastructure/logging/logger'
 
 import { CODES } from '@/types/response'
+
 /** uploads 目录 */
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
@@ -71,6 +73,9 @@ app.use(httpLogger())
 
 /** 健康检查（统一响应） */
 app.get('/api/health', (_req: Request, res: Response) => {
+  if (!isRedisReady()) {
+    return res.status(503).json({ ok: false, reason: 'redis_not_ready', time: formatTime() })
+  }
   return res.ok({ ok: true, time: formatTime() }, 'OK')
 })
 
@@ -78,11 +83,9 @@ app.get('/api/health', (_req: Request, res: Response) => {
 async function mountRoutes() {
   const maybe = apiRoutesOrFactory as any
   const apiRouter = typeof maybe === 'function' && !(maybe.use && maybe.handle) ? await maybe() : maybe
-
   if (!apiRouter?.use || !apiRouter?.handle) {
     throw new Error('[@/routes] default export is neither an Express Router nor a factory returning a Router')
   }
-
   app.use('/api', apiRouter)
 }
 
@@ -148,24 +151,18 @@ function safeJson(obj: any, max = 4000) {
 /** —— 统一错误处理（必须在所有路由/404 之后） —— */
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (res.headersSent) return
-
   const log = (req as any).log ?? console
-
   const isHttpErr =
     err instanceof HttpError ||
     (err && (err as any).name === 'HttpError') ||
     (err && (err as any).name === 'ValidationError')
-
   const status =
     (isHttpErr && (err as any).status) || (typeof (err as any)?.status === 'number' ? (err as any).status : 500)
-
   const code: string | undefined =
     (isHttpErr && (err as any).code) || (typeof (err as any)?.code === 'string' ? (err as any).code : undefined)
-
   const details = (isHttpErr && (err as any).details) || (err as any)?.details
   const ctx = (isHttpErr && (err as any).ctx) || (err as any)?.ctx
 
-  // 触发 httpLogger 的错误日志
   ;(req as any).onError?.(err)
 
   const top = pickTopBusinessFrame((err as any)?.stack)
@@ -181,7 +178,6 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
       ? { params: req.params, query: req.query }
       : { params: req.params, query: req.query, body: safeJson(req.body) }
 
-  // 结构化错误日志
   log[status >= 500 ? 'error' : 'warn']?.('controller error', {
     rid: (req as any).id ?? null,
     method: req.method,
@@ -203,7 +199,6 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     request: reqDump,
   })
 
-  // 统一输出：4xx/5xx（响应里也带上 where/stack/sql 等便于前端直接看到）
   const msg = (err as any)?.message || (status >= 500 ? '服务器内部错误' : '请求错误')
   const errorPayload = {
     type: (err as any)?.name,
@@ -234,7 +229,6 @@ function diagnoseWindowsPort(port: number) {
   try {
     if (process.platform !== 'win32') return
     log.error('[diagnose] Windows 检测：开始快速排查…')
-
     try {
       const out = execSync('netsh int ipv4 show excludedportrange protocol=tcp', { encoding: 'utf8' })
       const ranges: Array<[number, number]> = []
@@ -250,7 +244,6 @@ function diagnoseWindowsPort(port: number) {
         log.error('    sc stop SharedAccess && sc start SharedAccess')
       }
     } catch {}
-
     try {
       const out2 = execSync(`cmd /c netstat -ano -p tcp | findstr ":${port}"`, { encoding: 'utf8' })
       if (out2?.trim()) {
@@ -273,6 +266,9 @@ const LISTEN_FLAG = '__OES_SERVER_ALREADY_LISTENING__'
 
 async function start() {
   try {
+    // 关键：阻塞到 Redis ready；失败会在 client.ts 里直接 exit(1)
+    await redisReady
+
     await mountRoutes()
 
     // 404 放在所有 /api 路由之后
@@ -301,7 +297,6 @@ async function start() {
       const code = err?.code
       const addr = (err as any)?.address ?? HOST
       const prt = (err as any)?.port ?? port
-
       if (code === 'EADDRINUSE' || code === 'EACCES') {
         console.error(`[boot] 监听失败：${addr}:${prt} -> ${code} (${err?.message || 'permission denied'})`)
         if (process.platform === 'win32' && code === 'EACCES') {

@@ -9,7 +9,7 @@ import { LogService } from '@/modules/logs/services/log.service'
 import { SessionStore } from '@/common/session/session.store'
 
 // 如果你项目里有强密码校验，请解注以下导入并调用；没有就可忽略。
-// import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
+import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
 
 declare const process: any
 
@@ -71,7 +71,7 @@ export class AuthService {
     const { username, email, password } = body
 
     // 如有强密码策略，放开此行
-    // await validateStrongPassword(password)
+    await validateStrongPassword(password)
 
     const existed = await UserRepository.findByEmail(email)
     if (existed) throw new Error('用户已存在')

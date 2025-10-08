@@ -1,9 +1,39 @@
+// apps/backend/src/modules/analytics/services/analytics.service.ts
 import { AnalyticsRepository, type DateParams } from '../repositories/analytics.repository.js'
+
+let RC: any = null
+;(async () => {
+  try {
+    const mod: any = await import('@/common/redis/cache')
+    RC = mod?.default ?? mod
+  } catch {}
+})()
+
+const A_TTL = 180
+const kA = (p: any) => `analytics:data:${JSON.stringify(p)}`
+const kO = (period: string) => `analytics:overview:${period}`
+
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = A_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
 
 export class AnalyticsService {
   private repo = new AnalyticsRepository()
 
   async getAnalyticsData(params: { start_date?: string; end_date?: string; subject?: string }) {
+    const ck = kA(params)
+    const hit = await cget(ck)
+    if (hit) return hit
     const p: DateParams = {
       start_date: params.start_date || null,
       end_date: params.end_date || null,
@@ -14,17 +44,23 @@ export class AnalyticsService {
       this.repo.getSubjectsStats(p),
       this.repo.getStudents(p),
     ])
-    return { overview, subjects, students }
+    const data = { overview, subjects, students }
+    await cset(ck, data, 180)
+    return data
   }
 
   async getSubjects(): Promise<string[]> {
     return this.repo.getSubjects()
   }
 
-  // “简版概览”，按 7/30/90 天转换
   async getOverview(period: string) {
+    const ck = kO(period)
+    const hit = await cget(ck)
+    if (hit) return hit
     const { start_date, end_date } = this.getRangeByPeriod(period)
-    return this.repo.getOverview({ start_date, end_date })
+    const data = await this.repo.getOverview({ start_date, end_date })
+    await cset(ck, data, 120)
+    return data
   }
 
   async getKnowledgePoints() {
@@ -61,7 +97,6 @@ export class AnalyticsService {
     })
   }
 
-  /** ===== 新增：成绩分布 ===== */
   async getGradeStats(params: { start_date?: string; end_date?: string }) {
     const p: DateParams = {
       start_date: params.start_date || null,
@@ -71,7 +106,6 @@ export class AnalyticsService {
     return this.repo.getGradeStats(p)
   }
 
-  /* ===== 工具 ===== */
   private getRangeByPeriod(period: string): { start_date: string; end_date: string } {
     const end = new Date()
     const start = new Date()

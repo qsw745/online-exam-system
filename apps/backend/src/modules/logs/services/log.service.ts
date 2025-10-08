@@ -4,9 +4,40 @@ import HttpError from '@/common/errors/http-error'
 import { getClientIp } from '@/common/utils/request-ip'
 import { CODES } from '@/types/response'
 import type { Request } from 'express'
-import type { LogInput, LogQueryParams, LogRow } from '../domain/log.model'
+import type { LogInput, LogQueryParams } from '../domain/log.model'
 import { LogRepository } from '../repositories/log.repository'
 import Geo, { type GeoLocation } from '@/common/utils/geo'
+
+let RC: any = null
+;(async () => {
+  try {
+    const mod: any = await import('@/common/redis/cache')
+    RC = mod?.default ?? mod
+  } catch {}
+})()
+
+const LOG_TTL = 20
+const kLogs = (ns: string, q: any) => `logs:${ns}:${JSON.stringify(q)}`
+
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = LOG_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdelByPattern(p: string) {
+  try {
+    const ks = await RC?.keys?.(p)
+    if (ks?.length) await RC?.del?.(ks)
+  } catch {}
+}
 
 // ---------- 轻量 UA 解析 ----------
 type ClientType = 'desktop' | 'mobile' | 'tablet' | 'bot'
@@ -119,9 +150,7 @@ function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
   return 'info'
 }
 
-// ---------- Service ----------
 export class LogService {
-  /** 统一写日志入口 */
   static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
     await LogRepository.insert({
@@ -142,28 +171,85 @@ export class LogService {
 
   async getLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const ck = kLogs('user', q)
+    const cached = await cget(ck)
+    if (cached) return cached
+
     const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     const rows2 = await attachGeo(rows)
-    return { logs: attachClient(rows2), total, page, limit }
+    const data = { logs: attachClient(rows2), total, page, limit }
+    await cset(ck, data, 20)
+    return data
   }
 
   async getSystemLogs(role: string | undefined, q: LogQueryParams) {
+    const ck = kLogs('system', q)
+    const cached = await cget(ck)
+    if (cached) return cached
+
     const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
     const rows2 = await attachGeo(rows)
-    return { logs: attachClient(rows2), total, page, limit }
+    const data = { logs: attachClient(rows2), total, page, limit }
+    await cset(ck, data, 20)
+    return data
   }
 
-  async getAuditLogs(role: string | undefined, q: LogQueryParams) {
-    const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: role || 'admin' }, q)
+  // 旧：getAuditLogs(role: string | undefined, q: LogQueryParams)
+  // 新：带用户态，做细粒度鉴权
+  async getAuditLogs(
+    user: { id?: number; role?: string } | undefined,
+    q: LogQueryParams & { type?: string; username?: string }
+  ) {
+    const baseQ: any = { ...q }
+    // 默认限定审计/安全类
+    if (!baseQ.type) baseQ.type = 'audit'
+
+    // 管理员 -> 可查任意
+    if (user?.role === 'admin') {
+      const ck = kLogs('audit_admin', baseQ)
+      const cached = await cget(ck)
+      if (cached) return cached
+
+      const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: 0, role: 'admin' }, baseQ)
+      const rows2 = await attachGeo(rows)
+      const data = { logs: attachClient(rows2), total, page, limit }
+      await cset(ck, data, 20)
+      return data
+    }
+
+    // 普通用户 -> 只能看自己的（强制覆盖 username 及权限上下文）
+    if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+
+    // 覆盖 username，避免越权通过 query.username 指定别人
+    // 如果你的 LogRepository.queryLogs 支持 username 过滤，这里统一成当前登录用户；
+    // 若仓储按 currentUserId 做 ACL，也可不传 username，让仓储用 currentUserId 生效。
+    delete baseQ.username
+
+    const ck = kLogs(`audit_self:${user.id}`, baseQ)
+    const cached = await cget(ck)
+    if (cached) return cached
+
+    const { rows, total, page, limit } = await LogRepository.queryLogs(
+      { currentUserId: user.id, role: user.role },
+      baseQ
+    )
     const rows2 = await attachGeo(rows)
-    return { logs: attachClient(rows2), total, page, limit }
+    const data = { logs: attachClient(rows2), total, page, limit }
+    await cset(ck, data, 20)
+    return data
   }
 
   async getLoginLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams) {
     if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const ck = kLogs('login', q)
+    const cached = await cget(ck)
+    if (cached) return cached
+
     const { rows, total, page, limit } = await LogRepository.queryLogs({ currentUserId: user.id, role: user.role }, q)
     const rows2 = await attachGeo(rows)
-    return { logs: attachClient(rows2), total, page, limit }
+    const data = { logs: attachClient(rows2), total, page, limit }
+    await cset(ck, data, 20)
+    return data
   }
 
   async getExamLogs(user: { id?: number; role?: string } | undefined, examId: number, q: LogQueryParams) {
@@ -175,6 +261,7 @@ export class LogService {
     if (role !== 'admin') throw new HttpError('权限不足', 403, { code: CODES.AUTH_FORBIDDEN })
     if (!Number.isFinite(daysToKeep) || daysToKeep < 0) throw new HttpError('daysToKeep 必须为非负数字')
     const affected = await LogRepository.cleanupOlderThan(new Date(Date.now() - daysToKeep * 86400_000))
+    await cdelByPattern('logs:*')
     return { message: '日志清理完成', affected }
   }
 
@@ -185,12 +272,15 @@ export class LogService {
     return attachClient(rows2)
   }
 
-  /** 在线用户列表（从最近登录日志推断），附带 UA + 地点 */
   async getOnlineUsers(user: { id?: number; role?: string } | undefined) {
     if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
+    const ck = kLogs('online', {})
+    const cached = await cget(ck)
+    if (cached) return cached
+
     const rows = await LogRepository.queryOnlineUsersFromLogs()
     const rows2 = await attachGeo(rows as any)
-    return (rows2 || []).map(r => {
+    const out = (rows2 || []).map(r => {
       const client = parseUA((r as any).user_agent || '')
       return {
         id: (r as any).id ?? 0,
@@ -200,7 +290,6 @@ export class LogService {
         client,
         os: client.os,
         browser: client.browser,
-        // 👇 标准化地点字段
         location: (r as any).location,
         geo: (r as any).geo,
         country: (r as any).geo?.country,
@@ -208,9 +297,10 @@ export class LogService {
         city: (r as any).geo?.city,
       }
     })
+    await cset(ck, out, 10)
+    return out
   }
 
-  /** 强退：示例 */
   async kickOnlineUser(user: { id?: number; role?: string } | undefined, targetId: string | number) {
     if ((user as any)?.role !== 'admin') throw new HttpError('权限不足', 403, { code: CODES.AUTH_FORBIDDEN })
     await LogRepository.insert({

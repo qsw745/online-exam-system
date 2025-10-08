@@ -4,6 +4,34 @@ import { LogService } from '@/modules/logs/services/log.service'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
 import { OrgRepository } from '../repositories/org.repository'
 
+// 放文件顶部
+let RC: any = null
+;(async () => {
+  try {
+    RC = (await import('@/common/redis/cache')).default || (await import('@/common/redis/cache'))
+  } catch {}
+})()
+const ORG_TTL = 600
+const kOrg = (inactive: boolean) => `org:tree:${inactive ? 1 : 0}`
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = ORG_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdel(...ks: string[]) {
+  try {
+    for (const k of ks) await RC?.del?.(k)
+  } catch {}
+}
+
 /** ---------- tree & cycle utils ---------- */
 function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] {
   return rows
@@ -58,8 +86,13 @@ export class OrgService {
   }
 
   async getTree(includeInactive: boolean): Promise<OrgTreeNode[]> {
+    const ck = kOrg(includeInactive)
+    const hit = await cget<OrgTreeNode[]>(ck)
+    if (hit) return hit
     const rows = await OrgRepository.findAll(includeInactive)
-    return buildTree(rows)
+    const tree = buildTree(rows)
+    await cset(ck, tree, 600)
+    return tree
   }
 
   async getById(id: number) {
@@ -113,6 +146,7 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
+    await cdel(kOrg(false), kOrg(true))
 
     return { id }
   }
@@ -154,6 +188,7 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
+await cdel(kOrg(false), kOrg(true))
 
     return row!
   }
@@ -187,6 +222,7 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
+await cdel(kOrg(false), kOrg(true))
 
     return { message: '组织删除成功' }
   }
@@ -222,6 +258,7 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
+await cdel(kOrg(false), kOrg(true))
 
     return { message: '移动成功' }
   }
@@ -261,6 +298,7 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
+await cdel(kOrg(false), kOrg(true))
 
     return { message: '批量更新成功' }
   }

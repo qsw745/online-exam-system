@@ -19,7 +19,53 @@ type Res<T = any> = Response<T> & {
   fail(code: string, httpStatus?: number, message?: string, extra?: any): Res<T>
 }
 const svc = new QuestionService()
+// ===== 字面量联合，与 service 的签名保持一致 =====
+type QType = 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer'
+type QDiff = 'easy' | 'medium' | 'hard'
 
+// --------- 工具：把 string / array / CSV 严格收敛为联合类型 ----------
+const TYPE_SET = new Set<QType>(['single_choice', 'multiple_choice', 'true_false', 'short_answer'])
+const DIFF_SET = new Set<QDiff>(['easy', 'medium', 'hard'])
+
+function isAllowedType(x: any): x is QType {
+  return typeof x === 'string' && TYPE_SET.has(x as QType)
+}
+function isAllowedDifficulty(x: any): x is QDiff {
+  return typeof x === 'string' && DIFF_SET.has(x as QDiff)
+}
+/** 将 string | string[] | CSV | 其它，统一转为 string[] */
+function toStrArray(maybe: any): string[] {
+  if (Array.isArray(maybe))
+    return maybe
+      .map(String)
+      .map(s => s.trim())
+      .filter(Boolean)
+  if (typeof maybe === 'string') {
+    return maybe
+      .trim()
+      .replace(/[\r\n]+/g, ',')
+      .replace(/[，；;]/g, ',')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+  }
+  if (maybe != null && (typeof maybe === 'number' || typeof maybe === 'boolean')) return [String(maybe)]
+  return []
+}
+/** 单值收敛为 QType | undefined */
+function narrowType(raw: any): QType | undefined {
+  return isAllowedType(raw) ? (raw as QType) : undefined
+}
+/** 多值收敛为 QType[]（会去重 + 过滤非法值） */
+function narrowTypes(...inputs: any[]): QType[] {
+  const all = inputs.flatMap(toStrArray)
+  const arr = all.filter(isAllowedType) as QType[]
+  return Array.from(new Set(arr))
+}
+/** 难度收敛 */
+function narrowDifficulty(raw: any): QDiff | undefined {
+  return isAllowedDifficulty(raw) ? (raw as QDiff) : undefined
+}
 export class QuestionController {
   /** 批量获取题目详情（ids: number[]） */
   static async getBatchByIds(req: AuthRequest, res: Res<ApiResponse<any[]>>) {
@@ -37,14 +83,18 @@ export class QuestionController {
   /** 列表查询（带筛选/分页/查重） */
   static async list(req: AuthRequest, res: Res<ApiResponse<any>>) {
     try {
-      const question_type = req.query.type as any
-      const difficulty = req.query.difficulty as any
+      // ✅ 兼容：type（单值）、types[]（多值数组）、types_csv（逗号串）
+      const typeSingleNarrow = narrowType((req.query.type as string | undefined) || undefined)
+      const question_types = narrowTypes((req.query as any).types, (req.query as any).types_csv, typeSingleNarrow)
+
+      const difficulty = narrowDifficulty(req.query.difficulty as any)
       const search = (req.query.search || req.query.keyword) as string | undefined
       const page = req.query.page ? parseInt(req.query.page as string) : 1
       const limit = req.query.limit ? parseInt(req.query.limit as string) : 10
+
       const tagsParam = req.query.tags
       const tags = Array.isArray(tagsParam)
-        ? (tagsParam as string[])
+        ? (tagsParam as string[]).map(s => s.trim()).filter(Boolean)
         : typeof tagsParam === 'string'
         ? tagsParam
             .split(',')
@@ -58,17 +108,32 @@ export class QuestionController {
         String(req.query.grouped || '').toLowerCase() === 'true' || dup.includes('group') || dup === 'grouped'
 
       if (dup === 'title_type' || dup === 'title+type' || dup === 'true' || grouped) {
-        if (grouped) {
-          const data = await svc.listDuplicatesGrouped({ question_type, search, page, limit })
-          return res.ok(data, '获取成功')
-        }
-        // 平铺重复列表
-        const data = await svc.listDuplicates({ question_type, search, page, limit })
+        // 查重接口沿用单题型筛选（如需多选，再改 repository 中 SQL）
+        const data = grouped
+          ? await svc.listDuplicatesGrouped({
+              question_type: typeSingleNarrow, // <-- 已收敛为联合类型或 undefined
+              search,
+              page,
+              limit,
+            })
+          : await svc.listDuplicates({
+              question_type: typeSingleNarrow,
+              search,
+              page,
+              limit,
+            })
         return res.ok(data, '获取成功')
       }
 
-      // 普通列表
-      const data = await svc.list({ question_type, difficulty, search, tags, page, limit })
+      // ✅ 普通列表（支持多题型，严格类型）
+      const data = await svc.list({
+        question_types, // QType[]
+        difficulty, // QDiff | undefined
+        search,
+        tags,
+        page,
+        limit,
+      })
       return res.ok(data, '获取成功')
     } catch (e: any) {
       return res.internal(e?.message || '获取问题列表失败', { code: CODES.INTERNAL_ERROR })

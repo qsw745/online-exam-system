@@ -1,4 +1,4 @@
-import { Button, List, Modal, Popconfirm, Space, Tag, Typography, Spin, Divider } from 'antd'
+import { Button, List, Modal, Popconfirm, Space, Tag, Typography, Spin, Divider, message } from 'antd'
 import React from 'react'
 
 export type Role = { id: number; name: string }
@@ -16,7 +16,7 @@ export default function RoleMembersModal({
   onRemove,
   onOpenUserSelect,
   onOpenOrgSelect,
-  onRemoveOrg, // 可选：移除机构
+  onRemoveOrg,
   onRefresh,
 }: {
   open: boolean
@@ -28,10 +28,24 @@ export default function RoleMembersModal({
   onClose: () => void
   onRemove: (userId: number) => void | Promise<void>
   onOpenUserSelect: () => void | Promise<void>
-  onOpenOrgSelect: () => void | Promise<void>
+  onOpenOrgSelect?: () => void | Promise<void>
   onRemoveOrg?: (orgId: number) => void | Promise<void>
   onRefresh?: () => void | Promise<void>
 }) {
+  const handleOpenOrgSelect = async () => {
+    try {
+      if (onOpenOrgSelect) await onOpenOrgSelect()
+      else {
+        Modal.info({
+          title: '选择机构',
+          content: '父组件未实现 onOpenOrgSelect，请在父组件里挂载机构选择弹窗并传入该回调。',
+        })
+      }
+    } catch (err: any) {
+      message.error(err?.message || '打开机构选择弹窗失败')
+    }
+  }
+
   return (
     <Modal
       title={role ? `角色成员 - ${role.name}` : '角色成员'}
@@ -42,11 +56,11 @@ export default function RoleMembersModal({
       width={720}
       destroyOnHidden
     >
-      <Space style={{ marginBottom: 12 }}>
+      <Space style={{ marginBottom: 12 }} wrap>
         <Button type="primary" onClick={onOpenUserSelect}>
           添加用户
         </Button>
-        <Button onClick={onOpenOrgSelect}>按机构添加</Button>
+        <Button onClick={handleOpenOrgSelect}>按机构添加</Button>
         <Button onClick={onRefresh}>{'刷新'}</Button>
       </Space>
 

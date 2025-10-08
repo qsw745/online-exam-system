@@ -1,33 +1,37 @@
 import { Router, type RequestHandler } from 'express'
 import {
-    checkCode,
-    createRole,
-    deleteRole,
-    getAllRoles,
-    getNextSortOrder,
-    getRoleById,
-    getRoleMenus,
-    getRoleUsers,
-    getUserRoles,
-    removeUserFromRole,
-    setRoleMenus,
-    setUserRoles,
-    suggestCode,
-    updateRole,
-    getRoleEffectiveMenus,
-    addUsersToRole,
-    // 角色⇄机构
-    getRoleOrgs,
-    addRoleOrgs,
-    removeRoleOrg,
+  checkCode,
+  createRole,
+  deleteRole,
+  getAllRoles,
+  getNextSortOrder,
+  getRoleById,
+  getRoleMenus,
+  getRoleUsers,
+  getUserRoles,
+  removeUserFromRole,
+  setRoleMenus,
+  setUserRoles,
+  suggestCode,
+  updateRole,
+  getRoleEffectiveMenus,
+  addUsersToRole,
+  // 角色⇄机构
+  getRoleOrgs,
+  addRoleOrgs,
+  removeRoleOrg,
+  // ✅ 新增：按机构把用户批量加入角色
+  addUsersToRoleByOrg,
 } from '../controllers/role.controller.js'
 import { authenticateToken } from '../../../common/middleware/auth.js'
 import { requireRole } from '../../../common/middleware/role-auth.js'
 
 type AnyAsync = (req: any, res: any) => any | Promise<any>
-const wrap = (fn: AnyAsync): RequestHandler => (req, res, next) => {
+const wrap =
+  (fn: AnyAsync): RequestHandler =>
+  (req, res, next) => {
     Promise.resolve(fn(req, res)).catch(next)
-}
+  }
 
 const router = Router()
 router.use(authenticateToken)
@@ -51,7 +55,11 @@ router.delete('/:id(\\d+)', requireRole([...ADMIN_ONLY] as unknown as any[]), wr
 router.get('/:id(\\d+)/menus', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleMenus))
 router.put('/:id(\\d+)/menus', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setRoleMenus))
 // 生效菜单
-router.get('/:id(\\d+)/menus/effective', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleEffectiveMenus))
+router.get(
+  '/:id(\\d+)/menus/effective',
+  requireRole([...ADMIN_AND_SUPER] as unknown as any[]),
+  wrap(getRoleEffectiveMenus)
+)
 
 // 角色 ⇄ 机构（兼容旧前端；基于 roles.org_id 一对一）
 router.get('/:id(\\d+)/orgs', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleOrgs))
@@ -62,10 +70,17 @@ router.delete('/:id(\\d+)/orgs/:orgId(\\d+)', requireRole([...ADMIN_ONLY] as unk
 router.get('/users/:userId(\\d+)/roles', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getUserRoles))
 router.put('/users/:userId(\\d+)/roles', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setUserRoles))
 
+// ✅ 新增：按机构批量把用户添加到角色
+router.post('/:roleId(\\d+)/users/by-org', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(addUsersToRoleByOrg))
+
 // 角色 ⇄ 用户（按角色）
 router.get('/:roleId(\\d+)/users', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleUsers))
 router.post('/:roleId(\\d+)/users', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(addUsersToRole))
-router.delete('/:roleId(\\d+)/users/:userId(\\d+)', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(removeUserFromRole))
+router.delete(
+  '/:roleId(\\d+)/users/:userId(\\d+)',
+  requireRole([...ADMIN_ONLY] as unknown as any[]),
+  wrap(removeUserFromRole)
+)
 
 export default router
 export { router as roleRoutes }

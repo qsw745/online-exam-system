@@ -135,4 +135,10 @@ export const rolesApi = {
   suggestCode(name: string) {
     return api.get<ApiResult<string>>('/roles/suggest-code', { params: { name } })
   },
+  addUsersToRoleByOrg(roleId: number, orgId: number, opts?: { include_children?: boolean }) {
+    return api.post<ApiResult<{ added: number }>>(`/roles/${roleId}/users/by-org`, {
+      orgId,
+      include_children: !!opts?.include_children,
+    })
+  },
 }

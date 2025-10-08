@@ -19,6 +19,20 @@ type Res = Response & {
 const svc = new UserService()
 
 export class UserController {
+  static async changePassword(req: AuthRequest, res: Res) {
+    try {
+      if (!req.user?.id) return res.unauthorized('未授权')
+      const { current, next } = (req.body || {}) as { current?: string; next?: string }
+      if (!current || !next) return res.badRequest('缺少必填字段')
+      if (String(next).length < 8) return res.badRequest('新密码至少 8 位')
+
+      const ok = await svc.changePassword(req.user.id, current, next, req)
+      if (!ok) return res.badRequest('当前密码不正确')
+      return res.ok(null, '密码修改成功')
+    } catch (e) {
+      return res.internal('修改密码失败')
+    }
+  }
   static async getById(req: AuthRequest, res: Res) {
     try {
       const id = Number(req.params.id)
@@ -157,14 +171,30 @@ export class UserController {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
-
       const u = await svc.getById(id)
       if (!u) return res.notFound('用户不存在')
 
-      const password: string = await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username })
-      return res.ok({ password }, '密码已重置为系统默认密码')
-    } catch (e) {
-      log.error('重置用户密码错误:', e)
+      const raw: string | undefined = (req.body?.password ?? req.body?.newPassword) as any
+      const forceLogout = !!req.body?.force_logout
+
+      // 有自定义密码则进行基本校验
+      if (raw) {
+        if (raw.length < 8) return res.badRequest('新密码至少 8 位')
+        const kinds = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].reduce((n, r) => n + (r.test(raw) ? 1 : 0), 0)
+        if (kinds < 2) return res.badRequest('密码至少包含两类(大小写/数字/符号)')
+      }
+
+      const password = await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username }, req, {
+        newPassword: raw,
+        forceLogout,
+      })
+      // 出于安全，若是管理员自定义的密码，就不回显；若走默认值，可回显默认密码
+      const data = raw ? undefined : { password }
+      return res.ok(data, raw ? '已设置为自定义密码' : '密码已重置为系统默认密码')
+    } catch (e: any) {
+      if (e?.message === 'LOCK_BUSY' || e?.code === 'LOCK_BUSY') {
+        return res.tooMany('该用户正在被其它重置请求处理，请稍后再试')
+      }
       return res.internal('重置密码失败')
     }
   }

@@ -38,10 +38,16 @@ export const createRoleUnderOrg = async (req: Request, res: Res) => {
     const role = await RoleService.createRoleUnderOrg(orgId, payload)
     return res.created(role, '角色创建成功')
   } catch (e: any) {
-    console.error('createRoleUnderOrg 失败:', e)
-    if (e instanceof DuplicateCodeError) return res.conflict(e.message)
-    if (e?.code === 'ER_DUP_ENTRY') return res.conflict('角色编码已存在，请使用其他编码')
-    return res.internal(e?.message || '创建角色失败')
+     console.error('createRoleUnderOrg 失败:', e)
+     if (e instanceof DuplicateCodeError) return res.conflict(e.message)
+     if (e?.code === 'ER_DUP_ENTRY') {
+       const m = String(e?.sqlMessage || e?.message || '')
+       if (/uk_org_name|uk_name/i.test(m)) return res.conflict('该机构下角色名称已存在，请使用其他名称')
+       if (/uk_org_code|uk_code/i.test(m)) return res.conflict('该机构下角色编码已存在，请使用其他编码')
+       return res.conflict('角色已存在')
+     }
+     if (/已存在/.test(String(e?.message))) return res.conflict(e.message)
+     return res.internal(e?.message || '创建角色失败')
   }
 }
 
@@ -56,7 +62,12 @@ export const updateRoleUnderOrg = async (req: Request, res: Res) => {
     } catch (e: any) {
         console.error('updateRoleUnderOrg 失败:', e)
         if (e instanceof DuplicateCodeError) return res.conflict(e.message)
-        if (e?.code === 'ER_DUP_ENTRY') return res.conflict('角色编码已存在，请使用其他编码')
+       if (e?.code === 'ER_DUP_ENTRY') {
+         const m = String(e?.sqlMessage || e?.message || '')
+         if (/uk_org_name|uk_name/i.test(m)) return res.conflict('该机构下角色名称已存在，请使用其他名称')
+         if (/uk_org_code|uk_code/i.test(m)) return res.conflict('该机构下角色编码已存在，请使用其他编码')
+         return res.conflict('角色已存在')
+       }
         return res.internal(e?.message || '更新角色失败')
     }
 }
@@ -343,4 +354,23 @@ export const removeRoleOrg = async (req: Request, res: Res) => {
         console.error('移除机构失败:', e)
         return res.internal(e?.message || '移除机构失败')
     }
+    
 }
+
+
+export const addUsersToRoleByOrg = async (req: Request, res: Res) => {
+  try {
+    const roleId = Number(req.params.roleId)
+    const orgId = Number(req.body?.orgId ?? req.query?.orgId)
+    const includeChildren =
+      req.body?.include_children === true || req.body?.include_children === '1' || req.query?.include_children === '1'
+    if (![roleId, orgId].every(Number.isFinite)) return res.badRequest('无效的角色或机构ID')
+
+    const added = await RoleService.addUsersFromOrg(roleId, orgId, includeChildren)
+    return res.ok({ added }, `成功添加 ${added} 个用户到角色`)
+  } catch (e: any) {
+    console.error('按机构添加用户到角色失败:', e)
+    return res.internal(e?.message || '按机构添加用户失败')
+  }
+}
+

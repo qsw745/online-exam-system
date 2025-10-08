@@ -1,22 +1,61 @@
-// src/modules/exams/services/paper.service.ts
-import type { PaperData, PaperListData, PaperQuestionData } from '../domain/paper.model.js'
+// apps/backend/src/modules/exams/services/paper.service.ts
+import type { PaperData, PaperListData } from '../domain/paper.model.js'
 import { PaperRepository } from '../repositories/paper.repository.js'
+
+let RC: any = null
+;(async () => {
+  try {
+    const mod: any = await import('@/common/redis/cache')
+    RC = mod?.default ?? mod
+  } catch {}
+})()
+
+const PAPER_TTL = 600
+const kPaper = (id: number) => `paper:${id}`
+const kQOfPaper = (id: number) => `paper:${id}:qs`
+
+async function cget<T = any>(k: string) {
+  try {
+    const v = await RC?.get?.(k)
+    return v ? JSON.parse(v) : null
+  } catch {
+    return null
+  }
+}
+async function cset(k: string, v: any, ttl = PAPER_TTL) {
+  try {
+    await RC?.set?.(k, JSON.stringify(v), ttl)
+  } catch {}
+}
+async function cdel(...ks: string[]) {
+  try {
+    for (const k of ks) await RC?.del?.(k)
+  } catch {}
+}
 
 export class PaperService {
   async addQuestion(paperId: number, body: any) {
     const { questionId, score, order } = body
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
     return PaperRepository.addQuestion(paperId, { questionId, score, order })
   }
 
   async removeQuestion(paperId: number, questionId: number) {
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
     return PaperRepository.removeQuestion(paperId, questionId)
   }
 
-  async getQuestions(paperId: number): Promise<PaperQuestionData> {
-    return PaperRepository.getQuestions(paperId)
+  async getQuestions(paperId: number) {
+    const ck = kQOfPaper(paperId)
+    const hit = await cget(ck)
+    if (hit) return hit
+    const data = await PaperRepository.getQuestions(paperId)
+    await cset(ck, data, 600)
+    return data
   }
 
   async updateOrder(paperId: number, orders: Array<{ questionId: number; order: number }>) {
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
     await PaperRepository.updateOrder(paperId, orders)
   }
 
@@ -28,36 +67,33 @@ export class PaperService {
     return PaperRepository.list(params)
   }
 
-  async getById(paperId: number): Promise<PaperData> {
-    return PaperRepository.findById(paperId)
+  async getById(paperId: number) {
+    const ck = kPaper(paperId)
+    const hit = await cget(ck)
+    if (hit) return hit
+    const data = await PaperRepository.findById(paperId)
+    await cset(ck, data, 600)
+    return data
   }
 
   async create(body: any): Promise<PaperData> {
-    return PaperRepository.create(body)
+    const paper = await PaperRepository.create(body)
+    await cdel(kPaper(Number((paper as any)?.id ?? 0)), kQOfPaper(Number((paper as any)?.id ?? 0)))
+    return paper
   }
 
   async update(paperId: number, body: any): Promise<PaperData> {
-    return PaperRepository.update(paperId, body)
+    const paper = await PaperRepository.update(paperId, body)
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
+    return paper
   }
 
   async remove(paperId: number) {
-    return PaperRepository.remove(paperId)
+    const r = await PaperRepository.remove(paperId)
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
+    return r
   }
 
-  /**
-   * ✅ 智能组卷服务
-   * 入参示例：
-   * {
-   *   title?: string,
-   *   description?: string,
-   *   difficulty?: 'easy'|'medium'|'hard',
-   *   duration?: number,                 // 默认 60 分钟
-   *   total_score?: number,              // 如提供 per_question_score，可计算题量
-   *   target_count?: number,             // 或直接指定题量
-   *   per_question_score?: number,       // 每题分（可选）
-   *   types?: string[]                   // 题型筛选，如 ['single','multiple','judge']
-   * }
-   */
   async smartGenerate(body: any) {
     const title = (body?.title ?? '').toString().trim() || '智能组卷'
     const description = (body?.description ?? '').toString().trim() || ''
@@ -85,11 +121,9 @@ export class PaperService {
       throw err
     }
     if (!finalPerScore) {
-      // 若没提供每题分，按总分平均分配（向下取整，余数加到最后一道题）
       finalPerScore = totalScore ? Math.floor(totalScore / finalCount) : 1
     }
 
-    // 拉取随机题
     const candidates = await PaperRepository.findRandomQuestions({
       types,
       difficulty,
@@ -102,21 +136,16 @@ export class PaperService {
       throw err
     }
 
-    // 分数分配：最后一道题吃掉余数，确保总分精确
     let usedTotal = 0
-    const items = candidates.slice(0, finalCount).map((q, idx) => {
+    const items = candidates.slice(0, finalCount).map((q: any, idx: number) => {
       const isLast = idx === finalCount - 1
-      const score = isLast && totalScore
-          ? (totalScore - usedTotal)
-          : finalPerScore!
+      const score = isLast && totalScore ? totalScore - usedTotal : finalPerScore!
       usedTotal += score
       return { question_id: q.id, score, order: idx + 1 }
     })
 
-    // 计算最终总分（如果没传 totalScore 就用分配结果相加）
     const computedTotal = items.reduce((s, it) => s + (it.score || 0), 0)
 
-    // 事务创建试卷 + 关联题目
     const result = await PaperRepository.createPaperAndAttachQuestions({
       title,
       description,
@@ -138,24 +167,27 @@ export class PaperService {
   async createWithQuestions(body: any) {
     return PaperRepository.createWithQuestions(body)
   }
-    async searchBank(params: {
-        page: number
-        limit: number
-        search?: string
-        difficulty?: 'easy' | 'medium' | 'hard'
-        type?: 'single_choice' | 'multiple_choice' | 'true_false' | string
-    }) {
-        return PaperRepository.searchBank(params)
-    }
+  async searchBank(params: {
+    page: number
+    limit: number
+    search?: string
+    difficulty?: 'easy' | 'medium' | 'hard'
+    type?: 'single_choice' | 'multiple_choice' | 'true_false' | string
+  }) {
+    return PaperRepository.searchBank(params)
+  }
 
-    async addCustomQuestion(paperId: number, body: {
-        type: string
-        content: string
-        options: string[]
-        answer: string
-        score: number
-        order: number
-    }) {
-        return PaperRepository.addCustomQuestionSnapshot(paperId, body)
+  async addCustomQuestion(
+    paperId: number,
+    body: {
+      type: string
+      content: string
+      options: string[]
+      answer: string
+      score: number
+      order: number
     }
+  ) {
+    return PaperRepository.addCustomQuestionSnapshot(paperId, body)
+  }
 }

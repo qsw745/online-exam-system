@@ -42,6 +42,9 @@ const roleService = {
     const r = await rolesApi.getRoleOrgs(roleId)
     return unwrap(r) as RoleOrg[]
   },
+  async addOrgs(roleId: number, orgIds: number[]) {
+    return rolesApi.addRoleOrgs(roleId, orgIds) // ✅ 新增：调用后端 POST /roles/:id/orgs
+  },
   async removeOrg(roleId: number, orgId: number) {
     return rolesApi.removeRoleOrg(roleId, orgId)
   },
@@ -167,6 +170,19 @@ export function useRoleMembers() {
     await loadMembers(role.id)
   }
 
+  // ✅ 新增：添加机构（供 RoleManagementPage 调用）
+  async function addOrgs(orgIds: number[], includeChildren = false) {
+    if (!role?.id) return
+    let total = 0
+    for (const oid of orgIds) {
+      const ret = await rolesApi.addUsersToRoleByOrg(role.id, oid, { include_children: includeChildren })
+      const data = unwrap<{ added?: number }>(ret)
+      total += Number(data?.added ?? 0)
+    }
+    message.success(`已从所选机构添加 ${total} 人`)
+    await loadMembers(role.id) // ✅ 刷新成员列表
+  }
+
   return {
     // 弹窗
     role,
@@ -182,6 +198,7 @@ export function useRoleMembers() {
     roleOrgs,
     orgsLoading,
     removeOrg,
+    addOrgs, // ✅ 暴露给父组件
     reloadOrgs: async () => role && (await loadOrgs(role.id)),
     // 选人
     userOpen,

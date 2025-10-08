@@ -1,4 +1,3 @@
-// apps/web/src/features/users/pages/UserManagementPage.tsx
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import { App, Card, Layout, Pagination, Typography } from 'antd'
@@ -11,11 +10,11 @@ import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 // 弹窗组件
 import { orgsApi } from '@/shared/api/endpoints/orgs'
-
 import { BindUserModal } from '../components/BindUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
-import { ViewUserModal } from '../components/ViewUserModal'
+import AssignRolesModal from '../components/AssignRolesModal' // ✅ 新增
+
 const { Sider, Content } = Layout
 const { Title, Paragraph } = Typography
 
@@ -47,7 +46,7 @@ const UserManagementPage: React.FC = () => {
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
-  // ✅ 只有选中机构后才会发请求（见 useOrgUsersQuery 内的 guard）
+  // 只有选中机构后才会发请求
   const q = useOrgUsersQuery(selectedOrgId)
 
   const refreshTree = async () => {
@@ -62,19 +61,15 @@ const UserManagementPage: React.FC = () => {
     }
   }
 
-  // 弹窗状态 & 行操作（保持原样）
-  const [viewOpen, setViewOpen] = React.useState(false)
+  // 弹窗状态
   const [editOpen, setEditOpen] = React.useState(false)
   const [bindOpen, setBindOpen] = React.useState(false)
   const [resetOpen, setResetOpen] = React.useState(false)
   const [resetPwd, setResetPwd] = React.useState<string | null>(null)
   const [currentUser, setCurrentUser] = React.useState<any | null>(null)
 
-  const onView = async (u: any) => {
-    const detail = await q.getUserDetail(u.id).catch(() => u)
-    setCurrentUser(detail || u)
-    setViewOpen(true)
-  }
+  // 分配角色弹窗
+  const [assignOpen, setAssignOpen] = React.useState(false)
 
   const onEdit = async (u: any) => {
     const detail = await q.getUserDetail(u.id).catch(() => u)
@@ -82,11 +77,14 @@ const UserManagementPage: React.FC = () => {
     queueMicrotask(() => setEditOpen(true))
   }
 
+  const onAssignRoles = async (u: any) => {
+    setCurrentUser(u)
+    setAssignOpen(true)
+  }
+
   const onReset = async (u: any) => {
-    const pwd = await q.resetPassword(u.id)
-    setResetPwd(pwd || null)
-    setResetOpen(true)
-    q.refetch()
+    setCurrentUser(u)
+    setResetOpen(true) // <- 打开弹窗，不再直接调用接口
   }
 
   const onToggle = async (u: any) => {
@@ -134,7 +132,6 @@ const UserManagementPage: React.FC = () => {
 
   return (
     <>
-   
       <Layout style={{ padding: 16 }}>
         <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
           <OrgTreePanel
@@ -157,7 +154,6 @@ const UserManagementPage: React.FC = () => {
             <Title level={3} style={{ margin: 0 }}>
               用户管理
             </Title>
-            {/* 📝 文案调整：不再提示“未选择机构显示全量用户” */}
             <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
               {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '请选择左侧机构以查看用户'}
             </Paragraph>
@@ -190,12 +186,13 @@ const UserManagementPage: React.FC = () => {
               data={q.rows}
               loading={q.loading}
               selectedOrgId={selectedOrgId}
-              onView={onView}
+              // ❌ 去掉 onView
+              onAssignRoles={onAssignRoles} // ✅ 新增
               onEdit={onEdit}
-              onResetPassword={onReset}
               onToggleStatus={onToggle}
               onUnbind={onUnbind}
               onDelete={onDelete}
+              onResetPassword={onReset}
             />
             <div style={{ textAlign: 'right', marginTop: 16 }}>
               <Pagination
@@ -214,16 +211,6 @@ const UserManagementPage: React.FC = () => {
             </div>
           </Card>
         </Content>
-
-        {/* —— 查看 —— */}
-        <ViewUserModal
-          open={viewOpen}
-          user={currentUser}
-          orgPath={
-            currentUser?.orgId ? getOrgPath(currentUser?.orgId, '—') || '—' : getOrgPath(selectedOrgId, '—') || '—'
-          }
-          onClose={() => setViewOpen(false)}
-        />
 
         {/* —— 编辑 —— */}
         <EditUserModal
@@ -250,8 +237,32 @@ const UserManagementPage: React.FC = () => {
           />
         )}
 
-        {/* —— 重置密码结果 —— */}
-        <ResetPasswordModal open={resetOpen} password={resetPwd} onClose={() => setResetOpen(false)} />
+        {/* —— 重置密码弹窗 —— */}
+        <ResetPasswordModal
+          open={resetOpen}
+          username={currentUser?.username}
+          onCancel={() => setResetOpen(false)}
+          onSubmit={async newPwd => {
+            if (!currentUser) return
+            await q.resetPassword(currentUser.id, newPwd) // <- 传入自定义密码
+            setResetOpen(false)
+            message.success('密码已重置')
+            q.refetch()
+          }}
+        />
+
+        {/* —— 分配角色 —— */}
+        <AssignRolesModal
+          open={assignOpen}
+          user={currentUser}
+          orgId={selectedOrgId ?? undefined}
+          onCancel={() => setAssignOpen(false)}
+          onOk={() => {
+            setAssignOpen(false)
+            // 分配角色通常不影响列表字段，这里仅保持一致性
+            q.refetch()
+          }}
+        />
       </Layout>
     </>
   )

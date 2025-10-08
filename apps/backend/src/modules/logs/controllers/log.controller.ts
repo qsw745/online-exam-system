@@ -145,7 +145,14 @@ export class LogController {
 
   static async getAuditLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const data = await service.getAuditLogs((req.user as any)?.role || undefined, req.query as LogQueryParams)
+      const current = pickUser(req.user) // { id?: number; role?: string }
+      const role = current?.role
+      const q = { ...(req.query as any) }
+
+      // 确保是“审计/安全类”日志；若前端未显式传 type，则默认限定为 audit
+      if (!q.type) q.type = 'audit'
+
+      const data = await service.getAuditLogs(current, q)
       return (res as any).ok(data, '获取审计日志成功')
     } catch (error: any) {
       log.error('[log] 获取审计日志失败:', error)

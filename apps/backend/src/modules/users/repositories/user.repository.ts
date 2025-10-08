@@ -7,8 +7,8 @@ export class UserRepository {
 
   async getById(id: number): Promise<UserDTO | null> {
     const [rows] = await this.db.query<UserDTO[]>(
-        'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at FROM users WHERE id = ?',
-        [id]
+      'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at FROM users WHERE id = ?',
+      [id]
     )
     return rows[0] || null
   }
@@ -20,9 +20,7 @@ export class UserRepository {
    *  2) 其次按 assigned_at、created_at 的最早记录
    * 注意：关系表没有 id 列，因此不要使用 ou.id 排序
    */
-  async getPrimaryOrgForUser(
-      userId: number
-  ): Promise<{ orgId: number | null; org_name: string | null }> {
+  async getPrimaryOrgForUser(userId: number): Promise<{ orgId: number | null; org_name: string | null }> {
     const sql = `
       SELECT
         ou.org_id AS orgId,
@@ -49,16 +47,16 @@ export class UserRepository {
   }
 
   async statsOfUser(
-      userId: number
+    userId: number
   ): Promise<{ totalSubmissions: number; completedSubmissions: number; averageScore: number }> {
     const [rows] = await this.db.query<RowDataPacket[]>(
-        `SELECT 
+      `SELECT 
          COUNT(*) as totalSubmissions,
          SUM(CASE WHEN status = 'submitted' THEN 1 ELSE 0 END) as completedSubmissions,
          AVG(CASE WHEN score IS NOT NULL THEN score ELSE 0 END) as averageScore
        FROM exam_results 
       WHERE user_id = ?`,
-        [userId]
+      [userId]
     )
     return {
       totalSubmissions: Number(rows[0]?.totalSubmissions || 0),
@@ -86,11 +84,11 @@ export class UserRepository {
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
 
     const [rows] = await this.db.query<UserDTO[]>(
-        `SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at
+      `SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at
          FROM users ${where}
      ORDER BY created_at DESC
         LIMIT ? OFFSET ?`,
-        [...values, limit, offset]
+      [...values, limit, offset]
     )
 
     const [cnt] = await this.db.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM users ${where}`, values)
@@ -99,8 +97,8 @@ export class UserRepository {
   }
 
   async updateUser(
-      id: number,
-      patch: Partial<Pick<UserDTO, 'username' | 'email' | 'role' | 'avatar_url' | 'nickname' | 'school' | 'class_name'>>
+    id: number,
+    patch: Partial<Pick<UserDTO, 'username' | 'email' | 'role' | 'avatar_url' | 'nickname' | 'school' | 'class_name'>>
   ): Promise<UserDTO | null> {
     const fields: string[] = []
     const values: any[] = []
@@ -115,8 +113,8 @@ export class UserRepository {
 
     values.push(id)
     const [ret] = await this.db.query<ResultSetHeader>(
-        `UPDATE users SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
-        values
+      `UPDATE users SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`,
+      values
     )
     if (!ret.affectedRows) return null
     return this.getById(id)
@@ -130,12 +128,13 @@ export class UserRepository {
     return ret.affectedRows > 0
   }
 
+
   async resetPassword(id: number, hashed: string): Promise<boolean> {
     const [ret] = await this.db.query<ResultSetHeader>(
-        'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
-        [hashed, id]
+      'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
+      [hashed, id]
     )
-    return ret.affectedRows > 0
+    return ret.affectedRows >= 1
   }
 
   async deleteUser(id: number): Promise<boolean> {
@@ -143,8 +142,8 @@ export class UserRepository {
     try {
       await conn.beginTransaction()
       await conn.query(
-          'DELETE FROM answer_records WHERE exam_result_id IN (SELECT id FROM exam_results WHERE user_id = ?)',
-          [id]
+        'DELETE FROM answer_records WHERE exam_result_id IN (SELECT id FROM exam_results WHERE user_id = ?)',
+        [id]
       )
       await conn.query('DELETE FROM exam_results WHERE user_id = ?', [id])
       await conn.query('DELETE FROM tasks WHERE user_id = ?', [id])

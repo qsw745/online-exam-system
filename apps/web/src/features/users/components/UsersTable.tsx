@@ -1,4 +1,5 @@
-import { Popconfirm, Space, Table, Tag, Button } from 'antd'
+// src/features/users/components/UsersTable.tsx
+import { Space, Table, Tag, Button } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import React, { useMemo } from 'react'
 
@@ -15,21 +16,18 @@ export const UsersTable: React.FC<{
   data: User[]
   loading: boolean
   selectedOrgId?: number | null
-  onView?: (u: any) => void
+  onAssignRoles?: (u: any) => void
   onEdit?: (u: any) => void
-  onResetPassword?: (u: any) => void
+  onResetPassword?: (u: any) => void // <- 用它打开弹窗
   onToggleStatus?: (u: any) => void
   onUnbind?: (u: any) => void
   onDelete?: (u: any) => void
-}> = ({ data, loading, onView, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId }) => {
-  // —— 关键修复：按 id 去重，保留“最后一次出现”的那条 —— //
+}> = ({ data, loading, onAssignRoles, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId }) => {
   const dedupedData = useMemo(() => {
     const map = new Map<number, User>()
     for (let i = data.length - 1; i >= 0; i--) {
       const row = data[i]
-      if (row && typeof row.id === 'number' && !map.has(row.id)) {
-        map.set(row.id, row)
-      }
+      if (row && typeof row.id === 'number' && !map.has(row.id)) map.set(row.id, row)
     }
     return Array.from(map.values()).reverse()
   }, [data])
@@ -47,18 +45,17 @@ export const UsersTable: React.FC<{
       },
     ]
 
-    const hasActions = onView || onEdit || onResetPassword || onToggleStatus || onUnbind || onDelete
-
+    const hasActions = onAssignRoles || onEdit || onResetPassword || onToggleStatus || onUnbind || onDelete
     if (hasActions) {
       base.push({
         title: '操作',
         key: 'actions',
-        width: 420,
+        width: 540,
         render: (_: any, r: any) => (
           <Space wrap>
-            {onView && (
-              <Button size="small" onClick={() => onView(r)}>
-                查看
+            {onAssignRoles && (
+              <Button size="small" type="primary" onClick={() => onAssignRoles(r)}>
+                分配角色
               </Button>
             )}
             {onEdit && (
@@ -67,41 +64,35 @@ export const UsersTable: React.FC<{
               </Button>
             )}
             {onResetPassword && (
-              <Popconfirm title="确定重置密码？" onConfirm={() => onResetPassword(r)}>
-                <Button size="small">重置密码</Button>
-              </Popconfirm>
+              <Button size="small" onClick={() => onResetPassword(r)}>
+                重置密码
+              </Button>
             )}
             {onToggleStatus && (
-              <Popconfirm
-                title={`确定${r.status === 'active' ? '禁用' : '启用'}该用户？`}
-                onConfirm={() => onToggleStatus(r)}
+              <Button
+                size="small"
+                type={r.status === 'active' ? 'default' : 'primary'}
+                onClick={() => onToggleStatus(r)}
               >
-                <Button size="small" type={r.status === 'active' ? 'default' : 'primary'}>
-                  {r.status === 'active' ? '禁用' : '启用'}
-                </Button>
-              </Popconfirm>
+                {r.status === 'active' ? '禁用' : '启用'}
+              </Button>
             )}
             {selectedOrgId && onUnbind && (
-              <Popconfirm title="从当前机构移除该用户？" onConfirm={() => onUnbind(r)}>
-                <Button size="small" danger>
-                  从机构移除
-                </Button>
-              </Popconfirm>
+              <Button size="small" danger onClick={() => onUnbind(r)}>
+                从机构移除
+              </Button>
             )}
             {onDelete && (
-              <Popconfirm title="确定删除该用户？" onConfirm={() => onDelete(r)}>
-                <Button size="small" danger>
-                  删除
-                </Button>
-              </Popconfirm>
+              <Button size="small" danger onClick={() => onDelete(r)}>
+                删除
+              </Button>
             )}
           </Space>
         ),
       })
     }
-
     return base
-  }, [onView, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId])
+  }, [onAssignRoles, onEdit, onResetPassword, onToggleStatus, onUnbind, onDelete, selectedOrgId])
 
   return <Table<User> rowKey="id" loading={loading} dataSource={dedupedData} columns={columns} pagination={false} />
 }

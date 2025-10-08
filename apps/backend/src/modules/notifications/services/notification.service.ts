@@ -3,6 +3,17 @@ import type { INotification, NotificationListData } from '../domain/notification
 import { NotificationRepository } from '../repositories/notification.repository.js'
 import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2'
+let RClient: any = null
+;(async () => {
+  try {
+    RClient = (await import('@/common/redis/client')).default || (await import('@/common/redis/client'))
+  } catch {}
+})()
+async function publishToUser(uid: number, payload: any) {
+  try {
+    await RClient?.publish?.(`ws:user:${uid}`, JSON.stringify(payload))
+  } catch {}
+}
 
 export class NotificationService {
   static async create(
@@ -16,7 +27,9 @@ export class NotificationService {
       payload.content,
       payload.type ?? 'info'
     )
-    const [rows] = await pool.query<INotification[]>('SELECT * FROM notifications WHERE id = ?', [id])
+      const [rows] = await pool.query<INotification[]>('SELECT * FROM notifications WHERE id = ?', [id])
+      await publishToUser(payload.user_id, { type: 'notify', title: payload.title, content: payload.content })
+
     return rows[0]
   }
 
@@ -28,7 +41,11 @@ export class NotificationService {
     const values = payload.user_ids.map(
       uid => [uid, payload.title, payload.content, payload.type ?? 'info'] as [number, string, string, string]
     )
-    const count = await NotificationRepository.insertMany(values)
+      const count = await NotificationRepository.insertMany(values)
+      for (const uid of payload.user_ids) {
+        await publishToUser(uid, { type: 'notify', title: payload.title, content: payload.content })
+      }
+
     return { count }
   }
 

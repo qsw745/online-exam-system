@@ -105,16 +105,21 @@ export class AuthController {
         })
       }
 
+      // ========= 统一的验证码校验入口 =========
+      // 规则：只要（1）后端判定必须验码，或（2）客户端提交了 captchaId+captcha，就进行校验。
       let mustCaptcha = false
       if (enableCaptcha) {
         if (captchaAfter <= 0) mustCaptcha = true
         else if ((rec?.fail_count ?? 0) >= captchaAfter) mustCaptcha = true
       }
-      if (mustCaptcha) {
+      const clientProvidedCaptcha = !!(captchaId && captcha)
+      const shouldVerifyCaptcha = enableCaptcha && (mustCaptcha || clientProvidedCaptcha)
+
+      if (shouldVerifyCaptcha) {
         if (!captcha || !captchaId) {
           return (res as any).fail(CODES.AUTH_NEED_CAPTCHA, 400, '请先完成验证码', { error: { retryable: true } })
         }
-        const ok = CaptchaService.verify(String(captchaId), String(captcha))
+        const ok = await CaptchaService.verify(String(captchaId), String(captcha))
         if (!ok) {
           const next = await lockSvc.hitFail(email, ip)
           if (next >= lockAfter) {
@@ -131,12 +136,14 @@ export class AuthController {
               data: { unlockAt: untilMs, remainingSec: remainSec, unlockDate: ymd },
             })
           }
+          // ⚠️ 这里统一返回 AUTH_NEED_CAPTCHA，避免误用 AUTH_BAD_CREDENTIALS
           return (res as any).badRequest('验证码错误或已过期', {
-            code: CODES.AUTH_BAD_CREDENTIALS,
+            code: CODES.AUTH_NEED_CAPTCHA,
             error: { retryable: true },
           })
         }
       }
+      // ========= 验证码通过（或不需验证）后，进入密码校验 =========
 
       try {
         const { token, refresh, user, persist } = await svc.login(
@@ -204,3 +211,5 @@ export class AuthController {
     return (res as any).ok(null, '已登出')
   }
 }
+
+export default AuthController

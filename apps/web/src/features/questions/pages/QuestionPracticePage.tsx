@@ -19,12 +19,16 @@ export default function QuestionPracticePage() {
     page,
     pageSize,
     loading,
-    type,
+
+    /** ✅ 多选题型 */
+    types,
+    setTypes,
+
     difficulty,
     search,
     selectedTags,
     allTags,
-    setType,
+
     setDifficulty,
     setSearch,
     setSelectedTags,
@@ -49,13 +53,20 @@ export default function QuestionPracticePage() {
             </Card>
 
             <PracticeFilters
-              type={type}
+              /** ✅ 多选题型传入/传出 */
+              types={types}
               difficulty={difficulty}
               search={search}
               selectedTags={selectedTags}
               allTags={allTags}
-              onTypeChange={setType}
-              onDifficultyChange={setDifficulty}
+              onTypesChange={v => {
+                setTypes(v)
+                setPage(1)
+              }}
+              onDifficultyChange={d => {
+                setDifficulty(d)
+                setPage(1)
+              }}
               onSearch={kw => {
                 setPage(1)
                 setSearch(kw)
@@ -84,9 +95,7 @@ export default function QuestionPracticePage() {
               current={page}
               pageSize={pageSize}
               total={total}
-              onChange={(p: number) => {
-                setPage(p)
-              }}
+              onChange={(p: number) => setPage(p)}
               onSizeChange={(c: number, s: number) => {
                 setPage(c)
                 setPageSize(s)

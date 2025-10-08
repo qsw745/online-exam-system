@@ -40,7 +40,8 @@ type Props = {
 }
 
 export const LoginForm: React.FC<Props> = p => {
-  const btnText = !p.isLocked
+  const lockedNow = p.isLocked && p.lockCountdownText !== '00:00'
+  const btnText = !lockedNow
     ? '登录'
     : p.lockTryRemainSec > 0
     ? `已锁定 ${p.lockCountdownText} · 重试 ${p.lockRetryCountdownText}`
@@ -164,8 +165,9 @@ export const LoginForm: React.FC<Props> = p => {
           loading={p.loading}
           size="large"
           block
-          disabled={p.submitDisabled}
-          aria-disabled={p.submitDisabled}
+          // ✅ 仅在10s冷却期间禁用；不影响锁定提示显示
+          disabled={p.loading || (p.isLocked && p.lockTryRemainSec > 0)}
+          aria-disabled={p.loading || (p.isLocked && p.lockTryRemainSec > 0)}
         >
           {btnText}
         </Button>

@@ -73,6 +73,7 @@
 |   |   |   202509221130_add_subject_to_answer_records.ts
 |   |   |   20250925_add_analytics_optional_columns.ts
 |   |   |   20250927_add_org_to_roles.ts
+|   |   |   20251006120000_add_user_profile_fields.ts
 |   |   |   add_task_publish_status.sql
 |   |   |   database.sql
 |   |   |   init.sql
@@ -95,10 +96,6 @@
 |   |   2025-09-11.log.gz
 |   |   2025-09-12.log.gz
 |   |   2025-09-16.log.gz
-|   |   2025-09-21.log
-|   |   2025-09-21-error.log
-|   |   2025-09-22.log
-|   |   2025-09-22-error.log
 |   |   2025-09-27.log
 |   |   2025-09-27-error.log
 |   |   2025-09-30.log.gz
@@ -111,12 +108,20 @@
 |   |   2025-10-03-error.log
 |   |   2025-10-04.log
 |   |   2025-10-04-error.log
+|   |   2025-10-05.log
+|   |   2025-10-05-error.log
+|   |   2025-10-06.log
+|   |   2025-10-06-error.log
+|   |   2025-10-07.log
+|   |   2025-10-07-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
 +-- src
 |   +-- @types
 |   |   +-- bcryptjs
+|   |   |   |   index.d.ts
+|   |   +-- express
 |   |   |   |   index.d.ts
 |   |   |   shims.d.ts
 |   +-- bootstrap
@@ -130,14 +135,22 @@
 |   |   |   |   http-logger.ts
 |   |   |   |   index.ts
 |   |   |   |   jwt-role-hydrator.ts
+|   |   |   |   rate-limit.ts
 |   |   |   |   rbac.ts
 |   |   |   |   requestId.ts
 |   |   |   |   response.ts
 |   |   |   |   role-auth.ts
 |   |   |   |   upload.ts
 |   |   |   |   validation.ts
+|   |   +-- redis
+|   |   |   |   cache.ts
+|   |   |   |   client.ts
+|   |   |   |   lock.ts
+|   |   +-- session
+|   |   |   |   session.store.ts
 |   |   +-- utils
 |   |   |   |   date.ts
+|   |   |   |   geo.ts
 |   |   |   |   request-ip.ts
 |   |   |   |   ua.ts
 |   |   +-- validation
@@ -397,6 +410,10 @@
 |   +-- types
 |   |   |   auth.ts
 |   |   |   express.d.ts
+|   |   |   express.response.d.ts
+|   |   |   express-augment.d.ts
+|   |   |   geoip-lite.d.ts
+|   |   |   multer.d.ts
 |   |   |   password-reset.ts
 |   |   |   response.ts
 |   |   app.ts
