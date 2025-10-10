@@ -47,9 +47,10 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: redis
+ 
     command: ['redis-server', '--appendonly', 'yes', '--save', '60', '1']
-    # 内网即可，不需要映射到宿主机端口
+    ports:                # ← 新增：对外映射 6379
+      - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
@@ -58,6 +59,7 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
+
 
 volumes:
   redis-data:

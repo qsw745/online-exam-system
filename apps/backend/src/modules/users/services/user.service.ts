@@ -1,9 +1,13 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { LogService } from '@/modules/logs/services/log.service'
 import { OrgUserRepository } from '@/modules/orgs/repositories/org-user.repository'
 import { OrgUserService } from '@/modules/orgs/services/org-user.service'
 import bcrypt from 'bcryptjs'
 import type { UserDTO, UserRole, UserSettings, UserStatus } from '../domain/user.model'
 import { UserRepository } from '../repositories/user.repository.js'
+
+// --- 当项目未安装 @types/node 时，给 process 提供极小的类型声明以通过编译 ---
+declare const process: { env?: Record<string, string | undefined> } | undefined
 
 // --- Redis helpers (tolerant) ---
 let RC: any = null,
@@ -59,12 +63,15 @@ async function publishToUser(uid: number, payload: any) {
 }
 
 export class UserService {
+  private readonly orgSvc = new OrgUserService()
+  constructor(private readonly repo = new UserRepository()) {}
+
   async changePassword(userId: number, current: string, next: string, req?: any) {
     const me = await this.repo.getById(userId)
     if (!me) throw new Error('用户不存在')
 
-    // 取出哈希，用一个轻量查询（如果你 getById 不返回 password，就做一个专门查 password 的方法）
-    const [rows]: any = await (this as any).repo.db.query('SELECT password FROM users WHERE id = ?', [userId])
+    // 用 repo 的底层连接做轻量查询（注意改为 execute）
+    const [rows]: any = await (this as any).repo.db.execute('SELECT password FROM users WHERE id = ?', [userId])
     const hashed = rows?.[0]?.password as string | undefined
     if (!hashed) throw new Error('读取密码失败')
 
@@ -87,15 +94,10 @@ export class UserService {
       req
     )
 
-    // 如需强制下线其他会话，可在此清理 refresh/session（可选）
-    // await TokenRepository.revokeAllByUser(userId); await SessionStore.revokeAllByUser(userId)
-
     await cdel(kUserFull(userId), kUserMe(userId))
     await publishToUser(userId, { type: 'password_changed' })
     return true
   }
-  private readonly orgSvc = new OrgUserService()
-  constructor(private readonly repo = new UserRepository()) {}
 
   async getById(userId: number) {
     const ck = kUserFull(userId)
@@ -246,7 +248,8 @@ export class UserService {
     req?: any,
     options?: { newPassword?: string; forceLogout?: boolean }
   ) {
-    const defaultPassword = process.env.DEFAULT_RESET_PASSWORD || 'ChangeMe123!'
+    const defaultPassword =
+      (typeof process !== 'undefined' ? process?.env?.DEFAULT_RESET_PASSWORD : undefined) || 'ChangeMe123!'
     const plain = options?.newPassword || defaultPassword
 
     const exec = async () => {
@@ -267,14 +270,13 @@ export class UserService {
         req
       )
 
-      // 可选：强制下线其它会话
       if (options?.forceLogout) {
-        // 在此清理 refreshToken / sessions（如有实现）
+        // 清理会话（如实现）
       }
 
       await cdel(kUserFull(targetUserId), kUserMe(targetUserId))
       await publishToUser(targetUserId, { type: 'password_reset' })
-      return plain // 仅用于“默认密码”场景回显；Controller 已根据是否自定义决定是否返回给前端
+      return plain
     }
 
     const withLock = RL?.withLock as
@@ -358,11 +360,7 @@ export class UserService {
   }
 
   /** 当 /users/:id 接收到 orgId|org_id 字段时，统一在业务层编排 org 关系 */
-  async setUserOrg(
-    targetUserId: number,
-    nextOrgId: number | null, // null=移除主组织；number=设置/迁移为该组织
-    actor?: { id?: number; username?: string }
-  ) {
+  async setUserOrg(targetUserId: number, nextOrgId: number | null, actor?: { id?: number; username?: string }) {
     if (!(nextOrgId === null || Number.isFinite(nextOrgId))) return
 
     const prevOrgId = await OrgUserRepository.currentPrimaryOrgId(targetUserId)
@@ -375,11 +373,8 @@ export class UserService {
       await this.orgSvc.setPrimary(actor, nextOrgId, targetUserId)
     } else if (prevOrgId !== nextOrgId) {
       await this.orgSvc.moveUser(actor, prevOrgId, nextOrgId, targetUserId)
-    } else {
-      // 不变更
     }
 
-    // 缓存与权限失效 + 推送
     await cdel(kUserFull(targetUserId), kUserMe(targetUserId), kUserSettings(targetUserId))
     await cdelByPattern('user:list:*')
     await cdelByPattern(`perm:${targetUserId}:*`)

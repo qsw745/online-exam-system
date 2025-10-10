@@ -7,11 +7,11 @@ const {
   REDIS_PORT = '6379',
   REDIS_PASSWORD = '',
   REDIS_DB = '0',
-  REDIS_STRICT = '1', // 1=严格模式；设为 0 可临时放宽（不建议）
-  REDIS_STARTUP_TIMEOUT_MS = '10000', // 启动期等待 ready 的超时
-  REDIS_RUNTIME_GRACE_MS = '30000', // 运行期断连后的宽限时间
+  REDIS_STRICT = '1', // 1=严格；0=宽松
+  REDIS_STARTUP_TIMEOUT_MS = '10000',
+  REDIS_RUNTIME_GRACE_MS = '30000',
   REDIS_PREFIX = '',
-} = process.env
+} = process.env as Record<string, string | undefined>
 
 const STRICT = REDIS_STRICT !== '0'
 const STARTUP_TIMEOUT = Number(REDIS_STARTUP_TIMEOUT_MS) || 10000
@@ -55,16 +55,14 @@ export const redis = createClient('main')
 export const redisPub = createClient('pub')
 export const redisSub = createClient('sub')
 
-// 对外导出一个只读的健康标记；需要硬阻断时可在业务里调用 requireRedis()
+// 健康标记
 let _redisReady = false
 export const isRedisReady = () => _redisReady
 export function requireRedis() {
-  if (!_redisReady) {
-    throw new Error('REDIS_UNAVAILABLE')
-  }
+  if (!_redisReady) throw new Error('REDIS_UNAVAILABLE')
 }
 
-// 等待某个实例进入 ready 状态；支持超时
+// 等待 ready（无 off -> 用 removeListener）
 function waitReady(client: IORedis, name: string, timeoutMs: number) {
   if ((client as any).status === 'ready') return Promise.resolve()
   return new Promise<void>((resolve, reject) => {
@@ -83,17 +81,17 @@ function waitReady(client: IORedis, name: string, timeoutMs: number) {
     const t = setTimeout(onTimeout, timeoutMs)
     const clear = () => {
       clearTimeout(t)
-      client.off('ready', onReady)
-      client.off('error', onError)
+      ;(client as any).removeListener?.('ready', onReady)
+      ;(client as any).removeListener?.('error', onError)
     }
     client.once('ready', onReady)
     client.once('error', onError)
   })
 }
 
-// 当运行期断连，超过宽限时间仍未恢复，则直接退出进程（交给容器/PM2 重启）
+// 运行期看门狗（不用 NodeJS.Timeout 类型，避免 @types/node 依赖）
 function armRuntimeWatchdog(client: IORedis, name: string) {
-  let timer: NodeJS.Timeout | null = null
+  let timer: ReturnType<typeof setTimeout> | null = null
   const arm = () => {
     if (!STRICT || timer) return
     timer = setTimeout(() => {
@@ -121,7 +119,7 @@ function armRuntimeWatchdog(client: IORedis, name: string) {
   client.on('error', markDegraded)
 }
 
-// —— 初始化：导出一个可 await 的 Promise，供 app 在 listen 前严格等待 —— //
+// —— 初始化 —— //
 export const redisReady = (async () => {
   try {
     await Promise.all([redis.connect(), redisPub.connect(), redisSub.connect()])
@@ -134,7 +132,6 @@ export const redisReady = (async () => {
     appLogger.info('[redis] ping ok', { pong })
     _redisReady = true
 
-    // 运行期看门狗
     armRuntimeWatchdog(redis, 'main')
     armRuntimeWatchdog(redisPub, 'pub')
     armRuntimeWatchdog(redisSub, 'sub')
@@ -142,9 +139,8 @@ export const redisReady = (async () => {
     return true
   } catch (e) {
     appLogger.error('[redis] init failed, exiting', { err: e })
-    process.exit(1) // 开发 & 生产都严格：失败即退出
+    process.exit(1)
   }
 })()
 
-// 兼容旧用法（默认导出发布通道，支持 .publish）
 export default redisPub

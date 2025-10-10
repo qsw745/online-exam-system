@@ -1,6 +1,4 @@
-// apps/backend/src/modules/discussions/services/discussions.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { createHash } from 'crypto'
 import type { AuthRequest } from '@/types/auth'
 import { DiscussionRepository } from '../repositories/discussion.repository'
 
@@ -16,6 +14,18 @@ let RL: any = null
     RL = mod?.default ?? mod
   } catch {}
 })()
+
+// 轻量同步哈希（FNV-1a 32bit），避免依赖 'crypto'
+function hashHex(str: string) {
+  let h = 0x811c9dc5
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i)
+    // 32bit 乘法：* 16777619
+    h += (h << 1) + (h << 4) + (h << 7) + (h << 8) + (h << 24)
+  }
+  // 转无符号
+  return (h >>> 0).toString(16).padStart(8, '0')
+}
 
 async function setnxWithTTL(key: string, ttl: number) {
   // 优先用 lock 工具；否则降级到 cache 实现
@@ -42,13 +52,14 @@ export class DiscussionsService {
     const uid = req.user?.id
     if (uid) return `u:${uid}`
 
-    const xff = req.headers['x-forwarded-for']
+    // 使用 req.get()，并对 headers 做兜底，避免 TS2551
+    const xff = (req as any)?.get?.('x-forwarded-for') ?? (req as any)?.headers?.['x-forwarded-for']
     const ipHeader = Array.isArray(xff) ? xff[0] : (xff as string | undefined)
-    const ip = ipHeader?.split(',')[0].trim() || (req.ip ?? '')
-    const ua = String(req.headers['user-agent'] ?? '')
+    const ip = ipHeader?.split(',')[0].trim() || ((req as any).ip ?? '')
+    const ua = String((req as any)?.get?.('user-agent') ?? (req as any)?.headers?.['user-agent'] ?? '')
     const raw = `${ip}|${ua}`
-    const hash = createHash('sha1').update(raw).digest('hex')
-    return `g:${hash}`
+    const h = hashHex(raw)
+    return `g:${h}`
   }
 
   /** 在 TTL 内确保只 +1 一次；true 表示这次应当 +1 */

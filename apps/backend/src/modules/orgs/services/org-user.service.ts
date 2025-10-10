@@ -4,6 +4,12 @@ import { LogService } from '@/modules/logs/services/log.service' // ✅ 使用�
 import type { OrgUserListData } from '../domain/org-user.model'
 import { OrgUserRepository, getOrgUserColumns, getUserCols } from '../repositories/org-user.repository'
 
+// ---- 关键：最小可查询接口，避免与外部 Pool 类型冲突 ----
+type Queryable = {
+  query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+}
+const db: Queryable = pool as unknown as Queryable
+
 export class OrgUserService {
   /** GET 列表（分页/搜索/角色筛选/递归） */
   async listUsers(params: {
@@ -23,15 +29,15 @@ export class OrgUserService {
     const ids = [orgId]
     if (includeChildren) {
       try {
-        const [rows] = await pool.query<any[]>(
-            `
-              WITH RECURSIVE c AS (
-                SELECT id FROM ${orgTable} WHERE id=?
-                UNION ALL
-                SELECT o.id FROM ${orgTable} o JOIN c ON o.parent_id = c.id
-              ) SELECT id FROM c
-            `,
-            [orgId]
+        const [rows] = await db.query<any[]>(
+          `
+            WITH RECURSIVE c AS (
+              SELECT id FROM ${orgTable} WHERE id=?
+              UNION ALL
+              SELECT o.id FROM ${orgTable} o JOIN c ON o.parent_id = c.id
+            ) SELECT id FROM c
+          `,
+          [orgId]
         )
         const arr = (rows as any[]).map(r => Number(r.id)).filter(Boolean)
         if (arr.length) {
@@ -77,13 +83,13 @@ export class OrgUserService {
 
     if (role) {
       try {
-        const [tableCheck] = await pool.query<any[]>(
-            `SELECT table_name FROM information_schema.tables
-             WHERE table_schema = DATABASE() AND table_name = 'user_org_roles'`
+        const [tableCheck] = await db.query<any[]>(
+          `SELECT table_name FROM information_schema.tables
+           WHERE table_schema = DATABASE() AND table_name = 'user_org_roles'`
         )
         if ((tableCheck as any[]).length > 0) {
           whereParts.push(
-              `EXISTS (
+            `EXISTS (
               SELECT 1 FROM user_org_roles uor
               JOIN roles r ON r.id = uor.role_id
               WHERE uor.user_id = u.id
@@ -103,15 +109,15 @@ export class OrgUserService {
     const rows = await OrgUserRepository.listUsers(selectCols, whereSQL, whereVals, page, limit)
     const items = rows.map((r: any) => {
       const st: 'active' | 'disabled' =
-          typeof r.status === 'string'
-              ? r.status === 'disabled'
-                  ? 'disabled'
-                  : 'active'
-              : hasIsActive
-                  ? Number(r.is_active) === 1
-                      ? 'active'
-                      : 'disabled'
-                  : 'active'
+        typeof r.status === 'string'
+          ? r.status === 'disabled'
+            ? 'disabled'
+            : 'active'
+          : hasIsActive
+          ? Number(r.is_active) === 1
+            ? 'active'
+            : 'disabled'
+          : 'active'
       const base: any = {
         id: r.id,
         username: r.username,
@@ -134,10 +140,10 @@ export class OrgUserService {
 
   /** 批量添加用户到组织 */
   async addUsers(
-      user: { id?: number; username?: string } | undefined,
-      orgId: number,
-      userIds: number[],
-      reqMeta?: { ip?: string; ua?: string }
+    user: { id?: number; username?: string } | undefined,
+    orgId: number,
+    userIds: number[],
+    reqMeta?: { ip?: string; ua?: string }
   ) {
     if (!(await OrgUserRepository.orgExists(orgId))) throw new Error('组织不存在')
     const validIds = await OrgUserRepository.userIdsExisting(userIds)
@@ -164,10 +170,10 @@ export class OrgUserService {
 
   /** 从组织移除用户（含主组织校验与重分配） */
   async removeUser(
-      user: { id?: number; username?: string } | undefined,
-      orgId: number,
-      targetUserId: number,
-      reqMeta?: { ip?: string; ua?: string }
+    user: { id?: number; username?: string } | undefined,
+    orgId: number,
+    targetUserId: number,
+    reqMeta?: { ip?: string; ua?: string }
   ) {
     const cols = await getOrgUserColumns()
     const rel = await OrgUserRepository.relOfUserInOrg(orgId, targetUserId)
@@ -207,10 +213,10 @@ export class OrgUserService {
 
   /** 设置主组织（幂等） */
   async setPrimary(
-      user: { id?: number; username?: string } | undefined,
-      orgId: number,
-      targetUserId: number,
-      reqMeta?: { ip?: string; ua?: string }
+    user: { id?: number; username?: string } | undefined,
+    orgId: number,
+    targetUserId: number,
+    reqMeta?: { ip?: string; ua?: string }
   ) {
     if (!(await OrgUserRepository.orgExists(orgId))) throw new Error('组织或用户不存在')
     await OrgUserRepository.ensureRel(targetUserId, orgId)
@@ -238,11 +244,11 @@ export class OrgUserService {
 
   /** 在组织之间迁移用户（并设置目标为主组织） */
   async moveUser(
-      user: { id?: number; username?: string } | undefined,
-      fromOrgId: number,
-      toOrgId: number,
-      targetUserId: number,
-      reqMeta?: { ip?: string; ua?: string }
+    user: { id?: number; username?: string } | undefined,
+    fromOrgId: number,
+    toOrgId: number,
+    targetUserId: number,
+    reqMeta?: { ip?: string; ua?: string }
   ) {
     if (fromOrgId === toOrgId) throw new Error('源与目标组织相同')
     if (!(await OrgUserRepository.orgExists(fromOrgId)) || !(await OrgUserRepository.orgExists(toOrgId))) {

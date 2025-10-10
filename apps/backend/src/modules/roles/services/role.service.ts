@@ -1,10 +1,16 @@
+// apps/backend/src/modules/roles/services/role.service.ts
 import type { CreateRoleRequest, Role, UpdateRoleRequest } from '../domain/role.model.js'
 import { RoleRepository } from '../repositories/role.repository.js'
 import type { RowDataPacket } from 'mysql2/promise'
 
-// ✅ 新增：需要用到组织侧的工具与连接池
 import { pool } from '@/config/database.js'
 import { getOrgUserTable, getOrgTable, OrgUserRepository } from '@/modules/orgs/repositories/org-user.repository.js'
+
+// 最小化的可查询接口，避免与全局 Pool 冲突
+type Queryable = {
+  query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+}
+const db: Queryable = pool as unknown as Queryable
 
 let RC: any = null,
   RL: any = null
@@ -16,9 +22,11 @@ let RC: any = null,
     RL = (await import('@/common/redis/lock')).default || (await import('@/common/redis/lock'))
   } catch {}
 })()
+
 const ROLE_TTL = 600
 const kRole = (id: number) => `role:${id}`
 const kRolePg = (q: any) => `role:list:${JSON.stringify(q)}`
+
 async function cget<T = any>(k: string) {
   try {
     const v = await RC?.get?.(k)
@@ -27,14 +35,6 @@ async function cget<T = any>(k: string) {
     return null
   }
 }
-// 顶部已有 cdelByPattern，可直接复用
-function invalidateAuthCache() {
-  // 角色变化会影响：用户菜单树 与 权限行
-  cdelByPattern('menuTree:*')
-  cdelByPattern('perm:*')
-  cdelByPattern('menuTree:scope:*')
-}
-
 async function cset(k: string, v: any, ttl = ROLE_TTL) {
   try {
     await RC?.set?.(k, JSON.stringify(v), ttl)
@@ -50,6 +50,12 @@ async function cdelByPattern(p: string) {
     const ks = await RC?.keys?.(p)
     if (ks?.length) await RC?.del?.(ks)
   } catch {}
+}
+
+function invalidateAuthCache() {
+  cdelByPattern('menuTree:*')
+  cdelByPattern('perm:*')
+  cdelByPattern('menuTree:scope:*')
 }
 
 function toTinyint(v: any): 0 | 1 {
@@ -148,7 +154,6 @@ export class RoleService {
     const name = String(dto?.name ?? '').trim()
     if (!name) throw new Error('角色名称不能为空')
 
-    // 同机构内：name/code 唯一
     if (await this.nameExists(name, orgId)) throw new Error('该机构下角色名称已存在，请使用其他名称')
 
     let code = String(dto?.code ?? '').trim()
@@ -199,7 +204,7 @@ export class RoleService {
     if (dto.description !== undefined) partial.description = dto.description ?? null
     if (dto.is_disabled !== undefined) partial.is_disabled = toTinyint(dto.is_disabled)
     if (dto.sort_order !== undefined) partial.sort_order = toIntOr(dto.sort_order, role.sort_order ?? 1)
-    if (dto.org_id !== undefined) partial.org_id = dto.org_id // 如允许迁移机构
+    if (dto.org_id !== undefined) partial.org_id = dto.org_id
 
     await RoleRepository.update(id, partial)
     return RoleRepository.findById(id)
@@ -237,7 +242,7 @@ export class RoleService {
     return (all[0]?.sort_order ?? 0) + 1
   }
 
-  // ===== 新增：角色 ⇄ 用户（增/删，不影响其他关联） =====
+  // ===== 角色 ⇄ 用户（增/删） =====
   static async addUsersToRole(roleId: number, userIds: number[]) {
     const role = await RoleRepository.findById(roleId)
     if (!role) throw new Error('角色不存在')
@@ -257,7 +262,7 @@ export class RoleService {
     await RoleRepository.removeUserFromRole(roleId, uid)
   }
 
-  // ----- 角色 ⇄ 机构（单机构：roles.org_id） -----
+  // ----- 角色 ⇄ 机构 -----
   static async getRoleOrgs(roleId: number) {
     return RoleRepository.roleOrgs(roleId)
   }
@@ -279,7 +284,7 @@ export class RoleService {
     invalidateAuthCache()
   }
 
-  // ✅ 新增：从机构（可含子机构）批量拿用户加入角色
+  // ✅ 从机构（可含子机构）批量拿用户加入角色
   static async addUsersFromOrg(roleId: number, orgId: number, includeChildren = false) {
     const role = await RoleRepository.findById(roleId)
     if (!role) throw new Error('角色不存在')
@@ -288,11 +293,10 @@ export class RoleService {
     const orgIdField = await OrgUserRepository.orgIdField()
     const orgTable = await getOrgTable()
 
-    // 机构ID集合（可包含子机构）
     let ids = [orgId]
     if (includeChildren) {
       try {
-        const [rows] = await pool.query<RowDataPacket[]>(
+        const [rows] = await db.query<RowDataPacket[]>(
           `
           WITH RECURSIVE c AS (
             SELECT id FROM ${orgTable} WHERE id=?
@@ -302,22 +306,20 @@ export class RoleService {
           `,
           [orgId]
         )
-        ids = (rows as any[]).map(r => Number(r.id)).filter(Boolean)
+        ids = (rows as any[]).map((r: any) => Number(r.id)).filter(Boolean)
       } catch {
         /* MySQL < 8 忽略子机构 */
       }
     }
 
-    // 机构下所有用户
-    const [urows] = await pool.query<RowDataPacket[]>(
+    const [urows] = await db.query<RowDataPacket[]>(
       `SELECT DISTINCT user_id FROM ${orgUserTable} WHERE ${orgIdField} IN (${ids.map(() => '?').join(',')})`,
       ids
     )
-    const userIds = (urows as any[]).map(r => Number(r.user_id)).filter(Boolean)
+    const userIds = (urows as any[]).map((r: any) => Number(r.user_id)).filter(Boolean)
     if (!userIds.length) return 0
 
     invalidateAuthCache()
-    // 批量加到角色（IGNORE 重复）
     return RoleRepository.addUsersToRole(roleId, userIds)
   }
 }

@@ -5,6 +5,10 @@ import { CompetitionRepository } from '../repositories/competition.repository.js
 import { AchievementRepository } from '../repositories/achievement.repository.js'
 import type { Competition, Leaderboard, LeaderboardRecord } from '../domain/leaderboard.model.js'
 
+/** 只需 query 的轻量接口，避免 “PoolConnection 上不存在 query” 的类型噪音 */
+type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
+const asQ = (x: any): Queryable => x as Queryable
+
 export class LeaderboardService {
   private lbRepo = new LeaderboardRepository()
   private compRepo = new CompetitionRepository()
@@ -80,36 +84,36 @@ export class LeaderboardService {
 
   // —— Rank Calculations ——
   private async calculateRanks(leaderboard: Leaderboard) {
-    const conn = await pool.getConnection()
+    const conn: PoolConnection = await (pool as any).getConnection()
     try {
-      await conn.beginTransaction()
+      await (conn as any).beginTransaction()
       switch (leaderboard.type) {
         case 'score':
-          await this.calculateScoreRanks(conn, leaderboard)
+          await this.calculateScoreRanks(asQ(conn), leaderboard)
           break
         case 'time':
-          await this.calculateTimeRanks(conn, leaderboard)
+          await this.calculateTimeRanks(asQ(conn), leaderboard)
           break
         case 'accuracy':
-          await this.calculateAccuracyRanks(conn, leaderboard)
+          await this.calculateAccuracyRanks(asQ(conn), leaderboard)
           break
         case 'progress':
-          await this.calculateProgressRanks(conn, leaderboard)
+          await this.calculateProgressRanks(asQ(conn), leaderboard)
           break
       }
-      await conn.commit()
+      await (conn as any).commit()
       await this.checkRankingAchievements(leaderboard.id)
     } catch (e) {
-      await conn.rollback()
+      await (conn as any).rollback()
       throw e
     } finally {
-      conn.release()
+      ;(conn as any).release()
     }
   }
 
   private async checkRankingAchievements(leaderboardId: number) {
     const today = new Date().toISOString().split('T')[0]
-    const [records] = await pool.query<LeaderboardRecord[]>(
+    const [records] = await asQ(pool).query<LeaderboardRecord[]>(
       `SELECT lr.*
        FROM leaderboard_records lr
        WHERE lr.leaderboard_id=? AND lr.record_date=? 
@@ -163,13 +167,7 @@ export class LeaderboardService {
     }
   }
 
-  private async wipeAndInsert(
-    conn: PoolConnection,
-    leaderboardId: number,
-    rows: any[],
-    today: string,
-    extraKey?: string
-  ) {
+  private async wipeAndInsert(conn: Queryable, leaderboardId: number, rows: any[], today: string, extraKey?: string) {
     await this.lbRepo.deleteRecordsForDate(leaderboardId, today)
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]
@@ -184,7 +182,7 @@ export class LeaderboardService {
     }
   }
 
-  private async calculateScoreRanks(conn: PoolConnection, lb: Leaderboard) {
+  private async calculateScoreRanks(conn: Queryable, lb: Leaderboard) {
     const today = new Date().toISOString().split('T')[0]
     let sql = ''
     const p: any[] = []
@@ -219,7 +217,7 @@ export class LeaderboardService {
     await this.wipeAndInsert(conn, lb.id, rows as any[], today)
   }
 
-  private async calculateTimeRanks(conn: PoolConnection, lb: Leaderboard) {
+  private async calculateTimeRanks(conn: Queryable, lb: Leaderboard) {
     const today = new Date().toISOString().split('T')[0]
     let sql = ''
     switch (lb.category) {
@@ -241,7 +239,7 @@ export class LeaderboardService {
     await this.wipeAndInsert(conn, lb.id, rows as any[], today, 'study_time')
   }
 
-  private async calculateAccuracyRanks(conn: PoolConnection, lb: Leaderboard) {
+  private async calculateAccuracyRanks(conn: Queryable, lb: Leaderboard) {
     const today = new Date().toISOString().split('T')[0]
     const minQ = lb.calculation_method?.min_questions ?? 50
     const [rows] = await conn.query<RowDataPacket[]>(
@@ -267,7 +265,7 @@ export class LeaderboardService {
     }
   }
 
-  private async calculateProgressRanks(conn: PoolConnection, lb: Leaderboard) {
+  private async calculateProgressRanks(conn: Queryable, lb: Leaderboard) {
     const today = new Date().toISOString().split('T')[0]
     const [rows] = await conn.query<RowDataPacket[]>(
       `SELECT user_id,

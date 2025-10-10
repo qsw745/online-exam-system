@@ -1,4 +1,6 @@
-// apps/backend/src/modules/tasks/services/task.service.ts
+// ✅ 最小 Node shim：避免没有 @types/node 时 setImmediate 报错 2304
+declare function setImmediate(callback: (...args: any[]) => void, ...args: any[]): any
+
 import { log } from '@/infrastructure/logging/logger'
 import type {
   CreateTaskInput,
@@ -8,6 +10,7 @@ import type {
   UpdateTaskInput,
 } from '../domain/task.model.js'
 import { TaskRepository } from '../repositories/task.repository.js'
+
 let RC: any = null,
   RL: any = null,
   RClient: any = null
@@ -22,10 +25,12 @@ let RC: any = null,
     RClient = (await import('@/common/redis/client')).default || (await import('@/common/redis/client'))
   } catch {}
 })()
+
 const TASK_TTL = 90
 const kList = (q: any) => `task:list:${JSON.stringify(q)}`
 const kTask = (id: number, u: number, r: string) => `task:${id}:${u}:${r}`
 const kExam = (id: number, u: number) => `task:${id}:exam:${u}`
+
 async function cget<T = any>(k: string) {
   try {
     const v = await RC?.get?.(k)
@@ -88,6 +93,7 @@ export class TaskService {
     await cset(ck, data, 60)
     return data
   }
+
   async get(taskId: number, userId: number, role: 'admin' | 'teacher' | 'student') {
     const ck = kTask(taskId, userId, role)
     const hit = await cget(ck)
@@ -96,6 +102,7 @@ export class TaskService {
     if (d) await cset(ck, d, 60)
     return d
   }
+
   async create(
     input: CreateTaskInput & { paper_id?: number; assigned_department_ids?: number[] }
   ): Promise<TaskWithAssigned> {
@@ -310,14 +317,14 @@ export class TaskService {
       taskId,
     })
 
+    // ✅ 用 shim 声明的 setImmediate，不依赖 @types/node
     setImmediate(async () => {
       try {
         const { WrongQuestionController } = await import(
           '../../wrong-questions/controllers/wrong-question.controller.js'
         )
-
         const reqLike: any = { user: { id: userId }, body: { exam_result_id: examResultId } }
-        const resLike = makeResLike() as any // 👈 关键：as any
+        const resLike = makeResLike() as any
         await WrongQuestionController.autoCollectWrongQuestions(reqLike, resLike)
       } catch (e) {
         log.error('自动收集错题失败:', e)
@@ -373,7 +380,7 @@ export class TaskService {
   async getExam(originalId: number, userId: number, role: 'admin' | 'teacher' | 'student') {
     let task = await this.repo.getForAccess(originalId, userId, role)
     let taskId = originalId
-    const isStudent = role === 'student' // 👈 缓存
+    const isStudent = role === 'student'
     if (!task) {
       if (isStudent) {
         const maybeTaskId = await this.repo.findTaskIdByExamForUser(originalId, userId)
@@ -384,7 +391,6 @@ export class TaskService {
       } else {
         const anyTaskId = await this.repo.findAnyTaskIdByExam(originalId)
         if (anyTaskId) {
-          // 这里不要再 role === 'student' 三元了，直接用 isStudent
           task = await this.repo.getForAccess(anyTaskId, userId, isStudent ? 'student' : 'admin')
           taskId = anyTaskId
         }

@@ -1,4 +1,3 @@
-// apps/backend/src/modules/logs/services/log.service.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import HttpError from '@/common/errors/http-error'
 import { getClientIp } from '@/common/utils/request-ip'
@@ -125,9 +124,10 @@ async function attachGeo<T extends { ip_address?: string | null }>(rows: T[]) {
 }
 
 // ---------- 请求元信息 ----------
-const metaFromReq = (req?: Pick<Request, 'ip' | 'get' | 'headers' | 'socket'> | null) => ({
+// 直接接受 Request | undefined，避免 Pick<...,'socket'> 之类的类型冲突
+const metaFromReq = (req?: Request | null) => ({
   ipAddress: req ? getClientIp(req as Request) : undefined,
-  userAgent: req?.get?.('User-Agent') || (req as any)?.headers?.['user-agent'] || undefined,
+  userAgent: req?.get?.('User-Agent') ?? (req as any)?.header?.('User-Agent') ?? undefined,
 })
 
 // ---------- level 推断 ----------
@@ -194,17 +194,13 @@ export class LogService {
     return data
   }
 
-  // 旧：getAuditLogs(role: string | undefined, q: LogQueryParams)
-  // 新：带用户态，做细粒度鉴权
   async getAuditLogs(
     user: { id?: number; role?: string } | undefined,
     q: LogQueryParams & { type?: string; username?: string }
   ) {
     const baseQ: any = { ...q }
-    // 默认限定审计/安全类
     if (!baseQ.type) baseQ.type = 'audit'
 
-    // 管理员 -> 可查任意
     if (user?.role === 'admin') {
       const ck = kLogs('audit_admin', baseQ)
       const cached = await cget(ck)
@@ -217,12 +213,7 @@ export class LogService {
       return data
     }
 
-    // 普通用户 -> 只能看自己的（强制覆盖 username 及权限上下文）
     if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
-
-    // 覆盖 username，避免越权通过 query.username 指定别人
-    // 如果你的 LogRepository.queryLogs 支持 username 过滤，这里统一成当前登录用户；
-    // 若仓储按 currentUserId 做 ACL，也可不传 username，让仓储用 currentUserId 生效。
     delete baseQ.username
 
     const ck = kLogs(`audit_self:${user.id}`, baseQ)

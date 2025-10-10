@@ -1,11 +1,10 @@
-// apps/backend/src/modules/auth/repositories/token.repository.ts
-import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import { pool } from '@/config/database'
+import type { RowDataPacket } from 'mysql2/promise'
 
 // WebCrypto 版 sha256，避免引入 'crypto' 模块类型
 export async function sha256(s: string): Promise<string> {
   const enc = new TextEncoder().encode(s)
-  const buf = await (globalThis.crypto as any).subtle.digest('SHA-256', enc)
+  const buf = await (globalThis as any).crypto.subtle.digest('SHA-256', enc)
   const bytes = Array.from(new Uint8Array(buf))
   return bytes.map(b => b.toString(16).padStart(2, '0')).join('')
 }
@@ -34,7 +33,7 @@ export async function ensureRefreshTokenTable() {
     KEY idx_revoked (revoked)
   ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `
-  await pool.query(sql)
+  await (pool as any).query(sql)
 }
 
 export interface RefreshTokenRow extends RowDataPacket {
@@ -61,7 +60,7 @@ export const TokenRepository = {
     expiresAt: Date
   }) {
     const { userId, jti, token_hash, userAgent, ip, expiresAt } = params
-    await pool.execute<ResultSetHeader>(
+    await (pool as any).query(
       `INSERT INTO refresh_tokens (user_id, jti, token_hash, user_agent, ip, expires_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [userId, jti, token_hash, userAgent ?? null, ip ?? null, expiresAt]
@@ -79,16 +78,13 @@ export const TokenRepository = {
       expiresAt: Date
     }
   ) {
-    const conn = await pool.getConnection()
+    const conn = await (pool as any).getConnection()
     try {
       await conn.beginTransaction()
 
-      await conn.execute<ResultSetHeader>(`UPDATE refresh_tokens SET revoked=1, replaced_by_jti=? WHERE jti=?`, [
-        next.jti,
-        oldJti,
-      ])
+      await conn.query(`UPDATE refresh_tokens SET revoked=1, replaced_by_jti=? WHERE jti=?`, [next.jti, oldJti])
 
-      await conn.execute<ResultSetHeader>(
+      await conn.query(
         `INSERT INTO refresh_tokens (user_id, jti, token_hash, user_agent, ip, expires_at)
          VALUES (?, ?, ?, ?, ?, ?)`,
         [next.userId, next.jti, next.token_hash, next.userAgent ?? null, next.ip ?? null, next.expiresAt]
@@ -104,16 +100,18 @@ export const TokenRepository = {
   },
 
   async revokeByJti(jti: string) {
-    await pool.execute<ResultSetHeader>(`UPDATE refresh_tokens SET revoked=1 WHERE jti=?`, [jti])
+    await (pool as any).query(`UPDATE refresh_tokens SET revoked=1 WHERE jti=?`, [jti])
   },
 
   async findByJti(jti: string) {
-    const [rows] = await pool.execute<RefreshTokenRow[]>(`SELECT * FROM refresh_tokens WHERE jti=? LIMIT 1`, [jti])
+    const [rowsAny] = await (pool as any).query(`SELECT * FROM refresh_tokens WHERE jti=? LIMIT 1`, [jti])
+    const rows = rowsAny as RefreshTokenRow[]
     return rows[0] ?? null
   },
 
   async purgeExpired(now = new Date()) {
-    const [ret] = await pool.execute<ResultSetHeader>(`DELETE FROM refresh_tokens WHERE expires_at <= ?`, [now])
-    return ret.affectedRows
+    const [retAny] = await (pool as any).query(`DELETE FROM refresh_tokens WHERE expires_at <= ?`, [now])
+    const ret = retAny as { affectedRows?: number }
+    return ret.affectedRows ?? 0
   },
 }

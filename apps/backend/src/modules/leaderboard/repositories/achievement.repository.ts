@@ -1,9 +1,12 @@
 import { pool } from '@/config/database.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
+type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
+const asQ = (x: any): Queryable => x as Queryable
+
 export class AchievementRepository {
   async listByUser(userId: number) {
-    const [rows] = await pool.query<RowDataPacket[]>(
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
       `SELECT la.*, l.name AS leaderboard_name, c.title AS competition_title
        FROM leaderboard_achievements la
        LEFT JOIN leaderboards l ON l.id = la.leaderboard_id
@@ -16,7 +19,7 @@ export class AchievementRepository {
   }
 
   async exists(userId: number, type: string, leaderboardId?: number | null, competitionId?: number | null) {
-    const [rows] = await pool.query<RowDataPacket[]>(
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
       `SELECT id FROM leaderboard_achievements 
        WHERE user_id=? AND achievement_type=? AND leaderboard_id <=> ? AND competition_id <=> ? LIMIT 1`,
       [userId, type, leaderboardId ?? null, competitionId ?? null]
@@ -33,7 +36,7 @@ export class AchievementRepository {
     competitionId?: number | null,
     metadata?: any
   ) {
-    await pool.query<ResultSetHeader>(
+    await asQ(pool).query<ResultSetHeader>(
       `INSERT INTO leaderboard_achievements
        (user_id, achievement_type, achievement_name, achievement_description, leaderboard_id, competition_id, metadata)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,

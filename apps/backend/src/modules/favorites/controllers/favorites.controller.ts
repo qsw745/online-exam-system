@@ -1,5 +1,4 @@
 import type { Request } from 'express'
-import crypto from 'node:crypto'
 import type { Res } from '@/types/response.js'
 import { FavoritesService } from '../services/favorites.service.js'
 
@@ -13,6 +12,22 @@ function ensureUser(req: MaybeAuth, res: Res): number {
     throw new Error('UNAUTHORIZED')
   }
   return Number(id)
+}
+
+function randomHex(bytes = 16): string {
+  // Node 20+ 有 WebCrypto
+  if ((globalThis as any).crypto?.getRandomValues) {
+    const arr = new Uint8Array(bytes)
+    ;(globalThis as any).crypto.getRandomValues(arr)
+    return Array.from(arr, b => b.toString(16).padStart(2, '0')).join('')
+  }
+  // 兜底
+  let s = ''
+  for (let i = 0; i < bytes; i++)
+    s += Math.floor(Math.random() * 256)
+      .toString(16)
+      .padStart(2, '0')
+  return s
 }
 
 export class FavoritesController {
@@ -163,13 +178,15 @@ export class FavoritesController {
   // POST /:id/share
   static async share(req: MaybeAuth, res: Res) {
     try {
-      const userId = ensureUser(req, res)
+      ensureUser(req, res)
       const favoriteId = Number(req.params.id)
       if (!Number.isFinite(favoriteId)) return res.internal('无效的收藏夹ID')
-      const share_code = crypto.randomBytes(16).toString('hex')
-      const host = (req as any).get?.('host') || (req.headers as any)?.host || ''
-      const protocol = (req as any).protocol || 'http'
+
+      const share_code = randomHex(16)
+      const host = req.get('host') ?? (req as any)?.headers?.host ?? ''
+      const protocol = (req as any)?.protocol ?? ((req as any)?.secure ? 'https' : 'http')
       const share_url = `${protocol}://${host}/shared/favorites/${share_code}`
+
       return res.ok<{ share_code: string; share_url: string }>({ share_code, share_url })
     } catch (e: any) {
       return res.internal(e?.message || '生成分享链接失败')

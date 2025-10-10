@@ -1,9 +1,12 @@
-// apps/backend/src/modules/users/controllers/user.controller.ts
+// ✅ 加一行最小 Node shim，避免没有 @types/node 时的 2591 报错
+declare const process: any
+
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import type { ApiResponse } from '@/types/response.js'
 import { UserService } from '../services/user.service.js'
-import {log} from "@/infrastructure/logging/logger";
+import { log } from '@/infrastructure/logging/logger'
+
 // 本地 Res 类型（与中间件保持一致）
 type Res = Response & {
   ok<T = any>(data?: T, message?: string, extra?: any): Res
@@ -16,6 +19,7 @@ type Res = Response & {
   internal(message?: string, extra?: any): Res
   fail(code: string, httpStatus?: number, message?: string, extra?: any): Res
 }
+
 const svc = new UserService()
 
 export class UserController {
@@ -29,10 +33,11 @@ export class UserController {
       const ok = await svc.changePassword(req.user.id, current, next, req)
       if (!ok) return res.badRequest('当前密码不正确')
       return res.ok(null, '密码修改成功')
-    } catch (e) {
+    } catch {
       return res.internal('修改密码失败')
     }
   }
+
   static async getById(req: AuthRequest, res: Res) {
     try {
       const id = Number(req.params.id)
@@ -76,9 +81,9 @@ export class UserController {
   static async uploadAvatar(req: AuthRequest, res: Res) {
     try {
       if (!req.user?.id) return res.unauthorized('未授权')
-      const file = (req as any).file // 👈 Multer 的文件
+      const file = (req as any).file // Multer 文件
       if (!file) return res.badRequest('没有提供头像文件')
-      const baseUrl = process.env.PUBLIC_URL || process.env.API_URL || 'http://localhost:3000'
+      const baseUrl = process?.env?.PUBLIC_URL || process?.env?.API_URL || 'http://localhost:3000'
       const avatarUrl = `${baseUrl}/uploads/avatars/${file.filename}`
       const updated = await svc.uploadAvatar(req.user.id, avatarUrl)
       return res.ok(updated, '上传成功')
@@ -177,7 +182,6 @@ export class UserController {
       const raw: string | undefined = (req.body?.password ?? req.body?.newPassword) as any
       const forceLogout = !!req.body?.force_logout
 
-      // 有自定义密码则进行基本校验
       if (raw) {
         if (raw.length < 8) return res.badRequest('新密码至少 8 位')
         const kinds = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].reduce((n, r) => n + (r.test(raw) ? 1 : 0), 0)
@@ -188,7 +192,6 @@ export class UserController {
         newPassword: raw,
         forceLogout,
       })
-      // 出于安全，若是管理员自定义的密码，就不回显；若走默认值，可回显默认密码
       const data = raw ? undefined : { password }
       return res.ok(data, raw ? '已设置为自定义密码' : '密码已重置为系统默认密码')
     } catch (e: any) {

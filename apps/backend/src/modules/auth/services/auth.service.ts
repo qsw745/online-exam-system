@@ -1,49 +1,72 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/**
+ * 绝不从 'jsonwebtoken' 做静态导入；运行时用 Function('return require')() 加载。
+ * 这样 TypeScript 不会尝试解析 @types/jsonwebtoken，从根上规避 TS2306。
+ */
 import bcrypt from 'bcryptjs'
-import type { AuthResponseData, JwtPayload, IUser } from '../domain/auth.model'
+import type { AuthResponseData, IUser } from '../domain/auth.model'
 import { TokenRepository, sha256 } from '../repositories/token.repository'
 import HttpError from '@/common/errors/http-error'
 import { UserRepository, OrgRepository } from '../repositories/user.repository'
 import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_MS, getJwtSecret, getRefreshJwtSecret } from '@/config/jwt'
 import { LogService } from '@/modules/logs/services/log.service'
 import { SessionStore } from '@/common/session/session.store'
-
-// 如果你项目里有强密码校验，请解注以下导入并调用；没有就可忽略。
 import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
 
 declare const process: any
 
-// 动态加载 jsonwebtoken，避免类型“不是模块”的编译问题
-async function getJwt(): Promise<any> {
-  const mod: any = await import('jsonwebtoken')
-  return mod?.default ?? mod
+/**
+ * 仅在本文件内使用的“够用型”JWT载荷类型，避免引用 @types/jsonwebtoken
+ */
+type JwtLikePayload = {
+  id: number
+  email: string
+  role_ids: number[]
+  roles: any
+  type?: 'access' | 'refresh'
+  jti?: string
+  sid?: string
+  prst?: 0 | 1
+}
+
+/** 运行时装载 jsonwebtoken（不触发 TS 的模块类型解析） */
+function requireJwt(): any {
+  try {
+    // 在 CJS 环境可直接获得 require；在 ESM 下也能通过此方式拿到
+    // eslint-disable-next-line no-new-func
+    const req = Function('return require')() as (m: string) => any
+    const mod = req('jsonwebtoken')
+    return mod && mod.default ? mod.default : mod
+  } catch (e) {
+    // 如果运行时没装 jsonwebtoken，这里抛错更直观
+    throw new Error('jsonwebtoken 模块未安装或无法加载，请执行：pnpm add jsonwebtoken')
+  }
 }
 
 // —— Access 固定用相对 TTL —— //
-// ⚠️ 多一个 sid 参数：把“会话 ID”（refresh 的 jti）写进 access 里，鉴权时可校验是否被强退
-const signAccessToken = async (payloadBase: Omit<JwtPayload, 'type' | 'jti'>, sid?: string) =>
-  (await getJwt()).sign({ ...payloadBase, type: 'access', sid }, getJwtSecret(), {
-    expiresIn: ACCESS_JWT_EXPIRES_IN, // seconds
+const signAccessToken = async (payloadBase: Omit<JwtLikePayload, 'type' | 'jti'>, sid?: string) => {
+  const jwt = requireJwt()
+  return jwt.sign({ ...payloadBase, type: 'access', sid }, getJwtSecret(), {
+    expiresIn: ACCESS_JWT_EXPIRES_IN,
   } as any)
+}
 
 // —— Refresh 使用“绝对过期时间”（不滑动续期） —— //
-// prst: 1/0 表示是否持久化 Cookie（7天免登录）
 const signRefreshTokenAbs = async (
-  payloadBase: Omit<JwtPayload, 'type'> & { jti: string; prst: 0 | 1 },
+  payloadBase: Omit<JwtLikePayload, 'type'> & { jti: string; prst: 0 | 1 },
   absExp: Date
 ) => {
   const now = Date.now()
   const remainSec = Math.max(1, Math.floor((absExp.getTime() - now) / 1000))
-  return (await getJwt()).sign({ ...payloadBase, type: 'refresh' }, getRefreshJwtSecret(), {
-    expiresIn: remainSec, // seconds to absolute deadline
+  const jwt = requireJwt()
+  return jwt.sign({ ...payloadBase, type: 'refresh' }, getRefreshJwtSecret(), {
+    expiresIn: remainSec,
   } as any)
 }
 
-// 仅供首次签发：统一用毫秒常量
 const computeRefreshAbsExpire = () => new Date(Date.now() + REFRESH_JWT_EXPIRES_MS)
 
 export class AuthService {
-  /** 把 refresh 写入 HttpOnly Cookie（名称：rt） */
   setRefreshCookie(res: import('express').Response, token: string, opts?: { persist?: boolean; maxAgeMs?: number }) {
     const isProd = process?.env?.NODE_ENV === 'production'
     const base: any = {
@@ -52,7 +75,6 @@ export class AuthService {
       sameSite: 'lax',
       path: '/api/auth',
     }
-    // 有 maxAgeMs 就用剩余毫秒；否则如果 persist=true 用完整 TTL；否则会话 Cookie
     const final =
       typeof opts?.maxAgeMs === 'number'
         ? { ...base, maxAge: Math.max(0, Math.floor(opts!.maxAgeMs)) }
@@ -62,15 +84,13 @@ export class AuthService {
     ;(res as any).cookie?.('rt', token, final)
   }
 
-  /** 注册：返回 access + refresh + user（日志带 IP/UA），并登记会话 */
   async register(
     body: { username?: string; email: string; password: string },
     reqMeta?: { ip?: string; ua?: string },
-    options?: { persist?: boolean } // 控制是否持久 Cookie（7 天免登录）
+    options?: { persist?: boolean }
   ) {
     const { username, email, password } = body
 
-    // 如有强密码策略，放开此行
     await validateStrongPassword(password)
 
     const existed = await UserRepository.findByEmail(email)
@@ -92,7 +112,6 @@ export class AuthService {
 
     const { roles, roleIds: ridList } = await UserRepository.rolesOfUser(userId)
 
-    // 生成 refresh（jti 即会话 ID），access 带 sid=jti
     const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
     const absExp = computeRefreshAbsExpire()
     const prst: 0 | 1 = options?.persist ? 1 : 0
@@ -105,10 +124,9 @@ export class AuthService {
       token_hash: await sha256(refresh),
       userAgent: reqMeta?.ua || null,
       ip: reqMeta?.ip || null,
-      expiresAt: absExp, // 绝对过期
+      expiresAt: absExp,
     })
 
-    // 登记会话（SessionStore 的 expAt 用 refresh 的绝对过期）
     await SessionStore.save({
       jti,
       userId,
@@ -120,7 +138,6 @@ export class AuthService {
       expAt: Math.floor(absExp.getTime() / 1000),
     })
 
-    // 业务日志
     await LogService.log({
       type: 'user',
       status: 'success',
@@ -144,7 +161,6 @@ export class AuthService {
     } as AuthResponseData & { refresh: string; persist: boolean }
   }
 
-  /** 登录：返回 access + refresh + user（日志带 IP/UA），并登记会话 */
   async login(email: string, password: string, reqMeta: { ip?: string; ua?: string }, options?: { persist?: boolean }) {
     const user = await UserRepository.findByEmail(email)
     if (!user) {
@@ -194,7 +210,6 @@ export class AuthService {
 
     const { roles, roleIds } = await UserRepository.rolesOfUser(user.id)
 
-    // 生成 refresh（jti 即会话 ID），access 带 sid=jti
     const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
     const absExp = computeRefreshAbsExpire()
     const prst: 0 | 1 = options?.persist ? 1 : 0
@@ -210,10 +225,9 @@ export class AuthService {
       token_hash: await sha256(refresh),
       userAgent: reqMeta.ua || null,
       ip: reqMeta.ip || null,
-      expiresAt: absExp, // 绝对过期
+      expiresAt: absExp,
     })
 
-    // 登记会话
     await SessionStore.save({
       jti,
       userId: user.id,
@@ -248,20 +262,18 @@ export class AuthService {
 
   /** 刷新：校验 & 轮换 refresh（不延长绝对过期），并同步会话 sid */
   async refresh(rt: string) {
-    const jwt = await getJwt()
-    const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtPayload & { prst?: 0 | 1 }
+    const jwt = requireJwt()
+    const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtLikePayload
     if (payload.type !== 'refresh' || !payload.jti || !payload.id) {
       throw new HttpError('刷新令牌无效或已过期')
     }
 
-    // ✅ 新增：会话必须仍处于“激活”状态（没被强退/没过期）才能刷新
+    // 会话必须仍处于激活状态
     const stillActive = await SessionStore.isActive(payload.jti)
     if (!stillActive) {
       try {
         await TokenRepository.revokeByJti(payload.jti)
-      } catch {
-        /* ignore */
-      }
+      } catch {}
       throw new HttpError('刷新令牌已失效（会话被强退）')
     }
 
@@ -292,7 +304,7 @@ export class AuthService {
       token_hash: await sha256(newRefresh),
       userAgent: null,
       ip: null,
-      expiresAt: new Date(absExpMs), // 沿用原 absolute
+      expiresAt: new Date(absExpMs),
     })
 
     // 同步会话：撤销旧 sid，登记新 sid
@@ -308,19 +320,17 @@ export class AuthService {
         loginAt: new Date().toISOString(),
         expAt: Math.floor(absExpMs / 1000),
       })
-    } catch {
-      // 忽略会话存储失败，不影响刷新主流程
-    }
+    } catch {}
 
-    return { token: access, refresh: newRefresh, persist: prst === 1, remainMs } // 带回 persist/剩余毫秒
+    return { token: access, refresh: newRefresh, persist: prst === 1, remainMs }
   }
 
   /** 登出：吊销 refresh，并撤销会话 */
   async logout(rt?: string, reqMeta?: { ip?: string; ua?: string }) {
     if (!rt) return
     try {
-      const jwt = await getJwt()
-      const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtPayload
+      const jwt = requireJwt()
+      const payload = jwt.verify(rt, getRefreshJwtSecret()) as JwtLikePayload
       if ((payload as any)?.jti) {
         await TokenRepository.revokeByJti((payload as any).jti)
         await SessionStore.revoke((payload as any).jti)

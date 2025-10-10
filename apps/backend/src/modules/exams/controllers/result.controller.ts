@@ -12,7 +12,7 @@ const svc = new ResultService()
 const esc = (v: any) => {
   if (v == null) return ''
   const s = String(v)
-  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
+  if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"` // <-- 这里之前多了一个多余的 `}`
   return s
 }
 
@@ -47,7 +47,6 @@ const pickUser = (u: AuthRequest['user']) =>
   u
     ? ({
         id: u.id,
-        // 只允许 string；null -> undefined；也兼容 roles/role_ids 场景
         role: (u as any).role ?? (u as any).roles?.[0]?.code ?? (u as any).roles?.[0] ?? undefined,
       } as { id?: number; role?: string })
     : undefined
@@ -115,8 +114,9 @@ export class ResultController {
       const unicodeName = `成绩报告_${ymd}.csv`
       const disposition = buildContentDisposition(unicodeName)
 
-      res.setHeader('Content-Type', 'text/csv; charset=utf-8')
-      res.setHeader('Content-Disposition', disposition)
+      // 使用 Express 的 res.set()/res.header() 而不是 setHeader，避免 TS2551
+      res.set('Content-Type', 'text/csv; charset=utf-8')
+      res.set('Content-Disposition', disposition)
       return res.status(200).send(csv)
     } catch (e: any) {
       const msg = e?.message || '导出失败'

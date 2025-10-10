@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool } from '@/config/database'
-import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
+import type { RowDataPacket } from 'mysql2/promise'
 
 type Row = RowDataPacket & {
   id: number
@@ -23,19 +23,23 @@ const TABLE = 'auth_login_failures'
 
 export const LoginFailureRepository = {
   async get(email: string, ip: string): Promise<Row | null> {
-    const [rows] = await pool.query<Row[]>(
+    const [rowsAny] = await (pool as any).query(
       `SELECT id,email,ip,fail_count,last_failed_at,locked_until,updated_at
        FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`,
       [email, ip]
     )
+    const rows = rowsAny as Row[]
     return rows[0] ?? null
   },
 
   async upsert(email: string, ip: string, patch: Patch) {
-    const conn = await pool.getConnection()
+    const conn = await (pool as any).getConnection()
     try {
       await conn.beginTransaction()
-      const [rows] = await conn.query<Row[]>(`SELECT id FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [email, ip])
+
+      const [rowsAny] = await conn.query(`SELECT id FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [email, ip])
+      const rows = rowsAny as Pick<Row, 'id'>[]
+
       if (rows[0]) {
         const fields: string[] = []
         const values: any[] = []
@@ -52,12 +56,9 @@ export const LoginFailureRepository = {
           values.push(patch.locked_until)
         }
         fields.push('updated_at = NOW()')
-        await conn.query<ResultSetHeader>(`UPDATE ${TABLE} SET ${fields.join(', ')} WHERE id = ?`, [
-          ...values,
-          rows[0].id,
-        ])
+        await conn.query(`UPDATE ${TABLE} SET ${fields.join(', ')} WHERE id = ?`, [...values, rows[0].id])
       } else {
-        await conn.query<ResultSetHeader>(
+        await conn.query(
           `INSERT INTO ${TABLE} (email, ip, fail_count, last_failed_at, locked_until, updated_at)
            VALUES (?, ?, ?, ?, ?, NOW())`,
           [
@@ -69,6 +70,7 @@ export const LoginFailureRepository = {
           ]
         )
       }
+
       await conn.commit()
     } catch (e) {
       await conn.rollback()
@@ -80,30 +82,34 @@ export const LoginFailureRepository = {
 
   /** 失败 +1，返回最新计数 */
   async increase(email: string, ip: string) {
-    const conn = await pool.getConnection()
+    const conn = await (pool as any).getConnection()
     try {
       await conn.beginTransaction()
-      const [rows] = await conn.query<Row[]>(`SELECT id,fail_count FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [
+
+      const [rowsAny] = await conn.query(`SELECT id,fail_count FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [
         email,
         ip,
       ])
+      const rows = rowsAny as Pick<Row, 'id' | 'fail_count'>[]
+
       let next = 1
       if (rows[0]) {
         next = (rows[0].fail_count || 0) + 1
-        await conn.query<ResultSetHeader>(
+        await conn.query(
           `UPDATE ${TABLE}
            SET fail_count = ?, last_failed_at = NOW(), updated_at = NOW()
            WHERE id = ?`,
           [next, rows[0].id]
         )
       } else {
-        await conn.query<ResultSetHeader>(
+        await conn.query(
           `INSERT INTO ${TABLE} (email, ip, fail_count, last_failed_at, locked_until, updated_at)
            VALUES (?, ?, 1, NOW(), NULL, NOW())`,
           [email, ip]
         )
         next = 1
       }
+
       await conn.commit()
       return next
     } catch (e) {
@@ -115,7 +121,7 @@ export const LoginFailureRepository = {
   },
 
   async reset(email: string, ip: string) {
-    await pool.query<ResultSetHeader>(`DELETE FROM ${TABLE} WHERE email=? AND ip=?`, [email, ip])
+    await (pool as any).query(`DELETE FROM ${TABLE} WHERE email=? AND ip=?`, [email, ip])
   },
 
   /** 仅设置 locked_until（兼容老用法） */
@@ -123,30 +129,34 @@ export const LoginFailureRepository = {
     await this.upsert(email, ip, { locked_until: until })
   },
 
-  /** 加锁并同步 fail_count/last_failed_at，确保 locked_until 不为 NULL */
+  /** 加锁并同步 fail_count/last_failed_at */
   async lockWithCount(email: string, ip: string, until: Date, count?: number) {
-    const conn = await pool.getConnection()
+    const conn = await (pool as any).getConnection()
     try {
       await conn.beginTransaction()
-      const [rows] = await conn.query<Row[]>(`SELECT id, fail_count FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [
+
+      const [rowsAny] = await conn.query(`SELECT id, fail_count FROM ${TABLE} WHERE email=? AND ip=? LIMIT 1`, [
         email,
         ip,
       ])
+      const rows = rowsAny as Pick<Row, 'id' | 'fail_count'>[]
+
       if (rows[0]) {
         const newCount = typeof count === 'number' ? count : rows[0].fail_count || 0
-        await conn.query<ResultSetHeader>(
+        await conn.query(
           `UPDATE ${TABLE}
            SET fail_count = ?, locked_until = ?, last_failed_at = IFNULL(last_failed_at, NOW()), updated_at = NOW()
            WHERE id = ?`,
           [newCount, until, rows[0].id]
         )
       } else {
-        await conn.query<ResultSetHeader>(
+        await conn.query(
           `INSERT INTO ${TABLE} (email, ip, fail_count, last_failed_at, locked_until, updated_at)
            VALUES (?, ?, ?, NOW(), ?, NOW())`,
           [email, ip, typeof count === 'number' ? count : 0, until]
         )
       }
+
       await conn.commit()
     } catch (e) {
       await conn.rollback()
@@ -156,7 +166,7 @@ export const LoginFailureRepository = {
     }
   },
 
-  /** 锁过期则释放锁并把 fail_count 置 0（关键修复点） */
+  /** 锁过期则释放锁并把 fail_count 置 0 */
   async unlockIfExpired(email: string, ip: string) {
     const rec = await this.get(email, ip)
     if (!rec?.locked_until) return
@@ -165,7 +175,7 @@ export const LoginFailureRepository = {
     }
   },
 
-  /** last_failed_at 超过窗口则把 fail_count 置 0（过期计数衰减） */
+  /** last_failed_at 超过窗口则把 fail_count 置 0（衰减） */
   async decayIfStale(email: string, ip: string, windowMinutes: number) {
     const rec = await this.get(email, ip)
     if (!rec) return

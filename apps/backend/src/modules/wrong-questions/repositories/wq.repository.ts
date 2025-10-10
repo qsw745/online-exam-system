@@ -1,11 +1,30 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // apps/backend/src/modules/wrong-questions/repositories/wq.repository.ts
 
-import type { Pool, PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import { pool } from '@/config/database'
+import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
+import { pool as basePool } from '@/config/database'
 import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.model'
 
-// 统一将各种时间输入转成 MySQL 可接受的 Date（非法则返回 null）
+/**
+ * 关键：声明我们“实际用到”的最小接口，屏蔽 mysql2 在不同环境/版本上的类型差异，
+ * 避免 “Pool 上不存在 query/execute/getConnection” 以及 “类型未知” 报错。
+ */
+interface DBConn {
+  execute<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+  beginTransaction(): Promise<void>
+  commit(): Promise<void>
+  rollback(): Promise<void>
+  release(): void
+}
+
+interface DBPool {
+  execute<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+  getConnection(): Promise<DBConn>
+}
+
+const pool = basePool as unknown as DBPool
+
+// 将各种时间输入转成 MySQL 可接受的 Date（非法则返回 null）
 function toMySQLDate(v?: unknown): Date | null {
   if (!v) return null
   if (v instanceof Date) return isNaN(v.getTime()) ? null : v
@@ -14,11 +33,11 @@ function toMySQLDate(v?: unknown): Date | null {
 }
 
 export class WrongQuestionRepository {
-  constructor(private readonly db: Pool = pool) {}
+  constructor(private readonly db: DBPool = pool) {}
 
   // ---------------------------- books ----------------------------
   async createBook(b: Omit<WrongQuestionBook, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
-    const [ret] = await this.db.query<ResultSetHeader>(
+    const [ret] = await this.db.execute<ResultSetHeader>(
       `INSERT INTO wrong_question_books (user_id, name, description, is_default, is_public)
        VALUES (?, ?, ?, ?, ?)`,
       [b.user_id, b.name, b.description || '', b.is_default, b.is_public]
@@ -27,15 +46,15 @@ export class WrongQuestionRepository {
   }
 
   async getBooksWithStats(userId: number) {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT wqb.*,
               COUNT(wq.id) AS question_count,
               COUNT(CASE WHEN wq.mastery_level='mastered' THEN 1 END) AS mastered_count
-       FROM wrong_question_books wqb
-            LEFT JOIN wrong_questions wq ON wqb.id = wq.book_id
-       WHERE wqb.user_id = ?
-       GROUP BY wqb.id
-       ORDER BY wqb.is_default DESC, wqb.created_at DESC`,
+         FROM wrong_question_books wqb
+         LEFT JOIN wrong_questions wq ON wqb.id = wq.book_id
+        WHERE wqb.user_id = ?
+        GROUP BY wqb.id
+        ORDER BY wqb.is_default DESC, wqb.created_at DESC`,
       [userId]
     )
     return rows
@@ -46,32 +65,32 @@ export class WrongQuestionRepository {
     if (!keys.length) return
     const fields = keys.map(k => `${k} = ?`).join(', ')
     const values = keys.map(k => (patch as any)[k])
-    await this.db.query(`UPDATE wrong_question_books SET ${fields}, updated_at = NOW() WHERE id = ? AND user_id = ?`, [
-      ...values,
-      bookId,
-      userId,
-    ])
+    await this.db.execute(
+      `UPDATE wrong_question_books SET ${fields}, updated_at = NOW() WHERE id = ? AND user_id = ?`,
+      [...values, bookId, userId]
+    )
   }
 
   async deleteBookCascade(bookId: number, userId: number) {
-    const conn: PoolConnection = await this.db.getConnection()
+    const conn = await this.db.getConnection()
     try {
       await conn.beginTransaction()
-      const [rows] = await conn.query<RowDataPacket[]>(
+
+      const [rows] = await conn.execute<RowDataPacket[]>(
         'SELECT is_default FROM wrong_question_books WHERE id = ? AND user_id = ?',
         [bookId, userId]
       )
       if (!rows.length) throw new Error('错题本不存在')
       if ((rows[0] as any).is_default) throw new Error('默认错题本不能删除')
 
-      await conn.query(
+      await conn.execute(
         `DELETE FROM wrong_question_practice_records
-         WHERE wrong_question_id IN (SELECT id FROM wrong_questions WHERE book_id = ?)`,
+          WHERE wrong_question_id IN (SELECT id FROM wrong_questions WHERE book_id = ?)`,
         [bookId]
       )
-      await conn.query('DELETE FROM wrong_questions WHERE book_id = ?', [bookId])
-      await conn.query('DELETE FROM wrong_question_book_shares WHERE book_id = ?', [bookId])
-      await conn.query('DELETE FROM wrong_question_books WHERE id = ? AND user_id = ?', [bookId, userId])
+      await conn.execute('DELETE FROM wrong_questions WHERE book_id = ?', [bookId])
+      await conn.execute('DELETE FROM wrong_question_book_shares WHERE book_id = ?', [bookId])
+      await conn.execute('DELETE FROM wrong_question_books WHERE id = ? AND user_id = ?', [bookId, userId])
 
       await conn.commit()
     } catch (e) {
@@ -85,11 +104,11 @@ export class WrongQuestionRepository {
   // ------------------------- questions --------------------------
   /** 去重时带上 user_id，避免跨用户冲突 */
   async findExistingWrongQuestion(userId: number, bookId: number, questionId: number): Promise<{ id: number } | null> {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       'SELECT id FROM wrong_questions WHERE user_id = ? AND book_id = ? AND question_id = ?',
       [userId, bookId, questionId]
     )
-    return rows[0] ? { id: Number(rows[0].id) } : null
+    return rows[0] ? { id: Number((rows[0] as any).id) } : null
   }
 
   async upsertWrongQuestion(data: Omit<WrongQuestion, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
@@ -97,15 +116,15 @@ export class WrongQuestionRepository {
     const lastWrongTime = toMySQLDate(data.last_wrong_time) ?? new Date()
 
     if (exist) {
-      await this.db.query(
+      await this.db.execute(
         `UPDATE wrong_questions SET
-            wrong_count = wrong_count + ?,
-            last_wrong_time = ?,
-            exam_result_id = COALESCE(?, exam_result_id),
-            mastery_level = ?,
-            tags = COALESCE(?, tags),
-            notes = COALESCE(?, notes),
-            updated_at = NOW()
+           wrong_count = wrong_count + ?,
+           last_wrong_time = ?,
+           exam_result_id = COALESCE(?, exam_result_id),
+           mastery_level = ?,
+           tags = COALESCE(?, tags),
+           notes = COALESCE(?, notes),
+           updated_at = NOW()
          WHERE id = ?`,
         [
           data.wrong_count,
@@ -120,7 +139,7 @@ export class WrongQuestionRepository {
       return exist.id
     }
 
-    const [ret] = await this.db.query<ResultSetHeader>(
+    const [ret] = await this.db.execute<ResultSetHeader>(
       `INSERT INTO wrong_questions
          (user_id, book_id, question_id, exam_result_id, wrong_count, last_wrong_time, mastery_level, tags, notes)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -140,7 +159,7 @@ export class WrongQuestionRepository {
   }
 
   async ensureBookOwnership(bookId: number, userId: number): Promise<boolean> {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       'SELECT 1 FROM wrong_question_books WHERE id = ? AND user_id = ?',
       [bookId, userId]
     )
@@ -169,30 +188,30 @@ export class WrongQuestionRepository {
       params.push(`%${opts.search}%`, `%${opts.search}%`)
     }
 
-    const [cntRows] = await this.db.query<RowDataPacket[]>(
+    const [cntRows] = await this.db.execute<RowDataPacket[]>(
       `SELECT COUNT(*) AS total
-       FROM wrong_questions wq
-            JOIN questions q ON wq.question_id = q.id
-       ${where}`,
+         FROM wrong_questions wq
+         JOIN questions q ON wq.question_id = q.id
+        ${where}`,
       params
     )
-    const total = Number(cntRows[0]?.total || 0)
+    const total = Number((cntRows[0] as any)?.total ?? 0)
 
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT
-          wq.*,
-          q.content, q.title, q.question_type, q.difficulty,
-          COALESCE(pr.practice_count, 0) AS practice_count,
-          COALESCE(pr.correct_count, 0)  AS correct_count
-       FROM wrong_questions wq
-            JOIN questions q ON wq.question_id = q.id
-            LEFT JOIN (
-              SELECT wrong_question_id,
-                     COUNT(*) AS practice_count,
-                     SUM(CASE WHEN is_correct=1 THEN 1 ELSE 0 END) AS correct_count
-              FROM wrong_question_practice_records
-              GROUP BY wrong_question_id
-            ) pr ON pr.wrong_question_id = wq.id
+         wq.*,
+         q.content, q.title, q.question_type, q.difficulty,
+         COALESCE(pr.practice_count, 0) AS practice_count,
+         COALESCE(pr.correct_count, 0)  AS correct_count
+        FROM wrong_questions wq
+        JOIN questions q ON wq.question_id = q.id
+        LEFT JOIN (
+          SELECT wrong_question_id,
+                 COUNT(*) AS practice_count,
+                 SUM(CASE WHEN is_correct=1 THEN 1 ELSE 0 END) AS correct_count
+          FROM wrong_question_practice_records
+          GROUP BY wrong_question_id
+        ) pr ON pr.wrong_question_id = wq.id
        ${where}
        ORDER BY wq.last_wrong_time DESC
        LIMIT ? OFFSET ?`,
@@ -219,18 +238,18 @@ export class WrongQuestionRepository {
       }
     }
 
-    await this.db.query(`UPDATE wrong_questions SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`, [
+    await this.db.execute(`UPDATE wrong_questions SET ${fields.join(', ')}, updated_at = NOW() WHERE id = ?`, [
       ...values,
       questionId,
     ])
   }
 
   async removeWrongQuestionCascade(questionId: number) {
-    const conn: PoolConnection = await this.db.getConnection()
+    const conn = await this.db.getConnection()
     try {
       await conn.beginTransaction()
-      await conn.query('DELETE FROM wrong_question_practice_records WHERE wrong_question_id = ?', [questionId])
-      await conn.query('DELETE FROM wrong_questions WHERE id = ?', [questionId])
+      await conn.execute('DELETE FROM wrong_question_practice_records WHERE wrong_question_id = ?', [questionId])
+      await conn.execute('DELETE FROM wrong_questions WHERE id = ?', [questionId])
       await conn.commit()
     } catch (e) {
       await conn.rollback()
@@ -243,7 +262,7 @@ export class WrongQuestionRepository {
   // --------------------------- practice --------------------------
   async addPracticeRecord(r: Omit<PracticeRecord, 'id' | 'created_at'>): Promise<number> {
     const practiceTime = toMySQLDate((r as any).practice_time) ?? new Date()
-    const [ret] = await this.db.query<ResultSetHeader>(
+    const [ret] = await this.db.execute<ResultSetHeader>(
       `INSERT INTO wrong_question_practice_records (user_id, wrong_question_id, is_correct, time_spent, practice_time)
        VALUES (?, ?, ?, ?, ?)`,
       [r.user_id, r.wrong_question_id, r.is_correct ? 1 : 0, r.time_spent, practiceTime]
@@ -252,19 +271,19 @@ export class WrongQuestionRepository {
   }
 
   async recentCorrectFlags(wrongQuestionId: number, n = 5) {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT is_correct
-       FROM wrong_question_practice_records
-       WHERE wrong_question_id = ?
-       ORDER BY practice_time DESC
-       LIMIT ?`,
+         FROM wrong_question_practice_records
+        WHERE wrong_question_id = ?
+        ORDER BY practice_time DESC
+        LIMIT ?`,
       [wrongQuestionId, n]
     )
-    return rows.map((r: RowDataPacket) => Number(r.is_correct) === 1)
+    return rows.map((r: RowDataPacket) => Number((r as any).is_correct) === 1)
   }
 
   async setMasteryLevel(wrongQuestionId: number, level: MasteryLevel) {
-    await this.db.query('UPDATE wrong_questions SET mastery_level = ?, updated_at = NOW() WHERE id = ?', [
+    await this.db.execute('UPDATE wrong_questions SET mastery_level = ?, updated_at = NOW() WHERE id = ?', [
       level,
       wrongQuestionId,
     ])
@@ -277,7 +296,7 @@ export class WrongQuestionRepository {
     opts: { shared_to?: number; is_public: boolean; expires_at?: string }
   ): Promise<string> {
     const code = Math.random().toString(36).slice(2, 10).toUpperCase()
-    await this.db.query<ResultSetHeader>(
+    await this.db.execute<ResultSetHeader>(
       `INSERT INTO wrong_question_book_shares (book_id, shared_by, shared_to, share_code, is_public, expires_at)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [bookId, sharedBy, opts.shared_to ?? null, code, opts.is_public ? 1 : 0, opts.expires_at ?? null]
@@ -286,19 +305,19 @@ export class WrongQuestionRepository {
   }
 
   async getShare(code: string, userId: number) {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT wqbs.*, wqb.name, wqb.description, u.username AS shared_by_name
-       FROM wrong_question_book_shares wqbs
-            JOIN wrong_question_books wqb ON wqbs.book_id = wqb.id
-            JOIN users u ON wqbs.shared_by = u.id
-       WHERE wqbs.share_code = ?
-         AND (wqbs.expires_at IS NULL OR wqbs.expires_at > NOW())
-         AND (wqbs.is_public = 1 OR wqbs.shared_to = ? OR wqbs.shared_by = ?)`,
+         FROM wrong_question_book_shares wqbs
+         JOIN wrong_question_books wqb ON wqbs.book_id = wqb.id
+         JOIN users u ON wqbs.shared_by = u.id
+        WHERE wqbs.share_code = ?
+          AND (wqbs.expires_at IS NULL OR wqbs.expires_at > NOW())
+          AND (wqbs.is_public = 1 OR wqbs.shared_to = ? OR wqbs.shared_by = ?)`,
       [code, userId, userId]
     )
     if (!rows.length) return null
-    await this.db.query('UPDATE wrong_question_book_shares SET access_count = access_count + 1 WHERE id = ?', [
-      rows[0].id,
+    await this.db.execute('UPDATE wrong_question_book_shares SET access_count = access_count + 1 WHERE id = ?', [
+      (rows[0] as any).id,
     ])
     return rows[0]
   }
@@ -307,29 +326,29 @@ export class WrongQuestionRepository {
   async collectFromExamResult(
     examResultId: number
   ): Promise<Array<{ question_id: number; exam_title?: string; subject?: string }>> {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT
           ar.question_id AS question_id,
           e.title        AS exam_title,
           ''             AS subject
-       FROM answer_records ar
-            JOIN exam_results er ON er.id = ar.exam_result_id
-            LEFT JOIN exams e    ON e.id = er.exam_id
-       WHERE ar.exam_result_id = ?
-         AND (ar.is_correct = 0 OR ar.is_correct IS NULL)
-       ORDER BY ar.question_id ASC`,
+         FROM answer_records ar
+         JOIN exam_results er ON er.id = ar.exam_result_id
+         LEFT JOIN exams e    ON e.id = er.exam_id
+        WHERE ar.exam_result_id = ?
+          AND (ar.is_correct = 0 OR ar.is_correct IS NULL)
+        ORDER BY ar.question_id ASC`,
       [examResultId]
     )
 
     return rows.map((r: RowDataPacket) => ({
-      question_id: Number(r.question_id),
+      question_id: Number((r as any).question_id),
       exam_title: (r as any).exam_title ?? '',
       subject: '',
     }))
   }
 
   async statistics(userId: number) {
-    const [rows] = await this.db.query<RowDataPacket[]>(
+    const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT
           COUNT(DISTINCT wqb.id) AS book_count,
           COUNT(DISTINCT wq.id) AS total_wrong_questions,
@@ -338,10 +357,10 @@ export class WrongQuestionRepository {
           COUNT(CASE WHEN wq.mastery_level='not_mastered' THEN 1 END) AS not_mastered_count,
           COUNT(DISTINCT pr.id) AS total_practice_count,
           COUNT(CASE WHEN pr.is_correct=1 THEN 1 END) AS correct_practice_count
-       FROM wrong_question_books wqb
-            LEFT JOIN wrong_questions wq ON wqb.id = wq.book_id
-            LEFT JOIN wrong_question_practice_records pr ON wq.id = pr.wrong_question_id
-       WHERE wqb.user_id = ?`,
+         FROM wrong_question_books wqb
+         LEFT JOIN wrong_questions wq ON wqb.id = wq.book_id
+         LEFT JOIN wrong_question_practice_records pr ON wq.id = pr.wrong_question_id
+        WHERE wqb.user_id = ?`,
       [userId]
     )
     return rows[0]

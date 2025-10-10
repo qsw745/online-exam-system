@@ -1,5 +1,4 @@
 /* 最小可用的会话存储（Redis 优先，内存降级） */
-import crypto from 'node:crypto'
 import { redis } from '@/common/redis/client'
 
 type SessionRow = {
@@ -15,6 +14,15 @@ type SessionRow = {
 
 const nowSec = () => Math.floor(Date.now() / 1000)
 const ttlFromExp = (exp: number) => Math.max(1, exp - nowSec())
+
+function uuidLike(): string {
+  const r = (n = 16) => [...Array(n)].map(() => Math.floor(Math.random() * 16).toString(16)).join('')
+  try {
+    const g: any = (globalThis as any).crypto
+    if (g?.randomUUID) return g.randomUUID()
+  } catch {}
+  return `${r(8)}-${r(4)}-${r(4)}-${r(4)}-${r(12)}`
+}
 
 const PREFIX = (process.env.REDIS_PREFIX ? String(process.env.REDIS_PREFIX) : '').replace(/:+$/, '')
 const keyPfx = PREFIX ? `${PREFIX}:` : ''
@@ -33,7 +41,7 @@ const mem = {
 
 export const SessionStore = {
   newJti() {
-    return crypto.randomUUID()
+    return uuidLike()
   },
 
   async ping(): Promise<boolean> {

@@ -1,6 +1,15 @@
+// apps/backend/src/modules/profile/repositories/profile.repository.ts
 import { pool } from '@/config/database.js'
-import type { RowDataPacket, ResultSetHeader } from 'mysql2'
+import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import type { ProfileDTO, UpdateProfilePayload } from '../domain/profile.model'
+
+// 最小化的可查询接口，避免与全局 Pool 冲突
+type Queryable = {
+  query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+}
+
+// 统一使用 queryable
+const db: Queryable = pool as unknown as Queryable
 
 type ColMap = {
   email?: string
@@ -8,22 +17,22 @@ type ColMap = {
   bio?: string
   avatar?: string
   phone?: string
-  school?: string // ✅ 新增
-  class_name?: string // ✅ 新增
+  school?: string
+  class_name?: string
 }
 
 let CACHED_COLS: Set<string> | null = null
 let CACHED_MAP: ColMap | null = null
 
 async function loadUserColumns(): Promise<Set<string>> {
-    if (CACHED_COLS) return CACHED_COLS
-    const [rows] = await pool.query<RowDataPacket[]>(
-        `SELECT COLUMN_NAME as name
+  if (CACHED_COLS) return CACHED_COLS
+  const [rows] = await db.query<RowDataPacket[]>(
+    `SELECT COLUMN_NAME as name
      FROM information_schema.COLUMNS
      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users'`
-    )
-    CACHED_COLS = new Set((rows || []).map(r => String(r.name)))
-    return CACHED_COLS
+  )
+  CACHED_COLS = new Set((rows || []).map((r: RowDataPacket) => String((r as any).name)))
+  return CACHED_COLS
 }
 
 async function buildColMap(): Promise<ColMap> {
@@ -37,7 +46,6 @@ async function buildColMap(): Promise<ColMap> {
   const avatar = pick(['avatar_url', 'avatar', 'photo_url'])
   const phone = pick(['phone', 'mobile', 'phone_number', 'tel'])
 
-  // ✅ 尽量兼容可能的命名
   const school = pick(['school', 'school_name', 'college', 'organization', 'org'])
   const class_name = pick(['class_name', 'class', 'clazz', 'group_name'])
 
@@ -56,22 +64,22 @@ export class ProfileRepository {
     if (map.bio) selectPieces.push(`${map.bio} as __bio`)
     if (map.avatar) selectPieces.push(`${map.avatar} as __avatar`)
     if (map.phone) selectPieces.push(`${map.phone} as __phone`)
-    if (map.school) selectPieces.push(`${map.school} as __school`) // ✅
-    if (map.class_name) selectPieces.push(`${map.class_name} as __class_name`) // ✅
+    if (map.school) selectPieces.push(`${map.school} as __school`)
+    if (map.class_name) selectPieces.push(`${map.class_name} as __class_name`)
 
     const sql = `SELECT ${selectPieces.join(', ')} FROM users WHERE id = ? LIMIT 1`
-    const [rows] = await pool.query<RowDataPacket[]>(sql, [userId])
+    const [rows] = await db.query<RowDataPacket[]>(sql, [userId])
     const r = rows?.[0]
     if (!r) return null
 
     return {
-      email: r.__email ?? null,
-      nickname: r.__nickname ?? null,
-      bio: r.__bio ?? null,
-      avatar: r.__avatar ?? null,
-      phone: r.__phone ?? null,
-      school: r.__school ?? null,
-      class_name: r.__class_name ?? null,
+      email: (r as any).__email ?? null,
+      nickname: (r as any).__nickname ?? null,
+      bio: (r as any).__bio ?? null,
+      avatar: (r as any).__avatar ?? null,
+      phone: (r as any).__phone ?? null,
+      school: (r as any).__school ?? null,
+      class_name: (r as any).__class_name ?? null,
     }
   }
 
@@ -100,8 +108,6 @@ export class ProfileRepository {
       sets.push(`${map.phone} = ?`)
       params.push(payload.phone)
     }
-
-    // ✅ 新增可更新字段
     if (payload.school !== undefined && map.school) {
       sets.push(`${map.school} = ?`)
       params.push(payload.school)
@@ -114,7 +120,7 @@ export class ProfileRepository {
     if (sets.length > 0) {
       const sql = `UPDATE users SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`
       params.push(userId)
-      await pool.query<ResultSetHeader>(sql, params)
+      await db.query<ResultSetHeader>(sql, params)
     }
     const after = await this.getByUserId(userId)
     return after as ProfileDTO
@@ -122,9 +128,9 @@ export class ProfileRepository {
 
   static async updateAvatar(userId: number, value: string): Promise<ProfileDTO> {
     const map = await buildColMap()
-    const target = map.avatar ?? 'avatar_url' // 尝试最常见命名作为兜底
+    const target = map.avatar ?? 'avatar_url'
     const sql = `UPDATE users SET ${target} = ?, updated_at = NOW() WHERE id = ?`
-    await pool.query<ResultSetHeader>(sql, [value, userId])
+    await db.query<ResultSetHeader>(sql, [value, userId])
     const after = await this.getByUserId(userId)
     return after as ProfileDTO
   }

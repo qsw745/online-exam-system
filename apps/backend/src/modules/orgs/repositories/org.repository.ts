@@ -3,6 +3,12 @@ import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IOrg } from '../domain/org.model.js'
 
+// ---- 关键：最小可查询接口，避免与外部 Pool 类型冲突 ----
+type Queryable = {
+  query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
+}
+const db: Queryable = pool as unknown as Queryable
+
 export class OrgRepository {
   static async list(params: {
     page: number
@@ -26,17 +32,17 @@ export class OrgRepository {
     if (!includeInactive) where.push('is_active = 1')
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
-    const [rows] = await pool.query<IOrg[]>(
+    const [rows] = await db.query<IOrg[]>(
       `SELECT id, name, code, parent_id, is_active, created_at, updated_at
        FROM organizations ${whereSql} ORDER BY id ASC LIMIT ? OFFSET ?`,
       [...vals, limit, offset]
     )
-    const [[cnt]] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM organizations ${whereSql}`, vals)
+    const [[cnt]] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM organizations ${whereSql}`, vals)
     return { rows, total: Number((cnt as any)?.total) || 0 }
   }
 
   static async findAll(includeInactive: boolean): Promise<IOrg[]> {
-    const [rows] = await pool.query<IOrg[]>(
+    const [rows] = await db.query<IOrg[]>(
       `SELECT id, name, code, parent_id, is_active, created_at, updated_at
        FROM organizations ${includeInactive ? '' : 'WHERE is_active = 1'} ORDER BY id ASC`
     )
@@ -44,7 +50,7 @@ export class OrgRepository {
   }
 
   static async findById(id: number): Promise<IOrg | null> {
-    const [rows] = await pool.query<IOrg[]>(
+    const [rows] = await db.query<IOrg[]>(
       `SELECT id, name, code, parent_id, is_active, created_at, updated_at
        FROM organizations WHERE id=? LIMIT 1`,
       [id]
@@ -53,16 +59,16 @@ export class OrgRepository {
   }
 
   static async codeExists(code: string): Promise<boolean> {
-    const [rows] = await pool.query<RowDataPacket[]>(`SELECT code FROM organizations WHERE code=? LIMIT 1`, [code])
+    const [rows] = await db.query<RowDataPacket[]>(`SELECT code FROM organizations WHERE code=? LIMIT 1`, [code])
     return (rows as any[]).length > 0
   }
 
   static async listSimilarCodes(base: string): Promise<string[]> {
-    const [rows] = await pool.query<RowDataPacket[]>(
+    const [rows] = await db.query<RowDataPacket[]>(
       `SELECT code FROM organizations WHERE code = ? OR code LIKE CONCAT(?, '-%')`,
       [base, base]
     )
-    return (rows as any[]).map(r => String(r.code))
+    return (rows as any[]).map((r: any) => String(r.code)) // 🔧 指明 r 的类型，避免隐式 any
   }
 
   static async insertOrg(data: {
@@ -71,7 +77,7 @@ export class OrgRepository {
     parent_id: number | null
     is_active: 0 | 1
   }): Promise<number> {
-    const [ret] = await pool.query<ResultSetHeader>(
+    const [ret] = await db.query<ResultSetHeader>(
       `INSERT INTO organizations (name, code, parent_id, is_active, created_at, updated_at)
        VALUES (?,?,?,?,NOW(),NOW())`,
       [data.name, data.code, data.parent_id, data.is_active]
@@ -104,25 +110,23 @@ export class OrgRepository {
     if (sets.length === 0) return 0
     sets.push('updated_at=NOW()')
     vals.push(id)
-    const [ret] = await pool.query<ResultSetHeader>(`UPDATE organizations SET ${sets.join(', ')} WHERE id=?`, vals)
+    const [ret] = await db.query<ResultSetHeader>(`UPDATE organizations SET ${sets.join(', ')} WHERE id=?`, vals)
     return ret.affectedRows
   }
 
   static async deleteOrg(id: number): Promise<number> {
-    const [ret] = await pool.query<ResultSetHeader>('DELETE FROM organizations WHERE id=?', [id])
+    const [ret] = await db.query<ResultSetHeader>('DELETE FROM organizations WHERE id=?', [id])
     return ret.affectedRows
   }
 
   static async hasChildren(id: number): Promise<boolean> {
-    const [[row]] = await pool.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM organizations WHERE parent_id=?', [
-      id,
-    ])
+    const [[row]] = await db.query<RowDataPacket[]>('SELECT COUNT(*) AS cnt FROM organizations WHERE parent_id=?', [id])
     return Number((row as any)?.cnt || 0) > 0
   }
 
   static async allForCycleCheck(): Promise<Array<Pick<IOrg, 'id' | 'parent_id'>>> {
-    type OrgIdParentRow = RowDataPacket & { id: number; parent_id: number | null } // 🔧 新增最小行类型
-    const [rows] = await pool.query<OrgIdParentRow[]>('SELECT id, parent_id FROM organizations')
+    type OrgIdParentRow = RowDataPacket & { id: number; parent_id: number | null }
+    const [rows] = await db.query<OrgIdParentRow[]>('SELECT id, parent_id FROM organizations')
     return rows.map(r => ({ id: r.id, parent_id: r.parent_id }))
   }
 }

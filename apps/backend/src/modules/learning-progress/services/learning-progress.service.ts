@@ -13,14 +13,26 @@ import type {
 } from '../domain/learning-progress.model.js'
 import { LearningProgressRepository } from '../repositories/learning-progress.repository.js'
 
+type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
+const asQ = (x: any): Queryable => x as Queryable
+
+/** 便捷类型：repo.dailyStats 的返回行 */
+type DailyRow = {
+  date: string
+  total_study_time: number | null
+  total_questions: number | null
+  correct_answers: number | null
+  avg_accuracy: number | null
+}
+
 export class LearningProgressService {
   private repo = new LearningProgressRepository()
 
   // 记录学习进度
   async recordProgress(data: LearningProgressData): Promise<LearningProgress> {
-    const conn = await pool.getConnection()
+    const conn = await (pool as any).getConnection()
     try {
-      await conn.beginTransaction()
+      await (conn as any).beginTransaction()
       const acc = data.questionsAnswered > 0 ? (data.correctAnswers / data.questionsAnswered) * 100 : 0
       await this.repo.upsertProgress(
         conn,
@@ -58,28 +70,29 @@ export class LearningProgressService {
         streak,
       })
 
-      await conn.commit()
+      await (conn as any).commit()
 
-      const [rows] = await pool.execute<LearningProgress[]>(
+      // ✅ 统一用 asQ(pool).query()
+      const [rows] = await asQ(pool).query<LearningProgress[]>(
         `SELECT * FROM learning_progress WHERE user_id=? AND subject_id <=> ? AND study_date=CURDATE()`,
         [data.userId, data.subjectId ?? null]
       )
       return rows[0]
     } catch (e) {
-      await conn.rollback()
+      await (conn as any).rollback()
       throw e
     } finally {
-      conn.release()
+      ;(conn as any).release()
     }
   }
 
   // 统计
   async getProgressStats(userId: number, period: string, subjectId?: number): Promise<ProgressStats> {
     const days = period === '90d' ? 90 : period === '30d' ? 30 : 7
-    const daily = await this.repo.dailyStats(userId, subjectId, days)
+    const daily = (await this.repo.dailyStats(userId, subjectId, days)) as DailyRow[]
     const total = await this.repo.totalStats(userId, subjectId, days)
     return {
-      dailyStats: daily.map(d => ({
+      dailyStats: daily.map((d: DailyRow) => ({
         date: d.date,
         total_study_time: d.total_study_time ?? 0,
         total_questions: d.total_questions ?? 0,

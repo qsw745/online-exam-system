@@ -1,15 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
-// 🔑 不要再声明 process:any，会干扰 Node 类型推断
-// declare const process: any  // ← 删除这行
+// 这里不要声明 process:any；如果你还没装 @types/node，下面的 shims.d.ts 会提供声明
 
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
 import 'dotenv/config'
 import express, { type ErrorRequestHandler, type Request, type RequestHandler, type Response } from 'express'
-import { execSync } from 'node:child_process'
-import * as fs from 'node:fs'
-import * as path from 'node:path'
+
+// 兼容无 @types/node 的项目：使用经典模块名（非 node:*）
+import { execSync } from 'child_process'
+import * as fs from 'fs'
+import * as path from 'path'
+
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
 import { redisReady, isRedisReady } from '@/common/redis/client'
@@ -35,7 +37,7 @@ import { formatTime, log } from '@/infrastructure/logging/logger'
 import { CODES } from '@/types/response'
 
 /** uploads 目录 */
-const UPLOADS_DIR = process.env.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
+const UPLOADS_DIR = (process as any).env?.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
 const app = express()
@@ -54,7 +56,7 @@ app.use(requestId())
 app.use(responseEnvelope())
 
 // 3) CORS
-const FRONTEND_ORIGIN = String(process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const FRONTEND_ORIGIN = String((process as any).env?.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
 app.use(
   cors({
     origin: FRONTEND_ORIGIN,
@@ -96,9 +98,9 @@ const api404: RequestHandler = (_req, res) => {
   res.fail(CODES.NOT_FOUND, 404, '请求的资源不存在')
 }
 
-/** 是否在响应体中暴露堆栈（改为使用 req.get() 以避免 req.headers 类型报错） */
+/** 是否在响应体中暴露堆栈（用 req.get 读取 header，避免某些类型环境下的 req.headers 报错） */
 function shouldExposeStack(req: Request) {
-  const isProd = process.env.NODE_ENV === 'production'
+  const isProd = (process as any).env?.NODE_ENV === 'production'
   const debugHeader = (req.get('x-debug') || req.get('x-debug-stack') || '').toString().trim()
   return !isProd || debugHeader === '1' || debugHeader.toLowerCase() === 'true'
 }
@@ -229,10 +231,10 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 /** —— 端口诊断（Windows 专用） —— */
 function diagnoseWindowsPort(port: number) {
   try {
-    if (process.platform !== 'win32') return
+    if ((process as any).platform !== 'win32') return
     log.error('[diagnose] Windows 检测：开始快速排查…')
     try {
-      const out = execSync('netsh int ipv4 show excludedportrange protocol=tcp', { encoding: 'utf8' })
+      const out = execSync('netsh int ipv4 show excludedportrange protocol=tcp', { encoding: 'utf8' } as any) as string
       const ranges: Array<[number, number]> = []
       for (const line of out.split(/\r?\n/)) {
         const m = line.trim().match(/^(\d+)\s+(\d+)$/)
@@ -247,7 +249,7 @@ function diagnoseWindowsPort(port: number) {
       }
     } catch {}
     try {
-      const out2 = execSync(`cmd /c netstat -ano -p tcp | findstr ":${port}"`, { encoding: 'utf8' })
+      const out2 = execSync(`cmd /c netstat -ano -p tcp | findstr ":${port}"`, { encoding: 'utf8' } as any) as string
       if (out2?.trim()) {
         log.error('[diagnose] netstat 检测到可能占用：')
         log.error(out2)
@@ -262,8 +264,8 @@ function diagnoseWindowsPort(port: number) {
 }
 
 /** 启动（固定端口策略 + 单例监听防抖） */
-const port = Number(process.env.PORT || 3000)
-const HOST = String(process.env.HOST || '0.0.0.0')
+const port = Number((process as any).env?.PORT || 3000)
+const HOST = String((process as any).env?.HOST || '0.0.0.0')
 const LISTEN_FLAG = '__OES_SERVER_ALREADY_LISTENING__'
 
 async function start() {
@@ -295,27 +297,26 @@ async function start() {
       console.log(`[boot] uploads dir = ${UPLOADS_DIR}`)
     })
 
-    // ❗ 不用 res.once / res.statusCode 等不在类型上的 API；这里只针对 server 级别监听
     server.on('error', (err: any) => {
       const code = err?.code
       const addr = (err as any)?.address ?? HOST
       const prt = (err as any)?.port ?? port
       if (code === 'EADDRINUSE' || code === 'EACCES') {
         console.error(`[boot] 监听失败：${addr}:${prt} -> ${code} (${err?.message || 'permission denied'})`)
-        if (process.platform === 'win32' && code === 'EACCES') {
+        if ((process as any).platform === 'win32' && code === 'EACCES') {
           diagnoseWindowsPort(prt)
         }
         console.error(`[boot] 固定端口策略：不切换端口。请释放/解除限制后重试。`)
         console.error(`[hint] Windows: netstat -ano | findstr ":${prt}"  ->  taskkill /PID <pid> /F`)
-        process.exit(1)
+        ;(process as any).exit?.(1)
       } else {
         console.error('[boot] listen error:', err)
-        process.exit(1)
+        ;(process as any).exit?.(1)
       }
     })
   } catch (e) {
     console.error('[boot] failed:', e)
-    process.exit(1)
+    ;(process as any).exit?.(1)
   }
 }
 
