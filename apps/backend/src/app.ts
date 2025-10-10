@@ -1,5 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-declare const process: any
+
+// 🔑 不要再声明 process:any，会干扰 Node 类型推断
+// declare const process: any  // ← 删除这行
 
 import cookieParser from 'cookie-parser'
 import cors from 'cors'
@@ -10,7 +12,7 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import 'source-map-support/register'
 import 'tsconfig-paths/register'
-import { redisReady, isRedisReady } from '@/common/redis/client' // ← 保留这一行即可，去掉上面的 `import '@/common/redis/client'`
+import { redisReady, isRedisReady } from '@/common/redis/client'
 
 // 业务错误类型
 import { HttpError } from '@/common/errors/http-error'
@@ -94,10 +96,10 @@ const api404: RequestHandler = (_req, res) => {
   res.fail(CODES.NOT_FOUND, 404, '请求的资源不存在')
 }
 
-/** 是否在响应体中暴露堆栈 */
+/** 是否在响应体中暴露堆栈（改为使用 req.get() 以避免 req.headers 类型报错） */
 function shouldExposeStack(req: Request) {
   const isProd = process.env.NODE_ENV === 'production'
-  const debugHeader = (req.headers['x-debug'] || req.headers['x-debug-stack'] || '').toString().trim()
+  const debugHeader = (req.get('x-debug') || req.get('x-debug-stack') || '').toString().trim()
   return !isProd || debugHeader === '1' || debugHeader.toLowerCase() === 'true'
 }
 
@@ -151,7 +153,7 @@ function safeJson(obj: any, max = 4000) {
 /** —— 统一错误处理（必须在所有路由/404 之后） —— */
 const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (res.headersSent) return
-  const log = (req as any).log ?? console
+  const logger = (req as any).log ?? console
   const isHttpErr =
     err instanceof HttpError ||
     (err && (err as any).name === 'HttpError') ||
@@ -171,14 +173,14 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
   const short =
     `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
-    (top ? ` @/ ${top.file}:${top.line}:${top.column}${top.method ? ` (${top.method})` : ''}` : '')
+    (top ? ` @/ ${top.file}:${top.line}:${top.column}${top?.method ? ` (${top.method})` : ''}` : '')
 
   const reqDump =
     req.method === 'GET' || req.method === 'HEAD'
       ? { params: req.params, query: req.query }
       : { params: req.params, query: req.query, body: safeJson(req.body) }
 
-  log[status >= 500 ? 'error' : 'warn']?.('controller error', {
+  logger[status >= 500 ? 'error' : 'warn']?.('controller error', {
     rid: (req as any).id ?? null,
     method: req.method,
     url: (req as any).originalUrl || req.url,
@@ -293,6 +295,7 @@ async function start() {
       console.log(`[boot] uploads dir = ${UPLOADS_DIR}`)
     })
 
+    // ❗ 不用 res.once / res.statusCode 等不在类型上的 API；这里只针对 server 级别监听
     server.on('error', (err: any) => {
       const code = err?.code
       const addr = (err as any)?.address ?? HOST
