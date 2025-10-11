@@ -1,18 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// apps/backend/src/modules/auth/repositories/user.repository.ts
-
 import { pool as basePool } from '@/config/database'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IUser } from '../domain/auth.model'
 
-/**
- * 关键做法：定义最小可用接口，避免不同环境下的 mysql2 类型差异导致
- * “Pool 上不存在 query/execute” 或 “类型未知”的报错。
- */
 interface DBPool {
   execute<T = any>(sql: string, params?: any[]): Promise<[T, any]>
 }
-
 const pool = basePool as unknown as DBPool
 
 type RoleRow = RowDataPacket & { id: number; code: string }
@@ -22,6 +15,27 @@ export class UserRepository {
   static async findByEmail(email: string): Promise<IUser | null> {
     const [rows] = await pool.execute<RowDataPacket[]>(`SELECT * FROM users WHERE email=? LIMIT 1`, [email])
     return (rows[0] as unknown as IUser) || null
+  }
+
+  static async findByUsername(username: string): Promise<IUser | null> {
+    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT * FROM users WHERE username=? LIMIT 1`, [username])
+    return (rows[0] as unknown as IUser) || null
+  }
+
+  /** 登录用：优先按 email，再按 username；反之亦然，避免 (email OR username) 误命中 */
+  static async findByLogin(login: string): Promise<IUser | null> {
+    const v = String(login || '').trim()
+    if (!v) return null
+
+    if (v.includes('@')) {
+      const byEmail = await this.findByEmail(v)
+      if (byEmail) return byEmail
+      return this.findByUsername(v)
+    }
+
+    const byName = await this.findByUsername(v)
+    if (byName) return byName
+    return this.findByEmail(v)
   }
 
   static async findById(id: number): Promise<IUser | null> {
@@ -48,7 +62,7 @@ export class UserRepository {
         WHERE ur.user_id = ?`,
       [userId]
     )
-    const roles = rows.map((r: RoleRow) => ({ id: Number(r.id), code: String(r.code) }))
+    const roles = rows.map(r => ({ id: Number(r.id), code: String(r.code) }))
     return { roles, roleIds: roles.map(r => r.id) }
   }
 }
@@ -71,7 +85,7 @@ export class OrgRepository {
 
   static async defaultRoleIdsOfOrg(orgId: number): Promise<number[]> {
     const [defs] = await pool.execute<DefaultRoleRow[]>(`SELECT role_id FROM org_default_roles WHERE org_id=?`, [orgId])
-    return defs.map((r: DefaultRoleRow) => Number(r.role_id))
+    return defs.map(r => Number(r.role_id))
   }
 
   static async ensureUserRoles(userId: number, orgId: number, roleIds: number[]) {

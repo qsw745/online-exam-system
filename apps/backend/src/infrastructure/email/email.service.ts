@@ -1,7 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// 没装 @types/node 时做最小声明
 import { log } from '@/infrastructure/logging/logger'
-
 declare const process: any
 
 import type { EmailConfig, EmailTemplate } from '@/types/password-reset.js'
@@ -29,7 +27,9 @@ class EmailService {
         auth: { user: process.env.EMAIL_USER!, pass: process.env.EMAIL_PASS! },
       }
 
-      const mod: any = await import('nodemailer')
+      // ✅ 关键修复：用 Function + 动态 import 字符串，避免 TS 去解析 @types/nodemailer
+      const dynamicImport = new Function('m', 'return import(m)') as (m: string) => Promise<any>
+      const mod: any = await dynamicImport('nodemailer')
       const nodemailer = mod?.default ?? mod
       this.transporter = nodemailer.createTransport(config as any)
 
@@ -44,7 +44,6 @@ class EmailService {
           log.error('邮件服务配置验证失败:', error?.message || error)
           this.isConfigured = false
         } else {
-          // 避免 log.log(Level) 类型冲突，使用 info
           log.info('邮件服务配置验证成功')
           this.isConfigured = true
         }

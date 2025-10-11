@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response, Request } from 'express'
 import { CODES } from '@/types/response'
 import CaptchaService from '../services/captcha.service'
@@ -8,7 +9,8 @@ export class CaptchaController {
   static async newJson(req: Request, res: Response) {
     const ip = getClientIp(req) || req.ip || ''
     const { id, svg, ttl } = await CaptchaService.createFor(ip)
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+    // ✅ 用 res.set(...) 而不是 res.setHeader(...)，避免类型告警
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     return (res as any).ok({ id, svg, ttl }, '验证码生成成功')
   }
 
@@ -16,10 +18,10 @@ export class CaptchaController {
   static async newSvg(req: Request, res: Response) {
     const ip = getClientIp(req) || req.ip || ''
     const { id, svg, ttl } = await CaptchaService.createFor(ip)
-    res.setHeader('X-Captcha-Id', id)
-    res.setHeader('X-Captcha-TTL', String(ttl))
-    res.setHeader('Content-Type', 'image/svg+xml; charset=utf-8')
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate')
+    res.set('X-Captcha-Id', id)
+    res.set('X-Captcha-TTL', String(ttl))
+    res.set('Content-Type', 'image/svg+xml; charset=utf-8')
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate')
     return res.status(200).send(svg)
   }
 

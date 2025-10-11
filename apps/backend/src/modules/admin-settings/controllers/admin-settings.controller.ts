@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import type { ApiResponse } from '@/types/response.js'
@@ -25,15 +26,14 @@ export class AdminSettingsController {
     }
   }
 
-  // ✅ 新增：公开读取，给登录/注册页用，不需要 Token
+  // ✅ 公开读取，给登录/注册页用，不需要 Token
   static async getPublicSettings(_req: any, res: Response<ApiResponse<any>>) {
     try {
       const full = await AdminSettingsService.getSafe()
-      // 仅挑登录前需要的、安全的字段
       const data = {
         systemName: full.systemName,
         allowUserRegistration: full.allowUserRegistration,
-        // 登录页需要的策略：
+        // 登录页策略：
         enableCaptcha: !!full.enableCaptcha,
         captchaAfterFailed: Number(full.captchaAfterFailed ?? 3),
         enableStrongPassword: !!full.enableStrongPassword,
@@ -44,8 +44,8 @@ export class AdminSettingsController {
         strongPasswordRequireDigit: !!full.strongPasswordRequireDigit,
         strongPasswordRequireSpecial: !!full.strongPasswordRequireSpecial,
       }
-      // 可选：给一点短缓存
-      res.setHeader('Cache-Control', 'private, max-age=60')
+      // ✅ 用 res.set(...) 避免类型告警
+      res.set('Cache-Control', 'private, max-age=60')
       return (res as any).ok(data, '获取公开系统设置成功')
     } catch (e: any) {
       console.error('获取公开系统设置失败:', e)

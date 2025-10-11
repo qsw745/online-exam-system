@@ -15,7 +15,6 @@ import Geo from '@/common/utils/geo'
 const svc = new AuthService()
 
 export class AuthController {
-  /** 注册 */
   static async register(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const { username, email, password, keep7Days } = (req.body || {}) as any
@@ -32,11 +31,25 @@ export class AuthController {
       svc.setRefreshCookie(res, refresh, { persist })
       return (res as any).created({ token, user }, '注册成功')
     } catch (e: any) {
-      return (res as any).internal(e?.message || '创建用户失败')
+      const msg = String(e?.message || '')
+      // ✅ jsonwebtoken 未安装 -> 503，用 fail 显式设定状态码（不要用不存在的 res.serviceUnavailable）
+      if (msg.includes('jsonwebtoken 模块未安装或无法加载')) {
+        return (res as any).fail(CODES.INTERNAL_ERROR, 503, '服务器依赖未就绪：请安装 jsonwebtoken 后再试', {
+          error: { retryable: true },
+        })
+      }
+      // ✅ 业务冲突：用户已存在 -> 400（你也可改 409）
+      if (msg.includes('用户已存在')) {
+        return (res as any).badRequest('用户已存在', {
+          code: CODES.VALIDATION_ERROR,
+          error: { retryable: false, details: [{ field: 'email', message: '已被占用' }] },
+        })
+      }
+      return (res as any).internal(msg || '创建用户失败')
     }
   }
 
-  /** 登录（锁定+验证码，锁过期自动清零 fail_count，过期计数自动衰减） */
+  /** 登录（锁定+验证码） */
   static async login(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const settings = await AdminSettingsService.getSafe()
@@ -62,6 +75,7 @@ export class AuthController {
       enc = enc || req.get('x-cred-enc')
       alg = (alg || req.get('x-cred-alg') || '').toString()
 
+      // 支持 RSA-OAEP-256 加密的凭据
       if (enc && /RSA-OAEP/i.test(alg)) {
         try {
           const dec = CryptoService.decryptLoginCred(String(enc))
@@ -77,7 +91,10 @@ export class AuthController {
         }
       }
 
-      if (!email || !password) {
+      const loginId = typeof email === 'string' ? email.trim() : email
+      const plainPwd = typeof password === 'string' ? password : password
+
+      if (!loginId || !plainPwd) {
         return (res as any).badRequest('缺少必填字段', {
           error: { details: [{ field: 'email/password', message: '必填' }] },
         })
@@ -85,10 +102,10 @@ export class AuthController {
 
       const ip = getClientIp(req) || req.ip || ''
 
-      await lockSvc.unlockIfExpired(email, ip)
-      await lockSvc.decayOldFails(email, ip, lockMinutes)
+      await lockSvc.unlockIfExpired(loginId, ip)
+      await lockSvc.decayOldFails(loginId, ip, lockMinutes)
 
-      const rec = await lockSvc.getRecord(email, ip)
+      const rec = await lockSvc.getRecord(loginId, ip)
       if (rec?.locked_until && new Date(rec.locked_until).getTime() > Date.now()) {
         const untilMs = new Date(rec.locked_until).getTime()
         const remainSec = Math.max(1, Math.ceil((untilMs - Date.now()) / 1000))
@@ -105,8 +122,7 @@ export class AuthController {
         })
       }
 
-      // ========= 统一的验证码校验入口 =========
-      // 规则：只要（1）后端判定必须验码，或（2）客户端提交了 captchaId+captcha，就进行校验。
+      // 验证码
       let mustCaptcha = false
       if (enableCaptcha) {
         if (captchaAfter <= 0) mustCaptcha = true
@@ -121,9 +137,9 @@ export class AuthController {
         }
         const ok = await CaptchaService.verify(String(captchaId), String(captcha))
         if (!ok) {
-          const next = await lockSvc.hitFail(email, ip)
+          const next = await lockSvc.hitFail(loginId, ip)
           if (next >= lockAfter) {
-            const { untilMs, remainSec } = await lockSvc.lock(email, ip, lockMinutes, next)
+            const { untilMs, remainSec } = await lockSvc.lock(loginId, ip, lockMinutes, next)
             const until = new Date(untilMs)
             const ymd = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(
               until.getDate()
@@ -136,32 +152,30 @@ export class AuthController {
               data: { unlockAt: untilMs, remainingSec: remainSec, unlockDate: ymd },
             })
           }
-          // ⚠️ 这里统一返回 AUTH_NEED_CAPTCHA，避免误用 AUTH_BAD_CREDENTIALS
           return (res as any).badRequest('验证码错误或已过期', {
             code: CODES.AUTH_NEED_CAPTCHA,
             error: { retryable: true },
           })
         }
       }
-      // ========= 验证码通过（或不需验证）后，进入密码校验 =========
 
       try {
         const { token, refresh, user, persist } = await svc.login(
-          email,
-          password,
+          loginId, // ← 支持邮箱或用户名
+          plainPwd,
           { ip, ua: req.get('User-Agent') || undefined },
           { persist: !!keep7Days }
         )
         const location = await Geo.lookup(ip)
 
-        await lockSvc.reset(email, ip)
+        await lockSvc.reset(loginId, ip)
         svc.setRefreshCookie(res, refresh, { persist })
 
         return (res as any).ok({ token, user, location }, '登录成功')
       } catch (e: any) {
-        const next = await lockSvc.hitFail(email, ip)
+        const next = await lockSvc.hitFail(loginId, ip)
         if (next >= lockAfter) {
-          const { untilMs, remainSec } = await lockSvc.lock(email, ip, lockMinutes, next)
+          const { untilMs, remainSec } = await lockSvc.lock(loginId, ip, lockMinutes, next)
           const until = new Date(untilMs)
           const ymd = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(
             until.getDate()
@@ -182,11 +196,16 @@ export class AuthController {
         )
       }
     } catch (e: any) {
-      return (res as any).internal(e?.message || '登录失败')
+      const msg = String(e?.message || '')
+      if (msg.includes('jsonwebtoken 模块未安装或无法加载')) {
+        return (res as any).fail(CODES.INTERNAL_ERROR, 503, '服务器依赖未就绪：请安装 jsonwebtoken 后再试', {
+          error: { retryable: true },
+        })
+      }
+      return (res as any).internal(msg || '登录失败')
     }
   }
 
-  /** 刷新 */
   static async refresh(req: AuthRequest, res: Response<ApiResponse<{ token: string }>>) {
     try {
       const rt = (req as any)?.cookies?.rt || req.body?.refresh_token || req.get('x-refresh-token')
@@ -200,7 +219,6 @@ export class AuthController {
     }
   }
 
-  /** 登出 */
   static async logout(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const rt = (req as any)?.cookies?.rt || req.body?.refresh_token || req.get('x-refresh-token')

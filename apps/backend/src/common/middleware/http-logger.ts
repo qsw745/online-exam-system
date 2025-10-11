@@ -1,6 +1,4 @@
-// apps/backend/src/common/middleware/http-logger.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 import type { Request, Response, NextFunction, RequestHandler } from 'express'
 import { log } from '@/infrastructure/logging/logger'
 import { getClientIp } from '@/common/utils/request-ip'
@@ -16,35 +14,26 @@ function formatTime(d = new Date()) {
   return `${y}-${m}-${day} ${hh}:${mm}:${ss}`
 }
 
-/**
- * 统一 http 访问日志。
- * 关键：IP 统一通过 getClientIp(req) 解析（需配合 app.set('trust proxy', true) 与代理透传头）
- */
+/** 统一 http 访问日志 */
 export function httpLogger(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
     const start = Date.now()
-    const rid = (req as any).id || cryptoRandomLike()
+    const rid = cryptoRandomLike()
 
-    // ✅ 解析真实客户端 IP，并可供后续处理使用
     const clientIp = getClientIp(req)
     ;(req as any).clientIp = clientIp
 
-    // 修复点：log 是对象，不能直接调用；使用 log.with(...) 绑定上下文
     const base = log.with({
-          rid,
-          method: req.method,
-          url: (req as any).originalUrl || req.url,
-          ip: clientIp,
-          svc: 'backend',
-          time: formatTime(),
-          ua: req.get('user-agent') || undefined,
-          referer: req.get('referer') || undefined,
-        })
-
-        // 将 logger 挂到 req，方便控制器里使用
+      rid,
+      method: req.method,
+      url: (req as any).originalUrl || req.url,
+      ip: clientIp,
+      svc: 'backend',
+      time: formatTime(),
+      ua: req.get('user-agent') || undefined,
+      referer: req.get('referer') || undefined,
+    })
     ;(req as any).log = base
-
-    // 统一错误回调（被全局 errorHandler 调用）
     ;(req as any).onError = (err: any) => {
       base.error('request error', {
         status: (err && err.status) || 500,
@@ -55,16 +44,13 @@ export function httpLogger(): RequestHandler {
       })
     }
 
-    // 记录完成
-    res.once('finish', () => {
+    // ✅ 避免类型报错：把 res 强转为 any 再调用 on()
+    ;(res as any).on?.('finish', () => {
       const ms = Date.now() - start
-      const status = res.statusCode
-      const level = (status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info') as
-          | 'error'
-          | 'warn'
-          | 'info'
+      const status: number = (res as any).statusCode
+      const level = (status >= 500 ? 'error' : status >= 400 ? 'warn' : 'info') as 'error' | 'warn' | 'info'
 
-      const len = res.getHeader('content-length')
+      const len = (res as any).getHeader?.('content-length')
       const bytes = Array.isArray(len) ? Number(len[0]) : Number(len ?? 0)
 
       base.log(level, 'request completed', {

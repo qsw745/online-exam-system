@@ -1,5 +1,3 @@
-// apps/backend/src/modules/tasks/repositories/task.repository.ts
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool as basePool } from '@/config/database.js'
 import type { TaskDTO, TaskListQuery, TaskListResult, TaskWithAssigned, UpdateTaskInput } from '../domain/task.model.js'
@@ -183,10 +181,13 @@ export class TaskRepository {
       params.push(q.status)
     }
 
-    const offset = (q.page - 1) * q.limit
+    // ✅ 关键修复：不要在 PREPARE 里用 LIMIT ? / OFFSET ?
+    // 统一转为安全数字后内联，避免 ER_WRONG_ARGUMENTS
+    const safeLimit = Math.max(1, Math.min(1000, Number(q.limit) || 10))
+    const safeOffset = Math.max(0, Number((q.page - 1) * q.limit) || 0)
 
-    const [rows] = await this.db.execute<(TaskDTO & RowDataPacket)[]>(
-      `SELECT
+    const sql = `
+      SELECT
          t.*,
          e.id        AS exam_id,
          e.paper_id  AS paper_id,
@@ -203,9 +204,10 @@ export class TaskRepository {
        ${where}
        GROUP BY t.id
        ORDER BY t.created_at DESC
-       LIMIT ? OFFSET ?`,
-      [...params, q.limit, offset]
-    )
+       LIMIT ${safeLimit} OFFSET ${safeOffset}
+    `
+
+    const [rows] = await this.db.execute<(TaskDTO & RowDataPacket)[]>(sql, params)
 
     const total = await this.countForList(q)
     const tasks: TaskWithAssigned[] = rows.map(r => this.hydrateAssigned(r as any))

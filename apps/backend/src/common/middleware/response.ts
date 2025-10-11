@@ -15,9 +15,11 @@ type Extra = {
 function nowIso() {
   return new Date().toISOString()
 }
-// apps/backend/src/common/middleware/response.ts
+
+// ✅ 不直接访问 req.headers，改用 req.get()，避免类型告警
 function requestIdOf(req: Request): string {
-  return (req as any).id || (req as any).requestId || (req.headers['x-request-id'] as string) || ''
+  const anyReq = req as any
+  return anyReq.id || anyReq.requestId || (req.get('x-request-id') as string) || ''
 }
 
 function attachStart(res: Response) {
@@ -48,7 +50,8 @@ export function responseEnvelope() {
     attachStart(res)
 
     const send = (status: number, code: string, data: any, message?: string, extra?: Extra) => {
-      if (extra?.headers) for (const [k, v] of Object.entries(extra.headers)) res.setHeader(k, v as any)
+      // ✅ 用 res.set(...) 填充额外响应头
+      if (extra?.headers) for (const [k, v] of Object.entries(extra.headers)) res.set(k, v as any)
       const isOk = status < 400
       const body: any = {
         success: isOk,
@@ -76,8 +79,6 @@ export function responseEnvelope() {
         ...extra,
         subcode: extra?.subcode ?? SUBCODES.CREATED,
       })
-
-    // 语义化 4xx
     ;(res as any).badRequest = (message?: string, extra?: Extra) =>
       send(400, extra?.code ?? CODES.VALIDATION_ERROR, undefined, message ?? 'Bad Request', {
         ...extra,
@@ -93,8 +94,6 @@ export function responseEnvelope() {
         ...extra,
         subcode: extra?.subcode ?? SUBCODES.AUTH_FORBIDDEN,
       })
-
-    // ✅ 补上 notFound（控制器里用到了）
     ;(res as any).notFound = (message?: string, extra?: Extra) =>
       send(404, extra?.code ?? CODES.NOT_FOUND, undefined, message ?? 'Not Found', {
         ...extra,
@@ -110,18 +109,14 @@ export function responseEnvelope() {
         ...extra,
         subcode: extra?.subcode ?? SUBCODES.INTERNAL_ERROR,
       })
-    // ✅ 新增：409 Conflict（roles 控制器在用）
     ;(res as any).conflict = (message?: string, extra?: Extra) =>
-      send(
-        409,
-        // 兼容你们 CODES/SUBCODES 里可能未定义的字段名
-        extra?.code ?? (CODES as any)?.CONFLICT ?? 'CONFLICT',
-        undefined,
-        message ?? 'Conflict',
-        { ...extra, subcode: extra?.subcode ?? (SUBCODES as any)?.CONFLICT }
-      )
+      send(409, extra?.code ?? (CODES as any)?.CONFLICT ?? 'CONFLICT', undefined, message ?? 'Conflict', {
+        ...extra,
+        subcode: extra?.subcode ?? (SUBCODES as any)?.CONFLICT,
+      })
     ;(res as any).fail = (code: string, httpStatus = 400, message?: string, extra?: Extra) =>
       send(httpStatus, code, undefined, message ?? 'Bad Request', extra)
+
     next()
   }
 }

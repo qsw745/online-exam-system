@@ -133,7 +133,7 @@ const UserManagementPage: React.FC = () => {
   return (
     <>
       <Layout style={{ padding: 16 }}>
-        <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
+        <Sider width={220} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
           <OrgTreePanel
             tree={tree}
             loading={treeLoading}
@@ -186,6 +186,7 @@ const UserManagementPage: React.FC = () => {
               data={q.rows}
               loading={q.loading}
               selectedOrgId={selectedOrgId}
+              getOrgPath={getOrgPath} // ← 新增这一行
               // ❌ 去掉 onView
               onAssignRoles={onAssignRoles} // ✅ 新增
               onEdit={onEdit}

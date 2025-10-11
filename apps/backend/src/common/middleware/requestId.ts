@@ -12,16 +12,14 @@ function genFallbackId() {
 
 export function requestId() {
   return function reqIdMiddleware(req: Request, res: Response, next: NextFunction) {
-    // 允许客户端透传；否则生成
     const incoming = req.get('x-request-id') || req.get('x-requestid') || req.get('request-id') || undefined
-
-    const rid = (incoming && String(incoming)) || (globalThis.crypto?.randomUUID?.() ?? genFallbackId())
+    const rid = ((incoming && String(incoming)) || (globalThis as any)?.crypto?.randomUUID?.()) ?? genFallbackId()
 
     ;(req as any).id = rid
     ;(req as any).requestId = rid
-    res.setHeader('X-Request-Id', rid)
+    // ✅ 用 res.set 而不是 setHeader
+    ;(res as any).set?.('X-Request-Id', rid)
 
-    // 给响应记录开始时间，供 responseEnvelope 里计算 duration
     try {
       if (process?.hrtime?.bigint) (res as any).__res_start_hrtime = process.hrtime.bigint()
       else if (process?.hrtime) (res as any).__res_start_hrtime = process.hrtime()
