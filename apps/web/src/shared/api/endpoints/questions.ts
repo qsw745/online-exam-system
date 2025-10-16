@@ -1,3 +1,4 @@
+// src/shared/api/http/questions.ts
 import { api } from '../core/httpClient'
 import type { ApiResult } from '../core/types'
 
@@ -13,7 +14,8 @@ export interface Question {
 }
 
 export const questionsApi = {
-  list: (params?: any) => api.get('/questions', { params }) as Promise<ApiResult<any>>,
+  // 允许把 { signal } 透传进来，便于在 hook 里取消上一次请求
+  list: (params?: any, config?: any) => api.get('/questions', { params, ...(config || {}) }) as Promise<ApiResult<any>>,
   getById: (id: string | number) => api.get(`/questions/${id}`) as Promise<ApiResult<any>>,
   create: (payload: Partial<Question>) => api.post('/questions', payload) as Promise<ApiResult<any>>,
   update: (id: string | number, payload: Partial<Question>) =>

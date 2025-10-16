@@ -64,22 +64,36 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     return list
   }
 const fetchUserMenus = async () => {
-   if (!user?.id) {
-     setMenus([])
-     setPermissions([])
-     setError(null)
-     return
-   }
+  if (!user?.id) {
+    setMenus([])
+    setPermissions([])
+    setError(null)
+    return
+  }
   setLoading(true)
   setError(null)
   try {
-    const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
-    const data = await menuApi.userMenus(Number(user.id), orgId, {
-      strict: true, // ✅ 用严格模式
-      nocache: true, // ✅ 第一次强刷后端缓存（只在你怀疑后端缓存脏时用一次）
-      transport: 'header', // ✅ 参数走请求头，不占 URL
-    })
-    const menuTree: MenuItem[] = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    const isAdminName = String(user.username || user.email || '').toLowerCase() === 'admin'
+    const roleStr = (user as any)?.role?.toLowerCase?.() || localStorage.getItem('USER_ROLE') || ''
+    const isAdminRole = roleStr === 'admin' || roleStr === 'super_admin'
+
+    let menuTree: MenuItem[] = []
+
+    if (isAdminName || isAdminRole) {
+      // ✅ 管理员：直接走系统功能树（后端已做兜底）
+      const data = await menuApi.functionsTree()
+      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    } else {
+      // 普通用户：走用户-机构权限树
+      const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
+      const data = await menuApi.userMenus(Number(user.id), orgId, {
+        strict: true,
+        nocache: true, // 首次强刷
+        transport: 'header',
+      })
+      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    }
+
     setMenus(menuTree)
     setPermissions(extractPermissions(menuTree))
   } catch (err: any) {
@@ -91,6 +105,7 @@ const fetchUserMenus = async () => {
     setLoading(false)
   }
 }
+
 
 
 

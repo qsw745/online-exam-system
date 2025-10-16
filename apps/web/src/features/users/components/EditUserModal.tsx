@@ -1,11 +1,12 @@
-import { Form, Input, Modal, Radio, Select, TreeSelect } from 'antd'
-import React from 'react'
+// apps/web/src/features/users/components/EditUserModal.tsx
+import React, { useMemo } from 'react'
+import { Form, Input, Modal, Select, TreeSelect } from 'antd'
 const { Option } = Select
 
-// 过滤掉没有 id 的节点，避免 TreeSelect 报 value=undefined
+// 转 TreeSelect 数据（只取有 id 的）
 function toTreeOptions(tree: any[] = []): any[] {
   const dfs = (n: any): any | null => {
-    if (n == null || n.id == null) return null
+    if (!n || n.id == null) return null
     const children = Array.isArray(n.children) ? n.children.map(dfs).filter(Boolean) : undefined
     return { value: Number(n.id), label: n.name, children }
   }
@@ -19,119 +20,140 @@ export const EditUserModal: React.FC<{
   onCancel: () => void
   onSubmit: (payload: {
     username: string
+    nickname?: string
+    phone?: string
     email?: string
-    status?: 'active' | 'disabled'
-    role?: string
+    gender?: 'male' | 'female'
     orgId?: number | null
+    remark?: string
+    description?: string
   }) => Promise<void> | void
 }> = ({ open, user, tree, onCancel, onSubmit }) => {
   const [form] = Form.useForm()
 
-  // —— 统一映射（回显所需字段）——
-  const mapped = React.useMemo(() => {
+  // —— 回显映射 —— //
+  const mapped = useMemo(() => {
     if (!user) return undefined
     const originalOrgId =
       typeof user.orgId === 'number' ? user.orgId : typeof user.org_id === 'number' ? user.org_id : undefined
+    const g = (user.gender || '').toString()
+    const gender = g === 'male' || g === '男' ? '男' : g === 'female' || g === '女' ? '女' : undefined
     return {
-      username: user.username ?? user.name ?? '',
+      nickname: user.nickname ?? user.real_name ?? '',
+      username: user.username ?? '',
+      phone: user.phone ?? '',
       email: user.email ?? '',
-      status: (user.status as 'active' | 'disabled') ?? 'active',
-      role: user.role ?? (Array.isArray(user.roles) ? user.roles[0] : undefined),
-      orgId: originalOrgId, // 回显用
-      __originalOrgId: originalOrgId, // 提交时比对
+      gender,
+      orgId: originalOrgId,
+      remark: user.remark ?? user.description ?? '',
+      __originalOrgId: originalOrgId,
     }
   }, [user])
 
-  // 让内容提前挂载，确保 form 已连接；完全打开后再灌值，保证回显稳定
-  const handleAfterOpenChange = (opened: boolean) => {
-    if (opened && mapped) {
-      form.setFieldsValue(mapped)
-    }
-    if (!opened) {
-      form.resetFields()
-    }
-  }
-
   const handleOk = async () => {
     const v = await form.validateFields()
-    // 原始 orgId（入参用户携带的机构）
+    // 原始 orgId
     const originalOrgId: number | undefined = form.getFieldValue('__originalOrgId')
-
-    // 用户表单里当前的 orgId
+    // 当前选择 orgId：不改则保持原值
     let nextOrgId: number | null | undefined =
       typeof v.orgId === 'number' ? v.orgId : v.orgId == null ? undefined : Number(v.orgId)
-
-    /**
-     * 关键修复：
-     * - 如果用户“没有改动”orgId（TreeSelect 没选、也没清空），Form 值会是 undefined，
-     *   这种情况我们“保留原值”，避免把 undefined 变成 null 导致后端把组织移除。
-     * - 只有用户明确选择了新机构（number）时才提交这个新值。
-     * - 如果你未来需要“允许显式移除机构”，应该做一个单独的“移除所属机构”的确认操作，
-     *   这里不把 undefined 自动当作移除。
-     */
-    if (typeof nextOrgId === 'undefined') {
-      nextOrgId = typeof originalOrgId === 'number' ? originalOrgId : undefined
-    }
+    if (typeof nextOrgId === 'undefined') nextOrgId = typeof originalOrgId === 'number' ? originalOrgId : undefined
 
     const payload: any = {
-      username: v.username,
-      email: v.email || undefined,
-      status: v.status,
-      role: v.role || undefined,
+      username: String(v.username || '').trim(),
+      nickname: (v.nickname || '').trim(),
+      phone: v.phone?.trim() || undefined,
+      email: v.email?.trim() || undefined,
+      gender: v.gender === '女' ? 'female' : v.gender === '男' ? 'male' : undefined,
+      remark: v.remark?.trim() || undefined,
+      description: v.remark?.trim() || undefined, // 兼容后端字段
     }
-
-    // 仅在我们有明确的机构值时才带上 orgId 字段（避免无意触发移除）
-    if (typeof nextOrgId !== 'undefined') {
-      payload.orgId = nextOrgId // 可能是 number（保持/修改），也可能是 null（未来若你允许清空时再放开）
-    }
+    if (typeof nextOrgId !== 'undefined') payload.orgId = nextOrgId
 
     await onSubmit(payload)
   }
 
   return (
     <Modal
-      title="编辑用户"
+      title="修改用户"
       open={open}
       maskClosable={false}
-      onCancel={onCancel}
+      onCancel={() => {
+        form.resetFields()
+        onCancel()
+      }}
       onOk={handleOk}
-      okText="保存"
-      destroyOnHidden
-      forceRender
-      afterOpenChange={handleAfterOpenChange}
+      okText="确定"
+      width={720}
+      destroyOnClose
+      afterOpenChange={opened => {
+        if (opened && mapped) form.setFieldsValue(mapped)
+        if (!opened) form.resetFields()
+      }}
     >
-      <Form key={user?.id ?? 'new'} form={form} layout="vertical" preserve={false} initialValues={mapped}>
-        <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }]}>
-          <Input autoFocus />
-        </Form.Item>
+      <Form form={form} layout="vertical" initialValues={mapped} preserve={false}>
+        {/* 两列区域 */}
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            columnGap: 16,
+            rowGap: 8,
+          }}
+        >
+          <Form.Item
+            label="用户昵称"
+            name="nickname"
+            rules={[{ required: true, message: '请输入用户昵称' }, { max: 50 }]}
+          >
+            <Input placeholder="请输入" />
+          </Form.Item>
 
-        <Form.Item label="邮箱" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }]}>
-          <Input />
-        </Form.Item>
+          <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }, { max: 50 }]}>
+            <Input placeholder="请输入" />
+          </Form.Item>
 
-        <Form.Item label="状态" name="status" rules={[{ required: true }]}>
-          <Radio.Group>
-            <Radio value="active">启用</Radio>
-            <Radio value="disabled">禁用</Radio>
-          </Radio.Group>
-        </Form.Item>
+          <Form.Item label="手机号" name="phone" rules={[{ max: 32 }]}>
+            <Input placeholder="请输入" />
+          </Form.Item>
 
-      
+          <Form.Item label="邮箱" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128 }]}>
+            <Input placeholder="请输入" />
+          </Form.Item>
 
-        {/* 保存一个隐藏字段用于记录原始 orgId，避免误清空 */}
-        <Form.Item name="__originalOrgId" hidden>
-          <Input />
-        </Form.Item>
+          <Form.Item label="用户性别" name="gender">
+            <Select placeholder="请选择">
+              <Option value="男">男</Option>
+              <Option value="女">女</Option>
+            </Select>
+          </Form.Item>
 
-        <Form.Item label="所属机构" name="orgId">
-          <TreeSelect
-            allowClear
-            treeData={toTreeOptions(tree)}
-            placeholder="选择所属机构（不改则保留原有）"
-            treeDefaultExpandAll={false}
-            showSearch
-          />
-        </Form.Item>
+          <Form.Item label="归属部门" name="orgId">
+            <TreeSelect
+              allowClear
+              treeData={toTreeOptions(tree)}
+              placeholder="请选择归属部门"
+              treeDefaultExpandAll={false}
+              showSearch
+              dropdownStyle={{ maxHeight: 360, overflow: 'auto' }}
+            />
+          </Form.Item>
+
+          {/* 备注独占两列 */}
+          <Form.Item
+            label="备注"
+            name="remark"
+            style={{ gridColumn: '1 / span 2' }}
+            rules={[{ max: 500, message: '最多 500 字' }]}
+          >
+            <Input.TextArea rows={4} placeholder="可填写备注信息" />
+          </Form.Item>
+
+          {/* 隐藏：原 orgId，用于保留逻辑 */}
+          <Form.Item name="__originalOrgId" hidden>
+            <Input />
+          </Form.Item>
+        </div>
       </Form>
     </Modal>
   )

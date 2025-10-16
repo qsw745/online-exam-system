@@ -20,6 +20,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src", "vite-env.d.ts","apps/web/src/types/**/*.d.ts", "useQuestionQuery.ts"],
+  "include": ["src", "vite-env.d.ts","apps/web/src/types/**/*.d.ts", "src/features/questions/hooks/useQuestionQuery.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

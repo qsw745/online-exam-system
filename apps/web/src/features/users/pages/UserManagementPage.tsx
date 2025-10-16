@@ -1,272 +1,800 @@
+// apps/web/src/features/users/pages/UserManagementPage.tsx
+import { orgsApi } from '@/shared/api/endpoints/orgs'
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
-import { App, Card, Layout, Pagination, Typography } from 'antd'
-import React from 'react'
+import {
+  ColumnHeightOutlined,
+  EditOutlined,
+  EllipsisOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+  HolderOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  SettingOutlined,
+  UserAddOutlined,
+  UserOutlined,
+} from '@ant-design/icons'
+import {
+  App,
+  Avatar,
+  Button,
+  Card,
+  Checkbox,
+  Dropdown,
+  Input,
+  Layout,
+  Modal,
+  Pagination,
+  Select,
+  Space,
+  Switch,
+  Table,
+  Tag,
+  Tooltip,
+  Typography,
+} from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import React, { useEffect, useMemo, useRef, useState, type Key } from 'react'
+import { createPortal } from 'react-dom'
 
-import { UserFilterBar } from '../components/UserFilterBar'
-import { UsersTable } from '../components/UsersTable'
-import { useOrgPathMap } from '../hooks/useOrgPathMap'
-import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
-
-// 弹窗组件
-import { orgsApi } from '@/shared/api/endpoints/orgs'
+// ✅ 补回 4 个弹窗组件的导入
+import AssignRolesModal from '../components/AssignRolesModal'
 import { BindUserModal } from '../components/BindUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
-import AssignRolesModal from '../components/AssignRolesModal' // ✅ 新增
+
+import { useOrgPathMap } from '../hooks/useOrgPathMap'
+import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 
 const { Sider, Content } = Layout
-const { Title, Paragraph } = Typography
+const { Text } = Typography
+
+type Status = 'active' | 'disabled'
+type ColKey =
+  | 'id'
+  | 'avatar'
+  | 'username'
+  | 'nickname'
+  | 'gender'
+  | 'department'
+  | 'phone'
+  | 'status'
+  | 'created_at'
+  | 'actions'
+
+type Row = {
+  id: number
+  username?: string
+  nickname?: string
+  real_name?: string
+  gender?: 'male' | 'female' | '男' | '女' | string | null
+  phone?: string | null
+  email?: string | null
+  status?: Status | string
+  avatar?: string | null
+  avatar_url?: string | null
+  orgId?: number | null
+  org_id?: number | null
+  orgPath?: string | null
+  department?: string | null
+  orgName?: string | null
+  created_at?: string | null
+  createdAt?: string | null
+}
+
+const LABELS: Record<ColKey, string> = {
+  id: '用户编号',
+  avatar: '用户头像',
+  username: '用户名',
+  nickname: '用户昵称',
+  gender: '性别',
+  department: '部门',
+  phone: '手机号码',
+  status: '状态',
+  created_at: '创建时间',
+  actions: '操作',
+}
+const FIXED: ColKey = 'actions'
+const DEFAULT_ORDER: ColKey[] = [
+  'id',
+  'avatar',
+  'username',
+  'nickname',
+  'gender',
+  'department',
+  'phone',
+  'status',
+  'created_at',
+]
+const DEFAULT_VISIBLE: ColKey[] = [...DEFAULT_ORDER, 'actions']
 
 function pickFirstId(tree: any[]): number | null {
   if (!Array.isArray(tree) || tree.length === 0) return null
   const first = tree.find(n => n && typeof n.id === 'number')
   return first ? first.id : null
 }
+const maskPhone = (p?: string | null) => (p ? p.replace(/^(\d{3})\d*(\d{4})$/, '$1****$2') : '—')
+const toEnabled = (s?: string) => (s === 'active' ? true : s === 'disabled' ? false : undefined)
+const created = (r: Row) => r.created_at || r.createdAt || null
+const genderTag = (g?: Row['gender']) =>
+  g === 'male' || g === '男' ? (
+    <Tag color="blue">男</Tag>
+  ) : g === 'female' || g === '女' ? (
+    <Tag color="red">女</Tag>
+  ) : (
+    <Text type="secondary">—</Text>
+  )
+const avatarUrl = (r: Row) => r.avatar_url || r.avatar || null
 
-const UserManagementPage: React.FC = () => {
+/** ✅ 按 id 去重，避免切换部门后重复叠加 */
+function useUniqueRows(rows: Row[] | undefined | null) {
+  return useMemo<Row[]>(() => {
+    if (!Array.isArray(rows) || rows.length === 0) return []
+    const seen = new Set<number>()
+    const uniq: Row[] = []
+    for (const r of rows) {
+      const idNum = Number((r as any)?.id)
+      if (Number.isFinite(idNum)) {
+        if (seen.has(idNum)) continue
+        seen.add(idNum)
+      }
+      uniq.push(r)
+    }
+    return uniq
+  }, [rows])
+}
+
+export default function UserManagementPage() {
   const { message } = App.useApp()
-  const [selectedOrgId, setSelectedOrgId] = React.useState<number | null>(null)
 
+  // ===== 左侧机构树 =====
   const { tree, loading: treeLoading, refetch: refetchTree } = useOrgTree()
-  const [expandedKeys, setExpandedKeys] = React.useState<React.Key[]>([])
+  const [siderCollapsed, setSiderCollapsed] = useState(false)
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
 
-  React.useEffect(() => {
-    void refetchTree()
+  useEffect(() => {
+    ;(async () => {
+      const next = await refetchTree()
+      const first = pickFirstId((next as any[]) || [])
+      if (first != null) {
+        setExpandedKeys([first])
+        setSelectedOrgId(first)
+      }
+    })()
   }, [refetchTree])
 
-  React.useEffect(() => {
-    if (treeLoading) return
-    const first = pickFirstId(tree || [])
-    if (first == null) return
-    setExpandedKeys(prev => (Array.isArray(prev) && prev.includes(first) ? prev : [first]))
-    setSelectedOrgId(prev => (prev == null ? first : prev))
-  }, [treeLoading, tree])
-
+  // org 路径映射（用于“部门”列）
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
-  // 只有选中机构后才会发请求
+  // ===== 右侧用户列表查询 =====
   const q = useOrgUsersQuery(selectedOrgId)
 
-  const refreshTree = async () => {
-    const next = await refetchTree()
-    const first = pickFirstId(next || [])
-    if (first != null) {
-      setExpandedKeys([first])
-      setSelectedOrgId(first)
-    } else {
-      setExpandedKeys([])
-      setSelectedOrgId(null)
-    }
+  // ===== 顶部筛选 =====
+  const [fUsername, setFUsername] = useState('')
+  const [fNickname, setFNickname] = useState('')
+  const [fPhone, setFPhone] = useState('')
+  const [fStatus, setFStatus] = useState<'' | 'active' | 'disabled'>('')
+
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+
+  const doSearch = () => {
+    const parts = [fUsername.trim(), fNickname.trim(), fPhone.trim()].filter(Boolean)
+    q.setKeyword(parts.join(' '))
+    q.setPage(1)
+    if (fStatus) q.setRole(fStatus)
+    setSelectedRowKeys([])
+  }
+  const doReset = () => {
+    setFUsername('')
+    setFNickname('')
+    setFPhone('')
+    setFStatus('')
+    q.setKeyword('')
+    q.setRole(undefined)
+    q.setPage(1)
+    setSelectedRowKeys([])
   }
 
-  // 弹窗状态
-  const [editOpen, setEditOpen] = React.useState(false)
-  const [bindOpen, setBindOpen] = React.useState(false)
-  const [resetOpen, setResetOpen] = React.useState(false)
-  const [resetPwd, setResetPwd] = React.useState<string | null>(null)
-  const [currentUser, setCurrentUser] = React.useState<any | null>(null)
+  // ===== 表格工具条：密度 / 列设置 / 全屏 =====
+  const [tableSize, setTableSize] = useState<'small' | 'middle' | 'large'>('middle')
 
-  // 分配角色弹窗
-  const [assignOpen, setAssignOpen] = React.useState(false)
+  // 列顺序（不含 actions）
+  const [order, setOrder] = useState<ColKey[]>(DEFAULT_ORDER)
+  const [visible, setVisible] = useState<ColKey[]>(DEFAULT_VISIBLE)
+  const allChecked = visible.length === DEFAULT_VISIBLE.length
+  const indeterminate = visible.length > 0 && !allChecked
+
+  // 拖拽（仅非固定列）
+  const dragKeyRef = useRef<ColKey | null>(null)
+  const onDragStart = (k: ColKey) => (e: React.DragEvent) => {
+    dragKeyRef.current = k
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', k)
+  }
+  const onDragOver = () => (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+  const move = (arr: ColKey[], from: number, to: number) => {
+    const a = [...arr]
+    const it = a.splice(from, 1)[0]
+    a.splice(to, 0, it)
+    return a
+  }
+  const onDrop = (target: ColKey) => (e: React.DragEvent) => {
+    e.preventDefault()
+    const fromKey = dragKeyRef.current
+    dragKeyRef.current = null
+    if (!fromKey || fromKey === target) return
+    const from = order.indexOf(fromKey)
+    const to = order.indexOf(target)
+    if (from === -1 || to === -1) return
+    setOrder(move(order, from, to))
+  }
+
+  const orderedVisibleKeys = useMemo<ColKey[]>(() => {
+    const nonFixed = order.filter(k => visible.includes(k))
+    const res = [...nonFixed]
+    if (visible.includes(FIXED)) res.push(FIXED)
+    return res
+  }, [order, visible])
+
+  // 全屏
+  const [fs, setFs] = useState(false)
+  useEffect(() => {
+    if (fs) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = prev
+      }
+    }
+  }, [fs])
+
+  // ===== 行操作（沿用你的接口&弹窗） =====
+  const [editOpen, setEditOpen] = useState(false)
+  const [bindOpen, setBindOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
 
   const onEdit = async (u: any) => {
     const detail = await q.getUserDetail(u.id).catch(() => u)
     setCurrentUser(detail || u)
-    queueMicrotask(() => setEditOpen(true))
+    setEditOpen(true)
   }
-
-  const onAssignRoles = async (u: any) => {
-    setCurrentUser(u)
-    setAssignOpen(true)
-  }
-
-  const onReset = async (u: any) => {
-    setCurrentUser(u)
-    setResetOpen(true) // <- 打开弹窗，不再直接调用接口
-  }
-
+  const onAssignRoles = (u: any) => (setCurrentUser(u), setAssignOpen(true))
+  const onReset = (u: any) => (setCurrentUser(u), setResetOpen(true))
   const onToggle = async (u: any) => {
     await q.toggleStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
     message.success('状态已更新')
     q.refetch()
   }
-
   const onUnbind = async (u: any) => {
     if (!selectedOrgId) return
     await q.unbind(selectedOrgId, u.id)
     message.success('已从机构移除')
     q.refetch()
   }
-
   const onDelete = async (u: any) => {
-    await q.deleteUser(u.id)
-    message.success('用户删除成功')
-    const rest = q.total - 1 - (q.page - 1) * q.limit
-    if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
-    else q.refetch()
+    Modal.confirm({
+      title: '确定要删除该用户吗？',
+      content: '删除后不可恢复',
+      okButtonProps: { danger: true },
+      okText: '删除',
+      onOk: async () => {
+        await q.deleteUser(u.id)
+        message.success('删除成功')
+        const rest = q.total - 1 - (q.page - 1) * q.limit
+        if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
+        else q.refetch()
+      },
+    })
   }
-
   const openBindModal = () => {
-    if (!selectedOrgId) {
-      message.warning('请先在左侧选择一个机构')
-      return
-    }
+    if (!selectedOrgId) return message.warning('请先选择左侧机构')
     setBindOpen(true)
   }
 
-  const handleBindSubmit = async (payload: { emails?: string[]; userIds?: number[] }) => {
-    if (!selectedOrgId) return
-    if (payload.emails?.length) {
-      await orgsApi.addUsersByEmail(selectedOrgId, payload.emails)
-    } else if (payload.userIds?.length) {
-      await orgsApi.addUsers(selectedOrgId, payload.userIds)
-    } else {
-      return
+  // ===== 列定义（根据 orderedVisibleKeys 生成） =====
+  const columns = useMemo<ColumnsType<Row>>(() => {
+    const ALL: Record<ColKey, any> = {
+      id: { title: LABELS.id, dataIndex: 'id', width: 90, align: 'center' },
+      avatar: {
+        title: LABELS.avatar,
+        key: 'avatar',
+        width: 78,
+        align: 'center',
+        render: (_: any, r: Row) => {
+          const url = avatarUrl(r)
+          const txt = (r.nickname || r.real_name || r.username || '').trim().slice(-2) || '用户'
+          return url ? (
+            <Avatar src={url} />
+          ) : (
+            <Avatar icon={<UserOutlined />} alt={txt}>
+              {txt}
+            </Avatar>
+          )
+        },
+      },
+      username: { title: LABELS.username, dataIndex: 'username', ellipsis: true, width: 120 },
+      nickname: {
+        title: LABELS.nickname,
+        dataIndex: 'nickname',
+        ellipsis: true,
+        width: 100,
+        render: (t: any, r: Row) => t || r.real_name || <Text type="secondary">—</Text>,
+      },
+      gender: {
+        title: LABELS.gender,
+        key: 'gender',
+        width: 80,
+        align: 'center',
+        render: (_: any, r: Row) => genderTag(r.gender),
+      },
+      department: {
+        title: LABELS.department,
+        key: 'department',
+        width: 220,
+        ellipsis: true,
+        render: (_: any, r: Row) => {
+          const direct =
+            (r.orgPath && String(r.orgPath)) ||
+            (r.department && String(r.department)) ||
+            (r.orgName && String(r.orgName)) ||
+            null
+          const id = (r.orgId ?? r.org_id) as number | undefined
+          return getOrgPath(id ?? null, direct) || direct || <Text type="secondary">—</Text>
+        },
+      },
+      phone: {
+        title: LABELS.phone,
+        dataIndex: 'phone',
+        width: 140,
+        align: 'center',
+        render: (p: any) => maskPhone(p),
+      },
+      status: {
+        title: LABELS.status,
+        dataIndex: 'status',
+        width: 100,
+        align: 'center',
+        render: (s: any) => <Tag color={toEnabled(s) ? 'green' : 'red'}>{toEnabled(s) ? '已启用' : '停用'}</Tag>,
+      },
+      created_at: {
+        title: LABELS.created_at,
+        key: 'created_at',
+        width: 180,
+        align: 'center',
+        render: (_: any, r: Row) => {
+          const t = created(r)
+          return t ? new Date(t).toLocaleString() : '—'
+        },
+      },
+      actions: {
+        title: LABELS.actions,
+        key: 'actions',
+        width: 220,
+        align: 'center',
+        render: (_: any, r: Row) => {
+          const items = [
+            { key: 'assign', label: '分配角色' },
+            { key: 'reset', label: '重置密码' },
+            { key: 'toggle', label: r.status === 'active' ? '禁用' : '启用' },
+            ...(selectedOrgId ? [{ key: 'unbind', label: '从机构移除' }] : []),
+            { type: 'divider' as const },
+            { key: 'delete', label: '删除', danger: true },
+          ]
+          return (
+            <Space size="small">
+              <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>
+                修改
+              </Button>
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items,
+                  onClick: ({ key }) => {
+                    switch (key) {
+                      case 'assign':
+                        onAssignRoles(r)
+                        break
+                      case 'reset':
+                        onReset(r)
+                        break
+                      case 'toggle':
+                        onToggle(r)
+                        break
+                      case 'unbind':
+                        onUnbind(r)
+                        break
+                      case 'delete':
+                        onDelete(r)
+                        break
+                    }
+                  },
+                }}
+              >
+                <Button size="small" icon={<EllipsisOutlined />} />
+              </Dropdown>
+            </Space>
+          )
+        },
+      },
     }
-    message.success('绑定成功')
-    setBindOpen(false)
-    q.refetch()
-  }
+    return orderedVisibleKeys.map(k => ALL[k])
+  }, [orderedVisibleKeys, selectedOrgId])
+
+  // ✅ 对 q.rows 做去重后再给 Table
+  const dataSource = useUniqueRows((q.rows || []) as Row[])
+
+  // ===== 表格工具区（可全屏） =====
+  const Toolbar = (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ fontWeight: 600, fontSize: 16 }}>用户管理</div>
+
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Button type="primary" icon={<UserAddOutlined />} onClick={openBindModal} disabled={!selectedOrgId}>
+          新增用户
+        </Button>
+
+        <Tooltip title={siderCollapsed ? '展开机构树' : '折叠机构树'}>
+          <Button
+            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setSiderCollapsed(v => !v)}
+          />
+        </Tooltip>
+
+        <Tooltip title="刷新">
+          <Button icon={<ReloadOutlined />} onClick={() => q.refetch()} />
+        </Tooltip>
+
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            selectable: true,
+            selectedKeys: [tableSize],
+            items: [
+              { key: 'large', label: '宽松' },
+              { key: 'middle', label: '默认' },
+              { key: 'small', label: '紧凑' },
+            ],
+            onClick: ({ key }) => setTableSize(key as any),
+          }}
+        >
+          <Tooltip title="密度">
+            <Button icon={<ColumnHeightOutlined />} />
+          </Tooltip>
+        </Dropdown>
+
+        <Dropdown
+          trigger={['click']}
+          dropdownRender={() => (
+            <div className="col-setting-panel">
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '10px 12px',
+                }}
+              >
+                <Checkbox
+                  checked={allChecked}
+                  indeterminate={indeterminate}
+                  onChange={e => setVisible(e.target.checked ? DEFAULT_VISIBLE : [])}
+                >
+                  列展示
+                </Checkbox>
+                <a
+                  onClick={() => {
+                    setOrder(DEFAULT_ORDER)
+                    setVisible(DEFAULT_VISIBLE)
+                  }}
+                >
+                  重置
+                </a>
+              </div>
+
+              <div style={{ padding: '6px 12px 0' }}>
+                {order.map(k => (
+                  <div
+                    key={k}
+                    className="col-setting-row"
+                    draggable
+                    onDragStart={onDragStart(k)}
+                    onDragOver={onDragOver()}
+                    onDrop={onDrop(k)}
+                  >
+                    <HolderOutlined className="col-setting-handle" />
+                    <Checkbox
+                      checked={visible.includes(k)}
+                      onChange={e => setVisible(prev => (e.target.checked ? [...prev, k] : prev.filter(x => x !== k)))}
+                    >
+                      {LABELS[k]}
+                    </Checkbox>
+                  </div>
+                ))}
+                <div className="col-setting-row col-fixed">
+                  <HolderOutlined className="col-setting-handle disabled" />
+                  <Checkbox
+                    checked={visible.includes(FIXED)}
+                    onChange={e =>
+                      setVisible(prev => (e.target.checked ? [...prev, FIXED] : prev.filter(x => x !== FIXED)))
+                    }
+                  >
+                    {LABELS[FIXED]}（固定）
+                  </Checkbox>
+                </div>
+              </div>
+            </div>
+          )}
+        >
+          <Tooltip title="列设置">
+            <Button icon={<SettingOutlined />} />
+          </Tooltip>
+        </Dropdown>
+
+        <Tooltip title={fs ? '退出全屏' : '全屏'}>
+          <Button icon={fs ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={() => setFs(v => !v)} />
+        </Tooltip>
+      </div>
+    </div>
+  )
+
+  // ===== 顶部筛选区域 =====
+  const Filters = (
+    <Card styles={{ body: { padding: 16 } }} style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}>
+      <Space wrap size={16} style={{ width: '100%' }}>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>用户名：</span>
+          <Input
+            allowClear
+            placeholder="输入用户名"
+            style={{ width: 220 }}
+            value={fUsername}
+            onChange={e => setFUsername(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>用户昵称：</span>
+          <Input
+            allowClear
+            placeholder="输入昵称"
+            style={{ width: 220 }}
+            value={fNickname}
+            onChange={e => setFNickname(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>手机号：</span>
+          <Input
+            allowClear
+            placeholder="输入手机号"
+            style={{ width: 220 }}
+            value={fPhone}
+            onChange={e => setFPhone(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>状态：</span>
+          <Select
+            allowClear
+            placeholder="请选择"
+            style={{ width: 160 }}
+            value={fStatus || undefined}
+            options={[
+              { label: '已启用', value: 'active' },
+              { label: '停用', value: 'disabled' },
+            ]}
+            onChange={v => setFStatus((v as any) || '')}
+          />
+        </Space>
+
+        <Space style={{ marginLeft: 'auto' }} align="center">
+          <Button type="primary" icon={<SearchOutlined />} onClick={doSearch}>
+            搜索
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={doReset}>
+            重置
+          </Button>
+
+          <Text type="secondary">含子部门</Text>
+          <Switch
+            checked={!!q.includeChildren}
+            onChange={v => {
+              q.setIncludeChildren(v)
+              q.setPage(1)
+              setSelectedRowKeys([])
+            }}
+          />
+        </Space>
+      </Space>
+    </Card>
+  )
+
+  // ===== 表格块（可全屏） =====
+  const TableBlock = (
+    <Card className="users-table-card" styles={{ body: { padding: 12 } }}>
+      {Toolbar}
+
+      <Table<Row>
+        className="users-table"
+        rowKey={r => r.id as Key}
+        dataSource={dataSource}
+        loading={q.loading}
+        columns={columns}
+        pagination={false}
+        size={tableSize}
+        rowSelection={{
+          selectedRowKeys,
+          onChange: keys => setSelectedRowKeys(keys),
+          preserveSelectedRowKeys: true,
+        }}
+        bordered
+      />
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, alignItems: 'center', gap: 12 }}>
+        <span style={{ color: '#6b7280' }}>共 {q.total} 条</span>
+        <Pagination
+          current={q.page}
+          pageSize={q.limit}
+          total={q.total}
+          showSizeChanger
+          showQuickJumper
+          onChange={(p, ps) => {
+            if (ps !== q.limit) q.setPage(1)
+            else q.setPage(p)
+            q.setLimit(ps)
+            setSelectedRowKeys([])
+          }}
+        />
+      </div>
+    </Card>
+  )
 
   return (
-    <>
-      <Layout style={{ padding: 16 }}>
-        <Sider width={220} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
+    <Layout style={{ height: '100%', background: 'transparent', padding: 16 }}>
+      <style>{`
+        .users-table-card {
+          border-radius: 10px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.045);
+        }
+        .users-table .ant-table-thead > tr > th {
+          background-color: #f5f7fa !important;
+          text-align: center;
+        }
+        .users-table .ant-table-tbody > tr > td {
+          text-align: left;
+        }
+        .col-setting-panel {
+          width: 260px;
+          background: #fff;
+          border: 1px solid #f0f0f0;
+          border-radius: 8px;
+          box-shadow: 0 8px 24px rgba(0,0,0,.06);
+          user-select: none;
+        }
+        .col-setting-row {
+          display:flex; align-items:center; gap:8px;
+          padding:6px 4px;
+          border-radius:8px;
+        }
+        .col-setting-handle { color:#94a3b8; cursor:grab; }
+        .col-setting-handle.disabled { opacity:.35; cursor:not-allowed; }
+        .fs-overlay {
+          position: fixed; inset: 0; z-index: 4000;
+          background:#fff; overflow:auto; padding:12px; box-sizing:border-box;
+        }
+      `}</style>
+
+      {/* 左侧机构树 */}
+      <Sider
+        width={240}
+        collapsedWidth={0}
+        collapsible
+        collapsed={siderCollapsed}
+        trigger={null}
+        theme="light"
+        style={{ borderRight: '1px solid #f0f0f0', marginRight: 16, background: '#fff' }}
+      >
+        <div style={{ padding: 12 }}>
           <OrgTreePanel
-            tree={tree}
+            tree={tree as any}
             loading={treeLoading}
-            expandedKeys={Array.isArray(expandedKeys) ? expandedKeys : []}
+            expandedKeys={expandedKeys}
             setExpandedKeys={setExpandedKeys}
             selectedOrgId={selectedOrgId}
             onSelect={id => {
-              if (!id) return
               setSelectedOrgId(id)
               q.setPage(1)
+              setSelectedRowKeys([])
             }}
-            onRefresh={refreshTree}
+            onRefresh={async () => {
+              const next = (await refetchTree()) as any[]
+              const first = pickFirstId(next || [])
+              if (first != null) {
+                setExpandedKeys([first])
+                if (selectedOrgId == null) setSelectedOrgId(first)
+              }
+            }}
+            title="机构"
           />
-        </Sider>
+        </div>
+      </Sider>
 
-        <Content>
-          <div style={{ marginBottom: 16 }}>
-            <Title level={3} style={{ margin: 0 }}>
-              用户管理
-            </Title>
-            <Paragraph type="secondary" style={{ margin: '6px 0 0' }}>
-              {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '请选择左侧机构以查看用户'}
-            </Paragraph>
-          </div>
+      <Content style={{ minWidth: 0 }}>
+        {Filters}
+        {!fs ? TableBlock : createPortal(<div className="fs-overlay">{TableBlock}</div>, document.body)}
+      </Content>
 
-          <Card style={{ marginBottom: 16 }}>
-            <UserFilterBar
-              keyword={q.keyword}
-              setKeyword={v => {
-                q.setKeyword(v)
-                q.setPage(1)
-              }}
-              role={q.role || ''}
-              setRole={v => {
-                q.setRole(v || undefined)
-                q.setPage(1)
-              }}
-              includeChildren={!!q.includeChildren}
-              setIncludeChildren={v => {
-                q.setIncludeChildren(v)
-                q.setPage(1)
-              }}
-              canBind={!!selectedOrgId}
-              onBindClick={openBindModal}
-            />
-          </Card>
+      {/* —— 编辑 —— */}
+      <EditUserModal
+        open={editOpen}
+        user={currentUser}
+        tree={tree}
+        onCancel={() => setEditOpen(false)}
+        onSubmit={async (v: any) => {
+          if (!currentUser) return
+          await q.update(currentUser.id, v)
+          setEditOpen(false)
+          message.success('用户已更新')
+          q.refetch()
+        }}
+      />
 
-          <Card>
-            <UsersTable
-              data={q.rows}
-              loading={q.loading}
-              selectedOrgId={selectedOrgId}
-              getOrgPath={getOrgPath} // ← 新增这一行
-              // ❌ 去掉 onView
-              onAssignRoles={onAssignRoles} // ✅ 新增
-              onEdit={onEdit}
-              onToggleStatus={onToggle}
-              onUnbind={onUnbind}
-              onDelete={onDelete}
-              onResetPassword={onReset}
-            />
-            <div style={{ textAlign: 'right', marginTop: 16 }}>
-              <Pagination
-                current={q.page}
-                pageSize={q.limit}
-                total={q.total}
-                showSizeChanger
-                showQuickJumper
-                onChange={(p, ps) => {
-                  if (ps !== q.limit) q.setPage(1)
-                  else q.setPage(p)
-                  q.setLimit(ps)
-                }}
-                showTotal={(t, r) => `${r[0]}-${r[1]} / 共 ${t} 条`}
-              />
-            </div>
-          </Card>
-        </Content>
-
-        {/* —— 编辑 —— */}
-        <EditUserModal
-          open={editOpen}
-          user={currentUser}
-          tree={tree}
-          onCancel={() => setEditOpen(false)}
-          onSubmit={async v => {
-            if (!currentUser) return
-            await q.update(currentUser.id, v)
-            setEditOpen(false)
-            message.success('用户已更新')
+      {/* —— 新增到机构 —— */}
+      {bindOpen && selectedOrgId != null && (
+        <BindUserModal
+          open={bindOpen}
+          targetOrgId={selectedOrgId}
+          onCancel={() => setBindOpen(false)}
+          onSubmit={async (payload: any) => {
+            if (!selectedOrgId) return
+            if (payload?.emails?.length) {
+              await orgsApi.addUsersByEmail(selectedOrgId, payload.emails)
+            } else if (payload?.userIds?.length) {
+              await orgsApi.addUsers(selectedOrgId, payload.userIds)
+            } else {
+              return
+            }
+            message.success('绑定成功')
+            setBindOpen(false)
             q.refetch()
           }}
         />
+      )}
 
-        {/* —— 新增到机构 —— */}
-        {bindOpen && selectedOrgId != null && (
-          <BindUserModal
-            open={bindOpen}
-            targetOrgId={selectedOrgId}
-            onCancel={() => setBindOpen(false)}
-            onSubmit={handleBindSubmit}
-          />
-        )}
+      {/* —— 重置密码 —— */}
+      <ResetPasswordModal
+        open={resetOpen}
+        username={currentUser?.username}
+        onCancel={() => setResetOpen(false)}
+        onSubmit={async (newPwd: any) => {
+          if (!currentUser) return
+          await q.resetPassword(currentUser.id, newPwd)
+          setResetOpen(false)
+          message.success('密码已重置')
+          q.refetch()
+        }}
+      />
 
-        {/* —— 重置密码弹窗 —— */}
-        <ResetPasswordModal
-          open={resetOpen}
-          username={currentUser?.username}
-          onCancel={() => setResetOpen(false)}
-          onSubmit={async newPwd => {
-            if (!currentUser) return
-            await q.resetPassword(currentUser.id, newPwd) // <- 传入自定义密码
-            setResetOpen(false)
-            message.success('密码已重置')
-            q.refetch()
-          }}
-        />
-
-        {/* —— 分配角色 —— */}
-        <AssignRolesModal
-          open={assignOpen}
-          user={currentUser}
-          orgId={selectedOrgId ?? undefined}
-          onCancel={() => setAssignOpen(false)}
-          onOk={() => {
-            setAssignOpen(false)
-            // 分配角色通常不影响列表字段，这里仅保持一致性
-            q.refetch()
-          }}
-        />
-      </Layout>
-    </>
+      {/* —— 分配角色 —— */}
+      <AssignRolesModal
+        open={assignOpen}
+        user={currentUser}
+        orgId={selectedOrgId ?? undefined}
+        onCancel={() => setAssignOpen(false)}
+        onOk={() => {
+          setAssignOpen(false)
+          q.refetch()
+        }}
+      />
+    </Layout>
   )
 }
-
-export default UserManagementPage

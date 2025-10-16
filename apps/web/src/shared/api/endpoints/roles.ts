@@ -11,7 +11,7 @@ export interface Role {
   is_system?: 0 | 1 | boolean
   is_disabled?: 0 | 1 | boolean
   sort_order?: number
-  org_id?: number | null // ⭐ 新增：角色所属机构（机构内角色）
+  org_id?: number | null
   created_at?: string
   updated_at?: string
 }
@@ -34,6 +34,14 @@ export interface EffectiveMenuItem {
   title: string
   name?: string
   parent_id?: number | null
+}
+
+// ⭐ 新增：服务“全部菜单 + 该角色选择状态”
+export interface RoleMenusAllResp {
+  menus: Array<{ id: number; title: string; name?: string; parent_id?: number | null }>
+  selected: number[] // 被该角色选中的菜单 id 列表
+  // （可选）兼容：也返回每个菜单的选中态
+  // checkedMap?: Record<number, boolean>
 }
 
 export const rolesApi = {
@@ -59,7 +67,7 @@ export const rolesApi = {
     return api.delete<ApiResult<void>>(`/roles/${id}`)
   },
 
-  // ⭐ 按机构的角色管理（本次新增）
+  // —— 机构内角色（保留） —— //
   listInOrg(orgId: number, params?: { page?: number; pageSize?: number; keyword?: string }) {
     return api.get<ApiResult<{ roles: Role[]; total: number; page: number; pageSize: number }>>(
       `/orgs/${orgId}/roles`,
@@ -83,19 +91,22 @@ export const rolesApi = {
     return api.delete<ApiResult<void>>(`/orgs/${orgId}/roles/${id}`)
   },
 
-  // 角色菜单权限（选中项：系统菜单ID）
+  // —— 角色菜单（旧：分两次；仍保留兼容） —— //
   getRoleMenus(id: number) {
     return api.get<ApiResult<any[]>>(`/roles/${id}/menus`)
   },
   setRoleMenus(id: number, menuIds: number[]) {
     return api.put<ApiResult<void>>(`/roles/${id}/menus`, { menuIds })
   },
-
-  // ✅ 生效菜单（后端优先依据 role.org_id；也允许显式 ?orgId=）
   getRoleEffectiveMenus(roleId: number, orgId?: number) {
     return api.get<ApiResult<{ menus: EffectiveMenuItem[]; orgId?: number }>>(`/roles/${roleId}/menus/effective`, {
       params: orgId ? { orgId } : undefined,
     })
+  },
+
+  // ⭐ 新增：一次拿到“全部菜单 + 当前角色选中状态”
+  getRoleMenusAll(roleId: number) {
+    return api.get<ApiResult<RoleMenusAllResp>>(`/roles/${roleId}/menus/all`)
   },
 
   // 用户 ⇄ 角色
@@ -117,7 +128,7 @@ export const rolesApi = {
     return api.delete<ApiResult<void>>(`/roles/${roleId}/users/${userId}`)
   },
 
-  // 角色 ⇄ 机构（依旧保留给“老角色”场景）
+  // 角色 ⇄ 机构
   getRoleOrgs(id: number) {
     return api.get<ApiResult<RoleOrg[]>>(`/roles/${id}/orgs`)
   },
@@ -135,6 +146,8 @@ export const rolesApi = {
   suggestCode(name: string) {
     return api.get<ApiResult<string>>('/roles/suggest-code', { params: { name } })
   },
+
+  // ✅ 按机构批量加人（保留）
   addUsersToRoleByOrg(roleId: number, orgId: number, opts?: { include_children?: boolean }) {
     return api.post<ApiResult<{ added: number }>>(`/roles/${roleId}/users/by-org`, {
       orgId,

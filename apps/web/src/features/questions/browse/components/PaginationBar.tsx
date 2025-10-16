@@ -24,7 +24,7 @@ export function PaginationBar({
         pageSize={pageSize}
         onChange={onChange}
         onShowSizeChange={onSizeChange}
-        {...createPaginationConfig({ pageSizeOptions: ['10', '15', '20', '30', '40', '50'] })}
+        {...createPaginationConfig({ pageSizeOptions: ['10', '15', '20', '30', '40', '50','100'] })}
       />
     </Card>
   )

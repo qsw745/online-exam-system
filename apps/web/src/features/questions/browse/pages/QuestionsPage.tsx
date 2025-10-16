@@ -1,5 +1,4 @@
 // src/features/questions/browse/pages/QuestionsPage.tsx
-
 import { useQuestionsQuery } from '@/features/questions/hooks/useQuestionsQuery'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
@@ -91,7 +90,7 @@ export default function QuestionsPage() {
           viewType={q.viewType}
           title={title}
           desc={desc}
-          isAdmin={user?.role === 'admin'}
+          isAdmin={(user as any)?.role === 'admin'}
           manageHref="/admin/questions"
           practiceHref={practiceHref}
         />
@@ -137,9 +136,9 @@ export default function QuestionsPage() {
 
       {q.viewType === 'all' && q.items.length > 0 && (
         <PaginationBar
-          current={q.pg.current}
-          total={q.pg.total}
-          pageSize={q.pg.pageSize}
+          current={q.page} // ✅ 改这里：使用 q.page
+          total={q.total}
+          pageSize={q.pageSize}
           onChange={q.setPage}
           onSizeChange={(_c: number, size: number) => q.setPageSize(size)}
         />

@@ -1,3 +1,4 @@
+// src/features/questions/hooks/useQuestionsQuery.ts
 import * as React from 'react'
 import { questionsApi } from '@/shared/api/http'
 
@@ -53,7 +54,6 @@ export type Filters = {
 }
 
 type Pagination = {
-  current: number
   page: number
   pageSize: number
   total: number
@@ -71,7 +71,7 @@ type QueryResult = {
   setSearch: (v: string, opts?: { immediate?: boolean }) => void
   setTags: (tags: string[]) => void
 
-  /** 兼容旧页面命名： */
+  // 兼容旧页面命名：
   search: string
   type: string
   selectedTags: string[]
@@ -110,7 +110,7 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
     tags: [],
   })
 
-  const [pg, setPg] = React.useState<Pagination>({ page: 1, pageSize: 10, total: 0 ,current:1})
+  const [pg, setPg] = React.useState<Pagination>({ page: 1, pageSize: 10, total: 0 })
   const [loading, setLoading] = React.useState(false)
   const [items, setItems] = React.useState<any[]>([])
   const [allTags, setAllTags] = React.useState<string[]>([])
@@ -118,74 +118,43 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
   // 查重模式
   const [dup, setDup] = React.useState<DupMode>({ dupOnly: false, isGrouped: false })
 
+  // —— 稳定的 userId 依赖（避免 user 对象引用变化导致重复请求）—— //
+  const userId = Number.isFinite(Number(user?.id)) ? Number(user?.id) : undefined
+
+  // —— 请求去重：相同参数不重复发起 —— //
+  const lastSigRef = React.useRef<string>('') // 上一次参数签名
+  const abortRef = React.useRef<AbortController | null>(null) // 取消上一次请求
+
   const fetchTags = React.useCallback(async () => {
     try {
       const r: any = await questionsApi.getTags()
       const data = r?.data ?? r
       setAllTags(Array.isArray(data) ? data : [])
-    } catch {}
+    } catch {
+      // 忽略标签错误
+    }
   }, [])
 
-  const fetchList = React.useCallback(async () => {
-    if (!user) {
-      // 没有登录用户时也允许取公共列表（若后端鉴权限制，这里直接返回空）
-      // 你也可以选择直接 return
+  const buildParams = React.useCallback(() => {
+    const p: any = { page: pg.page, limit: pg.pageSize }
+
+    if (filters.search?.trim()) {
+      p.keyword = filters.search.trim()
+      p.search = filters.search.trim()
     }
-    setLoading(true)
-    try {
-      const params: any = { page: pg.page, limit: pg.pageSize }
+    if (filters.type && filters.type !== 'all') p.type = filters.type
+    if (filters.difficulty && filters.difficulty !== 'all') p.difficulty = filters.difficulty
+    if (filters.tags?.length) p.tags = filters.tags.join(',')
 
-      // 基础筛选
-      if (filters.search?.trim()) {
-        params.keyword = filters.search.trim()
-        params.search = filters.search.trim()
-      }
-      if (filters.type && filters.type !== 'all') params.type = filters.type
-      if (filters.difficulty && filters.difficulty !== 'all') params.difficulty = filters.difficulty
-      if (filters.tags?.length) params.tags = filters.tags.join(',')
-
-      // 查重开关
-      if (dup.dupOnly) {
-        params.duplicates = dup.isGrouped ? 'grouped' : 'title_type' // 与后端控制器保持一致
-      }
-
-      const r: any = await questionsApi.list(params)
-      const d = r?.data
-
-      // 普通列表
-      if (!dup.dupOnly) {
-        const list = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
-        const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)
-        setItems(list)
-        setPg(s => ({ ...s, total: Number(total) || 0 }))
-      } else {
-        // 查重列表（平铺 or 分组）
-        if (dup.isGrouped && d?.grouped) {
-          // 分组结构：{ grouped:true, groups:[{title,question_type,dup_count,items:[] }], pagination:{ totalGroups... } }
-          const groups = Array.isArray(d.groups) ? d.groups : []
-          // 你原页面大概率还是平铺渲染，给它一个拍平的 list，同时保留组的 display_title
-          const flattened: any[] = []
-          for (const g of groups) {
-            for (const it of g.items || []) {
-              flattened.push(it)
-            }
-          }
-          setItems(flattened)
-          const totalGroups = d?.pagination?.totalGroups ?? groups.length
-          setPg(s => ({ ...s, total: Number(totalGroups) || flattened.length }))
-        } else {
-          // 平铺重复列表：后端已返回 display_title / dup_total / dup_index
-          const list = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
-          const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)
-          setItems(list)
-          setPg(s => ({ ...s, total: Number(total) || 0 }))
-        }
-      }
-    } finally {
-      setLoading(false)
+    if (dup.dupOnly) {
+      p.duplicates = dup.isGrouped ? 'grouped' : 'title_type'
     }
+
+    // 可选：带上 userId（若后端需要）
+    if (userId) p.userId = userId
+
+    return p
   }, [
-    user,
     pg.page,
     pg.pageSize,
     filters.search,
@@ -194,11 +163,67 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
     filters.tags,
     dup.dupOnly,
     dup.isGrouped,
+    userId,
   ])
 
+  const fetchList = React.useCallback(async () => {
+    const params = buildParams()
+    const signature = JSON.stringify(params)
+
+    // 1) 相同参数不再请求
+    if (signature === lastSigRef.current) return
+    lastSigRef.current = signature
+
+    // 2) 取消上一轮
+    if (abortRef.current) abortRef.current.abort()
+    const ac = new AbortController()
+    abortRef.current = ac
+
+    setLoading(true)
+    try {
+      const r: any = await questionsApi.list(params, { signal: ac.signal } as any)
+      const d = r?.data
+
+      if (!dup.dupOnly) {
+        const list = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
+        const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)
+        setItems(list)
+        setPg(s => {
+          const next = { ...s, total: Number(total) || 0 }
+          return next
+        })
+      } else {
+        if (dup.isGrouped && d?.grouped) {
+          const groups = Array.isArray(d.groups) ? d.groups : []
+          const flattened: any[] = []
+          for (const g of groups) for (const it of g.items || []) flattened.push(it)
+          setItems(flattened)
+          const totalGroups = d?.pagination?.totalGroups ?? groups.length
+          setPg(s => ({ ...s, total: Number(totalGroups) || flattened.length }))
+        } else {
+          const list = Array.isArray(d) ? d : d?.items ?? d?.questions ?? []
+          const total = d?.total ?? d?.pagination?.total ?? (Array.isArray(d) ? d.length : 0)
+          setItems(list)
+          setPg(s => ({ ...s, total: Number(total) || 0 }))
+        }
+      }
+    } catch (err: any) {
+      if (err?.name !== 'AbortError') {
+        // 这里可以上报日志
+        // console.error(err)
+      }
+    } finally {
+      if (abortRef.current === ac) abortRef.current = null
+      setLoading(false)
+    }
+  }, [buildParams, dup.dupOnly, dup.isGrouped])
+
+  // 仅依赖稳定的参数集合与 userId
   React.useEffect(() => {
     fetchList()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchList])
+
   React.useEffect(() => {
     fetchTags()
   }, [fetchTags])
@@ -232,6 +257,8 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
   }
 
   const reload = async () => {
+    // 重置签名保证一定会重新发请求
+    lastSigRef.current = ''
     await fetchList()
   }
   const reloadTags = async () => {
@@ -273,11 +300,14 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
     setDupOnly: (v: boolean) => {
       setDup(s => ({ ...s, dupOnly: v }))
       setPg(s => ({ ...s, page: 1 }))
+      // 触发新请求：清空签名
+      lastSigRef.current = ''
     },
     isGrouped: dup.isGrouped,
     setIsGrouped: (v: boolean) => {
       setDup(s => ({ ...s, isGrouped: v }))
       setPg(s => ({ ...s, page: 1 }))
+      lastSigRef.current = ''
     },
   }
 }
