@@ -3,7 +3,6 @@ declare const process: any
 
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
-import type { ApiResponse } from '@/types/response.js'
 import { UserService } from '../services/user.service.js'
 import { log } from '@/infrastructure/logging/logger'
 
@@ -23,6 +22,40 @@ type Res = Response & {
 const svc = new UserService()
 
 export class UserController {
+  // ✅ 新增：创建用户
+  static async create(req: AuthRequest, res: Res) {
+    try {
+      const body = req.body || {}
+      const username = String(body.username || '').trim()
+      const password = String(body.password || '')
+      if (!username || username.length < 3) return res.badRequest('用户名至少 3 位')
+      if (!password || password.length < 6) return res.badRequest('密码至少 6 位')
+
+      // 只允许 '男' | '女' | '保密'，否则置为 '保密'
+      let gender = (body.gender ?? null) as '男' | '女' | '保密' | null
+      if (!['男', '女', '保密'].includes(String(gender || ''))) gender = '保密'
+
+      const payload = {
+        username,
+        nickname: String(body.nickname || '').trim() || null,
+        email: String(body.email || '').trim() || null,
+        phone: String(body.phone || '').trim() || null,
+        gender,
+        remark: String(body.remark || '').trim() || null,
+        status: body.status === 'disabled' ? ('disabled' as const) : ('active' as const),
+        role: body.role === 'admin' || body.role === 'teacher' || body.role === 'student' ? body.role : 'student',
+        password,
+        org_id: (body.org_id ?? body.orgId) as number | undefined,
+      }
+
+      const created = await svc.adminCreate(payload, { id: req.user?.id, username: req.user?.username }, req)
+      return res.created(created, '创建成功')
+    } catch (e) {
+      log.error('创建用户失败:', e)
+      return res.internal('创建用户失败')
+    }
+  }
+
   static async changePassword(req: AuthRequest, res: Res) {
     try {
       if (!req.user?.id) return res.unauthorized('未授权')
@@ -122,6 +155,9 @@ export class UserController {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
 
+      let gender = req.body?.gender as '男' | '女' | '保密' | undefined
+      if (gender && !['男', '女', '保密'].includes(gender)) gender = undefined
+
       const updated = await svc.adminUpdate(
         id,
         {
@@ -132,6 +168,9 @@ export class UserController {
           nickname: req.body?.nickname,
           school: req.body?.school,
           class_name: req.body?.class_name,
+          phone: req.body?.phone,
+          gender,
+          remark: req.body?.remark,
         },
         { id: req.user?.id, username: req.user?.username }
       )

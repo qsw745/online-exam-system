@@ -1,36 +1,30 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 
-// ===== Admin / System =====
+/** ---------------- 手动注册（兼容旧方案：用 key） ---------------- */
 const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage'))
 const OrgManagementPage = lazy(() => import('@/features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@/features/roles/pages/RoleManagementPage'))
-const MenuManagementPage = lazy(() => import('@/features/menu/pages/MenuManagementPage'))
-const SystemMenusPage =lazy(()=> import('@/features/menu/pages/SystemMenusPage'))
+const SystemMenusPage = lazy(() => import('@/features/menu/pages/SystemMenusPage'))
 const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage'))
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
-
 const SystemSettingsPage = lazy(() => import('@/features/admin-settings/pages/SystemSettingsPage'))
 
-// ===== Tasks =====
 const MyTasksPage = lazy(() => import('@/features/tasks/pages/MyTasksPage'))
 const TaskListPage = lazy(() => import('@/features/tasks/pages/TaskListPage'))
 const TaskCreatePage = lazy(() => import('@/features/tasks/pages/TaskCreatePage'))
 const TaskDetailPage = lazy(() => import('@/features/tasks/pages/TaskDetailPage'))
 
-// ===== Papers / Questions =====
 const PaperManagementPage = lazy(() => import('@/features/papers/pages/PaperManagementPage'))
 const PaperCreatePage = lazy(() => import('@/features/papers/pages/PaperCreatePage'))
 const PaperManualCreatePage = lazy(() => import('@/features/papers/pages/PaperManualCreatePage'))
 const SmartPaperCreatePage = lazy(() => import('@/features/papers/pages/SmartPaperCreatePage'))
-const PaperDetailPage = lazy(() => import('@/features/papers/pages/PaperDetailPage')) // ✅ 新增
+const PaperDetailPage = lazy(() => import('@/features/papers/pages/PaperDetailPage'))
 
 const QuestionManagementPage = lazy(() => import('@/features/questions/pages/QuestionManagementPage'))
 const QuestionCreatePage = lazy(() => import('@/features/questions/pages/QuestionCreatePage'))
 const QuestionDetailPage = lazy(() => import('@/features/questions/pages/QuestionDetailPage'))
 const QuestionEditPage = lazy(() => import('@/features/questions/pages/QuestionEditPage'))
-const ResultDetailPage = lazy(() => import('@/features/exams/pages/ResultDetailPage'))
 
-// ===== Top-level user features =====
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'))
 const AnalyticsOverviewPage = lazy(() => import('@/features/analytics/pages/AnalyticsOverviewPage'))
 const AnalyticsDetailsPage = lazy(() => import('@/features/analytics/pages/AnalyticsDetailsPage'))
@@ -44,18 +38,30 @@ const QuestionPracticePage = lazy(() => import('@/features/questions/pages/Quest
 const FavoritesPage = lazy(() => import('@/features/favorites/pages/FavoritesPage'))
 const LeaderboardPage = lazy(() => import('@/features/leaderboard/pages/LeaderboardPage'))
 const LearningProgressPage = lazy(() => import('@/features/learning-progress/pages/LearningProgressPage'))
-const NotificationsPage = lazy(() => import('@/features/notifications/pages/NotificationsPage'))
+const NotificationsPage = lazy(() => import('@/features/notifications-manager/pages/NotificationsPage'))
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage'))
 const UserSettingsPage = lazy(() => import('@/features/settings/pages/UserSettingsPage'))
 const WrongQuestionsPage = lazy(() => import('@/features/wrong-questions/pages/WrongQuestionsPage'))
 const LoginLogsPage = lazy(() => import('@/features/logs/pages/LoginLogsPage'))
 const OperationLogsPage = lazy(() => import('@/features/logs/pages/OperationLogsPage'))
 const SystemLogsPage = lazy(() => import('@/features/logs/pages/SystemLogsPage'))
-
-// 可选：在线用户
 const OnlineUsersPage = lazy(() => import('@/features/logs/pages/OnlineUsersPage'))
 
-// ===== Errors =====
+// Notification Center / Manager
+const InboxPage = lazy(() => import('@/features/notification-center/pages/InboxPage'))
+const AnnouncementsPage = lazy(() => import('@/features/notification-center/pages/AnnouncementsPage'))
+const SubscriptionPreferencesPage = lazy(
+  () => import('@/features/notification-center/pages/SubscriptionPreferencesPage')
+)
+const AnnouncementManagementPage = lazy(
+  () => import('@/features/notifications-manager/pages/AnnouncementManagementPage')
+)
+const MessageTemplatesPage = lazy(() => import('@/features/notifications-manager/pages/MessageTemplatesPage'))
+const ChannelsPage = lazy(() => import('@/features/notifications-manager/pages/ChannelsPage'))
+const BroadcastAndTestPage = lazy(() => import('@/features/notifications-manager/pages/BroadcastAndTestPage'))
+const PushLogsPage = lazy(() => import('@/features/notifications-manager/pages/PushLogsPage'))
+
+// Errors
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
 const NotFound404 = lazy(() => import('@/app/errors/NotFound404'))
 const ServerError500 = lazy(() => import('@/app/errors/ServerError500'))
@@ -70,7 +76,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'exam-list': ExamListPage,
   exam: ExamPage,
   results: ResultsPage,
-  'result-detail': ResultDetailPage,
+  'result-detail': PaperDetailPage,
   questions: QuestionsPage,
   'question-practice': QuestionPracticePage,
   favorites: FavoritesPage,
@@ -78,6 +84,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'learning-progress': LearningProgressPage,
   notifications: NotificationsPage,
   profile: ProfilePage,
+  settings: UserSettingsPage,
 
   'wrong-questions': WrongQuestionsPage,
 
@@ -85,12 +92,10 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-home': AdminPage,
   'admin-org': OrgManagementPage,
   'admin-role': RoleManagementPage,
-
-  //   'menu-functions': MenuManagementPage,
   'menu-functions': SystemMenusPage,
   'menu-units': UnitMenusPage,
   'user-manage': UserManagementPage,
-  'admin-user': UserManagementPage, // 兼容
+  'admin-user': UserManagementPage,
 
   'system-settings': SystemSettingsPage,
 
@@ -100,28 +105,88 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'task-create': TaskCreatePage,
   'task-detail': TaskDetailPage,
 
-  // Papers & Questions (后台)
+  // Papers & Questions
   'paper-manage': PaperManagementPage,
   'paper-create': PaperCreatePage,
   'paper-create-manual': PaperManualCreatePage,
   'paper-create-smart': SmartPaperCreatePage,
-  'paper-detail': PaperDetailPage, // ✅ 新增
+  'paper-detail': PaperDetailPage,
 
   'question-manage': QuestionManagementPage,
   'question-create': QuestionCreatePage,
   'question-detail': QuestionDetailPage,
   'question-edit': QuestionEditPage,
 
-  //   Logs
-  // ✅ 日志中心
+  // Logs
   'logs-login': LoginLogsPage,
   'logs-ops': OperationLogsPage,
   'logs-system': SystemLogsPage,
-
-  // 可选：在线用户
   'online-users': OnlineUsersPage,
+
+  // Notification Center
+  'notify-inbox': InboxPage,
+  'notify-announcements': AnnouncementsPage,
+  'notify-preferences': SubscriptionPreferencesPage,
+
+  // Notification Manager
+  'notify-announce-manage': AnnouncementManagementPage,
+  'notify-template': MessageTemplatesPage,
+  'notify-channel': ChannelsPage,
+  'notify-send': BroadcastAndTestPage,
+  'notify-log': PushLogsPage,
+
   // Errors
   'errors-403': Forbidden403,
   'errors-404': NotFound404,
   'errors-500': ServerError500,
 }
+
+/** ---------------- 动态路径解析（新） ----------------
+ * 支持后端直接下发源码相对路径：
+ *   "@/features/notification-center/pages/InboxPage"
+ *   "features/notification-center/pages/InboxPage"
+ *   也支持缺省扩展名（自动尝试 .tsx/.jsx 与 /index）
+ */
+const globPages = import.meta.glob([
+  '/src/features/**/pages/**/*.{tsx,jsx}',
+  '/src/app/errors/*.{tsx,jsx}',
+  '/src/app/**/pages/**/*.{tsx,jsx}',
+])
+
+function normalizeToSrcPath(id: string) {
+  let p = id.trim()
+  if (!p) return null
+  // 去掉开头的 @ -> /src
+  if (p.startsWith('@/')) p = p.replace(/^@/, '/src')
+  // 相对写法补全 /src
+  if (!p.startsWith('/src/')) p = '/src/' + p.replace(/^\/+/, '')
+  // 去掉扩展，后面会补候选
+  p = p.replace(/\.(tsx|jsx)$/, '')
+  return p
+}
+
+function collectCandidates(id: string): string[] {
+  const base = normalizeToSrcPath(id)
+  if (!base) return []
+  return [`${base}.tsx`, `${base}.jsx`, `${base}/index.tsx`, `${base}/index.jsx`]
+}
+
+/** 统一解析：优先 key，其次按源码路径动态引入 */
+export function resolveComponent(keyOrPath: string): LazyExoticComponent<ComponentType<any>> | undefined {
+  const byKey = componentRegistry[keyOrPath]
+  if (byKey) return byKey
+
+  // 只有包含 "/" 我们才认为它是“路径模式”
+  if (!keyOrPath.includes('/')) return undefined
+
+  const candidates = collectCandidates(keyOrPath)
+  for (const p of candidates) {
+    const loader = (globPages as any)[p]
+    if (loader) {
+      return lazy(loader as () => Promise<{ default: ComponentType<any> }>)
+    }
+  }
+  return undefined
+}
+
+export default componentRegistry

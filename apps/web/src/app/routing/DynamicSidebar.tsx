@@ -21,6 +21,7 @@ type AnyMenu = {
   is_hidden?: any
   isHidden?: any
   hidden?: any
+  menu_type?: 'menu' | 'page' | 'link' | 'iframe' | 'button' | 'dir' | string
 }
 
 /** 把未知值安全转成菜单数组，彻底避免 never[] 推断 */
@@ -87,13 +88,15 @@ function buildMenuArtifacts(menus: AnyMenu[]) {
   const id2path = new Map<string, string>()
   const id2title = new Map<string, string>()
   const id2redirect = new Map<string, string>()
+  const id2node = new Map<string, AnyMenu>() // ✅ 新增
   const parent = new Map<string, string | null>()
   const rootOpenableKeys: string[] = []
 
   const walk = (list: AnyMenu[], parentId: string | null): AntdItem[] => {
     const arr = asMenus(list).filter(shouldShowInMenu)
     return arr.map(m => {
-      const id = String(m?.id ?? '')
+      const id = String(m?.id ?? m?.path ?? Math.random())
+      id2node.set(id, m) // ✅ 保存节点
       parent.set(id, parentId)
       id2title.set(id, String(m?.title ?? ''))
 
@@ -118,7 +121,7 @@ function buildMenuArtifacts(menus: AnyMenu[]) {
   }
 
   items.push(...walk(asMenus(menus), null))
-  return { items, id2path, id2title, id2redirect, parent, rootOpenableKeys }
+  return { items, id2path, id2title, id2redirect, id2node, parent, rootOpenableKeys }
 }
 
 /** 用原始变量跟踪最优匹配，彻底规避 best?.id 的属性访问 */
@@ -256,7 +259,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
     return asMenus((root as AnyMenu)?.children)
   }, [menus, mode, location.pathname])
 
-  const { items, id2path, id2title, id2redirect, parent, rootOpenableKeys } = useMemo(
+  const { items, id2path, id2title, id2redirect, id2node, parent, rootOpenableKeys } = useMemo(
     () => buildMenuArtifacts(scopedMenus),
     [scopedMenus]
   )
@@ -405,7 +408,13 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
             const id = String(key)
             const path = id2path.get(id)
             const title = id2title.get(id) || ''
-
+            const node = id2node.get(id)
+            // ✅ 外链直接打开
+            if (node?.menu_type === 'link' && node?.meta?.externalUrl) {
+              const t = (node.meta.linkTarget || '_blank') as string
+              window.open(node.meta.externalUrl, t)
+              return
+            }
             if (path) {
               const p = cleanPath(path)
               ;(window as any).scrollTo?.(0, 0)

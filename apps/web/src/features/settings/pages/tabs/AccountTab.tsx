@@ -232,7 +232,7 @@ export default function AccountTab() {
         onOk={submitPassword}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={pwdForm} layout="vertical">
           <Form.Item name="current" label="当前密码" rules={[{ required: true, message: '请输入当前密码' }]}>
@@ -278,7 +278,7 @@ export default function AccountTab() {
         onOk={submitPhone}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={phoneForm} layout="vertical">
           <Form.Item
@@ -319,7 +319,7 @@ export default function AccountTab() {
         onOk={submitQA}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={qaForm} layout="vertical">
           <Form.Item
@@ -343,7 +343,7 @@ export default function AccountTab() {
         onOk={submitEmail}
         okText="保存"
         cancelText="取消"
-        destroyOnClose
+        destroyOnHidden
       >
         <Form form={emailForm} layout="vertical">
           <Form.Item

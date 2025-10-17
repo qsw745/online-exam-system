@@ -18,8 +18,8 @@ export const ViewUserModal: React.FC<{
       onOk={onClose}
       okText="关闭"
       cancelButtonProps={{ style: { display: 'none' } }}
-      // antd v5 正确写法是 destroyOnClose；你若确实需要销毁，改成这一行：
-      // destroyOnClose
+      // antd v5 正确写法是 destroyOnHidden
+      // destroyOnHidden
     >
       <Descriptions
         column={1}

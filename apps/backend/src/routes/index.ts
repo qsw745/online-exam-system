@@ -1,4 +1,5 @@
-import {Router} from 'express'
+// apps/backend/src/routes/index.ts（或你的路由聚合文件）
+import { Router } from 'express'
 
 // auth
 import * as authRoutesMod from '@/modules/auth/routes/auth.routes'
@@ -26,6 +27,9 @@ import * as dashboardRoutesMod from '@/modules/analytics/routes/dashboard.routes
 import * as logRoutesMod from '@/modules/logs/routes/log.routes'
 // notifications
 import * as notificationRoutesMod from '@/modules/notifications/routes/notification.routes'
+// NEW: messages & todos
+import * as messageRoutesMod from '@/modules/messages/routes/message.routes'
+import * as todoRoutesMod from '@/modules/todos/routes/todo.routes'
 // discussions
 import * as discussionsRoutesMod from '@/modules/discussions/routes/discussions.routes'
 // learning-progress
@@ -39,7 +43,7 @@ import * as profileRoutesMod from '@/modules/profile/routes/profile.routes'
 
 import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
 import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
-import * as publicRoutesMod from "@/modules/admin-settings/routes/public.routes";
+import * as publicRoutesMod from '@/modules/admin-settings/routes/public.routes'
 
 const pick = (mod: any, ...keys: string[]) => (keys.map(k => mod?.[k]).find(Boolean) ?? mod?.default) as any
 
@@ -59,56 +63,63 @@ const analyticsRoutes = pick(analyticsRoutesMod, 'analyticsRoutes')
 const dashboardRoutes = pick(dashboardRoutesMod, 'dashboardRoutes')
 const logRoutes = pick(logRoutesMod, 'logRoutes')
 const notificationRoutes = pick(notificationRoutesMod, 'notificationRoutes')
+// NEW
+const messageRoutes = pick(messageRoutesMod, 'messageRoutes')
+const todoRoutes = pick(todoRoutesMod, 'todoRoutes')
+
 const discussionsRoutes = pick(discussionsRoutesMod, 'discussionsRoutes')
 const learningProgressRoutes = pick(learningProgressRoutesMod, 'learningProgressRoutes')
 const taskRoutes = pick(taskRoutesMod, 'taskRoutes')
 const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
 const adminSettingsRoutes = pick(adminSettingsRoutesMod, 'adminSettingsRoutes')
 const profileRoutes = pick(profileRoutesMod, 'profileRoutes')
-const captchaRoutes=pick(captchaRoutesMod,"captchaRoutes")
-const cryptoRoutes=pick(cryptoRoutesMod,'cryptoRoutes')
-const publicRoutes=pick(publicRoutesMod,'publicRoutes')
+const captchaRoutes = pick(captchaRoutesMod, 'captchaRoutes')
+const cryptoRoutes = pick(cryptoRoutesMod, 'cryptoRoutes')
+const publicRoutes = pick(publicRoutesMod, 'publicRoutes')
+
 const router = Router()
 
 const mounts: Array<[string, any]> = [
-    ['/auth', authRoutes],
-    ['/auth/password-reset', passwordResetRoutes],
-    ['/users', userRoutes],
-    ['/orgs', orgRoutes],
-    ['/roles', roleRoutes],
-    ['/menus', menusRoutes],
-    ['/favorites', favoritesRoutes],
-    ['/questions', questionRoutes],
-    ['/exams', examRoutes],
-    ['/papers', paperRoutes],
-    ['/results', resultRoutes],
-    ['/leaderboard', leaderboardRoutes],
-    ['/analytics', analyticsRoutes],
-    ['/dashboard', dashboardRoutes],
-    ['/logs', logRoutes],
-    ['/notifications', notificationRoutes],
-    ['/discussions', discussionsRoutes],
-    ['/learning-progress', learningProgressRoutes],
-    ['/tasks', taskRoutes],
-    ['/wrong-questions', wrongQuestionRoutes],
-    ['/admin', adminSettingsRoutes],
-    ['/profile', profileRoutes],
-    ['/captcha',captchaRoutes],
-    ['/crypto',cryptoRoutes],
-    ['/public',publicRoutes]
-
+  ['/auth', authRoutes],
+  ['/auth/password-reset', passwordResetRoutes],
+  ['/users', userRoutes],
+  ['/orgs', orgRoutes],
+  ['/roles', roleRoutes],
+  ['/menus', menusRoutes],
+  ['/favorites', favoritesRoutes],
+  ['/questions', questionRoutes],
+  ['/exams', examRoutes],
+  ['/papers', paperRoutes],
+  ['/results', resultRoutes],
+  ['/leaderboard', leaderboardRoutes],
+  ['/analytics', analyticsRoutes],
+  ['/dashboard', dashboardRoutes],
+  ['/logs', logRoutes],
+  ['/notifications', notificationRoutes],
+  // NEW: 前端正在调用的两个模块
+  ['/messages', messageRoutes],
+  ['/todos', todoRoutes],
+  ['/discussions', discussionsRoutes],
+  ['/learning-progress', learningProgressRoutes],
+  ['/tasks', taskRoutes],
+  ['/wrong-questions', wrongQuestionRoutes],
+  ['/admin', adminSettingsRoutes],
+  ['/profile', profileRoutes],
+  ['/captcha', captchaRoutes],
+  ['/crypto', cryptoRoutes],
+  ['/public', publicRoutes],
 ]
 
 let ok = 0
 for (const [base, r] of mounts) {
-    const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
-    if (inst?.use && inst?.handle) {
-        router.use(base, inst)
-        ok++
-    } else {
-        console.warn(`[routes] skip mount ${base}: not an Express Router`)
-    }
+  const inst = typeof r === 'function' && !(r as any).use && !(r as any).handle ? (r as any)() : r
+  if (inst?.use && inst?.handle) {
+    router.use(base, inst)
+    ok++
+  } else {
+    console.warn(`[routes] skip mount ${base}: not an Express Router`)
+  }
 }
 console.log(`[routes] ✅ mounted ${ok}/${mounts.length} modules`)
-router.get('/', (_req, res) => res.json({ok: true, mounted: mounts.map(m => m[0])}))
+router.get('/', (_req, res) => res.json({ ok: true, mounted: mounts.map(m => m[0]) }))
 export default router

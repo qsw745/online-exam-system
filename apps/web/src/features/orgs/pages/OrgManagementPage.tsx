@@ -677,7 +677,7 @@ function DeptFormModal({
       onOk={handleOk}
       title={editing ? '修改部门' : parentForCreate ? '新增子部门' : '新增部门'}
       okText={editing ? '确定' : '创建'}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
       width={660}
     >

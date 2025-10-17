@@ -29,7 +29,8 @@ router.post('/settings', wrap(UserController.saveSettings))
 // 管理/教师可见
 router.get('/', requireRole(['admin', 'teacher']), wrap(UserController.list))
 router.get('/:id', requireRole(['admin', 'teacher']), wrap(UserController.getById))
-
+// ✅ 仅管理员：创建用户
+router.post('/', requireRole(['admin']), wrap(UserController.create))
 // 仅管理员
 router.put('/:id', requireRole(['admin']), wrap(UserController.update))
 router.put('/:id/status', requireRole(['admin']), wrap(UserController.updateStatus))

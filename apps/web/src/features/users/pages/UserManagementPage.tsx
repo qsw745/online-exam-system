@@ -1,5 +1,5 @@
-// apps/web/src/features/users/pages/UserManagementPage.tsx
 import { orgsApi } from '@/shared/api/endpoints/orgs'
+import { usersApi } from '@/shared/api/endpoints/users'
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import {
@@ -40,9 +40,9 @@ import type { ColumnsType } from 'antd/es/table'
 import React, { useEffect, useMemo, useRef, useState, type Key } from 'react'
 import { createPortal } from 'react-dom'
 
-// ✅ 补回 4 个弹窗组件的导入
+// ✅ 弹窗组件
 import AssignRolesModal from '../components/AssignRolesModal'
-import { BindUserModal } from '../components/BindUserModal'
+import AddUserModal, { type SubmitPayload } from '../components/AddUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
 
@@ -116,20 +116,22 @@ function pickFirstId(tree: any[]): number | null {
   const first = tree.find(n => n && typeof n.id === 'number')
   return first ? first.id : null
 }
+
+// ✅ 手机号敏感化
 const maskPhone = (p?: string | null) => (p ? p.replace(/^(\d{3})\d*(\d{4})$/, '$1****$2') : '—')
+
 const toEnabled = (s?: string) => (s === 'active' ? true : s === 'disabled' ? false : undefined)
 const created = (r: Row) => r.created_at || r.createdAt || null
-const genderTag = (g?: Row['gender']) =>
-  g === 'male' || g === '男' ? (
-    <Tag color="blue">男</Tag>
-  ) : g === 'female' || g === '女' ? (
-    <Tag color="red">女</Tag>
-  ) : (
-    <Text type="secondary">—</Text>
-  )
+const genderTag = (g?: Row['gender']) => {
+  if (g === '男') return <Tag>男</Tag>
+  if (g === '女') return <Tag>女</Tag>
+  if (g === '保密') return <Tag>保密</Tag>
+  return <Text type="secondary">—</Text>
+}
+
 const avatarUrl = (r: Row) => r.avatar_url || r.avatar || null
 
-/** ✅ 按 id 去重，避免切换部门后重复叠加 */
+/** ✅ 按 id 去重 */
 function useUniqueRows(rows: Row[] | undefined | null) {
   return useMemo<Row[]>(() => {
     if (!Array.isArray(rows) || rows.length === 0) return []
@@ -145,6 +147,11 @@ function useUniqueRows(rows: Row[] | undefined | null) {
     }
     return uniq
   }, [rows])
+}
+
+/** ✅ 统一的创建用户函数：强制走 usersApi.create（会自动带 token） */
+async function safeCreateUser(payload: SubmitPayload) {
+  return usersApi.create(payload) // ← 不再使用裸 fetch，避免 401
 }
 
 export default function UserManagementPage() {
@@ -167,7 +174,7 @@ export default function UserManagementPage() {
     })()
   }, [refetchTree])
 
-  // org 路径映射（用于“部门”列）
+  // org 路径映射
   const orgPathMap = useOrgPathMap(tree)
   const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
 
@@ -256,9 +263,9 @@ export default function UserManagementPage() {
     }
   }, [fs])
 
-  // ===== 行操作（沿用你的接口&弹窗） =====
+  // ===== 行操作 =====
   const [editOpen, setEditOpen] = useState(false)
-  const [bindOpen, setBindOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<any | null>(null)
@@ -272,13 +279,14 @@ export default function UserManagementPage() {
   const onReset = (u: any) => (setCurrentUser(u), setResetOpen(true))
   const onToggle = async (u: any) => {
     await q.toggleStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
-    message.success('状态已更新')
+    const ok = u.status === 'active' ? '已禁用' : '已启用'
+    App.useApp().message?.success?.(`状态${ok}`)
     q.refetch()
   }
   const onUnbind = async (u: any) => {
     if (!selectedOrgId) return
     await q.unbind(selectedOrgId, u.id)
-    message.success('已从机构移除')
+    App.useApp().message?.success?.('已从机构移除')
     q.refetch()
   }
   const onDelete = async (u: any) => {
@@ -289,19 +297,19 @@ export default function UserManagementPage() {
       okText: '删除',
       onOk: async () => {
         await q.deleteUser(u.id)
-        message.success('删除成功')
+        App.useApp().message?.success?.('删除成功')
         const rest = q.total - 1 - (q.page - 1) * q.limit
         if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
         else q.refetch()
       },
     })
   }
-  const openBindModal = () => {
-    if (!selectedOrgId) return message.warning('请先选择左侧机构')
-    setBindOpen(true)
+  const openAddModal = () => {
+    if (!selectedOrgId) return App.useApp().message?.warning?.('请先选择左侧机构')
+    setAddOpen(true)
   }
 
-  // ===== 列定义（根据 orderedVisibleKeys 生成） =====
+  // ===== 列定义 =====
   const columns = useMemo<ColumnsType<Row>>(() => {
     const ALL: Record<ColKey, any> = {
       id: { title: LABELS.id, dataIndex: 'id', width: 90, align: 'center' },
@@ -352,13 +360,7 @@ export default function UserManagementPage() {
           return getOrgPath(id ?? null, direct) || direct || <Text type="secondary">—</Text>
         },
       },
-      phone: {
-        title: LABELS.phone,
-        dataIndex: 'phone',
-        width: 140,
-        align: 'center',
-        render: (p: any) => maskPhone(p),
-      },
+      phone: { title: LABELS.phone, dataIndex: 'phone', width: 140, align: 'center', render: (p: any) => maskPhone(p) },
       status: {
         title: LABELS.status,
         dataIndex: 'status',
@@ -433,27 +435,23 @@ export default function UserManagementPage() {
   // ✅ 对 q.rows 做去重后再给 Table
   const dataSource = useUniqueRows((q.rows || []) as Row[])
 
-  // ===== 表格工具区（可全屏） =====
+  // ===== 工具栏、筛选、表格 =====
   const Toolbar = (
     <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
       <div style={{ fontWeight: 600, fontSize: 16 }}>用户管理</div>
-
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <Button type="primary" icon={<UserAddOutlined />} onClick={openBindModal} disabled={!selectedOrgId}>
+        <Button type="primary" icon={<UserAddOutlined />} onClick={openAddModal} disabled={!selectedOrgId}>
           新增用户
         </Button>
-
         <Tooltip title={siderCollapsed ? '展开机构树' : '折叠机构树'}>
           <Button
             icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setSiderCollapsed(v => !v)}
           />
         </Tooltip>
-
         <Tooltip title="刷新">
           <Button icon={<ReloadOutlined />} onClick={() => q.refetch()} />
         </Tooltip>
-
         <Dropdown
           trigger={['click']}
           menu={{
@@ -471,22 +469,17 @@ export default function UserManagementPage() {
             <Button icon={<ColumnHeightOutlined />} />
           </Tooltip>
         </Dropdown>
-
         <Dropdown
           trigger={['click']}
-          dropdownRender={() => (
+          menu={{ items: [] }}
+          popupRender={() => (
             <div className="col-setting-panel">
               <div
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '10px 12px',
-                }}
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px' }}
               >
                 <Checkbox
-                  checked={allChecked}
-                  indeterminate={indeterminate}
+                  checked={visible.length === DEFAULT_VISIBLE.length}
+                  indeterminate={visible.length > 0 && visible.length < DEFAULT_VISIBLE.length}
                   onChange={e => setVisible(e.target.checked ? DEFAULT_VISIBLE : [])}
                 >
                   列展示
@@ -500,7 +493,6 @@ export default function UserManagementPage() {
                   重置
                 </a>
               </div>
-
               <div style={{ padding: '6px 12px 0' }}>
                 {order.map(k => (
                   <div
@@ -523,12 +515,12 @@ export default function UserManagementPage() {
                 <div className="col-setting-row col-fixed">
                   <HolderOutlined className="col-setting-handle disabled" />
                   <Checkbox
-                    checked={visible.includes(FIXED)}
+                    checked={visible.includes('actions')}
                     onChange={e =>
-                      setVisible(prev => (e.target.checked ? [...prev, FIXED] : prev.filter(x => x !== FIXED)))
+                      setVisible(prev => (e.target.checked ? [...prev, 'actions'] : prev.filter(x => x !== 'actions')))
                     }
                   >
-                    {LABELS[FIXED]}（固定）
+                    {LABELS.actions}（固定）
                   </Checkbox>
                 </div>
               </div>
@@ -539,7 +531,6 @@ export default function UserManagementPage() {
             <Button icon={<SettingOutlined />} />
           </Tooltip>
         </Dropdown>
-
         <Tooltip title={fs ? '退出全屏' : '全屏'}>
           <Button icon={fs ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={() => setFs(v => !v)} />
         </Tooltip>
@@ -547,9 +538,11 @@ export default function UserManagementPage() {
     </div>
   )
 
-  // ===== 顶部筛选区域 =====
   const Filters = (
-    <Card styles={{ body: { padding: 16 } }} style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}>
+    <Card
+      styles={{ body: { padding: 16, overflowX: 'auto' } }}
+      style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}
+    >
       <Space wrap size={16} style={{ width: '100%' }}>
         <Space>
           <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>用户名：</span>
@@ -595,7 +588,6 @@ export default function UserManagementPage() {
             onChange={v => setFStatus((v as any) || '')}
           />
         </Space>
-
         <Space style={{ marginLeft: 'auto' }} align="center">
           <Button type="primary" icon={<SearchOutlined />} onClick={doSearch}>
             搜索
@@ -603,7 +595,6 @@ export default function UserManagementPage() {
           <Button icon={<ReloadOutlined />} onClick={doReset}>
             重置
           </Button>
-
           <Text type="secondary">含子部门</Text>
           <Switch
             checked={!!q.includeChildren}
@@ -618,11 +609,9 @@ export default function UserManagementPage() {
     </Card>
   )
 
-  // ===== 表格块（可全屏） =====
   const TableBlock = (
-    <Card className="users-table-card" styles={{ body: { padding: 12 } }}>
+    <Card className="users-table-card" styles={{ body: { padding: 12, overflowX: 'auto' } }}>
       {Toolbar}
-
       <Table<Row>
         className="users-table"
         rowKey={r => r.id as Key}
@@ -631,14 +620,10 @@ export default function UserManagementPage() {
         columns={columns}
         pagination={false}
         size={tableSize}
-        rowSelection={{
-          selectedRowKeys,
-          onChange: keys => setSelectedRowKeys(keys),
-          preserveSelectedRowKeys: true,
-        }}
+        scroll={{ x: 'max-content' }}
+        rowSelection={{ selectedRowKeys, onChange: keys => setSelectedRowKeys(keys), preserveSelectedRowKeys: true }}
         bordered
       />
-
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12, alignItems: 'center', gap: 12 }}>
         <span style={{ color: '#6b7280' }}>共 {q.total} 条</span>
         <Pagination
@@ -661,39 +646,16 @@ export default function UserManagementPage() {
   return (
     <Layout style={{ height: '100%', background: 'transparent', padding: 16 }}>
       <style>{`
-        .users-table-card {
-          border-radius: 10px;
-          box-shadow: 0 2px 12px rgba(0,0,0,0.045);
-        }
-        .users-table .ant-table-thead > tr > th {
-          background-color: #f5f7fa !important;
-          text-align: center;
-        }
-        .users-table .ant-table-tbody > tr > td {
-          text-align: left;
-        }
-        .col-setting-panel {
-          width: 260px;
-          background: #fff;
-          border: 1px solid #f0f0f0;
-          border-radius: 8px;
-          box-shadow: 0 8px 24px rgba(0,0,0,.06);
-          user-select: none;
-        }
-        .col-setting-row {
-          display:flex; align-items:center; gap:8px;
-          padding:6px 4px;
-          border-radius:8px;
-        }
+        .users-table-card { border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,0.045); }
+        .users-table .ant-table-thead > tr > th { background-color:#f5f7fa !important; text-align:center; }
+        .users-table .ant-table-tbody > tr > td { text-align:left; }
+        .col-setting-panel { width:260px; background:#fff; border:1px solid #f0f0f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.06); user-select:none; padding-bottom:6px; }
+        .col-setting-row { display:flex; align-items:center; gap:8px; padding:6px 4px; border-radius:8px; }
         .col-setting-handle { color:#94a3b8; cursor:grab; }
         .col-setting-handle.disabled { opacity:.35; cursor:not-allowed; }
-        .fs-overlay {
-          position: fixed; inset: 0; z-index: 4000;
-          background:#fff; overflow:auto; padding:12px; box-sizing:border-box;
-        }
+        .fs-overlay { position:fixed; inset:0; z-index:4000; background:#fff; overflow:auto; padding:12px; box-sizing:border-box; }
       `}</style>
 
-      {/* 左侧机构树 */}
       <Sider
         width={240}
         collapsedWidth={0}
@@ -748,27 +710,17 @@ export default function UserManagementPage() {
         }}
       />
 
-      {/* —— 新增到机构 —— */}
-      {bindOpen && selectedOrgId != null && (
-        <BindUserModal
-          open={bindOpen}
-          targetOrgId={selectedOrgId}
-          onCancel={() => setBindOpen(false)}
-          onSubmit={async (payload: any) => {
-            if (!selectedOrgId) return
-            if (payload?.emails?.length) {
-              await orgsApi.addUsersByEmail(selectedOrgId, payload.emails)
-            } else if (payload?.userIds?.length) {
-              await orgsApi.addUsers(selectedOrgId, payload.userIds)
-            } else {
-              return
-            }
-            message.success('绑定成功')
-            setBindOpen(false)
-            q.refetch()
-          }}
-        />
-      )}
+      {/* —— 新增用户 —— */}
+      <AddUserModal
+        open={addOpen}
+        defaultOrgId={selectedOrgId ?? undefined}
+        onCancel={() => setAddOpen(false)}
+        onSubmit={async payload => {
+          await safeCreateUser(payload)
+          setAddOpen(false)
+          q.refetch()
+        }}
+      />
 
       {/* —— 重置密码 —— */}
       <ResetPasswordModal

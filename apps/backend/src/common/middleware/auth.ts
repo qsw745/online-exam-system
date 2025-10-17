@@ -1,4 +1,3 @@
-// apps/backend/src/common/middleware/auth.ts
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 // 让没有 @types/node 也能编译
@@ -8,7 +7,7 @@ declare const require: any
 import { pool } from '@/config/database'
 import type { NextFunction, Request, RequestHandler, Response } from 'express'
 
-// ✅ 关键修复：避免直接静态导入 jsonwebtoken（会触发 “不是模块” 报错），改为 runtime require
+// ✅ 运行时 require，避免某些构建环境下的 ESM/CJS 冲突
 const jwt: any = (() => {
   try {
     return require('jsonwebtoken')
@@ -17,10 +16,22 @@ const jwt: any = (() => {
   }
 })()
 
-import { ACCESS_JWT_CLOCK_TOLERANCE_SEC } from '@/config/jwt'
-import { getJwtSecret } from '@/config/jwt'
+import { ACCESS_JWT_CLOCK_TOLERANCE_SEC, getJwtSecret } from '@/config/jwt'
 import type { RowDataPacket } from 'mysql2/promise'
 import { SessionStore } from '@/common/session/session.store'
+
+// —— 简单解析 Cookie（无需 cookie-parser 依赖）——
+function readCookie(req: Request, name: string): string | null {
+  const raw = req.headers?.cookie
+  if (!raw) return null
+  const parts = raw.split(';')
+  for (const p of parts) {
+    const [k, ...rest] = p.trim().split('=')
+    if (!k) continue
+    if (k === name) return decodeURIComponent(rest.join('=') || '')
+  }
+  return null
+}
 
 async function getPrimaryOrgId(userId: number): Promise<number | null> {
   const [[row]] = await pool.query<RowDataPacket[]>(
@@ -64,7 +75,6 @@ declare global {
         is_super_admin?: boolean
         isAdmin?: boolean
         isSuperAdmin?: boolean
-        /** 会话 ID（即 access 的 sid / refresh 的 jti） */
         sessionId?: string
       } | null
       auth?: { userId: number | null; orgId: number | null; isAdminInOrg: boolean }
@@ -72,10 +82,25 @@ declare global {
   }
 }
 
+function getTokenFromRequest(req: Request): string | null {
+  const authz = req.get('authorization') || ''
+  if (authz.startsWith('Bearer ')) return authz.slice(7).trim()
+  if (authz) {
+    const maybe = authz.split(' ')[1]
+    if (maybe) return maybe.trim()
+  }
+  // ✅ Cookie 兜底
+  return (
+    readCookie(req, 'access_token') ||
+    readCookie(req, 'token') ||
+    readCookie(req, 'Authorization') || // 有些后端会把 Bearer xxx 整个塞进这个 cookie
+    null
+  )
+}
+
 /** 解析并装填 req.user；若传 required=true 则在失败时抛 401 */
 async function fillUserFromToken(req: Request, required: boolean) {
-  const authz = req.get('authorization') || ''
-  const token = authz.startsWith('Bearer ') ? authz.slice(7) : authz.split(' ')[1]
+  const token = getTokenFromRequest(req)
   if (!token) {
     if (required) throw Object.assign(new Error('访问令牌缺失'), { status: 401 })
     req.user = null
@@ -90,12 +115,10 @@ async function fillUserFromToken(req: Request, required: boolean) {
     return
   }
 
-  const payload: any = jwt.verify(token, getJwtSecret(), {
-    clockTolerance: ACCESS_JWT_CLOCK_TOLERANCE_SEC,
-  } as any)
+  const payload: any = jwt.verify(token, getJwtSecret(), { clockTolerance: ACCESS_JWT_CLOCK_TOLERANCE_SEC } as any)
 
   const uid = Number(payload?.id || payload?.sub)
-  const sid: string | undefined = payload?.sid || payload?.jti // 兼容字段名
+  const sid: string | undefined = payload?.sid || payload?.jti
   if (!Number.isFinite(uid) || uid <= 0) {
     if (required) throw Object.assign(new Error('无效的访问令牌'), { status: 401 })
     req.user = null
@@ -103,7 +126,7 @@ async function fillUserFromToken(req: Request, required: boolean) {
     return
   }
 
-  // 校验会话是否仍然有效（被强退/过期将直接失败）
+  // 会话有效性
   if (sid) {
     const active = await SessionStore.isActive(sid)
     if (!active) {
@@ -114,11 +137,11 @@ async function fillUserFromToken(req: Request, required: boolean) {
     }
   }
 
-  // 到 DB 读用户（确认仍存在）
+  // 确认用户仍存在
   const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, username, email, role FROM users WHERE id=? LIMIT 1`, [
     uid,
   ])
-  if (rows.length === 0) {
+  if ((rows as any).length === 0) {
     if (required) throw Object.assign(new Error('用户不存在'), { status: 401 })
     req.user = null
     req.auth = { userId: null, orgId: null, isAdminInOrg: false }
@@ -133,9 +156,7 @@ async function fillUserFromToken(req: Request, required: boolean) {
     ? payload.role_ids.map((n: any) => Number(n)).filter(Number.isFinite)
     : []
 
-  const hasAdminCode = tokenRoles.some(
-    (r: any) => r.code === 'admin' || r.code === 'super_admin' || r.code === 'superadmin'
-  )
+  const hasAdminCode = tokenRoles.some((r: any) => ['admin', 'super_admin', 'superadmin'].includes(r.code))
   const hasAdminId = tokenRoleIds.includes(1) || tokenRoleIds.includes(2)
 
   req.user = {

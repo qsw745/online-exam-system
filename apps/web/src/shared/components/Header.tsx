@@ -1,5 +1,5 @@
 // src/shared/components/Header.tsx
-import { App, Avatar, Dropdown, Input, Modal, Spin, Tooltip, type MenuProps } from 'antd'
+import { App, Avatar, Dropdown, Input, Modal, Spin, Tabs, Badge, Empty, Tooltip, type MenuProps } from 'antd'
 import {
   Bell,
   ChevronDown,
@@ -13,7 +13,6 @@ import {
   Sun,
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
 import { useNavigate } from 'react-router-dom'
 
 import { useTheme } from '@/app/providers/AntdThemeProvider'
@@ -137,25 +136,21 @@ function IconButton({
 }
 
 /* =============== 搜索面板（命令面板） =============== */
-/* =============== 搜索面板（命令面板） =============== */
 function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { menus } = useMenuPermissions()
   const { addOrActivate } = useTabs()
   const entries = useMemo(() => flattenMenus(menus), [menus])
 
-  // —— 本地存储 keys
   const HISTORY_KEY = 'cmdp:history'
   const FAV_KEY = 'cmdp:favorites'
 
-  // —— 状态
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
   const [history, setHistory] = useState<MenuEntry[]>([])
-  const [favs, setFavs] = useState<string[]>([]) // 保存 path
+  const [favs, setFavs] = useState<string[]>([])
 
   const inputRef = useRef<HTMLInputElement>(null)
 
-  // —— 辅助：读写 localStorage
   const loadPersist = useCallback(() => {
     try {
       const hs = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') as MenuEntry[]
@@ -182,7 +177,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     } catch {}
   }, [])
 
-  // —— 打开时聚焦并加载历史/收藏
   useEffect(() => {
     if (!open) return
     loadPersist()
@@ -190,7 +184,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     return () => clearTimeout(t)
   }, [open, loadPersist])
 
-  // —— 全局快捷键：Ctrl/⌘+K 切换
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const key = e.key.toLowerCase()
@@ -204,7 +197,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     return () => window.removeEventListener('keydown', onKey)
   }, [open, onClose])
 
-  // —— 搜索：为空时不返回默认菜单（避免一上来列表塞满）
   const results = useMemo(() => {
     const kw = q.trim().toLowerCase()
     if (!kw) return [] as MenuEntry[]
@@ -219,21 +211,17 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
       .map(x => x.e)
   }, [q, entries])
 
-  // —— 展示用的数据：当 q 为空时，展示 收藏 + 历史
   const favEntries = useMemo(
     () => favs.map(p => entries.find(e => e.path === p)).filter(Boolean) as MenuEntry[],
     [favs, entries]
   )
   const historyEntries = useMemo(() => {
-    // 只展示仍然存在的菜单
     const ok = new Map(entries.map(e => [e.path, e]))
     return history.map(h => ok.get(h.path)).filter(Boolean) as MenuEntry[]
   }, [history, entries])
 
-  // —— 进入页面
   const go = (entry: MenuEntry) => {
     addOrActivate({ key: entry.path, title: entry.title, closable: entry.path !== '/' })
-    // 写入历史：去重后置顶
     const next = [entry, ...history.filter(h => h.path !== entry.path)]
     saveHistory(next)
     setQ('')
@@ -251,10 +239,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     saveHistory(history.filter(h => h.path !== entry.path))
   }
 
-  // —— 键盘导航：根据当前显示的列表决定长度
-  const visibleList: MenuEntry[] = q.trim()
-    ? results
-    : [...favEntries, ...historyEntries] // 上方先收藏，再历史
+  const visibleList: MenuEntry[] = q.trim() ? results : [...favEntries, ...historyEntries]
   useEffect(() => {
     setActive(0)
   }, [q, open])
@@ -270,7 +255,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
       getContainer={() => document.body}
       styles={{ content: { padding: 0, borderRadius: 12, overflow: 'hidden' }, body: { padding: 0 } }}
     >
-      {/* 顶部输入 */}
       <div style={{ padding: 12, borderBottom: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))' }}>
         <div
           style={{
@@ -319,14 +303,10 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
         </div>
       </div>
 
-      {/* 列表区域 */}
       <div style={{ maxHeight: 420, overflowY: 'auto', padding: 12 }}>
         {q.trim() ? (
-          // ====== 搜索结果 ======
           results.length === 0 ? (
-            <div style={{ padding: '24px 16px', color: 'var(--app-colorTextSecondary, #6b7280)' }}>
-              没有匹配结果
-            </div>
+            <div style={{ padding: '24px 16px', color: 'var(--app-colorTextSecondary, #6b7280)' }}>没有匹配结果</div>
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {results.map((r, idx) => (
@@ -356,7 +336,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
             </ul>
           )
         ) : (
-          // ====== 收藏 + 历史（空搜索时显示） ======
           <div>
             {favEntries.length > 0 && (
               <>
@@ -430,8 +409,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                           border: 'none',
                           borderRadius: 10,
                           cursor: 'pointer',
-                          background:
-                            listIndex === active ? 'var(--app-colorPrimary, #1677ff)' : 'transparent',
+                          background: listIndex === active ? 'var(--app-colorPrimary, #1677ff)' : 'transparent',
                           color: listIndex === active ? '#fff' : 'inherit',
                         }}
                       >
@@ -469,7 +447,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
         )}
       </div>
 
-      {/* 底部快捷键提示 */}
       <div
         style={{
           borderTop: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))',
@@ -495,7 +472,6 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
   )
 }
 
-
 /* =============== 用户信息芯片 =============== */
 function getDisplayName(u?: { nickname?: string; username?: string; email?: string }) {
   return u?.nickname?.trim() || u?.username?.trim() || (u?.email ? u.email.split('@')[0] : '用户')
@@ -516,9 +492,7 @@ function UserBadge({
   onLogout: () => void
 }) {
   const name = getDisplayName(user)
-  const email = user?.email || ''
   const items: MenuProps['items'] = [
-  
     { key: 'settings', icon: <Settings size={16} />, label: '账户设置' },
     { type: 'divider' as const },
     { key: 'logout', icon: <LogOut size={16} />, label: '退出登录', danger: true },
@@ -570,20 +544,6 @@ function UserBadge({
           >
             {name}
           </span>
-          {/* <Tooltip title={email}>
-            <span
-              style={{
-                fontSize: 12,
-                color: 'var(--app-colorTextTertiary, #999)',
-                maxWidth: 140,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap',
-              }}
-            >
-              {email}
-            </span>
-          </Tooltip> */}
         </div>
         <ChevronDown size={16} style={{ opacity: 0.7 }} />
       </button>
@@ -591,66 +551,129 @@ function UserBadge({
   )
 }
 
-/* =============== 通知 =============== */
-function useNotifications() {
-  const { t } = useLanguage()
-  const [notifications, setNotifications] = useState<any[]>([])
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const { message } = App.useApp()
+/* =============== 通知/消息/待办 =============== */
+type InboxTabKey = 'notice' | 'message' | 'todo'
+type InboxItem = { id: string; title: string; content?: string; read?: boolean; done?: boolean; created_at?: string }
 
-  const loadAll = async () => {
-    try {
-      setLoading(true)
-      const resp: any = await api.get('/notifications')
-      const data = (resp?.success ? resp.data : resp) || {}
-      setNotifications(Array.isArray(data.notifications) ? data.notifications : [])
-      setUnreadCount(Number(data.unreadCount ?? 0))
-    } catch (e: any) {
-      console.error('加载通知错误:', e)
-      message.error(e?.message || t('error.load_notifications'))
-    } finally {
-      setLoading(false)
-    }
+/** 从 ApiResult 或 ApiFailure 中稳定提取字段（解决 TS 上看不到 data 的问题） */
+function extractFieldFromResult(result: unknown, field: string, fallback = 0): number {
+  try {
+    const v: any = result as any
+    const payload = v && typeof v === 'object' && 'success' in v ? (v as any).data : v
+    const num = Number(payload?.[field] ?? fallback)
+    return Number.isFinite(num) ? num : fallback
+  } catch {
+    return fallback
   }
-
-  const loadUnread = async () => {
-    try {
-      const resp: any = await api.get('/notifications/unread-count')
-      const data = (resp?.success ? resp.data : resp) || {}
-      setUnreadCount(Number(data.unreadCount ?? 0))
-    } catch (e: any) {
-      console.error('加载未读通知数量错误:', e)
-      setUnreadCount(0)
-    }
-  }
-
-  const markAsRead = async (id: string) => {
-    try {
-      await api.put(`/notifications/${id}/read`)
-      setNotifications(prev => prev.map(n => (n.id === id ? { ...n, read: true } : n)))
-      setUnreadCount(prev => Math.max(0, prev - 1))
-    } catch (e) {
-      console.error('标记通知为已读错误:', e)
-    }
-  }
-
-  return { notifications, unreadCount, loading, loadAll, loadUnread, markAsRead }
 }
 
-function NotificationsBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
-  const { notifications, unreadCount, loading, loadAll, loadUnread, markAsRead } = useNotifications()
+function useInbox() {
+  const { message: antdMsg } = App.useApp()
+
+  const [counts, setCounts] = useState<{ notice: number; message: number; todo: number }>({
+    notice: 0,
+    message: 0,
+    todo: 0,
+  })
+  const [lists, setLists] = useState<{ notice: InboxItem[]; message: InboxItem[]; todo: InboxItem[] }>({
+    notice: [],
+    message: [],
+    todo: [],
+  })
+  const [loading, setLoading] = useState<{ notice: boolean; message: boolean; todo: boolean }>({
+    notice: false,
+    message: false,
+    todo: false,
+  })
+
+  // —— 计数：用于图标角标
+  const loadCounts = async () => {
+    try {
+      const [n, m, t] = await Promise.allSettled([
+        api.get('/notifications/unread-count'),
+        api.get('/messages/unread-count'),
+        api.get('/todos/pending-count'),
+      ])
+      const notice = n.status === 'fulfilled' ? extractFieldFromResult(n.value, 'unreadCount', 0) : 0
+      const message = m.status === 'fulfilled' ? extractFieldFromResult(m.value, 'unreadCount', 0) : 0
+      const todo = t.status === 'fulfilled' ? extractFieldFromResult(t.value, 'pendingCount', 0) : 0
+      setCounts({ notice, message, todo })
+    } catch {
+      setCounts({ notice: 0, message: 0, todo: 0 })
+    }
+  }
+
+  // —— 列表：按 Tab 拉取
+  const loadList = async (tab: InboxTabKey) => {
+    try {
+      setLoading(s => ({ ...s, [tab]: true }))
+      if (tab === 'notice') {
+        const resp: any = await api.get('/notifications')
+        const arr: InboxItem[] = Array.isArray(resp?.data?.notifications ?? resp?.notifications)
+          ? resp?.data?.notifications ?? resp?.notifications
+          : []
+        setLists(s => ({ ...s, notice: arr }))
+      } else if (tab === 'message') {
+        const resp: any = await api.get('/messages')
+        const arr: InboxItem[] = Array.isArray(resp?.data?.messages ?? resp?.messages)
+          ? resp?.data?.messages ?? resp?.messages
+          : []
+        setLists(s => ({ ...s, message: arr }))
+      } else {
+        const resp: any = await api.get('/todos')
+        const arr: InboxItem[] = Array.isArray(resp?.data?.todos ?? resp?.todos) ? resp?.data?.todos ?? resp?.todos : []
+        setLists(s => ({ ...s, todo: arr }))
+      }
+    } catch (e: any) {
+      antdMsg.error(e?.message || '加载失败')
+    } finally {
+      setLoading(s => ({ ...s, [tab]: false }))
+    }
+  }
+
+  // —— 状态更新
+  const markNoticeRead = async (id: string) => {
+    try {
+      await api.put(`/notifications/${id}/read`)
+      setLists(s => ({ ...s, notice: s.notice.map(i => (i.id === id ? { ...i, read: true } : i)) }))
+      setCounts(c => ({ ...c, notice: Math.max(0, c.notice - 1) }))
+    } catch {}
+  }
+  const markMessageRead = async (id: string) => {
+    try {
+      await api.put(`/messages/${id}/read`)
+      setLists(s => ({ ...s, message: s.message.map(i => (i.id === id ? { ...i, read: true } : i)) }))
+      setCounts(c => ({ ...c, message: Math.max(0, c.message - 1) }))
+    } catch {}
+  }
+  const markTodoDone = async (id: string) => {
+    try {
+      await api.put(`/todos/${id}/done`)
+      setLists(s => ({ ...s, todo: s.todo.map(i => (i.id === id ? { ...i, done: true } : i)) }))
+      setCounts(c => ({ ...c, todo: Math.max(0, c.todo - 1) }))
+    } catch {}
+  }
+
+  return { counts, lists, loading, loadCounts, loadList, markNoticeRead, markMessageRead, markTodoDone }
+}
+
+function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
+  const { counts, lists, loading, loadCounts, loadList, markNoticeRead, markMessageRead, markTodoDone } = useInbox()
+  const totalBadge = counts.notice + counts.message + counts.todo
+
   const [open, setOpen] = useState(false)
+  const [activeKey, setActiveKey] = useState<InboxTabKey>('notice')
   const ref = useRef<HTMLDivElement>(null)
 
+  // 初始拉计数
   useEffect(() => {
-    loadUnread()
+    loadCounts()
   }, [])
 
+  // 打开时拉当前 tab 列表
   useEffect(() => {
-    if (!open) return
-    loadAll()
-  }, [open])
+    if (open) loadList(activeKey)
+  }, [open, activeKey])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -660,31 +683,86 @@ function NotificationsBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
+  const renderList = (tab: InboxTabKey) => {
+    const data = lists[tab]
+    const busy = loading[tab]
+    if (busy) {
+      return (
+        <div style={{ padding: '24px 0', textAlign: 'center' }}>
+          <Spin size="small" />
+        </div>
+      )
+    }
+    if (!data || data.length === 0) {
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" style={{ padding: '24px 0' }} />
+    }
+    return (
+      <div>
+        {data.map(item => {
+          const muted = tab === 'todo' ? item.done : item.read
+          const onAction =
+            tab === 'notice'
+              ? () => markNoticeRead(item.id)
+              : tab === 'message'
+              ? () => markMessageRead(item.id)
+              : () => markTodoDone(item.id)
+          const actionText = tab === 'todo' ? (item.done ? '已完成' : '标记完成') : item.read ? '已读' : '设为已读'
+          return (
+            <div
+              key={item.id}
+              style={{
+                padding: '12px 0',
+                borderTop: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))',
+                backgroundColor: !muted
+                  ? themeMode === 'dark'
+                    ? 'rgba(255,255,255,.06)'
+                    : 'rgba(0,0,0,.04)'
+                  : 'transparent',
+              }}
+            >
+              <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--app-colorText)' }}>
+                    {item.title || '(无标题)'}
+                  </div>
+                  {item.content && (
+                    <div style={{ marginTop: 4, fontSize: 13, color: 'var(--app-colorTextSecondary)' }}>
+                      {item.content}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={onAction}
+                  disabled={muted}
+                  style={{
+                    flexShrink: 0,
+                    border: 'none',
+                    background: 'transparent',
+                    color: muted ? 'var(--app-colorTextTertiary)' : 'var(--app-colorPrimary)',
+                    cursor: muted ? 'default' : 'pointer',
+                    fontSize: 13,
+                  }}
+                  title={actionText}
+                >
+                  {actionText}
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
   return (
     <div style={{ position: 'relative' }} ref={ref}>
-      <IconButton title="通知" aria-label="通知" onClick={() => setOpen(s => !s)} themeMode={themeMode}>
-        <Bell />
-        {unreadCount > 0 && (
-          <span
-            style={{
-              position: 'absolute',
-              top: 2,
-              right: 2,
-              display: 'grid',
-              placeItems: 'center',
-              height: 16,
-              width: 16,
-              borderRadius: '50%',
-              backgroundColor: 'var(--app-colorError, #ef4444)',
-              fontSize: 10,
-              color: '#fff',
-              lineHeight: 1,
-            }}
-          >
-            {unreadCount}
-          </span>
-        )}
-      </IconButton>
+      <Badge count={totalBadge} size="small" offset={[-6, 6]}>
+        <span>
+          <IconButton title="通知" aria-label="通知" onClick={() => setOpen(s => !s)} themeMode={themeMode}>
+            <Bell />
+          </IconButton>
+        </span>
+      </Badge>
 
       {open && (
         <div
@@ -692,7 +770,7 @@ function NotificationsBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
             position: 'absolute',
             right: 0,
             marginTop: 8,
-            width: 320,
+            width: 360,
             borderRadius: 10,
             backgroundColor: 'var(--app-colorBgElevated, #fff)',
             color: 'var(--app-colorText, #374151)',
@@ -701,59 +779,44 @@ function NotificationsBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
             zIndex: 3000,
           }}
         >
-          <div style={{ padding: 16 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>通知</h3>
-            <div style={{ marginTop: 8 }}>
-              {loading ? (
-                <div style={{ padding: '16px 0', textAlign: 'center' }}>
-                  <Spin size="small" />
-                </div>
-              ) : notifications.length > 0 ? (
-                notifications.map(n => (
-                  <div
-                    key={n.id}
-                    style={{
-                      padding: '16px 0',
-                      borderTop: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))',
-                      backgroundColor: !n.read
-                        ? themeMode === 'dark'
-                          ? 'rgba(255,255,255,.06)'
-                          : 'rgba(0,0,0,.04)'
-                        : 'transparent',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => markAsRead(n.id)}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-                      <div style={{ marginLeft: 12, flex: 1 }}>
-                        <p style={{ fontSize: 14, fontWeight: 500, margin: 0 }}>{n.title}</p>
-                        <p
-                          style={{
-                            marginTop: 4,
-                            fontSize: 14,
-                            color: 'var(--app-colorTextSecondary)',
-                            marginBottom: 0,
-                          }}
-                        >
-                          {n.content}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div
-                  style={{
-                    padding: '16px 0',
-                    textAlign: 'center',
-                    fontSize: 14,
-                    color: 'var(--app-colorTextSecondary)',
-                  }}
-                >
-                  暂无通知
-                </div>
-              )}
-            </div>
+          <div style={{ padding: 12, borderBottom: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))' }}>
+            <strong style={{ fontSize: 14 }}>通知中心</strong>
+          </div>
+
+          <div style={{ padding: '0 12px 12px' }}>
+            <Tabs
+              activeKey={activeKey}
+              onChange={k => setActiveKey(k as InboxTabKey)}
+              items={[
+                {
+                  key: 'notice',
+                  label: (
+                    <span>
+                      通知 <Badge count={counts.notice} size="small" style={{ marginLeft: 6 }} />
+                    </span>
+                  ),
+                  children: renderList('notice'),
+                },
+                {
+                  key: 'message',
+                  label: (
+                    <span>
+                      消息 <Badge count={counts.message} size="small" style={{ marginLeft: 6 }} />
+                    </span>
+                  ),
+                  children: renderList('message'),
+                },
+                {
+                  key: 'todo',
+                  label: (
+                    <span>
+                      待办 <Badge count={counts.todo} size="small" style={{ marginLeft: 6 }} />
+                    </span>
+                  ),
+                  children: renderList('todo'),
+                },
+              ]}
+            />
           </div>
         </div>
       )}
@@ -968,13 +1031,22 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
           >
             <Settings />
           </IconButton>
-          <NotificationsBell themeMode={themeMode} />
+
+          {/* 三块通知汇总（角标=三块总和） */}
+          <InboxBell themeMode={themeMode} />
+
           {/* 用户 */}
           <UserBadge
             user={user}
-         
             onGoSettings={() => navigate('/settings')}
-            onLogout={handleLogout}
+            onLogout={async () => {
+              try {
+                await signOut()
+                navigate('/login')
+              } catch (e) {
+                message.error('退出登录失败')
+              }
+            }}
           />
         </nav>
       </div>

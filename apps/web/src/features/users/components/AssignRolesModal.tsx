@@ -116,7 +116,7 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={saving}
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <Form form={form} layout="vertical">

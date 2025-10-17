@@ -1,4 +1,3 @@
-// src/app/routing/DynamicRoutes.tsx
 import NotFound404 from '@/app/errors/NotFound404'
 import AdminLayout from '@/app/routing/AdminLayout'
 import ProtectedLayout from '@/app/routing/ProtectedLayout'
@@ -9,20 +8,16 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import TabsShell from '@/shared/router/TabsShell'
 import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
-import { componentRegistry } from './pageRegistry'
+import { resolveComponent } from './pageRegistry'
+import type { MenuSeed } from './menuSchema'
 
-type RouteNode = {
-  path?: string | null
-  component?: string | null
-  redirect?: string | null
-  is_disabled?: boolean
-  is_hidden?: boolean
-  children?: RouteNode[]
-}
+type RouteNode = Pick<
+  MenuSeed,
+  'path' | 'component' | 'redirect' | 'is_disabled' | 'is_hidden' | 'children' | 'menu_type' | 'meta'
+>
 
 /* -------------------- 路径工具 -------------------- */
 const collapseSlashes = (p: string) => p.replace(/\/{2,}/g, '/')
-/** 绝对路径拼接 */
 function joinAbs(parentAbs: string, childPath: string | null | undefined): string {
   const raw = (childPath || '').trim()
   if (!raw) return parentAbs || '/'
@@ -40,11 +35,8 @@ function relativize(childRel: string, parentRel: string): string {
   if (childRel === parentRel) return ''
   return childRel.startsWith(parentRel + '/') ? childRel.slice(parentRel.length + 1) : childRel
 }
-
 /** 末尾 index 规范化（支持 xxx-index 或 xxx/index） */
 const stripIndexSuffix = (p: string) => p.replace(/(?:\/index|-index)(?=\/?$)/, '')
-
-/** 把 rel 路径规范化；若是带 index 的路径，返回 clean 与 alias */
 function normalizeRel(rel: string) {
   const clean = stripIndexSuffix(rel)
   const hasAlias = clean !== rel
@@ -57,9 +49,9 @@ const fallbackText: Record<string, string> = {
   'exam-list': '加载考试列表…',
 }
 
-/** 从注册表安全拿组件并构造成元素 */
+/** 从注册表或动态路径安全拿组件并构造成元素 */
 function elementFromRegistry(key: string) {
-  const Cmp = componentRegistry[key] as React.ComponentType<any> | undefined
+  const Cmp = resolveComponent(key)
   const tip = fallbackText[key] ?? '页面加载中…'
   return Cmp ? (
     <Suspense fallback={<LoadingSpinner center="page" text={tip} />}>
@@ -70,11 +62,29 @@ function elementFromRegistry(key: string) {
   )
 }
 
-/** 为目录节点生成 index 重定向（遵从并规范后端 redirect） */
+/** 外链占位：进入该路由立即打开 externalUrl，然后回到首页/上一页 */
+type ExternalLinkProps = { url?: string | null; target?: '_blank' | '_self' | '_parent' | '_top' }
+function ExternalLinkJump({ url, target = '_blank' }: ExternalLinkProps) {
+  useEffect(() => {
+    if (url) window.open(url, target)
+  }, [url, target])
+  return <Navigate to="/" replace />
+}
+
+/** iframe 容器 */
+function IframeHost({ src, title }: { src: string; title?: string }) {
+  return (
+    <div style={{ height: '100%', display: 'grid' }}>
+      <iframe src={src} title={title || 'Embedded'} style={{ width: '100%', height: '100%', border: 0 }} />
+    </div>
+  )
+}
+
+/** 目录节点 index 重定向 */
 function makeIndexRedirect(n: RouteNode, base: '/' | '/admin'): RouteObject | null {
   const raw = (n.redirect || '').trim()
   if (!raw) return null
-  const to = stripIndexSuffix(collapseSlashes(raw)) // <-- 规范化 redirect
+  const to = stripIndexSuffix(collapseSlashes(raw))
   const inAdmin = isAdminAbs(to)
   if ((base === '/' && inAdmin) || (base === '/admin' && !inAdmin)) return null
   return { index: true, element: <Navigate to={to} replace /> }
@@ -85,22 +95,20 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
   const out: RouteObject[] = []
 
   for (const n of nodes || []) {
-    if (!n || n.is_disabled) continue
+    if (!n || (n as any).is_disabled) continue
 
     const abs = joinAbs(parentAbs, n.path)
     const inAdmin = isAdminAbs(abs)
-
-    // 只收集当前命名空间（学员端 / 后台）
     if ((base === '/' && inAdmin) || (base === '/admin' && !inAdmin)) {
-      if (n.children?.length) out.push(...buildRoutes(n.children, base, abs, ''))
+      if (n.children?.length) out.push(...buildRoutes(n.children as any, base, abs, ''))
       continue
     }
 
     const relRaw = absToRel(abs, base)
     const rel = relativize(relRaw, parentRel)
 
-    // 目录节点（无 component）
-    if (!n.component) {
+    // 目录
+    if (!n.component && (n.menu_type === 'menu' || n.children?.length)) {
       const nested: RouteNode[] = []
       const floating: RouteNode[] = []
       for (const c of n.children || []) {
@@ -108,38 +116,51 @@ function buildRoutes(nodes: RouteNode[], base: '/' | '/admin', parentAbs = '', p
         if (childAbs === abs || childAbs.startsWith(abs + '/')) nested.push(c)
         else floating.push(c)
       }
-
       const childrenNested = nested.length ? buildRoutes(nested, base, abs, relRaw) : []
       const idxRedirect = makeIndexRedirect(n, base)
       if (idxRedirect) childrenNested.unshift(idxRedirect)
-
       if (!rel) out.push(...childrenNested)
       else out.push({ path: rel, children: childrenNested })
-
       if (floating.length) out.push(...buildRoutes(floating, base, '', ''))
       continue
     }
 
-    // 页面节点（有 component）
-    const element = elementFromRegistry(n.component!)
-    const nestedChildren = n.children?.length ? buildRoutes(n.children, base, abs, relRaw) : undefined
-
-    // 规范化页面路径，处理 *-index / */index
-    const { clean, alias } = normalizeRel(rel)
-
-    // 主路由：用“干净路径”
-    // ✅ index 路由不能带 children
-    if (!clean) {
-      out.push({ index: true, element }) // 只保留 element
-      if (nestedChildren?.length) out.push(...nestedChildren) // 子路由平铺
-    } else {
-      out.push({ path: clean, element, children: nestedChildren })
+    // 外链
+    if (n.menu_type === 'link' && n.meta?.externalUrl) {
+      const { clean, alias } = normalizeRel(rel)
+      const el = <ExternalLinkJump url={n.meta.externalUrl!} target={(n.meta.linkTarget || '_blank') as any} />
+      if (!clean) out.push({ index: true, element: el })
+      else out.push({ path: clean, element: el })
+      if (alias) out.push({ path: alias, element: <Navigate to={clean || '/'} replace /> })
+      continue
     }
 
-    // 别名：旧地址重定向到干净地址，避免 404（比如 /dashboard-index -> /dashboard）
-    if (alias) {
-      const destAbs = stripIndexSuffix(abs) || (base === '/admin' ? '/admin' : '/')
-      out.push({ path: alias, element: <Navigate to={destAbs} replace /> })
+    // iframe
+    if (n.menu_type === 'iframe' && n.meta?.iframeSrc) {
+      const { clean, alias } = normalizeRel(rel)
+      const el = <IframeHost src={n.meta.iframeSrc!} title={n.meta?.i18nKey || ''} />
+      if (!clean) out.push({ index: true, element: el })
+      else out.push({ path: clean, element: el })
+      if (alias) out.push({ path: alias, element: <Navigate to={clean || '/'} replace /> })
+      continue
+    }
+
+    // 页面
+    if (n.component) {
+      const element = elementFromRegistry(n.component)
+      const nestedChildren = n.children?.length ? buildRoutes(n.children as any, base, abs, relRaw) : undefined
+      const { clean, alias } = normalizeRel(rel)
+
+      if (!clean) {
+        out.push({ index: true, element })
+        if (nestedChildren?.length) out.push(...nestedChildren)
+      } else {
+        out.push({ path: clean, element, children: nestedChildren })
+      }
+      if (alias) {
+        const destAbs = stripIndexSuffix(abs) || (base === '/admin' ? '/admin' : '/')
+        out.push({ path: alias, element: <Navigate to={destAbs} replace /> })
+      }
     }
   }
 
@@ -184,7 +205,6 @@ export default function DynamicRoutes() {
   }, [authLoading, user])
 
   const routes: RouteObject[] = useMemo(() => {
-    // 必须包含 index 路由，否则访问 "/" 时会命中空路径导致空白
     if (authLoading) {
       return [
         { index: true, element: <LoadingSpinner center="page" text="加载中…" /> },
@@ -241,7 +261,7 @@ export default function DynamicRoutes() {
       { path: 'tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
     ]
 
-    // 选择一个默认首页（优先 dashboard）
+    // 默认首页（优先 dashboard）
     const defaultHome =
       (rootRoutes.find(r => 'path' in r && (r as any).path === 'dashboard') as any)?.path ||
       (rootRoutes.find(r => 'path' in r && (r as any).path && (r as any).path !== '*') as any)?.path ||

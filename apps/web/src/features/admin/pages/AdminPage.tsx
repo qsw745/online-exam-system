@@ -19,16 +19,14 @@ import SmartPaperCreatePage from '@/features/papers/pages/SmartPaperCreatePage'
 
 import TaskCreatePage from '@/features/tasks/pages/TaskCreatePage'
 
-
 import UserManagementPage from '@/features/users/pages/UserManagementPage'
 
 import DataAnalyticsPage from '@/features/analytics/pages/AnalyticsDetailsPage'
 import GradeManagementPage from '@/features/analytics/pages/GradeManagementPage'
 
-import MenuManagementPage from '@/features/menu/pages/MenuManagementPage'
 import RoleManagementPage from '@/features/roles/pages/RoleManagementPage'
 
-import NotificationManagementPage from '@/features/notifications/pages/NotificationManagementPage'
+import NotificationManagementPage from '@/features/notifications-manager/pages/NotificationManagementPage'
 import SettingsPage from '@/features/settings/pages/UserSettingsPage'
 
 interface NavItem {
@@ -122,8 +120,6 @@ export default function AdminPage() {
           <Route path="/paper-detail/:id" element={<PaperCreatePage />} />
           <Route path="/paper-edit/:id" element={<PaperCreatePage />} />
 
-    
-       
           <Route path="/task-create" element={<TaskCreatePage />} />
           <Route path="/task-edit/:id" element={<TaskCreatePage />} />
           <Route path="/task-detail/:id" element={<TaskCreatePage />} />

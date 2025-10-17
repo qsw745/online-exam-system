@@ -37,7 +37,7 @@ export const ResetPasswordModal: React.FC<{
       }}
       onOk={() => form.submit()}
       okText="确定"
-      destroyOnClose
+      destroyOnHidden
       maskClosable={false}
     >
       <Form

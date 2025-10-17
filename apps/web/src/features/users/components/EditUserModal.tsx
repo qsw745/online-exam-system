@@ -1,4 +1,3 @@
-// apps/web/src/features/users/components/EditUserModal.tsx
 import React, { useMemo } from 'react'
 import { Form, Input, Modal, Select, TreeSelect } from 'antd'
 const { Option } = Select
@@ -85,7 +84,7 @@ export const EditUserModal: React.FC<{
       onOk={handleOk}
       okText="确定"
       width={720}
-      destroyOnClose
+      destroyOnHidden
       afterOpenChange={opened => {
         if (opened && mapped) form.setFieldsValue(mapped)
         if (!opened) form.resetFields()

@@ -5,45 +5,52 @@ import type { UserDTO, UserRole, UserStatus, UserSettings } from '../domain/user
 export class UserRepository {
   constructor(private readonly db: Pool = pool) {}
 
+  // ✅ 创建用户，支持 phone/gender/remark
+  async createUser(data: {
+    username: string
+    passwordHash: string
+    email?: string | null
+    nickname?: string | null
+    role?: UserRole
+    status?: UserStatus
+    phone?: string | null
+    gender?: '男' | '女' | '保密' | null
+    remark?: string | null
+  }): Promise<UserDTO> {
+    const role = data.role ?? 'student'
+    const status = data.status ?? 'active'
+
+    const [ret] = await this.db.query<ResultSetHeader>(
+      `INSERT INTO users
+        (username, email, role, nickname, password, avatar_url, status, experience_points, level, school, class_name, phone, gender, remark, created_at, updated_at)
+       VALUES
+        (?, ?, ?, ?, ?, NULL, ?, 0, 1, NULL, NULL, ?, ?, ?, NOW(), NOW())`,
+      [
+        data.username,
+        data.email ?? null,
+        role,
+        data.nickname ?? null,
+        data.passwordHash,
+        status,
+        data.phone ?? null,
+        data.gender ?? '保密',
+        data.remark ?? null,
+      ]
+    )
+    const id = Number(ret.insertId)
+    const user = await this.getById(id)
+    if (!user) throw new Error('CREATE_RETURN_EMPTY')
+    return user
+  }
+
   async getById(id: number): Promise<UserDTO | null> {
     const [rows] = await this.db.query<UserDTO[]>(
-      'SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at FROM users WHERE id = ?',
+      `SELECT id, username, email, role, nickname, school, class_name, experience_points, level,
+              avatar_url, status, phone, gender, remark, created_at, updated_at
+         FROM users WHERE id = ?`,
       [id]
     )
     return rows[0] || null
-  }
-
-  /**
-   * 查询用户主组织（来源：user_organizations）
-   * 规则：
-   *  1) 优先 is_primary = 1
-   *  2) 其次按 assigned_at、created_at 的最早记录
-   * 注意：关系表没有 id 列，因此不要使用 ou.id 排序
-   */
-  async getPrimaryOrgForUser(userId: number): Promise<{ orgId: number | null; org_name: string | null }> {
-    const sql = `
-      SELECT
-        ou.org_id AS orgId,
-        o.name   AS org_name
-      FROM user_organizations ou
-      LEFT JOIN organizations o ON o.id = ou.org_id
-      WHERE ou.user_id = ?
-      ORDER BY
-        CASE WHEN ou.is_primary = 1 THEN 0 ELSE 1 END,
-        COALESCE(ou.assigned_at, ou.created_at, '1970-01-01 00:00:00') ASC
-      LIMIT 1
-    `
-    try {
-      const [rows] = await this.db.query<RowDataPacket[]>(sql, [userId])
-      const r = rows?.[0]
-      return {
-        orgId: r?.orgId != null ? Number(r.orgId) : null,
-        org_name: r?.org_name ?? null,
-      }
-    } catch {
-      // 表不存在或列缺失时，降级为无组织，避免 500
-      return { orgId: null, org_name: null }
-    }
   }
 
   async statsOfUser(
@@ -77,14 +84,15 @@ export class UserRepository {
       values.push(role)
     }
     if (search) {
-      clauses.push('(username LIKE ? OR email LIKE ? OR nickname LIKE ?)')
-      values.push(`%${search}%`, `%${search}%`, `%${search}%`)
+      clauses.push('(username LIKE ? OR email LIKE ? OR nickname LIKE ? OR phone LIKE ?)')
+      values.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
     }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
 
     const [rows] = await this.db.query<UserDTO[]>(
-      `SELECT id, username, email, role, nickname, school, class_name, experience_points, level, avatar_url, status, created_at, updated_at
+      `SELECT id, username, email, role, nickname, school, class_name, experience_points, level,
+              avatar_url, status, phone, gender, remark, created_at, updated_at
          FROM users ${where}
      ORDER BY created_at DESC
         LIMIT ? OFFSET ?`,
@@ -98,7 +106,21 @@ export class UserRepository {
 
   async updateUser(
     id: number,
-    patch: Partial<Pick<UserDTO, 'username' | 'email' | 'role' | 'avatar_url' | 'nickname' | 'school' | 'class_name'>>
+    patch: Partial<
+      Pick<
+        UserDTO,
+        | 'username'
+        | 'email'
+        | 'role'
+        | 'avatar_url'
+        | 'nickname'
+        | 'school'
+        | 'class_name'
+        | 'phone'
+        | 'gender'
+        | 'remark'
+      >
+    >
   ): Promise<UserDTO | null> {
     const fields: string[] = []
     const values: any[] = []
@@ -128,7 +150,6 @@ export class UserRepository {
     return ret.affectedRows > 0
   }
 
-
   async resetPassword(id: number, hashed: string): Promise<boolean> {
     const [ret] = await this.db.query<ResultSetHeader>(
       'UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?',
@@ -148,6 +169,7 @@ export class UserRepository {
       await conn.query('DELETE FROM exam_results WHERE user_id = ?', [id])
       await conn.query('DELETE FROM tasks WHERE user_id = ?', [id])
       await conn.query('DELETE FROM notifications WHERE user_id = ?', [id])
+      await conn.query('DELETE FROM user_organizations WHERE user_id = ?', [id])
       const [ret] = await conn.query<ResultSetHeader>('DELETE FROM users WHERE id = ?', [id])
       await conn.commit()
       return ret.affectedRows > 0

@@ -41,6 +41,8 @@
 |   |   |   20_reate.sql
 |   |   |   20240912_create_unit_menus.ts
 |   |   |   20240916_create_auth_login_failures.ts
+|   |   |   20241014_refactor_rbac_and_menus.ts
+|   |   |   20241017_create_messages_and_todos.ts
 |   |   |   20250906_090000_add_tags_to_questions.sql
 |   |   |   20250910_add_logs_defaults.ts
 |   |   |   20250910134113_add_logs_defaults.js
@@ -74,6 +76,10 @@
 |   |   |   20250925_add_analytics_optional_columns.ts
 |   |   |   20250927_add_org_to_roles.ts
 |   |   |   20251006120000_add_user_profile_fields.ts
+|   |   |   20251008_add_role_orgs.ts
+|   |   |   20251008_roles_scope_unique.ts
+|   |   |   20251011_fix_admin_menus.ts
+|   |   |   20251014_roles_permissions_refactor.ts
 |   |   |   add_task_publish_status.sql
 |   |   |   database.sql
 |   |   |   init.sql
@@ -83,37 +89,30 @@
 |   |   |   practice_records.sql
 |   |   |   wrong_questions.sql
 |   |   |   wrong_questions_v2.ts
+|   +-- seeds
 +-- logs
 |   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
-|   |   .6cce1b2ac5b7254167a2a5993b7803825039634e-audit.json
-|   |   .7cff1956a464da8f07818737bdb6cd01584089b1-audit.json
+|   |   .77553ab959ad6a3b9ca434caba14dbe90f27c8d1-audit.json
+|   |   .d06c931e74736c0fbc018d06399b3faea82a59dc-audit.json
 |   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
-|   |   2025-09-06.log.gz
-|   |   2025-09-06-error.log.gz
-|   |   2025-09-08.log.gz
-|   |   2025-09-09.log.gz
-|   |   2025-09-10.log.gz
-|   |   2025-09-11.log.gz
-|   |   2025-09-12.log.gz
-|   |   2025-09-16.log.gz
-|   |   2025-09-27.log
-|   |   2025-09-27-error.log
-|   |   2025-09-30.log.gz
-|   |   2025-09-30-error.log
-|   |   2025-10-01.log.gz
-|   |   2025-10-01-error.log
-|   |   2025-10-02.log.gz
-|   |   2025-10-02-error.log
-|   |   2025-10-03.log.gz
-|   |   2025-10-03-error.log
-|   |   2025-10-04.log
-|   |   2025-10-04-error.log
-|   |   2025-10-05.log
-|   |   2025-10-05-error.log
-|   |   2025-10-06.log
-|   |   2025-10-06-error.log
-|   |   2025-10-07.log
-|   |   2025-10-07-error.log
+|   |   2025-09-08.log
+|   |   2025-09-08-error.log
+|   |   2025-10-09.log
+|   |   2025-10-09-error.log
+|   |   2025-10-10.log
+|   |   2025-10-10-error.log
+|   |   2025-10-11.log
+|   |   2025-10-11-error.log
+|   |   2025-10-13.log
+|   |   2025-10-13-error.log
+|   |   2025-10-14.log
+|   |   2025-10-14-error.log
+|   |   2025-10-15.log
+|   |   2025-10-15-error.log
+|   |   2025-10-16.log
+|   |   2025-10-16-error.log
+|   |   2025-10-17.log
+|   |   2025-10-17-error.log
 +-- scripts
 |   |   check-imports.cjs
 |   |   init-db.ts
@@ -125,6 +124,7 @@
 |   |   |   |   index.d.ts
 |   |   |   shims.d.ts
 |   +-- bootstrap
+|   |   |   menu.bootstrap.ts
 |   |   |   menu.config.ts
 |   |   |   syncMenus.ts
 |   +-- common
@@ -221,7 +221,7 @@
 |   |   |   |   |   auth-lock.service.ts
 |   |   |   |   |   captcha.service.ts
 |   |   |   |   |   crypto.service.ts
-|   |   |   |   |   password-policy.ts
+|   |   |   |   |   password-policy.service.ts
 |   |   |   |   |   password-reset.service.ts
 |   |   +-- discussions
 |   |   |   +-- controllers
@@ -313,6 +313,17 @@
 |   |   |   |   |   menus.routes.ts
 |   |   |   +-- services
 |   |   |   |   |   menus.service.ts
+|   |   +-- messages
+|   |   |   +-- controllers
+|   |   |   |   |   message.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   message.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   message.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   message.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   message.service.ts
 |   |   +-- notifications
 |   |   |   +-- controllers
 |   |   |   |   |   notification.controller.ts
@@ -383,6 +394,17 @@
 |   |   |   |   |   task.routes.ts
 |   |   |   +-- services
 |   |   |   |   |   task.service.ts
+|   |   +-- todos
+|   |   |   +-- controllers
+|   |   |   |   |   todo.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   todo.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   todo.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   todo.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   todo.service.ts
 |   |   +-- users
 |   |   |   +-- controllers
 |   |   |   |   |   user.controller.ts
@@ -414,22 +436,25 @@
 |   |   |   express-augment.d.ts
 |   |   |   geoip-lite.d.ts
 |   |   |   multer.d.ts
+|   |   |   mysql2-augment.d.ts
 |   |   |   password-reset.ts
 |   |   |   response.ts
+|   |   |   shims.d.ts
 |   |   app.ts
 |   |   bootstrap.ts
 +-- uploads
 |   +-- avatars
-|   |   |   avatar-1757179079331-7746723879422801.jpg
-|   |   |   avatar-1757179116674-08540409240457825.jpg
-|   |   |   avatar-1757861547048-7790686444471131.jpg
+|   |   |   avatar-1757898805086-6884710094894473.jpg
 |   .env
+|   add_more_paper_questions.sql
 |   backend-refactor.ps1
+|   create_paper_questions.sql
 |   Dockerfile
 |   EMAIL_SETUP.md
+|   insert_paper_questions.sql
 |   knexfile.js
 |   latest_menu_response.json
+|   learning_progress.sql
 |   nodemon.json
 |   package.json
-|   pnpm-lock.yaml
 |   tsconfig.json
