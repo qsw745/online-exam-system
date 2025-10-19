@@ -1,34 +1,116 @@
+version: "3.9"
+
 services:
+  # ---------- 数据库 ----------
+  mysql:
+    image: mysql:8.4
+    container_name: mysql
+    command:
+      # 统一使用 utf8mb4 & 较长前缀
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --explicit_defaults_for_timestamp=ON
+      - --default-time-zone=+00:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpwd}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-online_exam}
+      MYSQL_USER: ${MYSQL_USER:-exam_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-exampwd}
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 如需初始化 SQL，取消下一行注释，并把 initdb 目录放 SQL 脚本
+      # - ./deploy/mysql/initdb:/docker-entrypoint-initdb.d:ro
+    ports:
+      - "3306:3306"   # 需要宿主机直连就保留；只给容器内访问可以去掉
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    command: >
+      sh -c "
+      redis-server
+      --appendonly yes
+      ${REDIS_PASSWORD:+--requirepass $$REDIS_PASSWORD}
+      "
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"   # 同理，需要宿主机直连则保留
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ---------- 反向代理 ----------
   proxy:
     image: caddy:2
     container_name: proxy
     ports:
       - "80:80"
-      # - "443:443"  # 如果有证书/域名要用 HTTPS，再打开
+      # - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
     depends_on:
-      - web
-      - backend    # 加上这行，保证后端起来后再反代
+      web:
+        condition: service_started
+      backend:
+        condition: service_started
 
+  # ---------- 前端 ----------
   web:
     build:
       context: .
       dockerfile: ./apps/web/Dockerfile
     container_name: web
     expose:
-      - "80"       # 仅在容器网络可见（Caddy 可访问，宿主机不可直接访问）
+      - "80"
+    depends_on:
+      backend:
+        condition: service_started
 
+  # ---------- 后端 ----------
   backend:
     build:
       context: .
       dockerfile: ./apps/backend/Dockerfile
     container_name: backend
     environment:
-      - NODE_ENV=production
-      - PORT=3000
+      NODE_ENV: production
+      PORT: 3000
+
+      # —— 关键：把数据库 & Redis 的连接写成容器内的服务名 —— 
+      # MySQL
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: ${MYSQL_DATABASE:-online_exam}
+      DB_USER: ${MYSQL_USER:-exam_user}
+      DB_PASSWORD: ${MYSQL_PASSWORD:-exampwd}
+      # 或者如果你项目支持 URL：
+      # DATABASE_URL: mysql://exam_user:exampwd@mysql:3306/online_exam?timezone=Z&charset=utf8mb4
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      # 或者如果你项目支持 URL：
+      # REDIS_URL: ${REDIS_PASSWORD:+redis://default:${REDIS_PASSWORD}@redis:6379/0}${REDIS_PASSWORD:+" "}
+
     expose:
-      - "3000"     # 用 expose 即可，交给 Caddy 代理
-    # 如果你想让宿主机也能直连后端，再保留：
-    # ports:
-    #   - "3000:3000"
+      - "3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
+  redis_data:
