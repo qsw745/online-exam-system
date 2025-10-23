@@ -46,44 +46,32 @@ export class MenuController {
     }
   }
 
-  /** 功能菜单（系统功能路由树）——仅系统菜单，用于构建前端动态路由 */
+  // 仅返回“系统功能路由树”
   static async getFunctionsTree(_req: Request, res: Response): Promise<void> {
     try {
       const tree = await MenuService.getMenuTree({ scope: 'system' })
       res.json({ success: true, data: tree })
     } catch (e) {
-      console.error('[menu] getFunctionsTree error:', e)
       res.status(500).json({ success: false, message: '获取功能菜单树失败' })
     }
   }
 
-  // ---- 菜单（读）
-  static async getAllMenus(req: Request, res: Response): Promise<void> {
+  // 列表：固定系统范围
+  static async getAllMenus(_req: Request, res: Response): Promise<void> {
     try {
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
-      const unitId = pickOrgId(req)
-      if (scope === 'unit' && !unitId) {
-        return void res.status(400).json({ success: false, message: '缺少 unitId（?unitId 或 x-org-id）' })
-      }
-      const menus = await MenuService.getAllMenus({ scope, unitId })
+      const menus = await MenuService.getAllMenus({ scope: 'system' })
       res.json({ success: true, data: menus })
     } catch (error) {
-      console.error('获取菜单列表失败:', error)
       res.status(500).json({ success: false, message: '获取菜单列表失败' })
     }
   }
 
-  static async getMenuTree(req: Request, res: Response): Promise<void> {
+  // 树：固定系统范围
+  static async getMenuTree(_req: Request, res: Response): Promise<void> {
     try {
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
-      const unitId = pickOrgId(req)
-      if (scope === 'unit' && !unitId) {
-        return void res.status(400).json({ success: false, message: '缺少 unitId（?unitId 或 x-org-id）' })
-      }
-      const menuTree = await MenuService.getMenuTree({ scope, unitId })
+      const menuTree = await MenuService.getMenuTree({ scope: 'system' })
       res.json({ success: true, data: menuTree })
     } catch (error) {
-      console.error('获取菜单树失败:', error)
       res.status(500).json({ success: false, message: '获取菜单树失败' })
     }
   }
@@ -97,26 +85,16 @@ export class MenuController {
       const menu = await MenuService.getMenuById(idNum)
       if (!menu) return void res.status(404).json({ success: false, message: '菜单不存在' })
       res.json({ success: true, data: menu })
-    } catch (error) {
-      console.error('获取菜单详情失败:', error)
+    } catch {
       res.status(500).json({ success: false, message: '获取菜单详情失败' })
     }
   }
 
-  // ---- 菜单（写）—单位覆盖：必须有单位上下文
+  // —— 系统菜单：允许创建/更新/删除 —— //
   static async createMenu(req: Request, res: Response) {
     try {
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
-      if (scope !== 'unit') {
-        return void res.status(403).json({ success: false, message: '系统菜单不可在此创建' })
-      }
-      const unitId = pickOrgId(req)
-      const { sys_menu_id, ...patch } = req.body
-      if (!unitId || !sys_menu_id) {
-        return void res.status(400).json({ success: false, message: '缺少 unitId 或 sys_menu_id' })
-      }
-      await MenuService.createMenu({ ...(patch || {}), unitId, sys_menu_id })
-      return void res.status(201).json({ success: true, message: '已保存单位覆盖' })
+      const id = await MenuService.createSystemMenu(req.body || {})
+      return void res.status(201).json({ success: true, data: { id }, message: '创建成功' })
     } catch (e: any) {
       res.status(500).json({ success: false, message: e?.message || '创建失败' })
     }
@@ -124,15 +102,9 @@ export class MenuController {
 
   static async updateMenu(req: Request, res: Response) {
     try {
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
-      if (scope !== 'unit') {
-        return void res.status(403).json({ success: false, message: '系统菜单不可在此修改' })
-      }
-      const unitId = pickOrgId(req)
-      const id = Number(req.params.id) // sys_menu_id
-      if (!unitId) return void res.status(400).json({ success: false, message: '缺少 unitId（?unitId 或 x-org-id）' })
-      await MenuService.updateMenu({ id, unitId, sys_menu_id: id, ...req.body })
-      return void res.json({ success: true, message: '已保存单位覆盖' })
+      const id = Number(req.params.id)
+      const ok = await MenuService.updateSystemMenu({ id, ...(req.body || {}) })
+      return void res.json({ success: ok, message: ok ? '更新成功' : '未修改' })
     } catch (e: any) {
       res.status(500).json({ success: false, message: e?.message || '更新失败' })
     }
@@ -140,15 +112,9 @@ export class MenuController {
 
   static async deleteMenu(req: Request, res: Response) {
     try {
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
       const id = Number(req.params.id)
-      if (scope === 'unit') {
-        const unitId = pickOrgId(req)
-        if (!unitId) return void res.status(400).json({ success: false, message: '缺少 unitId（?unitId 或 x-org-id）' })
-        await MenuService.deleteMenu(id, unitId, true)
-        return void res.json({ success: true, message: '已移除单位覆盖' })
-      }
-      return void res.status(403).json({ success: false, message: '系统菜单不可在此删除' })
+      const ok = await MenuService.deleteSystemMenu(id)
+      return void res.json({ success: ok, message: ok ? '删除成功' : '删除失败' })
     } catch (e: any) {
       res.status(500).json({ success: false, message: e?.message || '删除失败' })
     }
@@ -161,15 +127,9 @@ export class MenuController {
         res.status(400).json({ success: false, message: '请提供有效的菜单更新数据' })
         return
       }
-      const scope = String(req.query.scope ?? '').toLowerCase() as '' | 'system' | 'unit'
-      const unitId = pickOrgId(req)
-      if (scope === 'unit' && !unitId) {
-        return void res.status(400).json({ success: false, message: '缺少 unitId（?unitId 或 x-org-id）' })
-      }
-      await MenuService.batchUpdateMenuSort(menuUpdates, { scope: scope || undefined, unitId })
+      await MenuService.batchUpdateMenuSort(menuUpdates, { scope: 'system' })
       res.json({ success: true, message: '批量更新排序成功' })
     } catch (error) {
-      console.error('批量更新菜单排序失败:', error)
       const msg = error instanceof Error ? error.message : '批量更新菜单排序失败'
       res.status(500).json({ success: false, message: msg })
     }

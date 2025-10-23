@@ -1,5 +1,6 @@
 // 20250921_add_paper_questions_snapshots.ts
 import type { Knex } from 'knex'
+export const config = { transaction: false }  // ← 关键：禁用该迁移的事务
 
 async function addColumnIfMissing(
     knex: Knex,

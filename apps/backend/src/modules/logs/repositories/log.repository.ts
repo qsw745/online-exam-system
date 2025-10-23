@@ -6,11 +6,11 @@ import type { RowDataPacket } from 'mysql2'
 const J = (v: any) => (v === undefined || v === null ? null : JSON.stringify(v))
 
 export const LogRepository = {
-    /** 从日志表推断在线用户：按 user_id 取最近一次登录成功日志 */
-    async queryOnlineUsersFromLogs(limit = 500) {
-        const sql = `
+  /** 从日志表推断在线用户：按 user_id 取最近一次登录成功日志，并联表取邮箱 */
+  async queryOnlineUsersFromLogs(limit = 500) {
+    const sql = `
       SELECT l1.user_id AS id,
-             l1.username,
+             u.email AS email,                 -- ✅ 取邮箱
              l1.ip_address,
              l1.user_agent,
              l1.created_at AS login_time
@@ -21,32 +21,33 @@ export const LogRepository = {
         WHERE log_type = 'login' AND (status IS NULL OR status = 'success')
         GROUP BY user_id
       ) last ON last.user_id = l1.user_id AND last.max_id = l1.id
+      LEFT JOIN users u ON u.id = l1.user_id    -- ✅ 联表 users
       ORDER BY l1.created_at DESC
       LIMIT ?
     `
-        const [rows] = await pool.query<RowDataPacket[]>(sql, [Number(limit)])
-        return rows as Array<{
-            id: number | null
-            username: string | null
-            ip_address: string | null
-            user_agent: string | null
-            login_time: string
-        }>
-    },
+    const [rows] = await pool.query<RowDataPacket[]>(sql, [Number(limit)])
+    return rows as Array<{
+      id: number | null
+      email: string | null
+      ip_address: string | null
+      user_agent: string | null
+      login_time: string
+    }>
+  },
 
-    /** 单表 logs 通用写入（统一口） */
+  /** 单表 logs 通用写入（统一口） */
   async insert(input: Required<Pick<LogInput, 'type'>> & Omit<LogInput, 'type'>) {
     const sql = `
       INSERT INTO logs
-      (log_type, level, user_id, username, action, resource_type, resource_id,
+      (log_type, level, user_id, action, resource_type, resource_id,
        message, details, ip_address, user_agent, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `
     const params = [
       input.type,
       input.level ?? 'info',
       input.userId ?? null,
-      input.username ?? null,
+
       input.action ?? null,
       input.resourceType ?? null,
       input.resourceId ?? null,
@@ -62,7 +63,7 @@ export const LogRepository = {
   /** logs 通用分页查询 */
   async queryLogs(scope: { currentUserId: number; role?: string }, q: LogQueryParams) {
     const { currentUserId, role } = scope
-    const { page = 1, limit = 20, start_date, end_date, level, module, action, userId, username } = q || {}
+    const { page = 1, limit = 20, start_date, end_date, level, module, action, userId } = q || {}
 
     const ps: any[] = []
     const cps: any[] = []
@@ -89,11 +90,7 @@ export const LogRepository = {
       ps.push(`%${action}%`)
       cps.push(`%${action}%`)
     }
-    if (username) {
-      where += ' AND username LIKE ?'
-      ps.push(`%${username}%`)
-      cps.push(`%${username}%`)
-    }
+
     if (typeof userId === 'number') {
       where += ' AND user_id = ?'
       ps.push(userId)
@@ -114,7 +111,7 @@ export const LogRepository = {
 
     const listSql = `
       SELECT
-        id, log_type, level, user_id, username, action,
+        id, log_type, level, user_id, action,
         resource_type, resource_id,
         /* 👇 新增：组合别名 resource */
         CASE
@@ -139,7 +136,7 @@ export const LogRepository = {
   /** 导出（不分页） */
   async exportLogs(scope: { currentUserId: number; role?: string }, q: LogQueryParams) {
     const { currentUserId, role } = scope
-    const { start_date, end_date, level, module, action, userId, username } = q || {}
+    const { start_date, end_date, level, module, action, userId } = q || {}
     const ps: any[] = []
 
     let where = '1=1'
@@ -163,10 +160,7 @@ export const LogRepository = {
       where += ' AND user_id = ?'
       ps.push(userId)
     }
-    if (username) {
-      where += ' AND username LIKE ?'
-      ps.push(`%${username}%`)
-    }
+
     if (start_date) {
       where += ' AND created_at >= ?'
       ps.push(start_date)
@@ -178,7 +172,7 @@ export const LogRepository = {
 
     const sql = `
       SELECT
-        id, log_type, level, user_id, username, action,
+        id, log_type, level, user_id, action,
         resource_type, resource_id,
         /* 👇 新增：组合别名 resource */
         CASE
@@ -225,7 +219,7 @@ export const LogRepository = {
     const offset = (Number(page) - 1) * Number(limit)
 
     const listSql = `
-      SELECT el.*, u.username, q.content as question_content
+      SELECT el.*, q.content as question_content
       FROM exam_logs el
              LEFT JOIN users u ON el.user_id = u.id
              LEFT JOIN questions q ON el.question_id = q.id

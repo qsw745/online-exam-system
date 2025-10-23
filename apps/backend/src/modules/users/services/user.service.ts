@@ -1,30 +1,24 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { LogService } from '@/modules/logs/services/log.service'
 import bcrypt from 'bcryptjs'
-import type { RowDataPacket } from 'mysql2/promise'
+import type { PoolConnection } from 'mysql2/promise'
 import type { UserDTO, UserRole, UserSettings, UserStatus } from '../domain/user.model'
 import { UserRepository } from '../repositories/user.repository.js'
-import { OrgRepository } from '@/modules/orgs/repositories/org.repository.js'
+import { pool } from '@/config/database.js'
 
-// --- 当项目未安装 @types/node 时，给 process 提供极小的类型声明以通过编译 ---
-declare const process: { env?: Record<string, string | undefined> } | undefined
-
-// --- Redis helpers (tolerant) ---
+// Redis（容错）
 let RC: any = null,
   RL: any = null,
   RClient: any = null
 ;(async () => {
   try {
-    const mod = await import('@/common/redis/cache')
-    RC = (mod as any).default ?? mod
+    RC = (await import('@/common/redis/cache')).default
   } catch {}
   try {
-    const mod = await import('@/common/redis/lock')
-    RL = (mod as any).default ?? mod
+    RL = (await import('@/common/redis/lock')).default
   } catch {}
   try {
-    const mod = await import('@/common/redis/client')
-    RClient = (mod as any).default ?? mod
+    RClient = (await import('@/common/redis/client')).default
   } catch {}
 })()
 
@@ -34,9 +28,10 @@ const kUserMe = (id: number) => `user:${id}:me`
 const kUserList = (q: any) => `user:list:${JSON.stringify(q)}`
 const kUserSettings = (id: number) => `user:${id}:settings`
 
-async function cget<T = any>(k: string) {
+// === 关键：cget 不使用泛型，避免 TS2347 ===
+async function cget(key: string): Promise<any> {
   try {
-    const v = await RC?.get?.(k)
+    const v = await RC?.get?.(key)
     return v ? JSON.parse(v) : null
   } catch {
     return null
@@ -65,38 +60,12 @@ async function publishToUser(uid: number, payload: any) {
 }
 
 export class UserService {
-  /** 用户数据仓库 */
-  private readonly repo: UserRepository
+  constructor(private readonly repo: UserRepository = new UserRepository()) {}
 
-  constructor(repo: UserRepository = new UserRepository()) {
-    this.repo = repo
-  }
-
-  // =============== 辅助：查询主组织及名称（不依赖 org-user） ===============
-  private async getPrimaryOrgMeta(userId: number): Promise<{ orgId: number | null; org_name: string | null }> {
-    try {
-      const db = (this as any).repo.db
-      const ret: any = await db.query(
-        `SELECT uo.org_id, o.name AS org_name
-           FROM user_organizations uo
-           LEFT JOIN organizations o ON o.id = uo.org_id
-          WHERE uo.user_id = ? AND uo.is_primary = 1
-          LIMIT 1`,
-        [userId]
-      )
-      const rows: RowDataPacket[] = (ret && ret[0]) || []
-      const orgId = rows?.[0]?.org_id ?? null
-      const org_name = rows?.[0]?.org_name ?? null
-      return { orgId, org_name }
-    } catch {
-      return { orgId: null, org_name: null }
-    }
-  }
-
-  // =============== 创建 ===============
+  // —— 创建：同一事务内完成 —— //
   async adminCreate(
     payload: {
-      username: string
+      username?: string
       nickname?: string | null
       email?: string | null
       password: string
@@ -107,50 +76,102 @@ export class UserService {
       gender?: '男' | '女' | '保密' | null
       remark?: string | null
     },
-    actor?: { id?: number; username?: string },
+    actor?: { id?: number; email?: string },
     req?: any
   ): Promise<UserDTO> {
-    const hashed = await bcrypt.hash(payload.password, 10)
-    const created = await this.repo.createUser({
-      username: payload.username,
-      email: payload.email ?? null,
-      nickname: payload.nickname ?? null,
-      passwordHash: hashed,
-      role: payload.role ?? 'student',
-      status: payload.status,
-      phone: payload.phone ?? null,
-      gender: (payload.gender as any) ?? '保密',
-      remark: payload.remark ?? null,
-    })
+    const conn: PoolConnection = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
 
-    await LogService.log(
-      {
-        type: 'user',
-        userId: actor?.id || 0,
-        username: actor?.username,
-        action: '创建用户',
-        resourceType: 'user',
-        resourceId: created.id,
-        details: { username: created.username, role: created.role, status: created.status },
-      },
-      req
-    )
+      // 探测 username 列 & 生成 username
+      const hasU = await this.repo.hasUsername()
+      let finalUsername = payload.username
+      if (hasU && !finalUsername) {
+        const local = String(payload.email || '').split('@')[0] || 'user'
+        const base =
+          local
+            .trim()
+            .toLowerCase()
+            .replace(/[\s._]+/g, '-')
+            .replace(/[^\p{Letter}\p{Number}-]+/gu, '-')
+            .replace(/-+/g, '-')
+            .replace(/^-|-$/g, '') || 'user'
+        const rand = Math.random().toString(36).slice(2, 6)
+        finalUsername = `${base}-${rand}`
+      }
 
-    const nextOrgId = (payload.org_id ?? null) as number | null
-    if (nextOrgId !== null && Number.isFinite(nextOrgId)) {
-      await this.setUserOrg(created.id, nextOrgId, actor)
+      // —— 唯一性预检（事务内） —— //
+      if (await this.repo.existsByEmail(payload.email ?? null, conn)) {
+        const err: any = new Error('邮箱已存在')
+        err.code = 'ER_DUP_ENTRY'
+        throw err
+      }
+      if (await this.repo.existsByUsername(finalUsername ?? null, conn)) {
+        const err: any = new Error('用户名已存在')
+        err.code = 'ER_DUP_ENTRY'
+        throw err
+      }
+      if (await this.repo.existsByPhone(payload.phone ?? null, conn)) {
+        const err: any = new Error('手机号已存在')
+        err.code = 'ER_DUP_ENTRY'
+        throw err
+      }
+
+      const hashed = await bcrypt.hash(payload.password, 10)
+
+      // —— 插入 users —— //
+      const created = await this.repo.createUser(
+        {
+          username: hasU ? finalUsername : undefined,
+          email: payload.email ?? null,
+          nickname: payload.nickname ?? null,
+          passwordHash: hashed,
+          role: payload.role ?? 'student',
+          status: payload.status,
+          phone: payload.phone ?? null,
+          gender: (payload.gender as any) ?? '保密',
+          remark: payload.remark ?? null,
+        },
+        conn
+      )
+
+      // —— 关联主组织（可选） —— //
+      const nextOrgId = (payload.org_id ?? null) as number | null
+      if (nextOrgId !== null && Number.isFinite(nextOrgId)) {
+        await this.repo.setPrimaryOrg(created.id, nextOrgId, conn)
+      }
+
+      await LogService.log(
+        {
+          type: 'user',
+          userId: actor?.id || 0,
+          action: '创建用户',
+          resourceType: 'user',
+          resourceId: created.id,
+          details: { username: created.username, role: created.role, status: created.status, hasUsername: hasU },
+        },
+        req
+      )
+
+      await conn.commit()
+
+      await cdelByPattern('user:list:*')
+      return created
+    } catch (e) {
+      try {
+        await conn.rollback()
+      } catch {}
+      throw e
+    } finally {
+      conn.release()
     }
-    return created
   }
 
-  // =============== 改密 ===============
   async changePassword(userId: number, current: string, next: string, req?: any) {
     const me = await this.repo.getById(userId)
     if (!me) throw new Error('用户不存在')
 
-    const ret: any = await (this as any).repo.db.execute('SELECT password FROM users WHERE id = ?', [userId])
-    const rows = (ret && ret[0]) || []
-    const hashed = rows?.[0]?.password as string | undefined
+    const hashed = await this.repo.getPasswordHash(userId)
     if (!hashed) throw new Error('读取密码失败')
 
     const pass = bcrypt.compareSync(current, hashed)
@@ -160,15 +181,7 @@ export class UserService {
     await this.repo.resetPassword(userId, newHashed)
 
     await LogService.log(
-      {
-        type: 'user',
-        userId,
-        username: me.username,
-        action: '修改密码',
-        resourceType: 'user',
-        resourceId: userId,
-        status: 'success',
-      },
+      { type: 'user', userId, action: '修改密码', resourceType: 'user', resourceId: userId, status: 'success' },
       req
     )
 
@@ -177,7 +190,10 @@ export class UserService {
     return true
   }
 
-  // =============== 查询 ===============
+  private async getPrimaryOrgMeta(userId: number): Promise<{ orgId: number | null; org_name: string | null }> {
+    return this.repo.getPrimaryOrgMeta(userId)
+  }
+
   async getById(userId: number) {
     const ck = kUserFull(userId)
     const hit = await cget(ck)
@@ -209,7 +225,6 @@ export class UserService {
     return data
   }
 
-  /** =============== 按组织查询用户（不依赖 org-user） =============== */
   async listByOrg(params: {
     orgId: number
     page: number
@@ -218,69 +233,10 @@ export class UserService {
     search?: string
     includeChildren?: boolean
   }): Promise<{ items: UserDTO[]; total: number }> {
-    const { orgId, page, limit, role, search, includeChildren } = params
-    const db = (this as any).repo.db
-
-    let orgIds: number[] = [orgId]
-    if (includeChildren) {
-      const all = await OrgRepository.findAll(true)
-      const childrenMap = new Map<number, number[]>()
-      for (const o of all) {
-        const pid = (o.parent_id ?? null) as number | null
-        if (pid != null) {
-          if (!childrenMap.has(pid)) childrenMap.set(pid, [])
-          childrenMap.get(pid)!.push(o.id)
-        }
-      }
-      const stack = [orgId]
-      const seen = new Set<number>([orgId])
-      while (stack.length) {
-        const cur = stack.pop()!
-        const kids = childrenMap.get(cur) || []
-        for (const k of kids) if (!seen.has(k)) seen.add(k), stack.push(k)
-      }
-      orgIds = Array.from(seen)
-    }
-
-    const clauses: string[] = ['uo.org_id IN (?)']
-    const vals: any[] = [orgIds]
-    if (role) {
-      clauses.push('u.role = ?')
-      vals.push(role)
-    }
-    if (search) {
-      clauses.push('(u.username LIKE ? OR u.email LIKE ? OR u.nickname LIKE ? OR u.phone LIKE ?)')
-      vals.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
-    }
-    const where = `WHERE ${clauses.join(' AND ')}`
-    const offset = (page - 1) * limit
-
-    const rowsRes: any = await db.query(
-      `SELECT u.id, u.username, u.email, u.role, u.nickname, u.school, u.class_name, u.experience_points, u.level,
-              u.avatar_url, u.status, u.phone, u.gender, u.remark, u.created_at, u.updated_at
-         FROM users u
-         INNER JOIN user_organizations uo ON uo.user_id = u.id
-        ${where}
-     GROUP BY u.id
-     ORDER BY u.created_at DESC
-        LIMIT ? OFFSET ?`,
-      [...vals, limit, offset]
-    )
-    const items: UserDTO[] = (rowsRes && rowsRes[0]) || []
-
-    const cntRes: any = await db.query(
-      `SELECT COUNT(DISTINCT u.id) AS total
-         FROM users u
-         INNER JOIN user_organizations uo ON uo.user_id = u.id
-        ${where}`,
-      vals
-    )
-    const total = Number(((cntRes && cntRes[0] && cntRes[0][0]) || ({} as any)).total || 0)
-
-    return { items, total }
+    // 纯委托到仓储
+    return this.repo.listByOrg(params)
   }
 
-  // =============== 自我更新 / 头像 ===============
   async updateMe(userId: number, patch: Partial<Pick<UserDTO, 'nickname' | 'school' | 'class_name'>>, req?: any) {
     const updated = await this.repo.updateUser(userId, patch as any)
     if (!updated) throw new Error('更新失败')
@@ -289,7 +245,6 @@ export class UserService {
       {
         type: 'user',
         userId,
-        username: updated.username,
         action: '更新个人资料',
         resourceType: 'user',
         resourceId: Number(userId),
@@ -312,7 +267,6 @@ export class UserService {
       {
         type: 'user',
         userId,
-        username: updated.username,
         action: '上传头像',
         resourceType: 'user',
         resourceId: Number(userId),
@@ -327,7 +281,6 @@ export class UserService {
     return updated
   }
 
-  // =============== 管理员更新/状态 ===============
   async adminUpdate(
     targetUserId: number,
     patch: Partial<
@@ -345,7 +298,7 @@ export class UserService {
         | 'remark'
       >
     >,
-    actor?: { id?: number; username?: string },
+    actor?: { id?: number; email?: string },
     req?: any
   ) {
     const updated = await this.repo.updateUser(targetUserId, patch)
@@ -355,7 +308,6 @@ export class UserService {
       {
         type: 'user',
         userId: actor?.id || 0,
-        username: actor?.username,
         action: '管理员修改用户信息',
         resourceType: 'user',
         resourceId: targetUserId,
@@ -375,7 +327,7 @@ export class UserService {
     return updated
   }
 
-  async updateStatus(targetUserId: number, status: UserStatus, actor?: { id?: number; username?: string }, req?: any) {
+  async updateStatus(targetUserId: number, status: UserStatus, actor?: { id?: number; email?: string }, req?: any) {
     const updated = await this.repo.updateStatus(targetUserId, status)
     if (!updated) throw new Error('更新用户状态失败')
 
@@ -383,7 +335,6 @@ export class UserService {
       {
         type: 'user',
         userId: actor?.id || 0,
-        username: actor?.username,
         action: '修改用户状态',
         resourceType: 'user',
         resourceId: targetUserId,
@@ -399,15 +350,14 @@ export class UserService {
     await publishToUser(targetUserId, { type: 'user_updated' })
   }
 
-  // =============== 重置密码 ===============
   async resetPassword(
     targetUserId: number,
-    actor?: { id?: number; username?: string },
+    actor?: { id?: number; email?: string },
     req?: any,
     options?: { newPassword?: string; forceLogout?: boolean }
   ) {
     const defaultPassword =
-      (typeof process !== 'undefined' ? process?.env?.DEFAULT_RESET_PASSWORD : undefined) || 'ChangeMe123!'
+      (typeof process !== 'undefined' ? (process as any)?.env?.DEFAULT_RESET_PASSWORD : undefined) || 'ChangeMe123!'
     const plain = options?.newPassword || defaultPassword
 
     const exec = async () => {
@@ -419,7 +369,6 @@ export class UserService {
         {
           type: 'user',
           userId: actor?.id || 0,
-          username: actor?.username,
           action: '重置用户密码',
           resourceType: 'user',
           resourceId: targetUserId,
@@ -427,10 +376,6 @@ export class UserService {
         },
         req
       )
-
-      if (options?.forceLogout) {
-        // 清理会话（如实现）
-      }
 
       await cdel(kUserFull(targetUserId), kUserMe(targetUserId))
       await publishToUser(targetUserId, { type: 'password_reset' })
@@ -459,68 +404,14 @@ export class UserService {
     return exec()
   }
 
-  // =============== 删除用户（供 Controller 调用） ===============
-  async deleteUser(targetUserId: number, targetRole: UserRole, actor?: { id?: number; username?: string }, req?: any) {
+  async deleteUser(targetUserId: number, targetRole: UserRole, actor?: { id?: number; email?: string }, req?: any) {
     if (targetRole === 'admin') throw new Error('管理员账号不允许删除')
-    const ok = await this.repo.deleteUser(targetUserId)
-    if (!ok) throw new Error('删除用户失败')
-
-    await LogService.log(
-      {
-        type: 'user',
-        userId: actor?.id || 0,
-        username: actor?.username,
-        action: '删除用户',
-        resourceType: 'user',
-        resourceId: targetUserId,
-        details: { 目标用户ID: targetUserId },
-      },
-      req
-    )
-
-    await cdel(kUserFull(targetUserId), kUserMe(targetUserId), kUserSettings(targetUserId))
-    await cdelByPattern('user:list:*')
-    await cdelByPattern(`perm:${targetUserId}:*`)
-    await cdelByPattern(`menuTree:${targetUserId}:*`)
-    await publishToUser(targetUserId, { type: 'user_updated' })
+    await this.deleteUsers([targetUserId], actor, req)
   }
 
-  // =============== 组织编排（直接 SQL，不依赖 org-user） ===============
-  async setUserOrg(targetUserId: number, nextOrgId: number | null, _actor?: { id?: number; username?: string }) {
+  async setUserOrg(targetUserId: number, nextOrgId: number | null, _actor?: { id?: number; email?: string }) {
     if (!(nextOrgId === null || Number.isFinite(nextOrgId))) return
-
-    const db = (this as any).repo.db
-
-    // 读取当前主组织
-    const prevRes: any = await db.query(
-      'SELECT org_id FROM user_organizations WHERE user_id=? AND is_primary=1 LIMIT 1',
-      [targetUserId]
-    )
-    const prevOrgId: number | null = ((prevRes && prevRes[0] && prevRes[0][0]) || ({} as any)).org_id ?? null
-
-    if (nextOrgId === null) {
-      if (prevOrgId != null) {
-        await db.query('DELETE FROM user_organizations WHERE user_id=? AND org_id=?', [targetUserId, prevOrgId])
-      }
-    } else if (prevOrgId == null) {
-      // 先清空主标记，再设置主组织（插入或更新）
-      await db.query('UPDATE user_organizations SET is_primary=0 WHERE user_id=?', [targetUserId])
-      await db.query(
-        `INSERT INTO user_organizations (user_id, org_id, is_primary, assigned_at, created_at)
-         VALUES (?, ?, 1, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE is_primary=1, assigned_at=VALUES(assigned_at)`,
-        [targetUserId, nextOrgId]
-      )
-    } else if (prevOrgId !== nextOrgId) {
-      await db.query('UPDATE user_organizations SET is_primary=0 WHERE user_id=?', [targetUserId])
-      await db.query(
-        `INSERT INTO user_organizations (user_id, org_id, is_primary, assigned_at, created_at)
-         VALUES (?, ?, 1, NOW(), NOW())
-         ON DUPLICATE KEY UPDATE is_primary=1, assigned_at=VALUES(assigned_at)`,
-        [targetUserId, nextOrgId]
-      )
-    }
-
+    await this.repo.setPrimaryOrg(targetUserId, nextOrgId)
     await cdel(kUserFull(targetUserId), kUserMe(targetUserId), kUserSettings(targetUserId))
     await cdelByPattern('user:list:*')
     await cdelByPattern(`perm:${targetUserId}:*`)
@@ -528,12 +419,12 @@ export class UserService {
     await publishToUser(targetUserId, { type: 'user_updated' })
   }
 
-  // =============== 设置 ===============
   async getSettings(userId: number): Promise<UserSettings> {
     const ck = kUserSettings(userId)
-    const hit = await cget<UserSettings>(ck)
+    // 不用泛型，改断言，彻底规避 TS2347
+    const hit = (await cget(ck)) as UserSettings | null
     if (hit) return hit
-    const s = (await this.repo.getSettings(userId)) || {
+    const s = ((await this.repo.getSettings(userId)) as UserSettings | null) || {
       notifications: { email: true, push: true, sound: true },
       privacy: { profile_visibility: 'public', show_activity: true, show_results: true },
       appearance: { theme: 'light', language: 'zh-CN' },
@@ -560,6 +451,38 @@ export class UserService {
     await cdelByPattern('user:list:*')
     await publishToUser(userId, { type: 'user_updated' })
     return settings
+  }
+
+  // —— 批量删除（跳过管理员） —— //
+  async deleteUsers(targetUserIds: number[], actor?: { id?: number; email?: string }, req?: any) {
+    if (!targetUserIds.length) return { deleted: 0, skipped: [] as number[] }
+
+    const pairs = await this.repo.getRolesForUserIds(targetUserIds)
+    const skipAdmins = pairs.filter(p => p.role === 'admin').map(p => p.id)
+    const toDelete = targetUserIds.filter(id => !skipAdmins.includes(id))
+
+    const deleted = await this.repo.deleteUsers(toDelete)
+
+    for (const id of toDelete) {
+      await LogService.log(
+        { type: 'user', userId: actor?.id || 0, action: '删除用户', resourceType: 'user', resourceId: id },
+        req
+      )
+    }
+
+    try {
+      for (const id of toDelete) {
+        await Promise.all([
+          cdel(`user:${id}:full`, `user:${id}:me`, `user:${id}:settings`),
+          cdelByPattern(`user:list:*`),
+          cdelByPattern(`perm:${id}:*`),
+          cdelByPattern(`menuTree:${id}:*`),
+          publishToUser(id, { type: 'user_deleted' }),
+        ])
+      }
+    } catch {}
+
+    return { deleted, skipped: skipAdmins }
   }
 }
 

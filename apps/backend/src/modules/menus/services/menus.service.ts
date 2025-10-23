@@ -103,6 +103,34 @@ function permFromRow(r: any): UserMenuPermission {
 }
 
 export class MenuService {
+  /** 计算 level */
+  private static async calcLevel(parent_id?: number | null): Promise<number> {
+    if (!parent_id) return 1
+    const p = await MenuRepository.findMenuById(parent_id)
+    return p ? Number(p.level || 0) + 1 : 1
+  }
+  /** 系统菜单：创建 */
+  static async createSystemMenu(payload: any): Promise<number> {
+    const level = await this.calcLevel(payload.parent_id ?? null)
+    return MenuRepository.insertMenu({
+      ...payload,
+      level,
+      is_system: true,
+    })
+  }
+  /** 系统菜单：更新（会自动纠正 level） */
+  static async updateSystemMenu(payload: any): Promise<boolean> {
+    const { id, parent_id } = payload
+    const level = await this.calcLevel(parent_id ?? null)
+    return MenuRepository.updateMenu({ ...payload, id, level })
+  }
+
+  /** 系统菜单：删除（禁止删除有子级的） */
+  static async deleteSystemMenu(id: number): Promise<boolean> {
+    const childCount = await MenuRepository.countChildren(id)
+    if (childCount > 0) throw new Error('无法删除包含子菜单的菜单')
+    return MenuRepository.deleteMenu(id)
+  }
   // ---- Menus
   static async getAllMenus(args: ScopeArgs = {}): Promise<Menu[]> {
     const { scope, unitId } = args

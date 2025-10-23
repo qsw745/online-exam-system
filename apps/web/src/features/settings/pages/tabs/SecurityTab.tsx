@@ -97,7 +97,7 @@ export default function SecurityTab() {
       setLoading(true)
       // 只取“当前用户”的安全/操作类日志：用用户名过滤
       const ret = await logsApi.listAudit(
-        { level: 'all', username: user?.username || user?.email || '' },
+        { level: 'all', username: user?.email || '' },
         page,
         pageSize
       )
@@ -116,7 +116,7 @@ export default function SecurityTab() {
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, user?.username, user?.email])
+  }, [page, pageSize, user?.email])
 
   return (
     <div>

@@ -1,4 +1,3 @@
-// apps/web/src/features/orgs/pages/OrgManagementPage.tsx
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   App,
@@ -33,6 +32,8 @@ import {
   MenuUnfoldOutlined,
   MenuFoldOutlined,
   HolderOutlined,
+  RightOutlined,
+  DownOutlined,
 } from '@ant-design/icons'
 import { createPortal } from 'react-dom'
 import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
@@ -201,7 +202,7 @@ export default function OrgManagementPage() {
       key: 'sort_order',
       width: 80,
       align: 'center',
-      render: (v: any) => (typeof v === 'number' ? v : 0),
+      render: (v: any) => (typeof v === 'number' ? v : ''),
     },
     is_enabled: {
       title: LABELS.is_enabled,
@@ -227,14 +228,14 @@ export default function OrgManagementPage() {
       key: 'created_at',
       width: 180,
       align: 'center',
-      render: (t: any) => (t ? new Date(t).toLocaleString() : '—'),
+      render: (t: any) => (t ? new Date(t).toLocaleString() : ''),
     },
     description: {
       title: LABELS.description,
       dataIndex: 'description',
       key: 'description',
       ellipsis: true,
-      render: (t: any) => t || <Text type="secondary">—</Text>,
+      render: (t: any) => (t ? t : ''),
     },
     actions: {
       title: LABELS.actions,
@@ -440,6 +441,25 @@ export default function OrgManagementPage() {
         expandable={{
           expandedRowKeys,
           onExpandedRowsChange: keys => setExpandedRowKeys(keys as React.Key[]),
+          expandRowByClick: false,
+          // ✅ 自定义展开图标：只显示箭头；无子级不显示（仅占位保持对齐）
+          expandIcon: ({ expanded, onExpand, record }) => {
+            const hasChildren = Array.isArray((record as OrgNode).children) && (record as OrgNode).children!.length > 0
+            if (!hasChildren) {
+              // antd 自带的“spaced”占位，不显示任何图标；用于没有子级时对齐
+              return <span className="ant-table-row-expand-icon-spaced" />
+            }
+            // 注意：不要使用 ant-table-row-expand-icon 类，否则会出现自带的加/减号
+            return (
+              <span
+                className="orgs-expand-trigger"
+                onClick={e => onExpand(record as any, e)}
+                aria-label={expanded ? '收起' : '展开'}
+              >
+                {expanded ? <DownOutlined /> : <RightOutlined />}
+              </span>
+            )
+          },
         }}
       />
     </Card>
@@ -485,6 +505,18 @@ export default function OrgManagementPage() {
           padding: 12px;
           box-sizing: border-box;
         }
+        /* 自定义展开箭头按钮（去掉加减号背景） */
+        .orgs-expand-trigger{
+          display:inline-flex;
+          align-items:center;
+          justify-content:center;
+          width:16px;
+          height:16px;
+          margin-inline-end: 8px;
+          cursor:pointer;
+          color: rgba(0,0,0,0.65);
+        }
+        .orgs-expand-trigger:hover{ color: rgba(0,0,0,0.88); }
       `}</style>
 
       {/* 顶部筛选卡片 */}
@@ -644,7 +676,8 @@ function DeptFormModal({
         leader: undefined,
         phone: undefined,
         email: undefined,
-        sort_order: 0,
+        // ❗️不要默认 0；留空让后端自动“最大+1”
+        // sort_order: 0,
         is_enabled: true,
         description: undefined,
       })
@@ -659,13 +692,17 @@ function DeptFormModal({
       leader: v.leader?.trim() || null,
       phone: v.phone?.trim() || null,
       email: v.email?.trim() || null,
-      sort_order: Number.isFinite(v.sort_order) ? Number(v.sort_order) : 0,
       description: v.description?.trim() || null,
       is_enabled: !!v.is_enabled,
       // 兼容后端 is_active 场景
       // @ts-ignore
       is_active: v.is_enabled ? 1 : 0,
     }
+    // ✅ 仅当用户输入了合法数字时才携带 sort_order
+    if (Number.isFinite(v.sort_order)) {
+      payload.sort_order = Number(v.sort_order)
+    }
+
     if (editing) await onOk(payload, { type: 'edit', id: editing.id })
     else await onOk(payload, { type: 'create' })
   }
@@ -677,7 +714,7 @@ function DeptFormModal({
       onOk={handleOk}
       title={editing ? '修改部门' : parentForCreate ? '新增子部门' : '新增部门'}
       okText={editing ? '确定' : '创建'}
-      destroyOnHidden
+      destroyOnClose
       maskClosable={false}
       width={660}
     >

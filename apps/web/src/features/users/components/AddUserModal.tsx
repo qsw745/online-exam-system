@@ -1,6 +1,6 @@
-import React from 'react'
-import { App, Button, Form, Input, Modal, Row, Col, Space, Switch, TreeSelect, Typography, Select } from 'antd'
 import { useOrgTree } from '@/shared/hooks'
+import { App, Col, Form, Input, Modal, Row, Select, Space, Switch, TreeSelect, Typography } from 'antd'
+import React from 'react'
 
 const { Text } = Typography
 
@@ -19,7 +19,6 @@ type FormValues = {
 }
 
 export type SubmitPayload = {
-  username: string
   nickname: string
   password: string
   phone?: string
@@ -67,7 +66,6 @@ export const AddUserModal: React.FC<{
     try {
       const v = await form.validateFields()
       const payload: SubmitPayload = {
-        username: v.username.trim(),
         nickname: v.nickname.trim(),
         password: v.password,
         phone: v.phone?.trim() || undefined,
@@ -104,7 +102,7 @@ export const AddUserModal: React.FC<{
       maskClosable={false}
       width={1000}
       styles={{ body: { paddingTop: 12 } }}
-      destroyOnHidden
+      destroyOnClose
     >
       <Form<FormValues>
         form={form}
@@ -119,7 +117,7 @@ export const AddUserModal: React.FC<{
               <Input placeholder="请输入用户昵称" allowClear />
             </Form.Item>
           </Col>
-          <Col span={12}>
+          {/* <Col span={12}>
             <Form.Item
               label="用户名称"
               name="username"
@@ -130,7 +128,7 @@ export const AddUserModal: React.FC<{
             >
               <Input placeholder="请输入用户名称" allowClear />
             </Form.Item>
-          </Col>
+          </Col> */}
 
           <Col span={12}>
             <Form.Item

@@ -30,7 +30,7 @@ export function jwtRoleHydrator() {
       const u: any = (req as any).user ?? {}
       const merged: any = {
         id: u.id,
-        username: u.username,
+      
         email: u.email,
       }
 

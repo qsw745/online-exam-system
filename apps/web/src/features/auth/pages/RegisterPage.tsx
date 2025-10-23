@@ -9,7 +9,7 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 const { Title, Text } = Typography
 
 const RegisterPage: React.FC = () => {
-  const { loading, submit } = useRegister('student') // 默认注册为 student
+  const { loading, submit } = useRegister()
   const { t } = useLanguage()
 
   return (

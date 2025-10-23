@@ -16,7 +16,7 @@ interface User {
   id: string
   email: string
   role: string
-  username?: string
+
   nickname?: string
   school?: string
   class_name?: string
@@ -32,7 +32,7 @@ interface AuthContextType {
     keep7Days?: boolean,
     extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean }
   ) => Promise<void>
-  signUp: (email: string, password: string, username: string, role: string) => Promise<void>
+  signUp: (email: string, password: string, opts?: {  nickname?: string; keep7Days?: boolean }) => Promise<void>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   reload: () => Promise<void>
@@ -190,19 +190,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(userData)
   }
 
-  const signUp = async (email: string, password: string, username: string, role: string) => {
-    const result = await auth.register({ email, password, username, role })
+  const signUp = async (email: string, password: string, opts?: {  nickname?: string; keep7Days?: boolean }) => {
+    const payload = {
+      email,
+      password,
+  
+      nickname: opts?.nickname ?? null,
+      keep7Days: opts?.keep7Days ?? false,
+    }
+    const result = await auth.register(payload)
     if ((result as any)?.success === false) throw new Error((result as any).error || '注册失败')
-
-    const payload = (result as any)?.data ?? (result as any) ?? {}
-    const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
-    const userData: User | undefined = payload.user
-    if (!token || !userData) throw new Error('注册响应缺少 token 或用户信息')
-
-    setAuthStorageFlag('7d')
-    storageSetAccessToken(token, '7d')
-    writeRole((userData as any).role || role)
-    setUser(userData)
+    // 注册后保持原有“跳转到登录页”的流程，不在此处直接写入登录态。
+    return
   }
 
   const signOut = async () => {

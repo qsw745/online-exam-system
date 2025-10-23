@@ -2,7 +2,7 @@ import type { RowDataPacket } from 'mysql2'
 
 export interface IUser extends RowDataPacket {
   id: number
-  username: string
+
   email: string
   password: string
   status: 'active' | 'disabled'

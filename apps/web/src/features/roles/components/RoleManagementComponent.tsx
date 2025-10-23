@@ -1,4 +1,3 @@
-// src/features/roles/components/RoleManagementComponent.tsx
 import {
   CheckOutlined,
   CloseOutlined,
@@ -7,6 +6,7 @@ import {
   FullscreenExitOutlined,
   FullscreenOutlined,
   HolderOutlined,
+  MoreOutlined,
   PlusOutlined,
   ReloadOutlined,
   SearchOutlined,
@@ -21,6 +21,7 @@ import {
   Divider,
   Dropdown,
   Empty,
+  Grid,
   Input,
   InputNumber,
   Modal,
@@ -68,6 +69,8 @@ const FIXED_LAST_KEY: ColKey = 'actions'
 
 export default function RoleManagementComponent() {
   const { message } = App.useApp()
+  const screens = Grid.useBreakpoint()
+  const isXs = !!screens.xs && !screens.sm // <576px
 
   // ===== 查询面板状态 =====
   const [fName, setFName] = useState('')
@@ -90,7 +93,7 @@ export default function RoleManagementComponent() {
   const members = useRoleMembers()
 
   // ===== 表格密度 / 列设置 =====
-  const [tableSize, setTableSize] = useState<TableProps<Role>['size']>('middle')
+  const [tableSize, setTableSize] = useState<TableProps<Role>['size']>('small') // 默认更紧凑
 
   const DEFAULT_COL_KEYS: ColKey[] = ['id', 'name', 'code', 'is_disabled', 'description', 'created_at', 'actions']
   const LABELS: Record<ColKey, string> = {
@@ -288,15 +291,31 @@ export default function RoleManagementComponent() {
     })
   }
 
-  // —— 表格列（内容居中 + 自适应收缩） —— //
+  // —— 列定义（设置列宽 + 固定操作列） —— //
+  const actionMenu = (r: Role) => ({
+    items: [
+      { key: 'edit', label: '修改', onClick: () => openEdit(r) },
+      { key: 'perm', label: '权限', onClick: () => perms.openFor({ id: r.id, name: r.name } as any) },
+      { type: 'divider' as const },
+      {
+        key: 'del',
+        danger: true,
+        label: '删除',
+        disabled: !!r.is_system,
+        onClick: () => handleDelete(r),
+      },
+    ],
+  })
+
   const ALL_COLUMNS: Record<ColKey, any> = {
-    id: { title: LABELS.id, dataIndex: 'id', align: 'center' },
-    name: { title: LABELS.name, dataIndex: 'name', ellipsis: true, align: 'center' },
-    code: { title: LABELS.code, dataIndex: 'code', ellipsis: true, align: 'center' },
+    id: { title: LABELS.id, dataIndex: 'id', align: 'center', width: 100 },
+    name: { title: LABELS.name, dataIndex: 'name', ellipsis: true, align: 'center', width: 180 },
+    code: { title: LABELS.code, dataIndex: 'code', ellipsis: true, align: 'center', width: 160 },
     is_disabled: {
       title: LABELS.is_disabled,
       dataIndex: 'is_disabled',
       align: 'center',
+      width: 140,
       render: (_: any, r: Role) => {
         const enabled = !(r.is_disabled === 1 || r.is_disabled === true)
         return (
@@ -316,6 +335,7 @@ export default function RoleManagementComponent() {
       dataIndex: 'description',
       ellipsis: true,
       align: 'center',
+      width: 220,
       render: (t: any) => t || <Typography.Text type="secondary">—</Typography.Text>,
     },
     created_at: {
@@ -323,24 +343,35 @@ export default function RoleManagementComponent() {
       dataIndex: 'created_at',
       ellipsis: true,
       align: 'center',
+      width: 180,
       render: (t: any) => (t ? new Date(t).toLocaleString() : '—'),
     },
     actions: {
       title: LABELS.actions,
+      key: 'actions',
       align: 'center',
-      render: (_: any, r: Role) => (
-        <Space size="small" wrap>
-          <Button type="link" size="small" onClick={() => openEdit(r)}>
-            修改
-          </Button>
-          <Button type="link" size="small" onClick={() => perms.openFor({ id: r.id, name: r.name } as any)}>
-            权限
-          </Button>
-          <Button type="link" size="small" danger onClick={() => handleDelete(r)} disabled={!!r.is_system}>
-            删除
-          </Button>
-        </Space>
-      ),
+      fixed: 'right' as const,
+      width: 200,
+      render: (_: any, r: Role) =>
+        isXs ? (
+          <Dropdown menu={actionMenu(r)} trigger={['click']}>
+            <Button size="small" icon={<MoreOutlined />}>
+              更多
+            </Button>
+          </Dropdown>
+        ) : (
+          <Space size="small" wrap>
+            <Button type="link" size="small" onClick={() => openEdit(r)}>
+              修改
+            </Button>
+            <Button type="link" size="small" onClick={() => perms.openFor({ id: r.id, name: r.name } as any)}>
+              权限
+            </Button>
+            <Button type="link" size="small" danger onClick={() => handleDelete(r)} disabled={!!r.is_system}>
+              删除
+            </Button>
+          </Space>
+        ),
     },
   }
 
@@ -356,7 +387,7 @@ export default function RoleManagementComponent() {
   const columns: ColumnsType<Role> = useMemo(
     () => orderedVisibleKeys.map(k => ALL_COLUMNS[k]),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [orderedVisibleKeys, statusLoadingId]
+    [orderedVisibleKeys, statusLoadingId, isXs]
   )
 
   // —— 过滤 —— //
@@ -446,22 +477,22 @@ export default function RoleManagementComponent() {
     <div className={`roles-grid ${perms.open ? 'with-sidebar-padding' : ''}`}>
       <Card styles={{ body: { padding: 12 } }} className="table-card shrinkable-table">
         {/* 工具栏 */}
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 600, fontSize: 16 }}>角色管理</div>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Button type="primary" icon={<PlusOutlined />} onClick={openCreate}>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <Button type="primary" icon={<PlusOutlined />} size="small" onClick={openCreate}>
               新建角色
             </Button>
 
             <Tooltip title="刷新">
-              <Button icon={<ReloadOutlined />} onClick={() => load(page, pageSize)} />
+              <Button icon={<ReloadOutlined />} size="small" onClick={() => load(page, pageSize)} />
             </Tooltip>
 
             <Dropdown
               trigger={['click']}
               menu={{
                 selectable: true,
-                selectedKeys: [tableSize || 'middle'],
+                selectedKeys: [tableSize || 'small'],
                 items: [
                   { key: 'large', label: '宽松' },
                   { key: 'middle', label: '默认' },
@@ -471,7 +502,7 @@ export default function RoleManagementComponent() {
               }}
             >
               <Tooltip title="密度">
-                <Button icon={<ColumnHeightOutlined />} />
+                <Button icon={<ColumnHeightOutlined />} size="small" />
               </Tooltip>
             </Dropdown>
 
@@ -543,7 +574,7 @@ export default function RoleManagementComponent() {
               )}
             >
               <Tooltip title="列设置">
-                <Button icon={<SettingOutlined />} />
+                <Button icon={<SettingOutlined />} size="small" />
               </Tooltip>
             </Dropdown>
 
@@ -551,6 +582,7 @@ export default function RoleManagementComponent() {
             <Tooltip title={localFullscreen ? '退出全屏' : '全屏'}>
               <Button
                 icon={localFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
+                size="small"
                 onClick={toggleLocalFullscreen}
               />
             </Tooltip>
@@ -565,12 +597,23 @@ export default function RoleManagementComponent() {
           pagination={false}
           bordered
           size={tableSize}
-          tableLayout="auto"
+          tableLayout="fixed"
           sticky
+          // ⭐ 关键：给出横向滚动 + 固定操作列才能可见
+          scroll={{ x: 980 }}
         />
 
         {/* 分页 + 前往X页 */}
-        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+        <div
+          style={{
+            marginTop: 10,
+            display: 'flex',
+            justifyContent: 'flex-end',
+            alignItems: 'center',
+            gap: 8,
+            flexWrap: 'wrap',
+          }}
+        >
           <span style={{ color: '#6b7280' }}>共 {total} 条</span>
           <Pagination
             current={page}
@@ -578,6 +621,7 @@ export default function RoleManagementComponent() {
             pageSize={pageSize}
             showSizeChanger
             showQuickJumper
+            simple={isXs} // 小屏更简洁
             pageSizeOptions={['5', '10', '15', '20', '50', '100']}
             onChange={(p, s) => {
               setPage(Number(p) || 1)
@@ -590,17 +634,21 @@ export default function RoleManagementComponent() {
               void load(1, Number(s) || pageSize)
             }}
           />
-          <span style={{ marginLeft: 8, color: '#6b7280' }}>前往</span>
-          <InputNumber
-            size="middle"
-            min={1}
-            max={totalPages}
-            value={goto ?? page}
-            onChange={v => setGoto(Number(v) || null)}
-            onPressEnter={handleGoto}
-            style={{ width: 72, textAlign: 'center' }}
-          />
-          <span style={{ color: '#6b7280' }}>页</span>
+          {!isXs && (
+            <>
+              <span style={{ marginLeft: 8, color: '#6b7280' }}>前往</span>
+              <InputNumber
+                size="middle"
+                min={1}
+                max={totalPages}
+                value={goto ?? page}
+                onChange={v => setGoto(Number(v) || null)}
+                onPressEnter={handleGoto}
+                style={{ width: 72, textAlign: 'center' }}
+              />
+              <span style={{ color: '#6b7280' }}>页</span>
+            </>
+          )}
         </div>
 
         {/* 新建 / 编辑 */}
@@ -631,7 +679,7 @@ export default function RoleManagementComponent() {
               display: 'flex',
               alignItems: 'center',
               gap: 8,
-              minHeight: 48,
+              minHeight: 44,
               background: '#fff',
               borderTopLeftRadius: 10,
               borderTopRightRadius: 10,
@@ -667,7 +715,7 @@ export default function RoleManagementComponent() {
           </div>
 
           <div style={{ padding: '0 12px 4px 12px' }}>
-            <Space size={24}>
+            <Space size={24} wrap>
               <Checkbox checked={allExpanded} onChange={e => setExpandedKeys(e.target.checked ? allKeys : [])}>
                 展开/折叠
               </Checkbox>
@@ -742,16 +790,24 @@ export default function RoleManagementComponent() {
           box-shadow: 0 2px 12px rgba(0,0,0,0.045);
           min-width: 0;
         }
-        /* 表头背景色 + 内容居中 */
+
+        /* ✅ 更紧凑的表格行高（thead/tbody） */
         .shrinkable-table .ant-table-thead > tr > th { 
           background-color: #f5f7fa !important;
           text-align: center;
+          padding: 6px 8px;       /* 表头高度 ↓ */
+          font-weight: 600;
         }
-        .shrinkable-table .ant-table-tbody > tr > td { text-align: center; }
+        .shrinkable-table .ant-table-tbody > tr > td { 
+          text-align: center; 
+          padding: 6px 8px;       /* 行高 ↓ */
+        }
 
-        .shrinkable-table .ant-table { table-layout: auto; }
+        /* ✅ 允许横向滚动（之前有 hidden 导致右侧操作列看不见） */
+        .shrinkable-table .ant-table { table-layout: fixed; }
         .shrinkable-table .ant-table-container,
-        .shrinkable-table .ant-table-content { overflow-x: hidden; }
+        .shrinkable-table .ant-table-content { overflow-x: auto; }
+
         .shrinkable-table .ant-table-cell { white-space: nowrap; }
 
         /* 右侧权限面板（绝对定位，不撑高容器） */
@@ -795,11 +851,16 @@ export default function RoleManagementComponent() {
         .col-setting-row.drag-over { background: #f3f4f6; }
         .col-setting-handle { color:#94a3b8; cursor:grab; }
         .col-setting-handle.handle-disabled { color:#cbd5e1; cursor:not-allowed; }
+
+        @media (max-width: 575.98px) {
+          /* 小屏卡片内边距更小 */
+          .table-card .ant-card-body { padding: 8px !important; }
+        }
       `}</style>
 
-      {/* 顶部查询卡片（全屏时也会一起进入 Portal） */}
+      {/* 顶部查询卡片 */}
       <Card styles={{ body: { padding: 16 } }} style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}>
-        <Space wrap size={16} style={{ width: '100%' }}>
+        <Space wrap size={12} style={{ width: '100%' }}>
           <Space>
             <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>角色名称：</span>
             <Input
@@ -833,10 +894,10 @@ export default function RoleManagementComponent() {
           </Space>
 
           <Space style={{ marginLeft: 'auto' }}>
-            <Button type="primary" icon={<SearchOutlined />} onClick={() => load(1, pageSize)}>
+            <Button type="primary" icon={<SearchOutlined />} onClick={() => load(1, pageSize)} size="small">
               搜索
             </Button>
-            <Button onClick={handleReset} icon={<ReloadOutlined />}>
+            <Button onClick={handleReset} icon={<ReloadOutlined />} size="small">
               重置
             </Button>
           </Space>

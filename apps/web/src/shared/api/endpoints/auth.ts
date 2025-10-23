@@ -45,8 +45,8 @@ export const auth = {
     return api.post<ApiResult<{ token: string; user: any }>>('/auth/login', body, { headers })
   },
 
-  register(userData: { email: string; password: string; username: string; role: string }) {
-    return api.post<ApiResult>('/auth/register', userData)
+  register(userData: { email: string; password: string; username?: string | null; nickname?: string | null; keep7Days?: boolean }) {
+    return api.post<ApiResult<{ token: string; user: any }>>('/auth/register', userData)
   },
 
   refresh() {

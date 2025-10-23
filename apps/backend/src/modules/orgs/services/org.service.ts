@@ -1,4 +1,3 @@
-// apps/backend/src/modules/orgs/services/org.service.ts
 import HttpError from '@/common/errors/http-error'
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IOrg, OrgListData, OrgTreeNode } from '../domain/org.model'
@@ -36,13 +35,12 @@ async function cdel(...ks: string[]) {
 function buildTree(rows: IOrg[], parentId: number | null = null): OrgTreeNode[] {
   return rows
     .filter(r => (r.parent_id ?? null) === parentId)
-    .sort((a, b) => a.id - b.id)
+    .sort((a, b) => Number((a as any).sort_order ?? 0) - Number((b as any).sort_order ?? 0) || a.id - b.id)
     .map(r => ({ ...r, children: buildTree(rows, r.id) }))
 }
 
 function createsCycle(rows: Array<Pick<IOrg, 'id' | 'parent_id'>>, nodeId: number, newParentId?: number | null) {
   if (newParentId == null) return false
-  // 用 parent_id 的规范化值作为 Map 的 value
   const map = new Map<number, number | null>(rows.map(r => [r.id, r.parent_id ?? null] as [number, number | null]))
   let cur: number | null | undefined = newParentId
   while (cur != null) {
@@ -102,23 +100,27 @@ export class OrgService {
   }
 
   async create(
-    user: { id?: number; username?: string } | undefined,
-    payload: { name: string; code?: string; parent_id?: number | string | null; is_active?: boolean | 0 | 1 },
+    user: { id?: number; email?: string } | undefined,
+    payload: {
+      name: string
+      code?: string
+      parent_id?: number | string | null
+      is_active?: boolean | 0 | 1
+      sort_order?: number
+    },
     reqMeta?: { ip?: string; ua?: string }
   ) {
-    const { name, code, parent_id, is_active } = payload
+    const { name, code, parent_id, is_active, sort_order } = payload
     if (!name || String(name).trim().length === 0) throw new Error('组织名称不能为空')
 
     // parent_id 规范化
     let parentId: number | null = null
-
     if (parent_id !== undefined && parent_id !== null && parent_id !== '') {
-      const n = Number(parent_id) // 既支持字符串也支持数字
+      const n = Number(parent_id)
       if (!Number.isNaN(n)) parentId = n
     }
 
     const finalCode = await ensureUniqueCode(code?.toString().trim() || makeBaseCode(name))
-    // 未传 is_active 时默认启用（1）
     const activeFlag: 0 | 1 = is_active === undefined ? 1 : is_active === true || is_active === 1 ? 1 : 0
 
     const id = await OrgRepository.insertOrg({
@@ -126,13 +128,14 @@ export class OrgService {
       code: finalCode,
       parent_id: parentId,
       is_active: activeFlag,
+      sort_order: Number.isFinite(sort_order) ? Number(sort_order) : undefined, // 允许传，自定义，否则走“最大+1”
     })
 
     await LogService.log(
       {
         type: 'audit',
         userId: user?.id,
-        username: user?.username,
+        email: user?.email,
         action: '创建组织',
         message: `创建组织成功：${name}（编码：${finalCode}，上级：${parentId ?? '无'}）`,
         resourceType: 'organization',
@@ -140,7 +143,6 @@ export class OrgService {
         status: 'success',
         details: { name, code: finalCode, parent_id: parentId, is_active: activeFlag },
       },
-      // 传入 req 元信息
       {
         ip: reqMeta?.ip as any,
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
@@ -152,9 +154,9 @@ export class OrgService {
   }
 
   async update(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     id: number,
-    patch: Partial<Pick<IOrg, 'name' | 'code' | 'parent_id' | 'is_active'>>,
+    patch: Partial<Pick<IOrg, 'name' | 'code' | 'parent_id' | 'is_active' | 'sort_order'>>,
     reqMeta?: { ip?: string; ua?: string }
   ) {
     if (patch.name !== undefined && !patch.name) throw new Error('组织名称不能为空')
@@ -175,7 +177,7 @@ export class OrgService {
       {
         type: 'audit',
         userId: user?.id,
-        username: user?.username,
+        email: user?.email,
         action: '更新组织',
         message: `更新组织成功：#${id}（变更字段：${Object.keys(patch).join(', ') || '无'}）`,
         resourceType: 'organization',
@@ -188,16 +190,12 @@ export class OrgService {
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
-await cdel(kOrg(false), kOrg(true))
+    await cdel(kOrg(false), kOrg(true))
 
     return row!
   }
 
-  async delete(
-    user: { id?: number; username?: string } | undefined,
-    id: number,
-    reqMeta?: { ip?: string; ua?: string }
-  ) {
+  async delete(user: { id?: number; email?: string } | undefined, id: number, reqMeta?: { ip?: string; ua?: string }) {
     const existed = await OrgRepository.findById(id)
     if (!existed) throw new Error('组织不存在')
     if (await OrgRepository.hasChildren(id)) throw new Error('请先删除或移动该组织的子节点')
@@ -209,7 +207,7 @@ await cdel(kOrg(false), kOrg(true))
       {
         type: 'audit',
         userId: user?.id,
-        username: user?.username,
+        email: user?.email,
         action: '删除组织',
         message: `删除组织成功：#${id}（${existed.name}）`,
         resourceType: 'organization',
@@ -222,13 +220,13 @@ await cdel(kOrg(false), kOrg(true))
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
-await cdel(kOrg(false), kOrg(true))
+    await cdel(kOrg(false), kOrg(true))
 
     return { message: '组织删除成功' }
   }
 
   async move(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     id: number,
     parent_id: number | null,
     reqMeta?: { ip?: string; ua?: string }
@@ -245,7 +243,7 @@ await cdel(kOrg(false), kOrg(true))
       {
         type: 'audit',
         userId: user?.id,
-        username: user?.username,
+        email: user?.email,
         action: '移动组织',
         message: `移动组织成功：#${id} -> 上级=${parent_id ?? '无'}`,
         resourceType: 'organization',
@@ -258,13 +256,13 @@ await cdel(kOrg(false), kOrg(true))
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
-await cdel(kOrg(false), kOrg(true))
+    await cdel(kOrg(false), kOrg(true))
 
     return { message: '移动成功' }
   }
 
   async batchSort(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     updates: Array<{ id: number; parent_id?: number | null }>,
     reqMeta?: { ip?: string; ua?: string }
   ) {
@@ -285,7 +283,7 @@ await cdel(kOrg(false), kOrg(true))
       {
         type: 'audit',
         userId: user?.id,
-        username: user?.username,
+        email: user?.email,
         action: '批量更新组织父级',
         message: `批量更新组织父级成功，共 ${updates.length} 条`,
         resourceType: 'organization',
@@ -298,7 +296,7 @@ await cdel(kOrg(false), kOrg(true))
         get: (h: string) => (h.toLowerCase() === 'user-agent' ? reqMeta?.ua || '' : '') as any,
       } as any
     )
-await cdel(kOrg(false), kOrg(true))
+    await cdel(kOrg(false), kOrg(true))
 
     return { message: '批量更新成功' }
   }

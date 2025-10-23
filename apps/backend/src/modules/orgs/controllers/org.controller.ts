@@ -52,7 +52,7 @@ export const OrgController = {
 
   async create(req: AuthRequest, res: Response<ApiResponse<{ id: number }>>) {
     try {
-      const data = await svc.create({ id: req.user?.id, username: req.user?.username }, req.body ?? {}, {
+      const data = await svc.create({ id: req.user?.id, email: req.user?.email }, req.body ?? {}, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -69,7 +69,7 @@ export const OrgController = {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的组织ID', { code: CODES.VALIDATION_ERROR })
 
-      const data = await svc.update({ id: req.user?.id, username: req.user?.username }, id, req.body ?? {}, {
+      const data = await svc.update({ id: req.user?.id, email: req.user?.email }, id, req.body ?? {}, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -86,7 +86,7 @@ export const OrgController = {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的组织ID', { code: CODES.VALIDATION_ERROR })
 
-      const data = await svc.delete({ id: req.user?.id, username: req.user?.username }, id, {
+      const data = await svc.delete({ id: req.user?.id, email: req.user?.email }, id, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -108,7 +108,7 @@ export const OrgController = {
           ? null
           : Number(req.body?.parent_id)
 
-      const data = await svc.move({ id: req.user?.id, username: req.user?.username }, id, parent_id, {
+      const data = await svc.move({ id: req.user?.id, email: req.user?.email }, id, parent_id, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -123,7 +123,7 @@ export const OrgController = {
   async batchSort(req: AuthRequest, res: Response<ApiResponse<{ message: string }>>) {
     try {
       const updates: Array<{ id: number; parent_id?: number | null }> = req.body?.updates ?? []
-      const data = await svc.batchSort({ id: req.user?.id, username: req.user?.username }, updates, {
+      const data = await svc.batchSort({ id: req.user?.id, email: req.user?.email }, updates, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })

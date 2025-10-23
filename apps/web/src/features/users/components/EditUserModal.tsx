@@ -84,7 +84,7 @@ export const EditUserModal: React.FC<{
       onOk={handleOk}
       okText="确定"
       width={720}
-      destroyOnHidden
+      destroyOnClose
       afterOpenChange={opened => {
         if (opened && mapped) form.setFieldsValue(mapped)
         if (!opened) form.resetFields()
@@ -108,9 +108,7 @@ export const EditUserModal: React.FC<{
             <Input placeholder="请输入" />
           </Form.Item>
 
-          <Form.Item label="用户名" name="username" rules={[{ required: true, message: '请输入用户名' }, { max: 50 }]}>
-            <Input placeholder="请输入" />
-          </Form.Item>
+      
 
           <Form.Item label="手机号" name="phone" rules={[{ max: 32 }]}>
             <Input placeholder="请输入" />

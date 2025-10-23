@@ -66,7 +66,7 @@ declare global {
     interface Request {
       user?: {
         id: number
-        username?: string
+      
         email?: string
         role?: string | null
         role_ids?: number[]
@@ -138,7 +138,7 @@ async function fillUserFromToken(req: Request, required: boolean) {
   }
 
   // 确认用户仍存在
-  const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, username, email, role FROM users WHERE id=? LIMIT 1`, [
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, email, role FROM users WHERE id=? LIMIT 1`, [
     uid,
   ])
   if ((rows as any).length === 0) {
@@ -161,7 +161,6 @@ async function fillUserFromToken(req: Request, required: boolean) {
 
   req.user = {
     id: u.id,
-    username: u.username,
     email: u.email,
     role: (u.role as any) ?? (hasAdminCode || hasAdminId ? 'admin' : null),
     role_ids: tokenRoleIds.length ? tokenRoleIds : undefined,

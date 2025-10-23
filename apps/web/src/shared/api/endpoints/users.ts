@@ -52,7 +52,7 @@ type OrgUsersList = {
 }
 
 export type CreateUserPayload = {
-  username: string
+  
   nickname: string
   password: string
   phone?: string
@@ -113,6 +113,7 @@ export const usersApi = {
 
   resetPassword: (id: string | number, password?: string) =>
     api.put<void>(`/users/${id}/reset-password`, password ? { password } : {}),
+  batchDelete: (ids: number[]) => api.post<{ deleted: number; skipped: number[] }>('/users/batch-delete', { ids }),
 }
 
 export const users = usersApi

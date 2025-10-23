@@ -73,7 +73,7 @@ const fetchUserMenus = async () => {
   setLoading(true)
   setError(null)
   try {
-    const isAdminName = String(user.username || user.email || '').toLowerCase() === 'admin'
+    const isAdminName = String( user.email || '').toLowerCase() === 'admin'
     const roleStr = (user as any)?.role?.toLowerCase?.() || localStorage.getItem('USER_ROLE') || ''
     const isAdminRole = roleStr === 'admin' || roleStr === 'super_admin'
 

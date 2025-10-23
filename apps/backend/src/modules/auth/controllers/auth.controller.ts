@@ -17,14 +17,14 @@ const svc = new AuthService()
 export class AuthController {
   static async register(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const { username, email, password, keep7Days } = (req.body || {}) as any
+      const { email, password, nickname, keep7Days } = (req.body || {}) as any
       if (!email || !password) {
         return (res as any).badRequest('缺少必填字段', {
           error: { details: [{ field: 'email/password', message: '必填' }] },
         })
       }
       const { token, refresh, user, persist } = await svc.register(
-        { username, email, password },
+        { email, password, nickname: nickname ?? null },
         { ip: getClientIp(req) || req.ip, ua: req.get('User-Agent') || undefined },
         { persist: !!keep7Days }
       )
@@ -32,15 +32,13 @@ export class AuthController {
       return (res as any).created({ token, user }, '注册成功')
     } catch (e: any) {
       const msg = String(e?.message || '')
-      // ✅ jsonwebtoken 未安装 -> 503，用 fail 显式设定状态码（不要用不存在的 res.serviceUnavailable）
       if (msg.includes('jsonwebtoken 模块未安装或无法加载')) {
         return (res as any).fail(CODES.INTERNAL_ERROR, 503, '服务器依赖未就绪：请安装 jsonwebtoken 后再试', {
           error: { retryable: true },
         })
       }
-      // ✅ 业务冲突：用户已存在 -> 400（你也可改 409）
-      if (msg.includes('用户已存在')) {
-        return (res as any).badRequest('用户已存在', {
+      if (msg.includes('用户已存在') || msg.includes('邮箱已被占用')) {
+        return (res as any).badRequest('邮箱已被占用', {
           code: CODES.VALIDATION_ERROR,
           error: { retryable: false, details: [{ field: 'email', message: '已被占用' }] },
         })
@@ -49,7 +47,7 @@ export class AuthController {
     }
   }
 
-  /** 登录（锁定+验证码） */
+  /** 登录（锁定+验证码），只支持邮箱 */
   static async login(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const settings = await AdminSettingsService.getSafe()
@@ -75,7 +73,7 @@ export class AuthController {
       enc = enc || req.get('x-cred-enc')
       alg = (alg || req.get('x-cred-alg') || '').toString()
 
-      // 支持 RSA-OAEP-256 加密的凭据
+      // 支持 RSA-OAEP-256 加密凭据
       if (enc && /RSA-OAEP/i.test(alg)) {
         try {
           const dec = CryptoService.decryptLoginCred(String(enc))
@@ -91,10 +89,10 @@ export class AuthController {
         }
       }
 
-      const loginId = typeof email === 'string' ? email.trim() : email
+      const loginEmail = typeof email === 'string' ? email.trim() : email
       const plainPwd = typeof password === 'string' ? password : password
 
-      if (!loginId || !plainPwd) {
+      if (!loginEmail || !plainPwd) {
         return (res as any).badRequest('缺少必填字段', {
           error: { details: [{ field: 'email/password', message: '必填' }] },
         })
@@ -102,10 +100,10 @@ export class AuthController {
 
       const ip = getClientIp(req) || req.ip || ''
 
-      await lockSvc.unlockIfExpired(loginId, ip)
-      await lockSvc.decayOldFails(loginId, ip, lockMinutes)
+      await lockSvc.unlockIfExpired(loginEmail, ip)
+      await lockSvc.decayOldFails(loginEmail, ip, lockMinutes)
 
-      const rec = await lockSvc.getRecord(loginId, ip)
+      const rec = await lockSvc.getRecord(loginEmail, ip)
       if (rec?.locked_until && new Date(rec.locked_until).getTime() > Date.now()) {
         const untilMs = new Date(rec.locked_until).getTime()
         const remainSec = Math.max(1, Math.ceil((untilMs - Date.now()) / 1000))
@@ -137,14 +135,14 @@ export class AuthController {
         }
         const ok = await CaptchaService.verify(String(captchaId), String(captcha))
         if (!ok) {
-          const next = await lockSvc.hitFail(loginId, ip)
+          const next = await lockSvc.hitFail(loginEmail, ip)
           if (next >= lockAfter) {
-            const { untilMs, remainSec } = await lockSvc.lock(loginId, ip, lockMinutes, next)
+            const { untilMs, remainSec } = await lockSvc.lock(loginEmail, ip, lockMinutes, next)
             const until = new Date(untilMs)
             const ymd = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(
               until.getDate()
-            ).padStart(2, '0')}`
-            return (res as any).fail(CODES.AUTH_LOCKED, 423, '账号已临时锁定', {
+            )}`
+            return (res as any).fail(CODES.AUTH_LOCKED, 423, `密码连续错误过多，账号已锁定 ${lockMinutes} 分钟`, {
               error: { retryable: true },
               subcode: SUBCODES.AUTH_LOCKED,
               meta: { lockMinutes },
@@ -161,25 +159,25 @@ export class AuthController {
 
       try {
         const { token, refresh, user, persist } = await svc.login(
-          loginId, // ← 支持邮箱或用户名
+          loginEmail,
           plainPwd,
           { ip, ua: req.get('User-Agent') || undefined },
           { persist: !!keep7Days }
         )
         const location = await Geo.lookup(ip)
 
-        await lockSvc.reset(loginId, ip)
+        await lockSvc.reset(loginEmail, ip)
         svc.setRefreshCookie(res, refresh, { persist })
 
         return (res as any).ok({ token, user, location }, '登录成功')
       } catch (e: any) {
-        const next = await lockSvc.hitFail(loginId, ip)
+        const next = await lockSvc.hitFail(loginEmail, ip)
         if (next >= lockAfter) {
-          const { untilMs, remainSec } = await lockSvc.lock(loginId, ip, lockMinutes, next)
+          const { untilMs, remainSec } = await lockSvc.lock(loginEmail, ip, lockMinutes, next)
           const until = new Date(untilMs)
           const ymd = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(
             until.getDate()
-          ).padStart(2, '0')}`
+          )}`
           return (res as any).fail(CODES.AUTH_LOCKED, 423, `密码连续错误过多，账号已锁定 ${lockMinutes} 分钟`, {
             error: { retryable: true },
             subcode: SUBCODES.AUTH_LOCKED,

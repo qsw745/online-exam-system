@@ -9,7 +9,7 @@ export interface LogRow extends RowDataPacket {
   log_type: LogType
   level: LogLevel | null
   user_id: number | null
-  username: string | null
+
   action: string | null
   resource_type: string | null
   resource_id: number | null
@@ -31,7 +31,6 @@ export interface LogQueryParams {
   module?: string
   action?: string
   userId?: number
-  username?: string
 }
 
 /** 写日志入参（统一口） */
@@ -40,7 +39,7 @@ export type LogInput = {
   status?: 'success' | 'failed' | 'warn' | string
   level?: LogLevel
   userId?: number
-  username?: string
+  email?: string
   action?: string
   message?: string
   resourceType?: string
@@ -61,6 +60,6 @@ export interface ExamLogRow extends RowDataPacket {
   new_answer: string | null
   timestamp_offset: number | null
   created_at: string
-  username?: string | null
+
   question_content?: string | null
 }

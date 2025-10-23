@@ -1,57 +1,118 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { pool as basePool } from '@/config/database'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IUser } from '../domain/auth.model'
+import { pool as basePool } from '@/config/database'
 
 interface DBPool {
   execute<T = any>(sql: string, params?: any[]): Promise<[T, any]>
 }
-const pool = basePool as unknown as DBPool
+
+/** —— SQL 调试包装器：失败必打，成功在 DEBUG_SQL=1 时打 —— */
+function wrapSqlDebug<TPool extends { execute: Function }>(p: TPool): DBPool {
+  return {
+    async execute<T = any>(sql: string, params?: any[]): Promise<[T, any]> {
+      const start = Date.now()
+      try {
+        const ret = (await (p as any).execute(sql, params)) as [T, any]
+        if (String(process.env.DEBUG_SQL || '') === '1') {
+          console.log('[SQL OK]', { tookMs: Date.now() - start, sql, parameters: params })
+        }
+        return ret
+      } catch (err: any) {
+        // 补充关键信息 + 控制台直打
+        if (err && !err.sql) err.sql = sql
+        if (err && !err.parameters) err.parameters = params
+        console.error('[SQL ERROR]', {
+          code: err?.code,
+          errno: err?.errno,
+          sqlState: err?.sqlState || err?.sqlstate,
+          sql: sql,
+          parameters: params,
+          message: err?.sqlMessage || err?.message,
+          tookMs: Date.now() - start,
+          stack: err?.stack,
+        })
+        throw err
+      }
+    },
+  }
+}
+const pool = wrapSqlDebug(basePool as any as { execute: Function })
 
 type RoleRow = RowDataPacket & { id: number; code: string }
 type DefaultRoleRow = RowDataPacket & { role_id: number }
 
+/** ---------- users 表列缓存 & 工具 ---------- */
+let _userCols: string[] | null = null
+async function loadUserColumns(): Promise<string[]> {
+  if (_userCols) return _userCols
+  try {
+    const [rows] = await pool.execute<RowDataPacket[]>(`SHOW FULL COLUMNS FROM \`users\``)
+    // 排除 username（即使存在也不选出，避免上下游再误用）
+    const names = rows.map(r => String((r as any).Field)).filter(n => n.toLowerCase() !== 'username')
+    _userCols = names
+    return names
+  } catch {
+    _userCols = ['id', 'email', 'password', 'status']
+    return _userCols
+  }
+}
+function colsSql(cols: string[]): string {
+  return cols.map(c => `\`${c}\``).join(', ')
+}
+
 export class UserRepository {
+  /** 仅按邮箱查（已不支持用户名登录） */
   static async findByEmail(email: string): Promise<IUser | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT * FROM users WHERE email=? LIMIT 1`, [email])
+    const cols = await loadUserColumns()
+    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT ${colsSql(cols)} FROM users WHERE email=? LIMIT 1`, [
+      email,
+    ])
     return (rows[0] as unknown as IUser) || null
   }
 
-  static async findByUsername(username: string): Promise<IUser | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT * FROM users WHERE username=? LIMIT 1`, [username])
-    return (rows[0] as unknown as IUser) || null
-  }
-
-  /** 登录用：优先按 email，再按 username；反之亦然，避免 (email OR username) 误命中 */
+  /** 登录查找：只用邮箱 */
   static async findByLogin(login: string): Promise<IUser | null> {
     const v = String(login || '').trim()
     if (!v) return null
-
-    if (v.includes('@')) {
-      const byEmail = await this.findByEmail(v)
-      if (byEmail) return byEmail
-      return this.findByUsername(v)
-    }
-
-    const byName = await this.findByUsername(v)
-    if (byName) return byName
     return this.findByEmail(v)
   }
 
   static async findById(id: number): Promise<IUser | null> {
-    const [rows] = await pool.execute<RowDataPacket[]>(
-      `SELECT id, username, email, status, created_at, updated_at FROM users WHERE id=? LIMIT 1`,
-      [id]
-    )
+    const cols = await loadUserColumns()
+    const [rows] = await pool.execute<RowDataPacket[]>(`SELECT ${colsSql(cols)} FROM users WHERE id=? LIMIT 1`, [id])
     return (rows[0] as unknown as IUser) || null
   }
 
-  static async insertUser(username: string, email: string, hashed: string): Promise<number> {
-    const [rs] = await pool.execute<ResultSetHeader>(
-      `INSERT INTO users (username, email, password, status) VALUES (?, ?, ?, 'active')`,
-      [username, email, hashed]
-    )
-    return rs.insertId
+  /**
+   * 插入用户（邮箱+密码为主）：
+   * - 优先 nickname/email/password/status（若无 nickname 自动降级）
+   * - 占位符与参数数量严格匹配（避免 Malformed communication packet）
+   * - 绝不写 username
+   */
+  static async insertUser(params: {
+    email: string
+    hashed: string
+    nickname?: string | null
+  }): Promise<{ id: number }> {
+    const colsAll = await loadUserColumns()
+    const hasNickname = colsAll.includes('nickname')
+
+    const cols: string[] = []
+    const vals: any[] = []
+
+    if (hasNickname) {
+      cols.push('nickname')
+      vals.push(params.nickname ?? null)
+    }
+    cols.push('email', 'password', 'status')
+    vals.push(params.email, params.hashed, 'active')
+
+    const placeholders = cols.map(() => '?').join(', ')
+    const sql = `INSERT INTO users (${cols.map(c => `\`${c}\``).join(', ')}) VALUES (${placeholders})`
+
+    const [rs] = await pool.execute<ResultSetHeader>(sql, vals)
+    return { id: rs.insertId }
   }
 
   static async rolesOfUser(userId: number): Promise<{ roles: { id: number; code: string }[]; roleIds: number[] }> {

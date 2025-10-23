@@ -1,4 +1,4 @@
-// ✅ 加一行最小 Node shim，避免没有 @types/node 时的 2591 报错
+/* eslint-disable @typescript-eslint/no-explicit-any */
 declare const process: any
 
 import type { Response } from 'express'
@@ -6,7 +6,6 @@ import type { AuthRequest } from '@/types/auth.js'
 import { UserService } from '../services/user.service.js'
 import { log } from '@/infrastructure/logging/logger'
 
-// 本地 Res 类型（与中间件保持一致）
 type Res = Response & {
   ok<T = any>(data?: T, message?: string, extra?: any): Res
   created<T = any>(data?: T, message?: string, extra?: any): Res
@@ -22,23 +21,20 @@ type Res = Response & {
 const svc = new UserService()
 
 export class UserController {
-  // ✅ 新增：创建用户
   static async create(req: AuthRequest, res: Res) {
     try {
       const body = req.body || {}
-      const username = String(body.username || '').trim()
+      const email = String(body.email || '').trim() || null
       const password = String(body.password || '')
-      if (!username || username.length < 3) return res.badRequest('用户名至少 3 位')
       if (!password || password.length < 6) return res.badRequest('密码至少 6 位')
 
-      // 只允许 '男' | '女' | '保密'，否则置为 '保密'
       let gender = (body.gender ?? null) as '男' | '女' | '保密' | null
       if (!['男', '女', '保密'].includes(String(gender || ''))) gender = '保密'
 
       const payload = {
-        username,
+        username: (body.username && String(body.username).trim()) || undefined,
         nickname: String(body.nickname || '').trim() || null,
-        email: String(body.email || '').trim() || null,
+        email,
         phone: String(body.phone || '').trim() || null,
         gender,
         remark: String(body.remark || '').trim() || null,
@@ -48,9 +44,22 @@ export class UserController {
         org_id: (body.org_id ?? body.orgId) as number | undefined,
       }
 
-      const created = await svc.adminCreate(payload, { id: req.user?.id, username: req.user?.username }, req)
+      const created = await svc.adminCreate(payload, { id: req.user?.id, email: req.user?.email }, req)
       return res.created(created, '创建成功')
-    } catch (e) {
+    } catch (e: any) {
+      const msg = String(e?.message || '')
+      if (e?.code === 'ER_DUP_ENTRY' || /duplicate entry/i.test(msg)) {
+        if (/uk_users_email|users\.email/i.test(msg) || /邮箱已存在/.test(msg)) {
+          return res.fail('VALIDATION_ERROR', 409, '邮箱已存在')
+        }
+        if (/uk_users_username|users\.username/i.test(msg) || /用户名已存在/.test(msg)) {
+          return res.fail('VALIDATION_ERROR', 409, '用户名已存在')
+        }
+        if (/uk_users_phone|users\.phone/i.test(msg) || /手机号已存在/.test(msg)) {
+          return res.fail('VALIDATION_ERROR', 409, '手机号已存在')
+        }
+        return res.fail('VALIDATION_ERROR', 409, '存在重复数据')
+      }
       log.error('创建用户失败:', e)
       return res.internal('创建用户失败')
     }
@@ -114,7 +123,7 @@ export class UserController {
   static async uploadAvatar(req: AuthRequest, res: Res) {
     try {
       if (!req.user?.id) return res.unauthorized('未授权')
-      const file = (req as any).file // Multer 文件
+      const file = (req as any).file
       if (!file) return res.badRequest('没有提供头像文件')
       const baseUrl = process?.env?.PUBLIC_URL || process?.env?.API_URL || 'http://localhost:3000'
       const avatarUrl = `${baseUrl}/uploads/avatars/${file.filename}`
@@ -172,7 +181,8 @@ export class UserController {
           gender,
           remark: req.body?.remark,
         },
-        { id: req.user?.id, username: req.user?.username }
+        { id: req.user?.id, email: req.user?.email },
+        req
       )
 
       const hasOrgField =
@@ -182,7 +192,7 @@ export class UserController {
         const raw = (req.body?.orgId ?? req.body?.org_id) as any
         const nextOrgId = raw === null || raw === '' || typeof raw === 'undefined' ? null : Number(raw)
         if (!(nextOrgId === null || Number.isFinite(nextOrgId))) return res.badRequest('无效的组织ID')
-        await svc.setUserOrg(id, nextOrgId, { id: req.user?.id, username: req.user?.username })
+        await svc.setUserOrg(id, nextOrgId, { id: req.user?.id, email: req.user?.email })
       }
 
       return res.ok(updated, '更新成功')
@@ -203,7 +213,7 @@ export class UserController {
       if (!u) return res.notFound('用户不存在')
       if (u.role === 'admin' && status === 'disabled') return res.forbidden('管理员账号不允许禁用')
 
-      await svc.updateStatus(id, status, { id: req.user?.id, username: req.user?.username })
+      await svc.updateStatus(id, status, { id: req.user?.id, email: req.user?.email }, req)
       return res.ok({ message: `用户状态已更新为${status === 'active' ? '启用' : '禁用'}` })
     } catch (e) {
       log.error('更新用户状态错误:', e)
@@ -227,7 +237,7 @@ export class UserController {
         if (kinds < 2) return res.badRequest('密码至少包含两类(大小写/数字/符号)')
       }
 
-      const password = await svc.resetPassword(id, { id: req.user?.id, username: req.user?.username }, req, {
+      const password = await svc.resetPassword(id, { id: req.user?.id, email: req.user?.email }, req, {
         newPassword: raw,
         forceLogout,
       })
@@ -247,7 +257,7 @@ export class UserController {
       if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
       const u = await svc.getById(id)
       if (!u) return res.notFound('用户不存在')
-      await svc.deleteUser(id, u.role, { id: req.user?.id, username: req.user?.username })
+      await svc.deleteUser(id, u.role as any, { id: req.user?.id, email: req.user?.email }, req)
       return res.ok(null, '用户删除成功')
     } catch (e) {
       log.error('删除用户错误:', e)
@@ -271,11 +281,28 @@ export class UserController {
       if (!req.user?.id) return res.unauthorized('未授权')
       const settings = req.body
       if (typeof settings !== 'object' || settings === null) return res.badRequest('设置格式无效')
-      const saved = await svc.saveSettings(req.user.id, settings)
+      const saved = await svc.saveSettings(req.user.id, settings, req)
       return res.ok(saved, '保存成功')
     } catch (e) {
       log.error('保存用户设置错误:', e)
       return res.internal('保存用户设置失败')
+    }
+  }
+
+  // —— 批量删除 —— //
+  static async batchDelete(req: AuthRequest, res: Res) {
+    try {
+      const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((n: any) => Number(n)).filter(Number.isFinite) : []
+      if (!ids.length) return res.badRequest('缺少要删除的用户ID列表')
+
+      const { deleted, skipped } = await svc.deleteUsers(ids, { id: req.user?.id, email: req.user?.email }, req)
+      return res.ok(
+        { deleted, skipped },
+        skipped.length ? `已删除 ${deleted} 个，跳过管理员 ${skipped.length} 个` : `已删除 ${deleted} 个用户`
+      )
+    } catch (e) {
+      log.error('批量删除用户错误:', e)
+      return res.internal('批量删除失败')
     }
   }
 }

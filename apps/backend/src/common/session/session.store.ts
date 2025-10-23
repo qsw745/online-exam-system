@@ -5,6 +5,7 @@ type SessionRow = {
   jti: string
   userId: number
   username?: string
+  email?: string
   role?: string
   ip?: string | null
   ua?: string | null

@@ -4,11 +4,11 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 const AdminPage = lazy(() => import('@/features/admin/pages/AdminPage'))
 const OrgManagementPage = lazy(() => import('@/features/orgs/pages/OrgManagementPage'))
 const RoleManagementPage = lazy(() => import('@/features/roles/pages/RoleManagementPage'))
-const SystemMenusPage = lazy(() => import('@/features/menu/pages/SystemMenusPage'))
-const UnitMenusPage = lazy(() => import('@/features/menu/pages/UnitMenusPage'))
+
 const UserManagementPage = lazy(() => import('@/features/users/pages/UserManagementPage'))
 const SystemSettingsPage = lazy(() => import('@/features/admin-settings/pages/SystemSettingsPage'))
 
+const MenusListPage= lazy(()=> import('@/features/menu/pages/MenusListPage'))
 const MyTasksPage = lazy(() => import('@/features/tasks/pages/MyTasksPage'))
 const TaskListPage = lazy(() => import('@/features/tasks/pages/TaskListPage'))
 const TaskCreatePage = lazy(() => import('@/features/tasks/pages/TaskCreatePage'))
@@ -92,11 +92,10 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-home': AdminPage,
   'admin-org': OrgManagementPage,
   'admin-role': RoleManagementPage,
-  'menu-functions': SystemMenusPage,
-  'menu-units': UnitMenusPage,
+
   'user-manage': UserManagementPage,
   'admin-user': UserManagementPage,
-
+  'menu-list': MenusListPage,
   'system-settings': SystemSettingsPage,
 
   // Tasks

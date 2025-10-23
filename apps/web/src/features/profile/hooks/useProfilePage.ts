@@ -1,10 +1,10 @@
 // features/profile/hooks/useProfilePage.ts
-import { useEffect, useMemo, useState, useRef } from 'react'
-import { App } from 'antd'
 import { profileApi, type ProfileForm } from '@/shared/api/endpoints/profile'
-import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { App } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
 
 export function useProfilePage() {
   const { message } = App.useApp() // ✅ 从 App 上下文取 message，避免静态方法警告
@@ -13,7 +13,7 @@ export function useProfilePage() {
 
   // 表单
   const [form, setForm] = useState<ProfileForm>({
-    nickname: user?.nickname || user?.username || '',
+    nickname: user?.nickname,
     school: user?.school || '',
     class_name: user?.class_name || '',
   })
@@ -29,7 +29,7 @@ export function useProfilePage() {
   useEffect(() => {
     if (!user) return
     setForm({
-      nickname: user.nickname || user.username || '',
+      nickname: user.nickname,
       school: user.school || '',
       class_name: user.class_name || '',
     })

@@ -158,7 +158,7 @@ export class AnalyticsRepository {
             `
                 SELECT
                     u.id AS user_id,
-                    u.username AS username,
+                   
                     AVG(CASE WHEN er.status='submitted' THEN er.score END) AS avg_score,
                     SUM(CASE WHEN er.status='submitted' THEN 1 ELSE 0 END) AS exams_completed,
                     SUM(CASE WHEN er.status='submitted' THEN er.score ELSE 0 END) AS total_score,
@@ -167,7 +167,7 @@ export class AnalyticsRepository {
                 FROM users u
                          JOIN exam_results er ON er.user_id = u.id
                 WHERE 1=1 ${d.sql}
-                GROUP BY u.id, u.username
+                GROUP BY u.id
                 ORDER BY (AVG(CASE WHEN er.status='submitted' THEN er.score END) IS NULL) ASC,
                     AVG(CASE WHEN er.status='submitted' THEN er.score END) DESC
             `,
@@ -175,13 +175,13 @@ export class AnalyticsRepository {
         )
 
         return rows.map(r => ({
-            user_id: (r as any).user_id,
-            username: (r as any).username ?? `用户${(r as any).user_id}`,
-            avg_score: Number(Number((r as any).avg_score ?? 0).toFixed(1)),
-            exams_completed: Number((r as any).exams_completed || 0),
-            total_score: Number(Number((r as any).total_score ?? 0).toFixed(1)),
-            study_time: Math.floor(Number((r as any).time_spent_sec || 0) / 60),
-            last_active: (r as any).last_active || null,
+          user_id: (r as any).user_id,
+          email: (r as any).email ?? `用户${(r as any).user_id}`,
+          avg_score: Number(Number((r as any).avg_score ?? 0).toFixed(1)),
+          exams_completed: Number((r as any).exams_completed || 0),
+          total_score: Number(Number((r as any).total_score ?? 0).toFixed(1)),
+          study_time: Math.floor(Number((r as any).time_spent_sec || 0) / 60),
+          last_active: (r as any).last_active || null,
         }))
     }
 

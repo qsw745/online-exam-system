@@ -20,6 +20,12 @@ function parseRegisterError(err: any): string {
       case 409:
         return '该邮箱已被注册，请直接登录或使用其他邮箱'
       case 400:
+        const details = err?.response?.data?.error?.details
+        if (Array.isArray(details) && details.length) {
+          const first = details[0]
+          if (first?.field === 'email') return '邮箱已被占用或格式不正确'
+          if (first?.field === 'username') return '用户名已被占用，请更换后再试'
+        }
         if (dataMsg?.includes?.('password')) return '密码长度至少需要6位字符'
         if (dataMsg?.includes?.('email')) return '邮箱格式不正确，请重新输入'
         return dataMsg || '请求参数错误'
@@ -35,7 +41,7 @@ function parseRegisterError(err: any): string {
   return '网络连接错误，请检查网络后重试'
 }
 
-export function useRegister(defaultRole: 'student' | 'teacher' | 'admin' = 'student') {
+export function useRegister() {
   const { message } = App.useApp()
   const { signUp } = useAuth()
   const navigate = useNavigate()
@@ -63,7 +69,7 @@ export function useRegister(defaultRole: 'student' | 'teacher' | 'admin' = 'stud
 
       setLoading(true)
       try {
-        await signUp(values.email, values.password, values.nickname || '', defaultRole)
+        await signUp(values.email, values.password, { nickname: values.nickname || undefined })
         message.success('注册成功，请登录')
         navigate('/login')
       } catch (err: any) {
@@ -72,7 +78,7 @@ export function useRegister(defaultRole: 'student' | 'teacher' | 'admin' = 'stud
         setLoading(false)
       }
     },
-    [defaultRole, message, navigate, signUp]
+    [message, navigate, signUp]
   )
 
   return { loading, submit }

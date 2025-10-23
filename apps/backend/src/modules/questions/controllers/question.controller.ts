@@ -156,7 +156,7 @@ export class QuestionController {
   /** 创建题目 */
   static async create(req: AuthRequest, res: Res<ApiResponse<QuestionData>>) {
     try {
-      const data = await svc.create({ id: req.user?.id, username: req.user?.username }, req.body, {
+      const data = await svc.create({ id: req.user?.id, email: req.user?.email }, req.body, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -172,7 +172,7 @@ export class QuestionController {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的题目ID', { code: CODES.VALIDATION_ERROR })
-      const data = await svc.update({ id: req.user?.id, username: req.user?.username }, id, req.body, {
+      const data = await svc.update({ id: req.user?.id, email: req.user?.email }, id, req.body, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -190,7 +190,7 @@ export class QuestionController {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的题目ID', { code: CODES.VALIDATION_ERROR })
-      await svc.remove({ id: req.user?.id, username: req.user?.username }, id, {
+      await svc.remove({ id: req.user?.id, email: req.user?.email }, id, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
       })
@@ -208,7 +208,7 @@ export class QuestionController {
   ) {
     const rid = (req as any).id || req.header('x-request-id') || undefined
     try {
-      const data = await svc.bulkImport({ id: req.user?.id, username: req.user?.username }, req.body, req.query, {
+      const data = await svc.bulkImport({ id: req.user?.id, email: req.user?.email }, req.body, req.query, {
         ip: req.ip,
         ua: req.get('User-Agent') || undefined,
         rid,

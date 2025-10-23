@@ -1,4 +1,3 @@
-// apps/backend/src/modules/orgs/repositories/org.repository.ts
 import { pool } from '@/config/database.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IOrg } from '../domain/org.model.js'
@@ -33,8 +32,10 @@ export class OrgRepository {
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : ''
     const [rows] = await db.query<IOrg[]>(
-      `SELECT id, name, code, parent_id, is_active, created_at, updated_at
-       FROM organizations ${whereSql} ORDER BY id ASC LIMIT ? OFFSET ?`,
+      `SELECT id, name, code, parent_id, is_active, sort_order, created_at, updated_at
+       FROM organizations ${whereSql}
+       ORDER BY parent_id ASC, sort_order ASC, id ASC
+       LIMIT ? OFFSET ?`,
       [...vals, limit, offset]
     )
     const [[cnt]] = await db.query<RowDataPacket[]>(`SELECT COUNT(*) AS total FROM organizations ${whereSql}`, vals)
@@ -43,15 +44,16 @@ export class OrgRepository {
 
   static async findAll(includeInactive: boolean): Promise<IOrg[]> {
     const [rows] = await db.query<IOrg[]>(
-      `SELECT id, name, code, parent_id, is_active, created_at, updated_at
-       FROM organizations ${includeInactive ? '' : 'WHERE is_active = 1'} ORDER BY id ASC`
+      `SELECT id, name, code, parent_id, is_active, sort_order, created_at, updated_at
+       FROM organizations ${includeInactive ? '' : 'WHERE is_active = 1'}
+       ORDER BY parent_id ASC, sort_order ASC, id ASC`
     )
     return rows
   }
 
   static async findById(id: number): Promise<IOrg | null> {
     const [rows] = await db.query<IOrg[]>(
-      `SELECT id, name, code, parent_id, is_active, created_at, updated_at
+      `SELECT id, name, code, parent_id, is_active, sort_order, created_at, updated_at
        FROM organizations WHERE id=? LIMIT 1`,
       [id]
     )
@@ -76,18 +78,28 @@ export class OrgRepository {
     code: string
     parent_id: number | null
     is_active: 0 | 1
+    sort_order?: number | null
   }): Promise<number> {
+    // 如果未显式传入 sort_order，则取同级最大 + 1
+    let next = data.sort_order
+    if (!Number.isFinite(next as number)) {
+      const [[row]] = await db.query<RowDataPacket[]>(
+        'SELECT COALESCE(MAX(sort_order), 0) AS max_sort FROM organizations WHERE parent_id <=> ?',
+        [data.parent_id]
+      )
+      next = Number((row as any)?.max_sort || 0) + 1
+    }
     const [ret] = await db.query<ResultSetHeader>(
-      `INSERT INTO organizations (name, code, parent_id, is_active, created_at, updated_at)
-       VALUES (?,?,?,?,NOW(),NOW())`,
-      [data.name, data.code, data.parent_id, data.is_active]
+      `INSERT INTO organizations (name, code, parent_id, is_active, sort_order, created_at, updated_at)
+       VALUES (?,?,?,?,?,NOW(),NOW())`,
+      [data.name, data.code, data.parent_id, data.is_active, next]
     )
     return ret.insertId
   }
 
   static async updateOrg(
     id: number,
-    patch: Partial<Pick<IOrg, 'name' | 'code' | 'parent_id' | 'is_active'>>
+    patch: Partial<Pick<IOrg, 'name' | 'code' | 'parent_id' | 'is_active' | 'sort_order'>>
   ): Promise<number> {
     const sets: string[] = []
     const vals: any[] = []
@@ -106,6 +118,10 @@ export class OrgRepository {
     if (patch.parent_id !== undefined) {
       sets.push('parent_id=?')
       vals.push(patch.parent_id)
+    }
+    if (patch.sort_order !== undefined) {
+      sets.push('sort_order=?')
+      vals.push(patch.sort_order)
     }
     if (sets.length === 0) return 0
     sets.push('updated_at=NOW()')

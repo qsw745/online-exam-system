@@ -157,7 +157,7 @@ export class LogService {
       type: input.type || 'system',
       level: inferLevel(input),
       userId: input.userId,
-      username: input.username,
+      // email 字段无需落表，这里只保留在内存上下文即可
       action: input.action,
       message: input.message,
       resourceType: input.resourceType,
@@ -194,10 +194,7 @@ export class LogService {
     return data
   }
 
-  async getAuditLogs(
-    user: { id?: number; role?: string } | undefined,
-    q: LogQueryParams & { type?: string; username?: string }
-  ) {
+  async getAuditLogs(user: { id?: number; role?: string } | undefined, q: LogQueryParams & { type?: string }) {
     const baseQ: any = { ...q }
     if (!baseQ.type) baseQ.type = 'audit'
 
@@ -214,7 +211,6 @@ export class LogService {
     }
 
     if (!user?.id) throw new HttpError('未授权访问', 401, { code: CODES.AUTH_UNAUTHORIZED })
-    delete baseQ.username
 
     const ck = kLogs(`audit_self:${user.id}`, baseQ)
     const cached = await cget(ck)
@@ -275,7 +271,7 @@ export class LogService {
       const client = parseUA((r as any).user_agent || '')
       return {
         id: (r as any).id ?? 0,
-        username: (r as any).username ?? '未知',
+        email: (r as any).email ?? '', // ✅ 返回邮箱
         ip_address: (r as any).ip_address ?? '',
         login_time: (r as any).login_time,
         client,
@@ -298,7 +294,7 @@ export class LogService {
       type: 'login',
       level: 'info',
       userId: user?.id,
-      username: (user as any)?.username ?? 'admin',
+
       action: 'force_logout',
       message: '管理员强制下线',
       resourceType: 'session',

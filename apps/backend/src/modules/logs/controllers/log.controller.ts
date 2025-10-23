@@ -9,6 +9,7 @@ import type { LogQueryParams } from '../domain/log.model'
 import { LogService } from '../services/log.service'
 import { TokenRepository } from '@/modules/auth/repositories/token.repository'
 import Geo from '@/common/utils/geo'
+import { pool } from '@/config/database' // ✅ 用于兜底查询邮箱
 
 const service = new LogService()
 
@@ -53,19 +54,45 @@ function parseUA(uaRaw: string | null | undefined) {
   return { os, browser }
 }
 
+// ✅ 缓存 userId->email，减少数据库查询
+const emailCache = new Map<number, string>()
+async function fetchEmailByUserId(userId?: number): Promise<string> {
+  if (!userId || !Number.isFinite(userId)) return ''
+  const cached = emailCache.get(userId)
+  if (cached !== undefined) return cached
+  try {
+    const [rows] = await pool.query<any[]>('SELECT email FROM users WHERE id = ? LIMIT 1', [userId])
+    const email = (rows?.[0]?.email as string) || ''
+    emailCache.set(userId, email)
+    return email
+  } catch {
+    return ''
+  }
+}
+
 export class LogController {
   /** 在线用户（SessionStore 实时） */
-  static async getOnlineUsers(_req: AuthRequest, res: Response<ApiResponse<any>>) {
+  static async getOnlineUsers(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
       const rows = await SessionStore.listActive()
-      const items = await Promise.all(
+
+      // 可选：按邮箱模糊过滤
+      const emailQ = String((req.query as any)?.email ?? '')
+        .trim()
+        .toLowerCase()
+
+      const itemsAll = await Promise.all(
         rows.map(async r => {
           const { os, browser } = parseUA(r.ua)
           const geo = await Geo.lookup(r.ip || undefined)
+
+          // ✅ 优先会话里的 email；没有则去数据库查
+          const email = (r.email && String(r.email)) || (await fetchEmailByUserId(r.userId)) || ''
+
           return {
             id: r.jti,
             session_id: r.jti,
-            username: r.username,
+            email, // ← 现在一定带上
             ip_address: r.ip || undefined,
             login_time: r.loginAt,
             os,
@@ -78,6 +105,15 @@ export class LogController {
           }
         })
       )
+
+      const items = emailQ
+        ? itemsAll.filter(it =>
+            String(it.email || '')
+              .toLowerCase()
+              .includes(emailQ)
+          )
+        : itemsAll
+
       return (res as any).ok({ items }, '获取在线用户成功')
     } catch (error: any) {
       log.error('[log] 获取在线用户失败:', error)
@@ -98,7 +134,6 @@ export class LogController {
           level: 'info',
           status: 'success',
           userId: (req.user as any)?.id,
-          username: (req.user as any)?.username || 'admin',
           action: 'force_logout',
           message: `管理员强退会话 ${jti.slice(0, 8)}…`,
           resourceType: 'session',
@@ -128,8 +163,8 @@ export class LogController {
       const data = await service.getLogs(pickUser(req.user), req.query as any)
       return (res as any).ok(data, '获取用户日志成功')
     } catch (error: any) {
-      log.error('[log] 获取用户日志失败:', error)
-      return respondError(res, error, '获取用户日志失败')
+      log.error('[log] 获取日志失败:', error)
+      return respondError(res, error, '获取日志失败')
     }
   }
 
@@ -145,13 +180,9 @@ export class LogController {
 
   static async getAuditLogs(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const current = pickUser(req.user) // { id?: number; role?: string }
-      const role = current?.role
+      const current = pickUser(req.user)
       const q = { ...(req.query as any) }
-
-      // 确保是“审计/安全类”日志；若前端未显式传 type，则默认限定为 audit
       if (!q.type) q.type = 'audit'
-
       const data = await service.getAuditLogs(current, q)
       return (res as any).ok(data, '获取审计日志成功')
     } catch (error: any) {
@@ -212,7 +243,6 @@ export class LogController {
               log.log_type,
               log.level ?? '',
               log.created_at,
-              log.username ?? '',
               log.action ?? '',
               resource,
               client,

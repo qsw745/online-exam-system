@@ -1,80 +1,66 @@
-// apps/backend/src/migrations/20250918_add_status_to_exams.ts
+// apps/backend/db/migrations/20250918_add_status_to_exams.ts
 import type { Knex } from 'knex'
 
 const TABLE = 'exams'
 const COL = 'status'
 const INDEX_NAME = 'idx_exams_status_created_at'
 
-async function hasColumn(knex: Knex, table: string, column: string) {
-    // knex.schema.hasColumn 在 MySQL 可用，这里再加一层兜底
-    try {
-        return await knex.schema.hasColumn(table, column)
-    } catch {
-        const res = await knex.raw<Array<{ ok: number }>>(
-            `
-      SELECT 1 AS ok
-      FROM information_schema.COLUMNS
-      WHERE TABLE_SCHEMA = DATABASE()
-        AND TABLE_NAME = ?
-        AND COLUMN_NAME = ?
-      LIMIT 1
-    `,
-            [table, column]
-        )
-        // @ts-ignore - mysql2 返回 [rows, fields]
-        const rows = Array.isArray(res) ? res[0] : res
-        return (rows?.length ?? 0) > 0
-    }
+type ColRow = { COLUMN_NAME: string }
+type StatRow = { INDEX_NAME: string }
+
+async function hasColumn(knex: Knex, table: string, column: string): Promise<boolean> {
+  // 先走官方 API；个别方言异常时降级信息_schema
+  try {
+    return await knex.schema.hasColumn(table, column)
+  } catch {
+    const row = await knex<ColRow>('INFORMATION_SCHEMA.COLUMNS')
+      .select('COLUMN_NAME')
+      .whereRaw('TABLE_SCHEMA = DATABASE()')
+      .andWhere('TABLE_NAME', table)
+      .andWhere('COLUMN_NAME', column)
+      .first()
+    return !!row
+  }
 }
 
-async function hasIndex(knex: Knex, table: string, indexName: string) {
-    const res = await knex.raw<Array<{ ok: number }>>(
-        `
-    SELECT 1 AS ok
-    FROM information_schema.STATISTICS
-    WHERE TABLE_SCHEMA = DATABASE()
-      AND TABLE_NAME = ?
-      AND INDEX_NAME = ?
-    LIMIT 1
-  `,
-        [table, indexName]
-    )
-    // @ts-ignore
-    const rows = Array.isArray(res) ? res[0] : res
-    return (rows?.length ?? 0) > 0
+async function hasIndex(knex: Knex, table: string, indexName: string): Promise<boolean> {
+  const row = await knex<StatRow>('INFORMATION_SCHEMA.STATISTICS')
+    .select('INDEX_NAME')
+    .whereRaw('TABLE_SCHEMA = DATABASE()')
+    .andWhere('TABLE_NAME', table)
+    .andWhere('INDEX_NAME', indexName)
+    .first()
+  return !!row
 }
 
 export async function up(knex: Knex): Promise<void> {
-    // 1) 添加 status 枚举列（draft/published/closed），默认 draft，NOT NULL
-    if (!(await hasColumn(knex, TABLE, COL))) {
-        await knex.schema.alterTable(TABLE, t => {
-            // MySQL 下 enu -> ENUM
-            // 这里不加注释/AFTER 位置，避免跨库差异；如需注释可再用 knex.raw 修改
-            t.enu(COL, ['draft', 'published', 'closed']).notNullable().defaultTo('draft')
-        })
-        // 如需列注释，可解注以下语句（MySQL）：
-        // await knex.raw(`ALTER TABLE \`${TABLE}\` MODIFY \`${COL}\` ENUM('draft','published','closed') NOT NULL DEFAULT 'draft' COMMENT '考试状态'`)
-    }
+  // 1) 添加 status 枚举列（draft/published/closed），默认 draft，NOT NULL
+  if (!(await hasColumn(knex, TABLE, COL))) {
+    await knex.schema.alterTable(TABLE, (t: Knex.TableBuilder) => {
+      t.enu(COL, ['draft', 'published', 'closed']).notNullable().defaultTo('draft').comment('考试状态')
+    })
+  }
 
-    // 2) 创建组合索引：status + created_at（常用筛选+倒序）
-    if (!(await hasIndex(knex, TABLE, INDEX_NAME))) {
-        await knex.schema.alterTable(TABLE, t => {
-            t.index(['status', 'created_at'], INDEX_NAME)
-        })
-    }
+  // 2) 组合索引：status + created_at
+  if (!(await hasIndex(knex, TABLE, INDEX_NAME))) {
+    await knex.schema.alterTable(TABLE, (t: Knex.TableBuilder) => {
+      const cols: ReadonlyArray<string> = ['status', 'created_at']
+      t.index(cols, INDEX_NAME)
+    })
+  }
 }
 
 export async function down(knex: Knex): Promise<void> {
-    // 先删索引（若存在）
-    if (await hasIndex(knex, TABLE, INDEX_NAME)) {
-        await knex.schema.alterTable(TABLE, t => {
-            t.dropIndex(['status', 'created_at'], INDEX_NAME)
-        })
-    }
-    // 再删列（若存在）
-    if (await hasColumn(knex, TABLE, COL)) {
-        await knex.schema.alterTable(TABLE, t => {
-            t.dropColumn(COL)
-        })
-    }
+  // 先删索引
+  if (await hasIndex(knex, TABLE, INDEX_NAME)) {
+    await knex.schema.alterTable(TABLE, (t: Knex.TableBuilder) => {
+      t.dropIndex(['status', 'created_at'], INDEX_NAME)
+    })
+  }
+  // 再删列
+  if (await hasColumn(knex, TABLE, COL)) {
+    await knex.schema.alterTable(TABLE, (t: Knex.TableBuilder) => {
+      t.dropColumn(COL)
+    })
+  }
 }

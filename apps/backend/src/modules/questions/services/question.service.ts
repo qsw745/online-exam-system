@@ -145,7 +145,7 @@ export class QuestionService {
   }
 
   async create(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     body: any,
     _reqMeta?: { ip?: string; ua?: string }
   ): Promise<QuestionData> {
@@ -199,7 +199,7 @@ export class QuestionService {
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
-      username: user?.username,
+      email: user?.email,
       action: '创建题目',
       message: '创建题目成功',
       resourceType: 'question',
@@ -215,7 +215,7 @@ export class QuestionService {
   }
 
   async update(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     id: number,
     body: any,
     _reqMeta?: { ip?: string; ua?: string }
@@ -288,7 +288,7 @@ export class QuestionService {
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
-      username: user?.username,
+      email: user?.email,
       action: '更新题目',
       message: '更新题目成功',
       resourceType: 'question',
@@ -303,18 +303,14 @@ export class QuestionService {
     return { question: q! }
   }
 
-  async remove(
-    user: { id?: number; username?: string } | undefined,
-    id: number,
-    _reqMeta?: { ip?: string; ua?: string }
-  ) {
+  async remove(user: { id?: number; email?: string } | undefined, id: number, _reqMeta?: { ip?: string; ua?: string }) {
     const affected = await QuestionRepository.delete(id)
     if (!affected) throw new httpError('问题不存在')
 
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
-      username: user?.username,
+      email: user?.email,
       action: '删除题目',
       message: '删除题目成功',
       resourceType: 'question',
@@ -329,7 +325,7 @@ export class QuestionService {
   }
 
   async bulkImport(
-    user: { id?: number; username?: string } | undefined,
+    user: { id?: number; email?: string } | undefined,
     body: any,
     query: any,
     _reqMeta?: { ip?: string; ua?: string; rid?: string }
@@ -450,7 +446,7 @@ export class QuestionService {
     await LogService.log({
       type: 'audit',
       userId: user?.id || 0,
-      username: user?.username,
+      email: user?.email,
       action: '批量导入题目',
       message: failCount > 0 ? '批量导入部分失败' : '批量导入成功',
       resourceType: 'question',
