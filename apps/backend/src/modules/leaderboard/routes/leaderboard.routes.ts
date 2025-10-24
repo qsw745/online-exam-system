@@ -12,15 +12,51 @@ const wrap =
   (req, res, next) =>
     Promise.resolve(handler(req as AuthRequest, res)).catch(next)
 
+// ---- 别名映射（把前端可能传的值转换为后端规范值） ----
+const TYPE_ALIASES: Record<string, string> = {
+  // 前端 tabs/旧调用里常见
+  study_time: 'time',
+  total_time: 'time',
+  correctness: 'accuracy',
+  overall: 'all',
+  // 其它可能的历史别名
+  totalScore: 'score',
+  progress_score: 'progress',
+}
+const normalizeType = (v: unknown) => {
+  if (typeof v !== 'string') return v
+  const key = v.trim()
+  return TYPE_ALIASES[key] || key
+}
+const normalizeCategory = (v: unknown) => {
+  // 目前 category 已经支持 'all'，若以后有别名可在此补充
+  return v
+}
+const normalizeBoolean = (v: unknown) => {
+  if (typeof v === 'boolean') return v
+  if (typeof v === 'string') {
+    const s = v.trim().toLowerCase()
+    if (['true', '1', 'yes', 'y'].includes(s)) return true
+    if (['false', '0', 'no', 'n'].includes(s)) return false
+  }
+  return v
+}
+
 router.use(authenticateToken)
 
 // 列表
 router.get(
   '/',
   [
-    query('category').optional().isIn(['all', 'global', 'subject', 'exam', 'monthly', 'weekly', 'daily']),
-    query('type').optional().isIn(['all', 'score', 'time', 'accuracy', 'progress', 'custom']),
-    query('active').optional().isBoolean(),
+    query('category')
+      .optional()
+      .customSanitizer(normalizeCategory)
+      .isIn(['all', 'global', 'subject', 'exam', 'monthly', 'weekly', 'daily']),
+    query('type')
+      .optional()
+      .customSanitizer(normalizeType)
+      .isIn(['all', 'score', 'time', 'accuracy', 'progress', 'custom']),
+    query('active').optional().customSanitizer(normalizeBoolean).isBoolean(),
   ],
   validateRequest,
   wrap(LeaderboardController.getLeaderboards)
