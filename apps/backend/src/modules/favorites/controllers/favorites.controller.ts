@@ -185,7 +185,10 @@ export class FavoritesController {
       const share_code = randomHex(16)
       const host = req.get('host') ?? (req as any)?.headers?.host ?? ''
       const protocol = (req as any)?.protocol ?? ((req as any)?.secure ? 'https' : 'http')
-      const share_url = `${protocol}://${host}/shared/favorites/${share_code}`
+      const frontendBase = (process.env.FRONTEND_URL || '').replace(/\/$/, '')
+      const backendBase = host ? `${protocol}://${host}` : ''
+      const shareBase = frontendBase || backendBase || ''
+      const share_url = shareBase ? `${shareBase}/shared/favorites/${share_code}` : `/shared/favorites/${share_code}`
 
       return res.ok<{ share_code: string; share_url: string }>({ share_code, share_url })
     } catch (e: any) {

@@ -1,6 +1,7 @@
 import { useOrgTree } from '@/shared/hooks'
 import { App, Col, Form, Input, Modal, Row, Select, Space, Switch, TreeSelect, Typography } from 'antd'
 import React from 'react'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Text } = Typography
 
@@ -29,13 +30,13 @@ export type SubmitPayload = {
   remark?: string
 }
 
-function treeToTreeSelectData(tree: any[]): any[] {
+function treeToTreeSelectData(tree: any[], fallback: (node: any) => string): any[] {
   if (!Array.isArray(tree)) return []
   return tree.map((n: any) => ({
-    title: n?.title ?? n?.name ?? n?.label ?? `机构 #${n?.id}`,
+    title: n?.title ?? n?.name ?? n?.label ?? fallback(n),
     value: n?.id,
     key: n?.id,
-    children: treeToTreeSelectData(n?.children || n?.nodes || []),
+    children: treeToTreeSelectData(n?.children || n?.nodes || [], fallback),
   }))
 }
 
@@ -46,8 +47,14 @@ export const AddUserModal: React.FC<{
   onSubmit: (payload: SubmitPayload) => Promise<void> | void
 }> = ({ open, defaultOrgId, onCancel, onSubmit }) => {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [form] = Form.useForm<FormValues>()
   const { tree, loading: treeLoading, refetch } = useOrgTree()
+  const formatMessage = React.useCallback(
+    (template: string, vars: Record<string, string | number> = {}) =>
+      template.replace(/\{(\w+)\}/g, (_, key) => (vars[key] !== undefined ? String(vars[key]) : '')),
+    []
+  )
 
   React.useEffect(() => {
     if (!open) return
@@ -77,32 +84,35 @@ export const AddUserModal: React.FC<{
       }
       setSubmitting(true)
       await onSubmit(payload)
-      message.success('新增用户成功')
+      message.success(t('users.message.create_success'))
       onCancel()
     } finally {
       setSubmitting(false)
     }
   }
 
-  const treeData = React.useMemo(() => treeToTreeSelectData(tree as any), [tree])
+  const treeData = React.useMemo(
+    () => treeToTreeSelectData(tree as any, node => formatMessage(t('users.org_tree.fallback'), { id: node?.id ?? '' })),
+    [tree, t, formatMessage]
+  )
 
   return (
     <Modal
       open={open}
       title={
         <Space>
-          <Text strong>新增用户</Text>
+          <Text strong>{t('users.button.add')}</Text>
         </Space>
       }
       onCancel={onCancel}
       onOk={handleOk}
-      okText="确定"
-      cancelText="取消"
+      okText={t('app.confirm')}
+      cancelText={t('app.cancel')}
       okButtonProps={{ loading: submitting }}
       maskClosable={false}
       width={1000}
       styles={{ body: { paddingTop: 12 } }}
-      destroyOnClose
+      destroyOnHidden
     >
       <Form<FormValues>
         form={form}
@@ -113,8 +123,12 @@ export const AddUserModal: React.FC<{
       >
         <Row gutter={16}>
           <Col span={12}>
-            <Form.Item label="用户昵称" name="nickname" rules={[{ required: true, message: '请输入用户昵称' }]}>
-              <Input placeholder="请输入用户昵称" allowClear />
+            <Form.Item
+              label={t('users.form.nickname')}
+              name="nickname"
+              rules={[{ required: true, message: t('users.form.nickname_required') }]}
+            >
+              <Input placeholder={t('users.form.nickname_placeholder')} allowClear />
             </Form.Item>
           </Col>
           {/* <Col span={12}>
@@ -132,48 +146,56 @@ export const AddUserModal: React.FC<{
 
           <Col span={12}>
             <Form.Item
-              label="用户密码"
+              label={t('users.form.password')}
               name="password"
               rules={[
-                { required: true, message: '请输入用户密码' },
-                { min: 6, message: '长度至少 6 位' },
+                { required: true, message: t('users.form.password_required') },
+                { min: 6, message: formatMessage(t('users.form.password_min'), { count: 6 }) },
               ]}
             >
-              <Input.Password placeholder="请输入用户密码" />
+              <Input.Password placeholder={t('users.form.password_placeholder')} />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item label="手机号" name="phone" rules={[{ pattern: /^1\d{10}$/, message: '请输入正确的手机号' }]}>
-              <Input placeholder="请输入手机号" allowClear />
+            <Form.Item
+              label={t('users.form.phone')}
+              name="phone"
+              rules={[{ pattern: /^1\d{10}$/, message: t('users.form.phone_invalid') }]}
+            >
+              <Input placeholder={t('users.form.phone_placeholder')} allowClear />
             </Form.Item>
           </Col>
 
           <Col span={12}>
-            <Form.Item label="邮箱" name="email" rules={[{ type: 'email', message: '请输入正确的邮箱' }]}>
-              <Input placeholder="请输入邮箱" allowClear />
+            <Form.Item
+              label={t('users.form.email')}
+              name="email"
+              rules={[{ type: 'email', message: t('users.form.email_invalid') }]}
+            >
+              <Input placeholder={t('users.form.email_placeholder')} allowClear />
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item label="用户性别" name="gender">
+            <Form.Item label={t('users.form.gender')} name="gender">
               <Select
-                placeholder="请选择用户性别"
+                placeholder={t('users.form.gender_placeholder')}
                 allowClear
                 options={[
-                  { label: '男', value: '男' },
-                  { label: '女', value: '女' },
-                  { label: '保密', value: '保密' },
+                  { label: t('users.gender.male'), value: '男' },
+                  { label: t('users.gender.female'), value: '女' },
+                  { label: t('users.gender.secret'), value: '保密' },
                 ]}
               />
             </Form.Item>
           </Col>
 
           <Col span={12}>
-            <Form.Item label="归属部门" name="org_id">
+            <Form.Item label={t('users.form.org')} name="org_id">
               <TreeSelect
                 loading={treeLoading}
                 treeData={treeData}
                 allowClear
-                placeholder="请选择归属部门"
+                placeholder={t('users.form.org_placeholder')}
                 showSearch
                 treeDefaultExpandAll
                 style={{ width: '100%' }}
@@ -181,17 +203,17 @@ export const AddUserModal: React.FC<{
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item label="用户状态" name="enabled" valuePropName="checked">
+            <Form.Item label={t('users.form.status')} name="enabled" valuePropName="checked">
               <Space>
                 <Switch />
-                <Text type="success">启用</Text>
+                <Text type="success">{t('users.status.enable')}</Text>
               </Space>
             </Form.Item>
           </Col>
 
           <Col span={24}>
-            <Form.Item label="备注" name="remark">
-              <Input.TextArea rows={3} placeholder="请输入备注信息" allowClear />
+            <Form.Item label={t('users.form.remark')} name="remark">
+              <Input.TextArea rows={3} placeholder={t('users.form.remark_placeholder')} allowClear />
             </Form.Item>
           </Col>
         </Row>

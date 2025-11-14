@@ -27,9 +27,73 @@ async function hasColumn(table: string, column: string, conn?: PoolConnection): 
   return ok
 }
 
+type FavoriteSchema = {
+  nameColumn: 'name' | 'title'
+  hasDescription: boolean
+  hasIsPublic: boolean
+  hasCategory: boolean
+}
+
+type FavoriteItemSchema = {
+  hasTitle: boolean
+  hasDescription: boolean
+  hasTags: boolean
+  hasNotes: boolean
+  hasSortOrder: boolean
+  hasCreatedAt: boolean
+  hasUpdatedAt: boolean
+}
+
 export class FavoritesRepository {
+  private favoriteSchema: FavoriteSchema | null = null
+  private favoriteItemsSchema: FavoriteItemSchema | null = null
+
   private db(conn?: PoolConnection): Queryable {
     return asQ(conn ?? pool)
+  }
+
+  private async getFavoriteSchema(conn?: PoolConnection): Promise<FavoriteSchema> {
+    if (this.favoriteSchema) return this.favoriteSchema
+    const nameColumn = (await hasColumn('favorites', 'name', conn))
+      ? 'name'
+      : (await hasColumn('favorites', 'title', conn))
+        ? 'title'
+        : 'name'
+    const schema: FavoriteSchema = {
+      nameColumn,
+      hasDescription: await hasColumn('favorites', 'description', conn),
+      hasIsPublic: await hasColumn('favorites', 'is_public', conn),
+      hasCategory: await hasColumn('favorites', 'category_id', conn),
+    }
+    this.favoriteSchema = schema
+    return schema
+  }
+
+  private async getFavoriteItemsSchema(conn?: PoolConnection): Promise<FavoriteItemSchema> {
+    if (this.favoriteItemsSchema) return this.favoriteItemsSchema
+    const schema: FavoriteItemSchema = {
+      hasTitle: await hasColumn('favorite_items', 'title', conn),
+      hasDescription: await hasColumn('favorite_items', 'description', conn),
+      hasTags: await hasColumn('favorite_items', 'tags', conn),
+      hasNotes: await hasColumn('favorite_items', 'notes', conn),
+      hasSortOrder: await hasColumn('favorite_items', 'sort_order', conn),
+      hasCreatedAt: await hasColumn('favorite_items', 'created_at', conn),
+      hasUpdatedAt: await hasColumn('favorite_items', 'updated_at', conn),
+    }
+    this.favoriteItemsSchema = schema
+    return schema
+  }
+
+  private normalizeFavoriteRows(rows: IFavorite[]): IFavorite[] {
+    return rows.map(row => {
+      const anyRow = row as any
+      if (anyRow && typeof anyRow.name === 'undefined' && typeof anyRow.title !== 'undefined') {
+        anyRow.name = anyRow.title
+      }
+      if (typeof anyRow.is_public === 'undefined') anyRow.is_public = false
+      if (typeof anyRow.category_id === 'undefined') anyRow.category_id = null
+      return row
+    })
   }
 
   async findByUser(
@@ -38,51 +102,75 @@ export class FavoritesRepository {
     conn?: PoolConnection
   ): Promise<IFavorite[]> {
     const order = options.orderBy ?? 'id'
+    const schema = await this.getFavoriteSchema(conn)
     const where: string[] = ['f.user_id = ?']
     const args: any[] = [userId]
-    if (typeof options.category_id === 'number') {
+    if (schema.hasCategory && typeof options.category_id === 'number') {
       where.push('f.category_id = ?')
       args.push(options.category_id)
     }
-    if (typeof options.is_public === 'boolean') {
+    if (schema.hasIsPublic && typeof options.is_public === 'boolean') {
       where.push('f.is_public = ?')
       args.push(options.is_public)
     }
 
-    const [rows] = await this.db(conn).query<IFavorite[]>(
-      `SELECT f.*,
-              fc.name  AS category_name,
-              fc.color AS category_color,
-              (SELECT COUNT(*) FROM favorite_items fi WHERE fi.favorite_id = f.id) AS items_count
-       FROM favorites f
-       LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-       WHERE ${where.join(' AND ')}
-       ORDER BY f.${order} DESC`,
-      args
-    )
-    return rows
+    const selectParts = [
+      'f.*',
+      `f.${schema.nameColumn} AS name`,
+      schema.hasCategory ? 'fc.name AS category_name' : 'NULL AS category_name',
+      schema.hasCategory ? 'fc.color AS category_color' : 'NULL AS category_color',
+      '(SELECT COUNT(*) FROM favorite_items fi WHERE fi.favorite_id = f.id) AS items_count',
+    ]
+    const joinCategory = schema.hasCategory ? 'LEFT JOIN favorite_categories fc ON f.category_id = fc.id' : ''
+
+    const sql = `
+      SELECT ${selectParts.join(', ')}
+      FROM favorites f
+      ${joinCategory}
+      WHERE ${where.join(' AND ')}
+      ORDER BY f.${order} DESC`
+
+    const [rows] = await this.db(conn).query<IFavorite[]>(sql, args)
+    return this.normalizeFavoriteRows(rows)
   }
 
   async findByIdForUser(favId: number, userId: number, conn?: PoolConnection): Promise<IFavorite | null> {
-    const [rows] = await this.db(conn).query<IFavorite[]>(
-      `SELECT f.*, fc.name AS category_name, fc.color AS category_color
-       FROM favorites f
-       LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-       WHERE f.id = ? AND f.user_id = ?`,
-      [favId, userId]
-    )
-    return rows[0] ?? null
+    const schema = await this.getFavoriteSchema(conn)
+    const selectParts = [
+      'f.*',
+      `f.${schema.nameColumn} AS name`,
+      schema.hasCategory ? 'fc.name AS category_name' : 'NULL AS category_name',
+      schema.hasCategory ? 'fc.color AS category_color' : 'NULL AS category_color',
+    ]
+    const joinCategory = schema.hasCategory ? 'LEFT JOIN favorite_categories fc ON f.category_id = fc.id' : ''
+    const sql = `
+      SELECT ${selectParts.join(', ')}
+      FROM favorites f
+      ${joinCategory}
+      WHERE f.id = ? AND f.user_id = ?`
+    const [rows] = await this.db(conn).query<IFavorite[]>(sql, [favId, userId])
+    const normalized = this.normalizeFavoriteRows(rows)
+    return normalized[0] ?? null
   }
 
   async findPublicOrOwnedById(favId: number, userId: number, conn?: PoolConnection): Promise<IFavorite | null> {
-    const [rows] = await this.db(conn).query<IFavorite[]>(
-      `SELECT f.*, fc.name AS category_name, fc.color AS category_color
-       FROM favorites f
-       LEFT JOIN favorite_categories fc ON f.category_id = fc.id
-       WHERE f.id = ? AND (f.user_id = ? OR f.is_public = TRUE)`,
-      [favId, userId]
-    )
-    return rows[0] ?? null
+    const schema = await this.getFavoriteSchema(conn)
+    const selectParts = [
+      'f.*',
+      `f.${schema.nameColumn} AS name`,
+      schema.hasCategory ? 'fc.name AS category_name' : 'NULL AS category_name',
+      schema.hasCategory ? 'fc.color AS category_color' : 'NULL AS category_color',
+    ]
+    const joinCategory = schema.hasCategory ? 'LEFT JOIN favorite_categories fc ON f.category_id = fc.id' : ''
+    const ownership = schema.hasIsPublic ? '(f.user_id = ? OR f.is_public = TRUE)' : 'f.user_id = ?'
+    const sql = `
+      SELECT ${selectParts.join(', ')}
+      FROM favorites f
+      ${joinCategory}
+      WHERE f.id = ? AND ${ownership}`
+    const [rows] = await this.db(conn).query<IFavorite[]>(sql, [favId, userId])
+    const normalized = this.normalizeFavoriteRows(rows)
+    return normalized[0] ?? null
   }
 
   async insertFavorite(
@@ -95,17 +183,32 @@ export class FavoritesRepository {
       category_id: number | null
     }
   ): Promise<number> {
-    const hasDesc = await hasColumn('favorites', 'description', conn)
+    const schema = await this.getFavoriteSchema(conn)
 
-    const cols: string[] = ['user_id', 'name', 'is_public', 'category_id', 'updated_at']
-    const qms: string[] = ['?', '?', '?', '?', 'NOW()']
-    const args: any[] = [data.user_id, data.name, data.is_public, data.category_id]
+    const cols: string[] = ['user_id', schema.nameColumn]
+    const qms: string[] = ['?', '?']
+    const args: any[] = [data.user_id, data.name]
 
-    if (hasDesc) {
-      cols.splice(2, 0, 'description')
-      qms.splice(2, 0, '?')
-      args.splice(2, 0, data.description ?? '')
+    if (schema.hasDescription) {
+      cols.push('description')
+      qms.push('?')
+      args.push(data.description ?? '')
     }
+
+    if (schema.hasIsPublic) {
+      cols.push('is_public')
+      qms.push('?')
+      args.push(data.is_public)
+    }
+
+    if (schema.hasCategory) {
+      cols.push('category_id')
+      qms.push('?')
+      args.push(data.category_id)
+    }
+
+    cols.push('updated_at')
+    qms.push('NOW()')
 
     const sql = `INSERT INTO favorites (${cols.join(', ')}) VALUES (${qms.join(', ')})`
     const [ret] = await asQ(conn).query<ResultSetHeader>(sql, args)
@@ -120,23 +223,21 @@ export class FavoritesRepository {
   ): Promise<boolean> {
     const fields: string[] = []
     const args: any[] = []
+    const schema = await this.getFavoriteSchema(conn)
 
     if (patch.name !== undefined) {
-      fields.push('name = ?')
+      fields.push(`${schema.nameColumn} = ?`)
       args.push(patch.name)
     }
-    if (patch.description !== undefined) {
-      const hasDesc = await hasColumn('favorites', 'description', conn)
-      if (hasDesc) {
-        fields.push('description = ?')
-        args.push(patch.description)
-      }
+    if (schema.hasDescription && patch.description !== undefined) {
+      fields.push('description = ?')
+      args.push(patch.description)
     }
-    if (patch.is_public !== undefined) {
+    if (schema.hasIsPublic && patch.is_public !== undefined) {
       fields.push('is_public = ?')
       args.push(patch.is_public)
     }
-    if (patch.category_id !== undefined) {
+    if (schema.hasCategory && patch.category_id !== undefined) {
       fields.push('category_id = ?')
       args.push(patch.category_id)
     }
@@ -159,8 +260,14 @@ export class FavoritesRepository {
   }
 
   async listItems(favoriteId: number, conn?: PoolConnection): Promise<IFavoriteItem[]> {
+    const schema = await this.getFavoriteItemsSchema(conn)
+    const orderParts: string[] = []
+    if (schema.hasSortOrder) orderParts.push('fi.sort_order ASC')
+    if (schema.hasCreatedAt) orderParts.push('fi.created_at DESC')
+    if (!orderParts.length) orderParts.push('fi.id DESC')
+    const orderClause = `ORDER BY ${orderParts.join(', ')}`
     const [rows] = await this.db(conn).query<IFavoriteItem[]>(
-      'SELECT * FROM favorite_items WHERE favorite_id = ? ORDER BY sort_order ASC, created_at DESC',
+      `SELECT fi.* FROM favorite_items fi WHERE fi.favorite_id = ? ${orderClause}`,
       [favoriteId]
     )
     return rows
@@ -186,12 +293,42 @@ export class FavoritesRepository {
       notes: string
     }
   ): Promise<number> {
-    const [ret] = await asQ(conn).query<ResultSetHeader>(
-      `INSERT INTO favorite_items
-       (favorite_id, item_type, item_id, title, description, tags, notes, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [data.favorite_id, data.item_type, data.item_id, data.title, data.description, data.tags, data.notes]
-    )
+    const schema = await this.getFavoriteItemsSchema(conn)
+    const cols = ['favorite_id', 'item_type', 'item_id']
+    const qms = ['?', '?', '?']
+    const args: any[] = [data.favorite_id, data.item_type, data.item_id]
+
+    if (schema.hasTitle) {
+      cols.push('title')
+      qms.push('?')
+      args.push(data.title)
+    }
+    if (schema.hasDescription) {
+      cols.push('description')
+      qms.push('?')
+      args.push(data.description)
+    }
+    if (schema.hasTags) {
+      cols.push('tags')
+      qms.push('?')
+      args.push(data.tags)
+    }
+    if (schema.hasNotes) {
+      cols.push('notes')
+      qms.push('?')
+      args.push(data.notes)
+    }
+    if (schema.hasCreatedAt) {
+      cols.push('created_at')
+      qms.push('NOW()')
+    }
+    if (schema.hasUpdatedAt) {
+      cols.push('updated_at')
+      qms.push('NOW()')
+    }
+
+    const sql = `INSERT INTO favorite_items (${cols.join(', ')}) VALUES (${qms.join(', ')})`
+    const [ret] = await asQ(conn).query<ResultSetHeader>(sql, args)
     return ret.insertId
   }
 
@@ -208,11 +345,26 @@ export class FavoritesRepository {
     opt: { keyword?: string; item_type?: string; favorite_id?: number },
     conn?: PoolConnection
   ): Promise<IFavoriteItem[]> {
+    const schema = await this.getFavoriteItemsSchema(conn)
     let where = 'WHERE f.user_id = ?'
     const args: any[] = [userId]
     if (opt.keyword) {
-      where += ' AND (fi.title LIKE ? OR fi.description LIKE ? OR fi.notes LIKE ?)'
-      args.push(`%${opt.keyword}%`, `%${opt.keyword}%`, `%${opt.keyword}%`)
+      const likeParts: string[] = []
+      if (schema.hasTitle) {
+        likeParts.push('fi.title LIKE ?')
+        args.push(`%${opt.keyword}%`)
+      }
+      if (schema.hasDescription) {
+        likeParts.push('fi.description LIKE ?')
+        args.push(`%${opt.keyword}%`)
+      }
+      if (schema.hasNotes) {
+        likeParts.push('fi.notes LIKE ?')
+        args.push(`%${opt.keyword}%`)
+      }
+      if (likeParts.length) {
+        where += ` AND (${likeParts.join(' OR ')})`
+      }
     }
     if (opt.item_type) {
       where += ' AND fi.item_type = ?'
@@ -223,12 +375,18 @@ export class FavoritesRepository {
       args.push(opt.favorite_id)
     }
 
+    const orderParts: string[] = []
+    if (schema.hasUpdatedAt) orderParts.push('fi.updated_at DESC')
+    if (schema.hasCreatedAt && !schema.hasUpdatedAt) orderParts.push('fi.created_at DESC')
+    if (!orderParts.length) orderParts.push('fi.id DESC')
+    const orderClause = `ORDER BY ${orderParts.join(', ')}`
+
     const [rows] = await this.db(conn).query<IFavoriteItem[]>(
       `SELECT fi.*
        FROM favorite_items fi
        JOIN favorites f ON fi.favorite_id = f.id
        ${where}
-       ORDER BY fi.updated_at DESC
+       ${orderClause}
        LIMIT 50`,
       args
     )

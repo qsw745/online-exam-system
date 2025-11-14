@@ -24,7 +24,13 @@ export default function ProfilePage() {
           />
 
           <ProfileForm
-            value={{ ...form, nickname: form.nickname ?? '' }}
+            value={{
+              ...form,
+              nickname: form.nickname ?? '',
+              email: form.email ?? '',
+              phone: form.phone ?? '',
+              bio: form.bio ?? '',
+            }}
             onChange={patch => setForm({ ...form, ...patch })}
           />
 

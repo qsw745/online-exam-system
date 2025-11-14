@@ -63,7 +63,7 @@ export function useRolePermissions() {
     const ids = Array.from(new Set(selected.map(Number).filter(Number.isFinite))) as number[]
     const resp = await rolesApi.setRoleMenus(role.id, ids)
     if (!isOk(resp)) return message.error(getMsg(resp, '权限设置失败'))
-    message.success('权限设置成功')
+    message.success('权限已保存')
     setOpen(false)
   }
 

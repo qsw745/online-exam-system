@@ -33,6 +33,7 @@ router.get('/:id', requireRole(['admin', 'teacher']), wrap(UserController.getByI
 
 // 仅管理员
 router.post('/', requireRole(['admin']), wrap(UserController.create))
+router.post('/:id/avatar', requireRole(['admin']), upload.single('avatar'), wrap(UserController.uploadUserAvatar))
 router.put('/:id', requireRole(['admin']), wrap(UserController.update))
 router.put('/:id/status', requireRole(['admin']), wrap(UserController.updateStatus))
 router.put('/:id/reset-password', requireRole(['admin']), wrap(UserController.resetPassword))

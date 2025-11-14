@@ -32,7 +32,6 @@ import {
   Table,
   Tooltip,
   Tree,
-  Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -47,6 +46,7 @@ import UserSelectModal from '@/features/roles/components/UserSelectModal'
 
 import { useRoleMembers } from '@/features/roles/hooks/useRoleMembers'
 import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 // —— 小工具 —— //
 const isOk = (r: any) => r?.success !== false && !r?.error
@@ -56,21 +56,39 @@ const toNumberArray = (keys: React.Key[]): number[] =>
   keys.map(k => (typeof k === 'number' ? k : parseInt(String(k), 10))).filter(k => !isNaN(k))
 
 type RoleStatusFilter = '' | 'enabled' | 'disabled'
-const STATUS_OPTIONS: { label: string; value: Exclude<RoleStatusFilter, ''> }[] = [
-  { label: '已启用', value: 'enabled' },
-  { label: '已停用', value: 'disabled' },
-]
 
 // 右侧面板宽度
 const PANEL_WIDTH = 420
 
 type ColKey = 'id' | 'name' | 'code' | 'is_disabled' | 'description' | 'created_at' | 'actions'
 const FIXED_LAST_KEY: ColKey = 'actions'
+const COLUMN_LABEL_KEYS: Record<ColKey, string> = {
+  id: 'roles.columns.id',
+  name: 'roles.columns.name',
+  code: 'roles.columns.code',
+  is_disabled: 'roles.columns.status',
+  description: 'roles.columns.remark',
+  created_at: 'roles.columns.created_at',
+  actions: 'roles.columns.actions',
+}
 
 export default function RoleManagementComponent() {
   const { message } = App.useApp()
   const screens = Grid.useBreakpoint()
   const isXs = !!screens.xs && !screens.sm // <576px
+  const { t } = useLanguage()
+  const formatMessage = React.useCallback(
+    (template: string, vars: Record<string, string | number> = {}) =>
+      template.replace(/\{(\w+)\}/g, (_, key) => (vars[key] !== undefined ? String(vars[key]) : '')),
+    []
+  )
+  const statusOptions = useMemo<{ label: string; value: Exclude<RoleStatusFilter, ''> }[]>(
+    () => [
+      { label: t('roles.status.enabled'), value: 'enabled' },
+      { label: t('roles.status.disabled'), value: 'disabled' },
+    ],
+    [t]
+  )
 
   // ===== 查询面板状态 =====
   const [fName, setFName] = useState('')
@@ -96,15 +114,13 @@ export default function RoleManagementComponent() {
   const [tableSize, setTableSize] = useState<TableProps<Role>['size']>('small') // 默认更紧凑
 
   const DEFAULT_COL_KEYS: ColKey[] = ['id', 'name', 'code', 'is_disabled', 'description', 'created_at', 'actions']
-  const LABELS: Record<ColKey, string> = {
-    id: '角色编号',
-    name: '角色名称',
-    code: '角色标识',
-    is_disabled: '状态',
-    description: '备注',
-    created_at: '创建时间',
-    actions: '操作',
-  }
+  const columnLabels = useMemo<Record<ColKey, string>>(() => {
+    const resolved = {} as Record<ColKey, string>
+    ;(Object.keys(COLUMN_LABEL_KEYS) as ColKey[]).forEach(key => {
+      resolved[key] = t(COLUMN_LABEL_KEYS[key])
+    })
+    return resolved
+  }, [t])
 
   // —— 可见列（只管显隐） —— //
   const [visibleColKeys, setVisibleColKeys] = useState<ColKey[]>(DEFAULT_COL_KEYS)
@@ -150,22 +166,30 @@ export default function RoleManagementComponent() {
   }
 
   // —— 拉取列表（支持状态筛选） —— //
-  const load = async (p = page, s = pageSize) => {
+  const load = async (
+    p = page,
+    s = pageSize,
+    filters?: { name?: string; code?: string; status?: RoleStatusFilter }
+  ) => {
     setLoading(true)
     try {
-      const kwParts = [fName?.trim(), fCode?.trim()].filter(Boolean)
+      const nameFilter = filters?.name ?? fName
+      const codeFilter = filters?.code ?? fCode
+      const statusFilter = filters?.status ?? fStatus
+
+      const kwParts = [nameFilter?.trim(), codeFilter?.trim()].filter(Boolean)
       const keyword = kwParts.join(' ').trim() || undefined
 
-      const needStatusFilter = !!fStatus
+      const needStatusFilter = !!statusFilter
       const bigPageSize = needStatusFilter ? Math.max(1000, s) : s
 
       const resp = await (rolesApi.list as any)({
         page: needStatusFilter ? 1 : p,
         pageSize: bigPageSize,
         keyword,
-        status: fStatus,
+        status: statusFilter,
       })
-      if (!isOk(resp)) throw new Error(getMsg(resp, '加载角色失败'))
+      if (!isOk(resp)) throw new Error(getMsg(resp, t('roles.message.load_failed')))
 
       const data = unwrap(resp)
       const arr: Role[] = Array.isArray((data as any)?.roles) ? (data as any).roles : (data as Role[])
@@ -173,7 +197,7 @@ export default function RoleManagementComponent() {
       if (needStatusFilter) {
         const filtered = arr.filter(r => {
           const disabled = r.is_disabled === 1 || r.is_disabled === true
-          return fStatus === 'enabled' ? !disabled : disabled
+          return statusFilter === 'enabled' ? !disabled : disabled
         })
         const start = (p - 1) * s
         const end = start + s
@@ -188,7 +212,7 @@ export default function RoleManagementComponent() {
         setPageSize(Number((data as any)?.pageSize ?? s) || 10)
       }
     } catch (e: any) {
-      message.error(e?.message || '加载角色失败')
+      message.error(e?.message || t('roles.message.load_failed'))
       setList([])
       setTotal(0)
     } finally {
@@ -214,37 +238,37 @@ export default function RoleManagementComponent() {
     try {
       if (editingRole?.id) {
         const r = await rolesApi.update(editingRole.id, payload)
-        if (!isOk(r)) throw new Error(getMsg(r, '更新失败'))
-        message.success('更新成功')
+        if (!isOk(r)) throw new Error(getMsg(r, t('roles.message.update_failed')))
+        message.success(t('roles.message.update_success'))
         setFormOpen(false)
         await load(page, pageSize)
       } else {
         const r = await rolesApi.create(payload)
-        if (!isOk(r)) throw new Error(getMsg(r, '创建失败'))
-        message.success('创建成功')
+        if (!isOk(r)) throw new Error(getMsg(r, t('roles.message.create_failed')))
+        message.success(t('roles.message.create_success'))
         setFormOpen(false)
         await load(1, pageSize)
       }
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('roles.message.save_failed'))
     }
   }
   const handleDelete = (r: Role) => {
     Modal.confirm({
-      title: '确定要删除这个角色吗？',
-      content: '删除后将无法恢复',
-      okText: '删除',
+      title: t('roles.confirm.delete_title'),
+      content: t('roles.confirm.delete_content'),
+      okText: t('app.delete'),
       okButtonProps: { danger: true },
       async onOk() {
         try {
           const res = await rolesApi.remove(r.id)
-          if (!isOk(res)) throw new Error(getMsg(res, '删除失败'))
-          message.success('删除成功')
+          if (!isOk(res)) throw new Error(getMsg(res, t('roles.message.delete_failed')))
+          message.success(t('roles.message.delete_success'))
           const willLeft = total - 1 - (page - 1) * pageSize
           if (willLeft <= 0 && page > 1) await load(page - 1, pageSize)
           else await load(page, pageSize)
         } catch (e: any) {
-          message.error(e?.message || '删除失败')
+          message.error(e?.message || t('roles.message.delete_failed'))
         }
       },
     })
@@ -260,11 +284,11 @@ export default function RoleManagementComponent() {
     setStatusLoadingId(r.id)
     try {
       const res = await rolesApi.update(r.id, { is_disabled: newDisabled } as any)
-      if (!isOk(res)) throw new Error(getMsg(res, '状态更新失败'))
+      if (!isOk(res)) throw new Error(getMsg(res, t('roles.message.status_failed')))
       setRowDisabled(r.id, newDisabled)
-      message.success(enabled ? '已启用' : '已停用')
+      message.success(enabled ? t('roles.message.status_enabled') : t('roles.message.status_disabled'))
     } catch (e: any) {
-      message.error(e?.message || '状态更新失败')
+      message.error(e?.message || t('roles.message.status_failed'))
       setRowDisabled(r.id, r.is_disabled as any) // 回滚
     } finally {
       setStatusLoadingId(null)
@@ -274,19 +298,19 @@ export default function RoleManagementComponent() {
   const confirmToggle = (r: Role, nextEnabled: boolean) => {
     const fromEnabled = !(r.is_disabled === 1 || r.is_disabled === true)
     if (fromEnabled === nextEnabled) return
-    const text = nextEnabled ? '启用' : '停用'
+    const text = nextEnabled ? t('roles.action.enable') : t('roles.action.disable')
     Modal.confirm({
-      title: '系统提示',
+      title: t('roles.confirm.toggle_title'),
       icon: <ExclamationCircleFilled style={{ color: '#faad14' }} />,
       content: (
         <span>
-          确认要{text}
+          {formatMessage(t('roles.confirm.toggle_prefix'), { action: text })}
           <strong style={{ margin: '0 4px' }}>{r.name}</strong>
-          角色吗？
+          {t('roles.confirm.toggle_suffix')}
         </span>
       ),
-      okText: '确定',
-      cancelText: '取消',
+      okText: t('app.confirm'),
+      cancelText: t('app.cancel'),
       onOk: async () => toggleStatus(r, nextEnabled),
     })
   }
@@ -294,13 +318,13 @@ export default function RoleManagementComponent() {
   // —— 列定义（设置列宽 + 固定操作列） —— //
   const actionMenu = (r: Role) => ({
     items: [
-      { key: 'edit', label: '修改', onClick: () => openEdit(r) },
-      { key: 'perm', label: '权限', onClick: () => perms.openFor({ id: r.id, name: r.name } as any) },
+      { key: 'edit', label: t('app.edit'), onClick: () => openEdit(r) },
+      { key: 'perm', label: t('roles.action.permissions'), onClick: () => perms.openFor({ id: r.id, name: r.name } as any) },
       { type: 'divider' as const },
       {
         key: 'del',
         danger: true,
-        label: '删除',
+        label: t('app.delete'),
         disabled: !!r.is_system,
         onClick: () => handleDelete(r),
       },
@@ -308,11 +332,11 @@ export default function RoleManagementComponent() {
   })
 
   const ALL_COLUMNS: Record<ColKey, any> = {
-    id: { title: LABELS.id, dataIndex: 'id', align: 'center', width: 100 },
-    name: { title: LABELS.name, dataIndex: 'name', ellipsis: true, align: 'center', width: 180 },
-    code: { title: LABELS.code, dataIndex: 'code', ellipsis: true, align: 'center', width: 160 },
+    id: { title: columnLabels.id, dataIndex: 'id', align: 'center', width: 100 },
+    name: { title: columnLabels.name, dataIndex: 'name', ellipsis: true, align: 'center', width: 180 },
+    code: { title: columnLabels.code, dataIndex: 'code', ellipsis: true, align: 'center', width: 160 },
     is_disabled: {
-      title: LABELS.is_disabled,
+      title: columnLabels.is_disabled,
       dataIndex: 'is_disabled',
       align: 'center',
       width: 140,
@@ -322,8 +346,8 @@ export default function RoleManagementComponent() {
           <Switch
             size="small"
             checked={enabled}
-            checkedChildren="已启用"
-            unCheckedChildren="已停用"
+            checkedChildren={t('roles.status.enabled')}
+            unCheckedChildren={t('roles.status.disabled')}
             loading={statusLoadingId === r.id}
             onChange={checked => confirmToggle(r, checked)}
           />
@@ -331,44 +355,46 @@ export default function RoleManagementComponent() {
       },
     },
     description: {
-      title: LABELS.description,
+      title: columnLabels.description,
       dataIndex: 'description',
       ellipsis: true,
       align: 'center',
       width: 220,
-      render: (t: any) => t || <Typography.Text type="secondary">—</Typography.Text>,
+      render: (t: any) => (t ? t : null),
     },
     created_at: {
-      title: LABELS.created_at,
+      title: columnLabels.created_at,
       dataIndex: 'created_at',
       ellipsis: true,
       align: 'center',
       width: 180,
-      render: (t: any) => (t ? new Date(t).toLocaleString() : '—'),
+      render: (t: any) => (t ? new Date(t).toLocaleString() : null),
     },
     actions: {
-      title: LABELS.actions,
+      title: columnLabels.actions,
       key: 'actions',
       align: 'center',
       fixed: 'right' as const,
       width: 200,
+      onCell: () => ({ className: 'roles-actions-cell' }),
+      onHeaderCell: () => ({ className: 'roles-actions-cell' }),
       render: (_: any, r: Role) =>
         isXs ? (
           <Dropdown menu={actionMenu(r)} trigger={['click']}>
             <Button size="small" icon={<MoreOutlined />}>
-              更多
+              {t('roles.action.more')}
             </Button>
           </Dropdown>
         ) : (
           <Space size="small" wrap>
             <Button type="link" size="small" onClick={() => openEdit(r)}>
-              修改
+              {t('app.edit')}
             </Button>
             <Button type="link" size="small" onClick={() => perms.openFor({ id: r.id, name: r.name } as any)}>
-              权限
+              {t('roles.action.permissions')}
             </Button>
             <Button type="link" size="small" danger onClick={() => handleDelete(r)} disabled={!!r.is_system}>
-              删除
+              {t('app.delete')}
             </Button>
           </Space>
         ),
@@ -386,8 +412,7 @@ export default function RoleManagementComponent() {
 
   const columns: ColumnsType<Role> = useMemo(
     () => orderedVisibleKeys.map(k => ALL_COLUMNS[k]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [orderedVisibleKeys, statusLoadingId, isXs]
+    [orderedVisibleKeys, statusLoadingId, isXs, columnLabels, t]
   )
 
   // —— 过滤 —— //
@@ -397,7 +422,7 @@ export default function RoleManagementComponent() {
     setFStatus('')
     setVisibleColKeys(DEFAULT_COL_KEYS)
     setColOrder(DEFAULT_COL_KEYS)
-    await load(1, pageSize)
+    await load(1, pageSize, { name: '', code: '', status: '' })
   }
 
   // ====== 右侧面板 & 树控制 ======
@@ -473,18 +498,22 @@ export default function RoleManagementComponent() {
   }
 
   // —— 主体（复用：普通视图 & 全屏视图） —— //
+  const permissionHeading = perms.role?.name
+    ? formatMessage(t('roles.permissions.title'), { name: perms.role.name })
+    : t('roles.permissions.placeholder')
+
   const MainGrid = (
     <div className={`roles-grid ${perms.open ? 'with-sidebar-padding' : ''}`}>
       <Card styles={{ body: { padding: 12 } }} className="table-card shrinkable-table">
         {/* 工具栏 */}
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
-          <div style={{ fontWeight: 600, fontSize: 16 }}>角色管理</div>
+          <div style={{ fontWeight: 600, fontSize: 16 }}>{t('roles.title')}</div>
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Button type="primary" icon={<PlusOutlined />} size="small" onClick={openCreate}>
-              新建角色
+              {t('roles.action.create')}
             </Button>
 
-            <Tooltip title="刷新">
+            <Tooltip title={t('app.refresh')}>
               <Button icon={<ReloadOutlined />} size="small" onClick={() => load(page, pageSize)} />
             </Tooltip>
 
@@ -494,14 +523,14 @@ export default function RoleManagementComponent() {
                 selectable: true,
                 selectedKeys: [tableSize || 'small'],
                 items: [
-                  { key: 'large', label: '宽松' },
-                  { key: 'middle', label: '默认' },
-                  { key: 'small', label: '紧凑' },
+                  { key: 'large', label: t('table.density.loose') },
+                  { key: 'middle', label: t('table.density.default') },
+                  { key: 'small', label: t('table.density.compact') },
                 ],
                 onClick: ({ key }) => setTableSize(key as TableProps<Role>['size']),
               }}
             >
-              <Tooltip title="密度">
+              <Tooltip title={t('table.toolbar.density')}>
                 <Button icon={<ColumnHeightOutlined />} size="small" />
               </Tooltip>
             </Dropdown>
@@ -524,7 +553,7 @@ export default function RoleManagementComponent() {
                       indeterminate={visibleColKeys.length > 0 && visibleColKeys.length < DEFAULT_COL_KEYS.length}
                       onChange={e => setVisibleColKeys(e.target.checked ? DEFAULT_COL_KEYS : [])}
                     >
-                      列展示
+                      {t('table.columns.title')}
                     </Checkbox>
                     <a
                       onClick={() => {
@@ -532,7 +561,7 @@ export default function RoleManagementComponent() {
                         setColOrder(DEFAULT_COL_KEYS)
                       }}
                     >
-                      重置
+                      {t('table.columns.reset')}
                     </a>
                   </div>
                   <Divider style={{ margin: '8px 0' }} />
@@ -550,7 +579,7 @@ export default function RoleManagementComponent() {
                           onDragLeave={() => onDragLeave(k)}
                           onDrop={() => onDrop(k)}
                           aria-grabbed={!isFixed ? undefined : false}
-                          title={isFixed ? '固定末列，不能拖拽' : '拖拽调整顺序'}
+                          title={isFixed ? t('roles.columns.fixed_tip') : t('roles.columns.drag_tip')}
                         >
                           <HolderOutlined className={`col-setting-handle ${isFixed ? 'handle-disabled' : ''}`} />
                           <Checkbox
@@ -561,9 +590,11 @@ export default function RoleManagementComponent() {
                               )
                             }}
                           >
-                            {LABELS[k]}
+                            {columnLabels[k]}
                             {isFixed ? (
-                              <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 12 }}>（固定）</span>
+                              <span style={{ marginLeft: 8, color: '#94a3b8', fontSize: 12 }}>
+                                {t('table.columns.fixed_suffix')}
+                              </span>
                             ) : null}
                           </Checkbox>
                         </div>
@@ -573,13 +604,13 @@ export default function RoleManagementComponent() {
                 </div>
               )}
             >
-              <Tooltip title="列设置">
+              <Tooltip title={t('table.toolbar.column_settings')}>
                 <Button icon={<SettingOutlined />} size="small" />
               </Tooltip>
             </Dropdown>
 
             {/* 局部覆盖全屏切换（通过 Portal 实现，盖住左侧/顶部栏） */}
-            <Tooltip title={localFullscreen ? '退出全屏' : '全屏'}>
+            <Tooltip title={localFullscreen ? t('table.toolbar.exit_fullscreen') : t('table.toolbar.fullscreen')}>
               <Button
                 icon={localFullscreen ? <FullscreenExitOutlined /> : <FullscreenOutlined />}
                 size="small"
@@ -614,7 +645,7 @@ export default function RoleManagementComponent() {
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ color: '#6b7280' }}>共 {total} 条</span>
+          <span style={{ color: '#6b7280' }}>{formatMessage(t('roles.pagination.total'), { count: total })}</span>
           <Pagination
             current={page}
             total={total}
@@ -636,7 +667,7 @@ export default function RoleManagementComponent() {
           />
           {!isXs && (
             <>
-              <span style={{ marginLeft: 8, color: '#6b7280' }}>前往</span>
+              <span style={{ marginLeft: 8, color: '#6b7280' }}>{t('roles.pagination.goto_label')}</span>
               <InputNumber
                 size="middle"
                 min={1}
@@ -646,7 +677,7 @@ export default function RoleManagementComponent() {
                 onPressEnter={handleGoto}
                 style={{ width: 72, textAlign: 'center' }}
               />
-              <span style={{ color: '#6b7280' }}>页</span>
+              <span style={{ color: '#6b7280' }}>{t('roles.pagination.page_suffix')}</span>
             </>
           )}
         </div>
@@ -686,28 +717,27 @@ export default function RoleManagementComponent() {
             }}
           >
             <Space size={8}>
-              <Tooltip title="关闭">
+              <Tooltip title={t('app.close')}>
                 <Button type="text" icon={<CloseOutlined />} onClick={() => perms.setOpen(false)} />
               </Tooltip>
-              <Tooltip title="保存">
+              <Tooltip title={t('app.save')}>
                 <Button
                   type="text"
                   icon={<CheckOutlined />}
                   onClick={async () => {
                     await perms.save()
-                    message.success('权限已保存')
                   }}
                 />
               </Tooltip>
             </Space>
 
-            <div style={{ fontWeight: 600, marginLeft: 8 }}>菜单权限（{perms.role?.name || '未选择'}）</div>
+            <div style={{ fontWeight: 600, marginLeft: 8 }}>{permissionHeading}</div>
           </div>
 
           <div style={{ padding: '10px 12px' }}>
             <Input
               allowClear
-              placeholder="请输入菜单进行搜索"
+              placeholder={t('roles.permissions.search_placeholder')}
               value={searchKw}
               onChange={e => handleSearchMenu(e.target.value.trim())}
               prefix={<SearchOutlined />}
@@ -717,7 +747,7 @@ export default function RoleManagementComponent() {
           <div style={{ padding: '0 12px 4px 12px' }}>
             <Space size={24} wrap>
               <Checkbox checked={allExpanded} onChange={e => setExpandedKeys(e.target.checked ? allKeys : [])}>
-                展开/折叠
+                {t('roles.permissions.expand')}
               </Checkbox>
 
               <Checkbox
@@ -725,11 +755,11 @@ export default function RoleManagementComponent() {
                 indeterminate={!allSelected && !!perms.selected?.length}
                 onChange={e => perms.setSelected(e.target.checked ? toNumberArray(allKeys) : [])}
               >
-                全选/全不选
+                {t('roles.permissions.select_all')}
               </Checkbox>
 
               <Checkbox checked={linkage} onChange={e => setLinkage(e.target.checked)}>
-                父子联动
+                {t('roles.permissions.linkage')}
               </Checkbox>
             </Space>
           </div>
@@ -755,7 +785,7 @@ export default function RoleManagementComponent() {
                 />
               </div>
             ) : (
-              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无菜单数据" />
+              <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('roles.permissions.empty')} />
             )}
           </div>
         </div>
@@ -773,6 +803,9 @@ export default function RoleManagementComponent() {
           align-items: start;
           column-gap: 12px;
           width: 100%;
+        }
+        .roles-actions-cell {
+          background: #fff !important;
         }
         /* 覆盖全屏（通过 Portal 渲染到 body 顶层，盖住左侧/顶部栏） */
         .fs-overlay {
@@ -862,43 +895,43 @@ export default function RoleManagementComponent() {
       <Card styles={{ body: { padding: 16 } }} style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}>
         <Space wrap size={12} style={{ width: '100%' }}>
           <Space>
-            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>角色名称：</span>
+            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('roles.filters.name_label')}</span>
             <Input
               allowClear
-              placeholder="请输入角色名称"
+              placeholder={t('roles.filters.name_placeholder')}
               style={{ width: 220 }}
               value={fName}
               onChange={e => setFName(e.target.value)}
             />
           </Space>
           <Space>
-            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>角色标识：</span>
+            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('roles.filters.code_label')}</span>
             <Input
               allowClear
-              placeholder="请输入角色标识"
+              placeholder={t('roles.filters.code_placeholder')}
               style={{ width: 220 }}
               value={fCode}
               onChange={e => setFCode(e.target.value)}
             />
           </Space>
           <Space>
-            <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>状态：</span>
+            <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>{t('roles.filters.status_label')}</span>
             <Select
-              placeholder="请选择状态"
+              placeholder={t('roles.filters.status_placeholder')}
               style={{ width: 180 }}
               allowClear
               value={fStatus || undefined}
-              options={STATUS_OPTIONS}
+              options={statusOptions}
               onChange={v => setFStatus((v as RoleStatusFilter) || '')}
             />
           </Space>
 
           <Space style={{ marginLeft: 'auto' }}>
             <Button type="primary" icon={<SearchOutlined />} onClick={() => load(1, pageSize)} size="small">
-              搜索
+              {t('app.search')}
             </Button>
             <Button onClick={handleReset} icon={<ReloadOutlined />} size="small">
-              重置
+              {t('app.reset')}
             </Button>
           </Space>
         </Space>

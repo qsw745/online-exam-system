@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import { Form, Input, Modal, Select, TreeSelect } from 'antd'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 const { Option } = Select
 
 // 转 TreeSelect 数据（只取有 id 的）
@@ -22,13 +23,14 @@ export const EditUserModal: React.FC<{
     nickname?: string
     phone?: string
     email?: string
-    gender?: 'male' | 'female'
+    gender?: '男' | '女' | '保密'
     orgId?: number | null
     remark?: string
     description?: string
   }) => Promise<void> | void
 }> = ({ open, user, tree, onCancel, onSubmit }) => {
   const [form] = Form.useForm()
+  const { t } = useLanguage()
 
   // —— 回显映射 —— //
   const mapped = useMemo(() => {
@@ -36,7 +38,14 @@ export const EditUserModal: React.FC<{
     const originalOrgId =
       typeof user.orgId === 'number' ? user.orgId : typeof user.org_id === 'number' ? user.org_id : undefined
     const g = (user.gender || '').toString()
-    const gender = g === 'male' || g === '男' ? '男' : g === 'female' || g === '女' ? '女' : undefined
+    const gender =
+      g === 'male' || g === '男'
+        ? '男'
+        : g === 'female' || g === '女'
+          ? '女'
+          : g === '保密' || g === 'secret' || g === 'unknown'
+            ? '保密'
+            : undefined
     return {
       nickname: user.nickname ?? user.real_name ?? '',
       username: user.username ?? '',
@@ -58,12 +67,17 @@ export const EditUserModal: React.FC<{
       typeof v.orgId === 'number' ? v.orgId : v.orgId == null ? undefined : Number(v.orgId)
     if (typeof nextOrgId === 'undefined') nextOrgId = typeof originalOrgId === 'number' ? originalOrgId : undefined
 
+    const gender =
+      v.gender === '男' || v.gender === '女' || v.gender === '保密'
+        ? (v.gender as '男' | '女' | '保密')
+        : undefined
+
     const payload: any = {
       username: String(v.username || '').trim(),
       nickname: (v.nickname || '').trim(),
       phone: v.phone?.trim() || undefined,
       email: v.email?.trim() || undefined,
-      gender: v.gender === '女' ? 'female' : v.gender === '男' ? 'male' : undefined,
+      gender,
       remark: v.remark?.trim() || undefined,
       description: v.remark?.trim() || undefined, // 兼容后端字段
     }
@@ -74,7 +88,7 @@ export const EditUserModal: React.FC<{
 
   return (
     <Modal
-      title="修改用户"
+      title={t('users.edit.title')}
       open={open}
       maskClosable={false}
       onCancel={() => {
@@ -82,9 +96,10 @@ export const EditUserModal: React.FC<{
         onCancel()
       }}
       onOk={handleOk}
-      okText="确定"
+      okText={t('app.confirm')}
       width={720}
-      destroyOnClose
+      // ⛳️ antd 新 API：用 destroyOnHidden 替代 destroyOnClose
+      destroyOnHidden
       afterOpenChange={opened => {
         if (opened && mapped) form.setFieldsValue(mapped)
         if (!opened) form.resetFields()
@@ -101,35 +116,38 @@ export const EditUserModal: React.FC<{
           }}
         >
           <Form.Item
-            label="用户昵称"
+            label={t('users.form.nickname')}
             name="nickname"
-            rules={[{ required: true, message: '请输入用户昵称' }, { max: 50 }]}
+            rules={[{ required: true, message: t('users.form.nickname_required') }, { max: 50 }]}
           >
-            <Input placeholder="请输入" />
+            <Input placeholder={t('users.form.nickname_placeholder')} />
           </Form.Item>
 
-      
-
-          <Form.Item label="手机号" name="phone" rules={[{ max: 32 }]}>
-            <Input placeholder="请输入" />
+          <Form.Item label={t('users.form.phone')} name="phone" rules={[{ max: 32 }]}>
+            <Input placeholder={t('users.form.phone_placeholder')} />
           </Form.Item>
 
-          <Form.Item label="邮箱" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128 }]}>
-            <Input placeholder="请输入" />
+          <Form.Item
+            label={t('users.form.email')}
+            name="email"
+            rules={[{ type: 'email', message: t('users.form.email_invalid') }, { max: 128 }]}
+          >
+            <Input placeholder={t('users.form.email_placeholder')} />
           </Form.Item>
 
-          <Form.Item label="用户性别" name="gender">
-            <Select placeholder="请选择">
-              <Option value="男">男</Option>
-              <Option value="女">女</Option>
+          <Form.Item label={t('users.form.gender')} name="gender">
+            <Select placeholder={t('users.form.gender_placeholder')}>
+              <Option value="男">{t('users.gender.male')}</Option>
+              <Option value="女">{t('users.gender.female')}</Option>
+              <Option value="保密">{t('users.gender.secret')}</Option>
             </Select>
           </Form.Item>
 
-          <Form.Item label="归属部门" name="orgId">
+          <Form.Item label={t('users.form.org')} name="orgId">
             <TreeSelect
               allowClear
               treeData={toTreeOptions(tree)}
-              placeholder="请选择归属部门"
+              placeholder={t('users.form.org_placeholder')}
               treeDefaultExpandAll={false}
               showSearch
               dropdownStyle={{ maxHeight: 360, overflow: 'auto' }}
@@ -138,12 +156,12 @@ export const EditUserModal: React.FC<{
 
           {/* 备注独占两列 */}
           <Form.Item
-            label="备注"
+            label={t('users.form.remark')}
             name="remark"
             style={{ gridColumn: '1 / span 2' }}
-            rules={[{ max: 500, message: '最多 500 字' }]}
+            rules={[{ max: 500, message: t('users.form.remark_max') }]}
           >
-            <Input.TextArea rows={4} placeholder="可填写备注信息" />
+            <Input.TextArea rows={4} placeholder={t('users.form.remark_optional')} />
           </Form.Item>
 
           {/* 隐藏：原 orgId，用于保留逻辑 */}

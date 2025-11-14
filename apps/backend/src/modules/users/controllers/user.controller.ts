@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+
 declare const process: any
 
 import type { Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import { UserService } from '../services/user.service.js'
 import { log } from '@/infrastructure/logging/logger'
+import type { UserRole } from '../domain/user.model.js'
 
 type Res = Response & {
   ok<T = any>(data?: T, message?: string, extra?: any): Res
@@ -20,6 +22,27 @@ type Res = Response & {
 
 const svc = new UserService()
 
+// 将各种“真值”字符串解析为 boolean
+function parseBool(v: unknown): boolean {
+  if (typeof v === 'boolean') return v
+  if (v === null || typeof v === 'undefined') return false
+  const s = String(v).trim().toLowerCase()
+  return s === '1' || s === 'true' || s === 'yes' || s === 'y' || s === 'on'
+}
+
+function parseStatus(raw: unknown): 'active' | 'disabled' {
+  if (raw === null || typeof raw === 'undefined') return 'active'
+  if (typeof raw === 'boolean') return raw ? 'active' : 'disabled'
+  if (typeof raw === 'number') return raw === 0 ? 'disabled' : 'active'
+  if (typeof raw === 'string') {
+    const s = raw.trim().toLowerCase()
+    if (!s) return 'active'
+    if (['disabled', 'inactive', 'disable', 'off', 'false', 'no', 'n', '0'].includes(s)) return 'disabled'
+    if (['active', 'enabled', 'enable', 'on', 'true', 'yes', 'y', '1'].includes(s)) return 'active'
+  }
+  return parseBool(raw) ? 'active' : 'disabled'
+}
+
 export class UserController {
   static async create(req: AuthRequest, res: Res) {
     try {
@@ -31,6 +54,18 @@ export class UserController {
       let gender = (body.gender ?? null) as '男' | '女' | '保密' | null
       if (!['男', '女', '保密'].includes(String(gender || ''))) gender = '保密'
 
+      const statusRaw =
+        body.status ??
+        body.enabled ??
+        body.is_enabled ??
+        body.isEnabled ??
+        body.is_active ??
+        body.isActive ??
+        body.active ??
+        body.disabled ??
+        body.is_disabled
+      const status = parseStatus(statusRaw)
+
       const payload = {
         username: (body.username && String(body.username).trim()) || undefined,
         nickname: String(body.nickname || '').trim() || null,
@@ -38,7 +73,7 @@ export class UserController {
         phone: String(body.phone || '').trim() || null,
         gender,
         remark: String(body.remark || '').trim() || null,
-        status: body.status === 'disabled' ? ('disabled' as const) : ('active' as const),
+        status,
         role: body.role === 'admin' || body.role === 'teacher' || body.role === 'student' ? body.role : 'student',
         password,
         org_id: (body.org_id ?? body.orgId) as number | undefined,
@@ -71,7 +106,6 @@ export class UserController {
       const { current, next } = (req.body || {}) as { current?: string; next?: string }
       if (!current || !next) return res.badRequest('缺少必填字段')
       if (String(next).length < 8) return res.badRequest('新密码至少 8 位')
-
       const ok = await svc.changePassword(req.user.id, current, next, req)
       if (!ok) return res.badRequest('当前密码不正确')
       return res.ok(null, '密码修改成功')
@@ -135,23 +169,69 @@ export class UserController {
     }
   }
 
+  static async uploadUserAvatar(req: AuthRequest, res: Res) {
+    try {
+      const id = Number(req.params.id)
+      if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
+      const file = (req as any).file
+      if (!file) return res.badRequest('没有提供头像文件')
+      const baseUrl = process?.env?.PUBLIC_URL || process?.env?.API_URL || 'http://localhost:3000'
+      const avatarUrl = `${baseUrl}/uploads/avatars/${file.filename}`
+      const updated = await svc.adminUploadAvatar(id, avatarUrl, { id: req.user?.id, email: req.user?.email }, req)
+      return res.ok(updated, '头像上传成功')
+    } catch (e) {
+      log.error('管理员上传用户头像错误:', e)
+      return res.internal('上传用户头像失败')
+    }
+  }
+
   static async list(req: AuthRequest, res: Res) {
     try {
       const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
       const limit = Math.max(1, parseInt(String(req.query.limit ?? '10')) || 10)
-      const role = (req.query.role as any) || undefined
-      const search = (req.query.search as string) || undefined
+      const pick = (v: any) => {
+        if (Array.isArray(v)) v = v[0]
+        if (typeof v !== 'string') return undefined
+        const s = v.trim()
+        return s ? s : undefined
+      }
+
+      const roleRaw = pick(req.query.role)
+      const role = roleRaw && ['admin', 'teacher', 'student'].includes(roleRaw) ? (roleRaw as UserRole) : undefined
+      const search = pick(req.query.search)
+
+      const email = pick(req.query.email)
+      const nickname = pick(req.query.nickname)
+      const phone = pick(req.query.phone)
+      const statusRaw = pick(req.query.status)
+      const status = statusRaw === 'active' || statusRaw === 'disabled' ? statusRaw : undefined
+
+      // 兼容 orgId / org_id 两种命名
       const orgIdRaw = (req.query.orgId as any) ?? (req.query.org_id as any)
-      const includeChildren = req.query.include_children === '1' || req.query.include_children === 'true'
+      // 兼容 include_children（下划线）与 includeChildren（驼峰）/ includeSub（别名）
+      const includeChildrenRaw =
+        (req.query.include_children as any) ?? (req.query.includeChildren as any) ?? (req.query.includeSub as any)
+      const includeChildren = parseBool(includeChildrenRaw)
 
       if (orgIdRaw !== undefined && orgIdRaw !== null && String(orgIdRaw) !== '') {
         const orgId = Number(orgIdRaw)
         if (!Number.isFinite(orgId)) return res.badRequest('无效的组织ID')
-        const r = await svc.listByOrg({ orgId, page, limit, role, search, includeChildren })
+        const r = await svc.listByOrg({
+          orgId,
+          page,
+          limit,
+          role,
+          search,
+          includeChildren,
+          email,
+          nickname,
+          phone,
+          status,
+        })
         return res.ok({ users: r.items, total: r.total, page, limit })
       }
 
-      const r = await svc.list({ page, limit, role, search })
+      const r = await svc.list({ page, limit, role, search, email, nickname, phone, status })
       return res.ok({ ...r, page, limit })
     } catch (e) {
       log.error('获取用户列表错误:', e)
@@ -163,7 +243,6 @@ export class UserController {
     try {
       const id = Number(req.params.id)
       if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
-
       let gender = req.body?.gender as '男' | '女' | '保密' | undefined
       if (gender && !['男', '女', '保密'].includes(gender)) gender = undefined
 
@@ -185,9 +264,11 @@ export class UserController {
         req
       )
 
+      // 若传了 orgId/org_id，顺带更新主组织
       const hasOrgField =
         Object.prototype.hasOwnProperty.call(req.body || {}, 'orgId') ||
         Object.prototype.hasOwnProperty.call(req.body || {}, 'org_id')
+
       if (hasOrgField) {
         const raw = (req.body?.orgId ?? req.body?.org_id) as any
         const nextOrgId = raw === null || raw === '' || typeof raw === 'undefined' ? null : Number(raw)
@@ -241,6 +322,7 @@ export class UserController {
         newPassword: raw,
         forceLogout,
       })
+
       const data = raw ? undefined : { password }
       return res.ok(data, raw ? '已设置为自定义密码' : '密码已重置为系统默认密码')
     } catch (e: any) {
@@ -257,6 +339,7 @@ export class UserController {
       if (!Number.isFinite(id)) return res.badRequest('无效的用户ID')
       const u = await svc.getById(id)
       if (!u) return res.notFound('用户不存在')
+
       await svc.deleteUser(id, u.role as any, { id: req.user?.id, email: req.user?.email }, req)
       return res.ok(null, '用户删除成功')
     } catch (e) {
@@ -289,7 +372,7 @@ export class UserController {
     }
   }
 
-  // —— 批量删除 —— //
+  // —— 批量删除 ——
   static async batchDelete(req: AuthRequest, res: Res) {
     try {
       const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((n: any) => Number(n)).filter(Number.isFinite) : []

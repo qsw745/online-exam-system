@@ -127,7 +127,7 @@ export class RoleRepository {
   // ===== 角色 ⇄ 用户（补上 add/remove，修正你 Controller 的 2339 报错）=====
   static async addUsersToRole(roleId: number, userIds: number[]): Promise<number> {
     if (!userIds.length) return 0
-    const sql = `INSERT IGNORE INTO user_roles (user_id, role_id, assigned_at)
+    const sql = `INSERT IGNORE INTO user_roles (user_id, role_id, created_at)
                  VALUES ${userIds.map(() => '(?, ?, NOW())').join(', ')}`
     const params = userIds.flatMap(uid => [uid, roleId])
     const [ret] = await pool.execute<ResultSetHeader>(sql, params)
@@ -136,6 +136,27 @@ export class RoleRepository {
 
   static async removeUserFromRole(roleId: number, userId: number): Promise<void> {
     await pool.execute(`DELETE FROM user_roles WHERE role_id = ? AND user_id = ?`, [roleId, userId])
+  }
+
+  static async replaceUserRoles(userId: number, roleIds: number[]): Promise<void> {
+    const conn = await pool.getConnection()
+    try {
+      await conn.beginTransaction()
+      await conn.execute(`DELETE FROM user_roles WHERE user_id = ?`, [userId])
+      if (roleIds.length) {
+        await conn.execute(
+          `INSERT INTO user_roles (user_id, role_id, created_at)
+           VALUES ${roleIds.map(() => '(?, ?, NOW())').join(', ')}`,
+          roleIds.flatMap(rid => [userId, rid])
+        )
+      }
+      await conn.commit()
+    } catch (e) {
+      await conn.rollback()
+      throw e
+    } finally {
+      conn.release()
+    }
   }
 
   // ===== 角色 ⇄ 机构（可选多对多）=====

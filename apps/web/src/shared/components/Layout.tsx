@@ -4,7 +4,7 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { TabsProvider } from '@/shared/contexts/TabsContext'
 import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
-import { Layout as AntLayout } from 'antd'
+import { Layout as AntLayout, theme } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Header from './Header'
@@ -19,6 +19,7 @@ const Layout: React.FC = () => {
   const { user, loading } = useAuth()
   const location = useLocation()
   const { mode, showTabs } = useLayout()
+  const { token } = theme.useToken()
 
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
@@ -58,10 +59,9 @@ const Layout: React.FC = () => {
       <AntLayout
         style={{
           minHeight: '100vh',
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
+          background: token.colorBgLayout,
+          color: token.colorText,
           paddingTop: headTotal,
-          // ❌ 以前：marginLeft: '240px'
-          // ✅ 现在：吃变量（top 模式=0；side/mix=64/240）
           marginLeft: 'var(--sider-width, 0px)',
           transition: 'margin-left .2s ease',
         }}

@@ -113,6 +113,11 @@ export const rolesApi = {
   getUserRoles(userId: number) {
     return api.get<ApiResult<Role[]>>(`/roles/users/${userId}/roles`)
   },
+  getRolesForUserAssign(userId: number, orgId?: number) {
+    return api.get<ApiResult<{ roles: Role[]; selected: number[] }>>(`/roles/users/${userId}/roles-form`, {
+      params: orgId ? { orgId } : undefined,
+    })
+  },
   setUserRoles(userId: number, roleIds: number[]) {
     return api.put<ApiResult<void>>(`/roles/users/${userId}/roles`, { roleIds })
   },

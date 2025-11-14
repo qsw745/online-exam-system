@@ -8,6 +8,9 @@ import { useLogin } from '../../auth/hooks/useLogin'
 import { DemoAccountsCard } from '../../auth/components/DemoAccountsCard'
 import { LoginForm } from '../../auth/components/LoginForm'
 import { menuApi } from '@/shared/api/endpoints/menu'
+import { useTheme } from '@/app/providers/AntdThemeProvider'
+import { AuthTopControls } from '../components/AuthTopControls'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Title, Text } = Typography
 
@@ -41,6 +44,8 @@ function pickDefaultHome(tree: any[] | null | undefined): string {
 }
 
 const LoginPage: React.FC = () => {
+  const { mode } = useTheme()
+  const { t } = useLanguage()
   const {
     email,
     setEmail,
@@ -93,6 +98,21 @@ const LoginPage: React.FC = () => {
   if (!authLoading && user) return null
 
   const lockedNow = isLocked && lockRemainingSec > 0 // ✅ 只要还在锁期就显示
+  const isDark = mode === 'dark'
+  const pageBackground = isDark
+    ? 'radial-gradient(circle at 20% -20%, rgba(37,99,235,0.4), transparent 55%), linear-gradient(135deg, #020617 0%, #0b1220 45%, #020617 100%)'
+    : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+  const cardStyle: React.CSSProperties = {
+    width: '100%',
+    maxWidth: 520,
+    boxShadow: isDark ? '0 30px 80px rgba(0,0,0,.55)' : '0 12px 40px rgba(15,23,42,.15)',
+    border: `1px solid ${isDark ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.35)'}`,
+    background: isDark ? 'rgba(15,23,42,0.92)' : '#ffffff',
+    color: isDark ? '#f8fafc' : undefined,
+    backdropFilter: 'blur(6px)',
+  }
+  const accentColor = isDark ? '#60a5fa' : '#1890ff'
+  const secondaryTextColor = isDark ? '#94a3b8' : undefined
 
   return (
     <div
@@ -101,17 +121,26 @@ const LoginPage: React.FC = () => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 24,
-        background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
+        padding: '32px 16px',
+        background: pageBackground,
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <Card style={{ width: '100%', maxWidth: 500, boxShadow: '0 4px 12px rgba(0,0,0,.1)' }}>
+      <AuthTopControls
+        style={{
+          position: 'absolute',
+          top: 24,
+          right: 24,
+        }}
+      />
+      <Card style={cardStyle} bodyStyle={{ padding: 32 }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div
             style={{
               width: 64,
               height: 64,
-              background: 'linear-gradient(135deg, #1890ff, #722ed1)',
+              background: isDark ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : 'linear-gradient(135deg, #1890ff, #722ed1)',
               borderRadius: 12,
               display: 'flex',
               alignItems: 'center',
@@ -121,13 +150,13 @@ const LoginPage: React.FC = () => {
           >
             <BookOpen style={{ width: 32, height: 32, color: 'white' }} />
           </div>
-          <Title level={2} style={{ marginBottom: 8 }}>
-            登录您的账户
+          <Title level={2} style={{ marginBottom: 8, color: isDark ? '#f1f5f9' : undefined }}>
+            {t('auth.login_title')}
           </Title>
-          <Text type="secondary">
-            还没有账户？
-            <Link to="/register" style={{ marginLeft: 4 }}>
-              立即注册
+          <Text type="secondary" style={{ color: secondaryTextColor }}>
+            {t('auth.no_account')}
+            <Link to="/register" style={{ marginLeft: 4, color: accentColor }}>
+              {t('auth.register_now')}
             </Link>
           </Text>
         </div>

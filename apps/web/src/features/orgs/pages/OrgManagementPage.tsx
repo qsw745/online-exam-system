@@ -37,15 +37,25 @@ import {
 } from '@ant-design/icons'
 import { createPortal } from 'react-dom'
 import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Text } = Typography
 
 type StatusFilter = '' | 'enabled' | 'disabled'
 type ColKey = 'name' | 'sort_order' | 'is_enabled' | 'created_at' | 'description' | 'actions'
+const COLUMN_LABEL_KEYS: Record<ColKey, string> = {
+  name: 'orgs.columns.name',
+  sort_order: 'orgs.columns.sort_order',
+  is_enabled: 'orgs.columns.status',
+  created_at: 'orgs.columns.created_at',
+  description: 'orgs.columns.description',
+  actions: 'orgs.columns.actions',
+}
 
 /* ====================== 页面：组织管理（树形表格） ====================== */
 export default function OrgManagementPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
 
   // ------------ 数据 ------------
   const [loading, setLoading] = useState(false)
@@ -62,7 +72,7 @@ export default function OrgManagementPage() {
       const t = await orgsApi.tree()
       setTree(Array.isArray(t) ? t : [])
     } catch (e: any) {
-      message.error(e?.message || '加载组织失败')
+      message.error(e?.message || t('orgs.message.load_failed'))
     } finally {
       setLoading(false)
     }
@@ -148,22 +158,21 @@ export default function OrgManagementPage() {
   const handleDelete = async (row: OrgNode) => {
     try {
       await orgsApi.remove(row.id)
-      message.success('删除成功')
+      message.success(t('orgs.message.delete_success'))
       await loadTree()
     } catch (e: any) {
-      message.error(e?.message || '删除失败')
+      message.error(e?.message || t('orgs.message.delete_failed'))
     }
   }
 
   // ------------ 列显示 / 顺序 / 密度 / 全屏 ------------
-  const LABELS: Record<ColKey, string> = {
-    name: '部门名称',
-    sort_order: '排序',
-    is_enabled: '状态',
-    created_at: '创建时间',
-    description: '备注',
-    actions: '操作',
-  }
+  const labels = useMemo<Record<ColKey, string>>(() => {
+    const resolved = {} as Record<ColKey, string>
+    ;(Object.keys(COLUMN_LABEL_KEYS) as ColKey[]).forEach(key => {
+      resolved[key] = t(COLUMN_LABEL_KEYS[key])
+    })
+    return resolved
+  }, [t])
   const DEFAULT_COL_KEYS: ColKey[] = ['name', 'sort_order', 'is_enabled', 'created_at', 'description', 'actions']
   const FIXED_KEY: ColKey = 'actions' // 固定在末尾，不可拖拽
 
@@ -194,81 +203,77 @@ export default function OrgManagementPage() {
   }, [order, visibleColKeys])
 
   // ------------ 表格列（按可见列生成） ------------
-  const ALL_COLUMNS: Record<ColKey, any> = {
-    name: { title: LABELS.name, dataIndex: 'name', key: 'name', ellipsis: true },
-    sort_order: {
-      title: LABELS.sort_order,
-      dataIndex: 'sort_order',
-      key: 'sort_order',
-      width: 80,
-      align: 'center',
-      render: (v: any) => (typeof v === 'number' ? v : ''),
-    },
-    is_enabled: {
-      title: LABELS.is_enabled,
-      dataIndex: 'is_enabled',
-      key: 'is_enabled',
-      width: 100,
-      align: 'center',
-      render: (_: any, r: OrgNode) => {
-        const enabled =
-          typeof r.is_enabled !== 'undefined'
-            ? !!r.is_enabled
-            : (r as any).is_active === 1 || (r as any).is_active === true
-        return (
-          <Tag color={enabled ? 'success' : 'error'} style={{ marginInline: 0 }}>
-            {enabled ? '启用' : '停用'}
-          </Tag>
-        )
+  const columnDefs = useMemo<Record<ColKey, any>>(
+    () => ({
+      name: { title: labels.name, dataIndex: 'name', key: 'name', ellipsis: true },
+      sort_order: {
+        title: labels.sort_order,
+        dataIndex: 'sort_order',
+        key: 'sort_order',
+        width: 80,
+        align: 'center',
+        render: (v: any) => (typeof v === 'number' ? v : ''),
       },
-    },
-    created_at: {
-      title: LABELS.created_at,
-      dataIndex: 'created_at',
-      key: 'created_at',
-      width: 180,
-      align: 'center',
-      render: (t: any) => (t ? new Date(t).toLocaleString() : ''),
-    },
-    description: {
-      title: LABELS.description,
-      dataIndex: 'description',
-      key: 'description',
-      ellipsis: true,
-      render: (t: any) => (t ? t : ''),
-    },
-    actions: {
-      title: LABELS.actions,
-      key: 'actions',
-      width: 220,
-      align: 'center',
-      render: (_: any, r: OrgNode) => (
-        <Space size="small" wrap>
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
-            修改
-          </Button>
-          <Button type="link" size="small" onClick={() => openCreate(r)}>
-            新增
-          </Button>
-          <Popconfirm
-            title="确定删除该部门？"
-            okText="删除"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleDelete(r)}
-          >
-            <Button type="link" size="small" danger icon={<DeleteOutlined />}>
-              删除
+      is_enabled: {
+        title: labels.is_enabled,
+        dataIndex: 'is_enabled',
+        key: 'is_enabled',
+        width: 100,
+        align: 'center',
+        render: (_: any, r: OrgNode) => {
+          const enabled =
+            typeof r.is_enabled !== 'undefined'
+              ? !!r.is_enabled
+              : (r as any).is_active === 1 || (r as any).is_active === true
+          const statusText = enabled ? t('orgs.status.enabled') : t('orgs.status.disabled')
+          return <Tag color={enabled ? 'success' : 'error'} style={{ marginInline: 0 }}>{statusText}</Tag>
+        },
+      },
+      created_at: {
+        title: labels.created_at,
+        dataIndex: 'created_at',
+        key: 'created_at',
+        width: 180,
+        align: 'center',
+        render: (t: any) => (t ? new Date(t).toLocaleString() : ''),
+      },
+      description: {
+        title: labels.description,
+        dataIndex: 'description',
+        key: 'description',
+        ellipsis: true,
+        render: (t: any) => (t ? t : ''),
+      },
+      actions: {
+        title: labels.actions,
+        key: 'actions',
+        width: 220,
+        align: 'center',
+        render: (_: any, r: OrgNode) => (
+          <Space size="small" wrap>
+            <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEdit(r)}>
+              {t('app.edit')}
             </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  }
-  const columns = useMemo(
-    () => visibleOrderedKeys.map(k => ALL_COLUMNS[k]),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [visibleOrderedKeys]
+            <Button type="link" size="small" onClick={() => openCreate(r)}>
+              {t('orgs.action.add_child')}
+            </Button>
+            <Popconfirm
+              title={t('orgs.modal.delete_title')}
+              okText={t('app.delete')}
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleDelete(r)}
+            >
+              <Button type="link" size="small" danger icon={<DeleteOutlined />}>
+                {t('app.delete')}
+              </Button>
+            </Popconfirm>
+          </Space>
+        ),
+      },
+    }),
+    [labels, t]
   )
+  const columns = useMemo(() => visibleOrderedKeys.map(k => columnDefs[k]), [visibleOrderedKeys, columnDefs])
 
   // ========== 列设置：拖拽 ==========
   const dragKeyRef = useRef<ColKey | null>(null)
@@ -308,22 +313,22 @@ export default function OrgManagementPage() {
   // =================== 主表格块（可放入全屏 Portal） ===================
   const TableBlock = (
     <Card className="orgs-table-card" styles={{ body: { padding: 12 } }}>
-      {/* 表格工具栏：左“部门管理”，右侧按钮 + 图标 */}
+      {/* 表格工具栏 */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <div style={{ fontWeight: 600, fontSize: 16 }}>部门管理</div>
+        <div style={{ fontWeight: 600, fontSize: 16 }}>{t('orgs.title')}</div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => openCreate()}>
-            新增部门
+            {t('orgs.action.add_department')}
           </Button>
 
           {/* 折叠/展开 */}
-          <Tooltip title={expandedAll ? '折叠全部' : '展开全部'}>
+          <Tooltip title={expandedAll ? t('table.toolbar.collapse_all') : t('table.toolbar.expand_all')}>
             <Button icon={expandedAll ? <MenuFoldOutlined /> : <MenuUnfoldOutlined />} onClick={toggleExpandAll} />
           </Tooltip>
 
           {/* 刷新 */}
-          <Tooltip title="刷新">
+          <Tooltip title={t('app.refresh')}>
             <Button icon={<ReloadOutlined />} onClick={() => loadTree()} />
           </Tooltip>
 
@@ -334,15 +339,25 @@ export default function OrgManagementPage() {
               selectable: true,
               selectedKeys: [tableSize],
               items: [
-                { key: 'large', label: '宽松' },
-                { key: 'middle', label: '默认' },
-                { key: 'small', label: '紧凑' },
+                { key: 'large', label: t('table.density.loose') },
+                { key: 'middle', label: t('table.density.default') },
+                { key: 'small', label: t('table.density.compact') },
               ],
               onClick: ({ key }) => setTableSize(key as any),
             }}
           >
-            <Tooltip title="密度">
-              <Button icon={<ColumnHeightOutlined />} />
+            <Tooltip title={t('table.toolbar.density')}>
+              <Button
+                icon={<ColumnHeightOutlined />}
+                aria-label={t('table.toolbar.density')}
+                title={`${t('table.toolbar.density')}: ${
+                  tableSize === 'large'
+                    ? t('table.density.loose')
+                    : tableSize === 'small'
+                      ? t('table.density.compact')
+                      : t('table.density.default')
+                }`}
+              />
             </Tooltip>
           </Dropdown>
 
@@ -364,7 +379,7 @@ export default function OrgManagementPage() {
                     indeterminate={indeterminate}
                     onChange={e => setVisibleColKeys(e.target.checked ? DEFAULT_COL_KEYS : [])}
                   >
-                    列展示
+                    {t('orgs.columns.panel_title')}
                   </Checkbox>
                   <a
                     onClick={() => {
@@ -372,7 +387,7 @@ export default function OrgManagementPage() {
                       setVisibleColKeys(DEFAULT_COL_KEYS)
                     }}
                   >
-                    重置
+                    {t('orgs.columns.reset')}
                   </a>
                 </div>
 
@@ -394,7 +409,7 @@ export default function OrgManagementPage() {
                           setVisibleColKeys(prev => (e.target.checked ? [...prev, k] : prev.filter(x => x !== k)))
                         }
                       >
-                        {LABELS[k]}
+                        {labels[k]}
                       </Checkbox>
                     </div>
                   ))}
@@ -410,20 +425,20 @@ export default function OrgManagementPage() {
                         )
                       }
                     >
-                      {LABELS[FIXED_KEY]}（固定）
+                      {`${labels[FIXED_KEY]}${t('table.columns.fixed_suffix')}`}
                     </Checkbox>
                   </div>
                 </div>
               </div>
             )}
           >
-            <Tooltip title="列设置">
+            <Tooltip title={t('table.toolbar.column_settings')}>
               <Button icon={<SettingOutlined />} />
             </Tooltip>
           </Dropdown>
 
           {/* 全屏 */}
-          <Tooltip title={fs ? '退出全屏' : '全屏'}>
+          <Tooltip title={fs ? t('table.toolbar.exit_fullscreen') : t('table.toolbar.fullscreen')}>
             <Button icon={fs ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={() => setFs(v => !v)} />
           </Tooltip>
         </div>
@@ -454,7 +469,7 @@ export default function OrgManagementPage() {
               <span
                 className="orgs-expand-trigger"
                 onClick={e => onExpand(record as any, e)}
-                aria-label={expanded ? '收起' : '展开'}
+                aria-label={expanded ? t('table.toolbar.collapse_row') : t('table.toolbar.expand_row')}
               >
                 {expanded ? <DownOutlined /> : <RightOutlined />}
               </span>
@@ -523,25 +538,25 @@ export default function OrgManagementPage() {
       <Card styles={{ body: { padding: 16 } }}>
         <Space wrap size={16} style={{ width: '100%' }}>
           <Space>
-            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>部门名称：</span>
+            <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('orgs.filters.name_label')}</span>
             <Input
               allowClear
-              placeholder="请输入部门名称"
+              placeholder={t('orgs.filters.name_placeholder')}
               style={{ width: 240 }}
               value={kw}
               onChange={e => setKw(e.target.value)}
             />
           </Space>
           <Space>
-            <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>状态：</span>
+            <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>{t('orgs.filters.status_label')}</span>
             <Select
-              placeholder="请选择状态"
+              placeholder={t('orgs.filters.status_placeholder')}
               allowClear
               style={{ width: 180 }}
               value={status || undefined}
               options={[
-                { label: '启用', value: 'enabled' },
-                { label: '停用', value: 'disabled' },
+                { label: t('orgs.status.enabled'), value: 'enabled' },
+                { label: t('orgs.status.disabled'), value: 'disabled' },
               ]}
               onChange={v => setStatus((v as StatusFilter) || '')}
             />
@@ -549,7 +564,7 @@ export default function OrgManagementPage() {
 
           <Space style={{ marginLeft: 'auto' }}>
             <Button type="primary" icon={<SearchOutlined />}>
-              搜索
+              {t('app.search')}
             </Button>
             <Button
               icon={<ReloadOutlined />}
@@ -559,7 +574,7 @@ export default function OrgManagementPage() {
                 void loadTree()
               }}
             >
-              重置
+              {t('app.reset')}
             </Button>
           </Space>
         </Space>
@@ -579,17 +594,17 @@ export default function OrgManagementPage() {
           try {
             if (ctx.type === 'create') {
               await orgsApi.create(payload)
-              message.success('创建成功')
+              message.success(t('orgs.message.create_success'))
             } else {
               await orgsApi.update(ctx.id!, payload)
-              message.success('保存成功')
+              message.success(t('orgs.message.save_success'))
             }
             setFormOpen(false)
             setEditing(null)
             setParentForCreate(null)
             await loadTree()
           } catch (e: any) {
-            message.error(e?.message || '操作失败')
+            message.error(e?.message || t('orgs.message.action_failed'))
           }
         }}
       />
@@ -615,6 +630,7 @@ function DeptFormModal({
   onCancel: () => void
 }) {
   const [form] = Form.useForm<Partial<OrgNode>>()
+  const { t } = useLanguage()
 
   // —— 构建上级部门 TreeSelect 数据 —— //
   type TSData = { title: string; value: number; children?: TSData[]; disabled?: boolean }
@@ -712,18 +728,18 @@ function DeptFormModal({
       open={open}
       onCancel={onCancel}
       onOk={handleOk}
-      title={editing ? '修改部门' : parentForCreate ? '新增子部门' : '新增部门'}
-      okText={editing ? '确定' : '创建'}
+      title={editing ? t('orgs.form.title.edit') : parentForCreate ? t('orgs.form.title.create_child') : t('orgs.form.title.create')}
+      okText={editing ? t('orgs.form.submit.edit') : t('orgs.form.submit.create')}
       destroyOnClose
       maskClosable={false}
       width={660}
     >
       <Form form={form} layout="horizontal" labelCol={{ span: 5 }} wrapperCol={{ span: 18 }}>
-        <Form.Item label="上级部门" name="parent_id">
+        <Form.Item label={t('orgs.form.parent')} name="parent_id">
           <TreeSelect
             allowClear
             treeData={tsData as any}
-            placeholder="请选择上级部门（留空为根部门）"
+            placeholder={t('orgs.form.parent_placeholder')}
             treeDefaultExpandAll
             style={{ width: '100%' }}
             dropdownStyle={{ maxHeight: 360, overflow: 'auto' }}
@@ -731,38 +747,42 @@ function DeptFormModal({
         </Form.Item>
 
         <Form.Item
-          label="部门名称"
+          label={t('orgs.form.name')}
           name="name"
           rules={[
-            { required: true, message: '请输入部门名称' },
-            { max: 64, message: '名称不超过64个字符' },
+            { required: true, message: t('orgs.form.name_required') },
+            { max: 64, message: t('orgs.form.name_max') },
           ]}
         >
-          <Input placeholder="例如：市场部 / 研发部" />
+          <Input placeholder={t('orgs.form.name_placeholder')} />
         </Form.Item>
 
-        <Form.Item label="部门负责人" name="leader" rules={[{ max: 64 }]}>
-          <Input placeholder="可选" />
+        <Form.Item label={t('orgs.form.leader')} name="leader" rules={[{ max: 64 }]}>
+          <Input placeholder={t('orgs.form.optional')} />
         </Form.Item>
 
-        <Form.Item label="手机号" name="phone" rules={[{ max: 32 }]}>
-          <Input placeholder="可选" />
+        <Form.Item label={t('orgs.form.phone')} name="phone" rules={[{ max: 32 }]}>
+          <Input placeholder={t('orgs.form.optional')} />
         </Form.Item>
 
-        <Form.Item label="邮箱" name="email" rules={[{ type: 'email', message: '邮箱格式不正确' }, { max: 128 }]}>
-          <Input placeholder="可选" />
+        <Form.Item
+          label={t('orgs.form.email')}
+          name="email"
+          rules={[{ type: 'email', message: t('orgs.form.email_invalid') }, { max: 128 }]}
+        >
+          <Input placeholder={t('orgs.form.optional')} />
         </Form.Item>
 
-        <Form.Item label="排序" name="sort_order">
+        <Form.Item label={t('orgs.form.sort_order')} name="sort_order">
           <InputNumber min={0} step={1} style={{ width: '100%' }} />
         </Form.Item>
 
-        <Form.Item label="部门状态" name="is_enabled" valuePropName="checked">
-          <Switch checkedChildren="启用" unCheckedChildren="停用" />
+        <Form.Item label={t('orgs.form.status')} name="is_enabled" valuePropName="checked">
+          <Switch checkedChildren={t('orgs.status.enabled')} unCheckedChildren={t('orgs.status.disabled')} />
         </Form.Item>
 
-        <Form.Item label="备注" name="description" rules={[{ max: 500 }]}>
-          <Input.TextArea rows={4} placeholder="可填写备注信息" />
+        <Form.Item label={t('orgs.form.remark')} name="description" rules={[{ max: 500 }]}>
+          <Input.TextArea rows={4} placeholder={t('orgs.form.remark_placeholder')} />
         </Form.Item>
       </Form>
     </Modal>

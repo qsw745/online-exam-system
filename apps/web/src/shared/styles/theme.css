@@ -6,6 +6,9 @@
   --surface-1: #ffffff;
   --surface-2: #f8fafc;         /* 页面底色 */
   --surface-3: #f1f5f9;         /* 分隔/条带 */
+  --body-bg: #f5f7fb;
+  --sider-bg: #ffffff;
+  --sider-border: #e5e7eb;
   --text-1: #111827;            /* 主文字 */
   --text-2: #374151;            /* 次文字 */
   --border-1: #e5e7eb;
@@ -26,6 +29,9 @@
   --surface-1: #0b1220;  /* 卡片底 */
   --surface-2: #0f172a;  /* 页面底色 */
   --surface-3: #111827;  /* 分隔/条带 */
+  --body-bg: #050b16;
+  --sider-bg: #0b1220;
+  --sider-border: #1f2937;
   --text-1: #e5e7eb;
   --text-2: #94a3b8;
   --border-1: #334155;
@@ -41,7 +47,7 @@
 
 /* 通用背景/文字（可选） */
 html, body, #root {
-  background: var(--surface-2);
+  background: var(--body-bg);
   color: var(--text-1);
 }
 
@@ -54,6 +60,24 @@ html, body, #root {
   border-bottom: 1px solid var(--header-border);
   background-color: var(--header-bg);
   backdrop-filter: blur(8px);
+}
+
+.app-sider {
+  background-color: var(--sider-bg);
+  border-right: 1px solid var(--sider-border);
+  color: var(--text-1);
+}
+
+.app-sider .bottom-collapse {
+  border-top: 1px solid var(--sider-border);
+  background: var(--sider-bg);
+}
+
+.app-sider .hover-toggle button {
+  background: var(--surface-1);
+  border: 1px solid var(--sider-border);
+  color: var(--text-1);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.18);
 }
 
 /* 图标按钮的通用样式 */

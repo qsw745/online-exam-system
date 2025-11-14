@@ -89,7 +89,7 @@ function buildItems(menus: MenuItem[], mix: boolean) {
   return { items, id2path, id2title, id2firstLeaf }
 }
 
-export default function TopNav({ style }: { style?: React.CSSProperties }) {
+export default function TopNav({ style, className }: { style?: React.CSSProperties; className?: string }) {
   const navigate = useNavigate()
   const { addOrActivate } = useTabs()
   const { menus } = useMenuPermissions()
@@ -129,10 +129,11 @@ export default function TopNav({ style }: { style?: React.CSSProperties }) {
 
   return (
     <Menu
+      className={className}
       mode="horizontal"
       selectedKeys={selectedKeys}
       items={items}
-      style={{ borderBottom: 'none', height: 47, ...style }}
+      style={{ borderBottom: 'none', height: 47, background: 'transparent', color: 'var(--text-1)', ...style }}
       onClick={({ key }) => {
         const id = String(key)
         const title = id2title.get(id) || ''

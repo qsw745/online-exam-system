@@ -76,6 +76,21 @@ export class MenuController {
     }
   }
 
+  static async getUserDefaultMenuTree(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = Number(req.params.userId)
+      if (!Number.isFinite(userId)) return void res.status(400).json({ success: false, message: '无效的用户ID' })
+      const orgId = pickOrgId(req)
+      const strict = pickStrict(req, true)
+      const nocache = pickNoCache(req)
+      const tree = await MenuService.getUserMenuTree(userId, { orgId, strict, nocache })
+      res.json({ success: true, data: tree })
+    } catch (error) {
+      console.error('[menu] getUserMenuTree error:', error)
+      res.status(500).json({ success: false, message: '获取用户菜单失败' })
+    }
+  }
+
   static async getMenuById(req: Request, res: Response): Promise<void> {
     try {
       const idNum = Number.parseInt(req.params.id, 10)

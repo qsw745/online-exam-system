@@ -5,6 +5,9 @@ import type { Menu } from '../domain/menu.model'
 type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
 const asQ = (x: any): Queryable => x as Queryable
 
+type TablePresence = 'unknown' | 'present' | 'missing'
+let unitMenusTableState: TablePresence = 'unknown'
+
 /** 统一获取连接（类型安全 & 明确报错） */
 async function getConnectionStrict(): Promise<PoolConnection> {
   const fn = (pool as any)?.getConnection
@@ -17,10 +20,61 @@ async function getConnectionStrict(): Promise<PoolConnection> {
   return conn
 }
 
-// 仅返回“这个单位实际维护过”的覆盖…
-async function findOverridesAsMenus(unitId: number): Promise<Menu[]> {
+async function ensureUnitMenusTable(): Promise<boolean> {
+  if (unitMenusTableState === 'present') return true
+  if (unitMenusTableState === 'missing') return false
+  try {
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
+      `SELECT 1 FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'unit_menus' LIMIT 1`
+    )
+    unitMenusTableState = rows.length ? 'present' : 'missing'
+  } catch {
+    unitMenusTableState = 'missing'
+  }
+  return unitMenusTableState === 'present'
+}
+
+function markUnitMenusMissing() {
+  unitMenusTableState = 'missing'
+}
+
+async function selectSystemMenus({ onlyEnabled = false }: { onlyEnabled?: boolean } = {}): Promise<Menu[]> {
+  const where = onlyEnabled ? 'WHERE m.is_disabled = 0' : ''
   const [rows] = await asQ(pool).query<RowDataPacket[]>(
     `
+SELECT
+  m.id,
+  m.name,
+  m.title,
+  m.path,
+  m.component,
+  m.icon,
+  m.sort_order,
+  m.level,
+  m.is_hidden,
+  m.is_disabled,
+  m.is_system,
+  m.menu_type,
+  m.permission_code,
+  m.redirect,
+  m.meta,
+  m.parent_id,
+  m.created_at,
+  m.updated_at
+FROM menus m
+${where}
+ORDER BY m.sort_order, m.id
+    `
+  )
+  return rows as unknown as Menu[]
+}
+
+// 仅返回“这个单位实际维护过”的覆盖…
+async function findOverridesAsMenus(unitId: number): Promise<Menu[]> {
+  if (!(await ensureUnitMenusTable())) return []
+  try {
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
+      `
 SELECT
   m.id,
   COALESCE(um.name, m.name)                           AS name,
@@ -43,16 +97,26 @@ FROM unit_menus um
 JOIN menus m ON m.id = um.sys_menu_id
 WHERE um.unit_id = ?
 ORDER BY COALESCE(um.sort_order, m.sort_order), m.id
-    `,
-    [unitId]
-  )
-  return rows as unknown as Menu[]
+      `,
+      [unitId]
+    )
+    return rows as unknown as Menu[]
+  } catch (err: any) {
+    if (err?.code === 'ER_NO_SUCH_TABLE') {
+      markUnitMenusMissing()
+      return []
+    }
+    throw err
+  }
 }
 
 /** 基于“单位 + 祖先链”的最近覆盖（如果你要做“继承视图”可用它） */
 async function findEffectiveMenusForUnit(unitId: number): Promise<Menu[]> {
-  const [rows] = await asQ(pool).query<RowDataPacket[]>(
-    `
+  const useUnit = await ensureUnitMenusTable()
+  if (!useUnit) return selectSystemMenus({ onlyEnabled: true })
+  try {
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
+      `
 WITH RECURSIVE ancestors AS (
   SELECT id AS anc_id, 0 AS depth
   FROM organizations WHERE id = ?
@@ -91,18 +155,34 @@ LEFT JOIN nearest_override n
   ON n.sys_menu_id = m.id AND n.rn = 1
 WHERE m.is_disabled = 0
 ORDER BY COALESCE(n.sort_order, m.sort_order), m.id
-    `,
-    [unitId]
-  )
-  return rows as unknown as Menu[]
+      `,
+      [unitId]
+    )
+    return rows as unknown as Menu[]
+  } catch (err: any) {
+    if (err?.code === 'ER_NO_SUCH_TABLE') {
+      markUnitMenusMissing()
+      return selectSystemMenus({ onlyEnabled: true })
+    }
+    throw err
+  }
 }
 
 async function findOverridesByUnit(unitId: number) {
-  const [rows] = await asQ(pool).query<RowDataPacket[]>(
-    `SELECT * FROM unit_menus WHERE unit_id=? ORDER BY sort_order ASC, id ASC`,
-    [unitId]
-  )
-  return rows
+  if (!(await ensureUnitMenusTable())) return []
+  try {
+    const [rows] = await asQ(pool).query<RowDataPacket[]>(
+      `SELECT * FROM unit_menus WHERE unit_id=? ORDER BY sort_order ASC, id ASC`,
+      [unitId]
+    )
+    return rows
+  } catch (err: any) {
+    if (err?.code === 'ER_NO_SUCH_TABLE') {
+      markUnitMenusMissing()
+      return []
+    }
+    throw err
+  }
 }
 
 async function upsertUnitOverride(
@@ -124,6 +204,9 @@ async function upsertUnitOverride(
     parent_sys_id?: number | null
   }
 ) {
+  if (!(await ensureUnitMenusTable())) {
+    throw new Error('unit_menus 表不存在，无法写入单位菜单覆盖，请先执行相关数据库迁移。')
+  }
   const ALLOWED = new Set([
     'name',
     'title',
@@ -165,6 +248,9 @@ async function upsertUnitOverride(
 }
 
 async function deleteUnitOverride(unitId: number, sysMenuId: number) {
+  if (!(await ensureUnitMenusTable())) {
+    throw new Error('unit_menus 表不存在，无法删除单位菜单覆盖，请先执行相关数据库迁移。')
+  }
   await asQ(pool).query(`DELETE FROM unit_menus WHERE unit_id=? AND sys_menu_id=?`, [unitId, sysMenuId])
 }
 
@@ -173,6 +259,9 @@ async function batchUpsertSort(
   updates: Array<{ sys_menu_id: number; sort_order?: number; parent_sys_id?: number | null }>
 ) {
   if (!updates?.length) return
+  if (!(await ensureUnitMenusTable())) {
+    throw new Error('unit_menus 表不存在，无法调整单位菜单顺序，请先执行相关数据库迁移。')
+  }
   const conn = await getConnectionStrict()
   try {
     await (conn as any).beginTransaction()

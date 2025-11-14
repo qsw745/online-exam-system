@@ -25,6 +25,10 @@ type ListParams = {
   limit?: number
   search?: string
   role?: string
+  status?: string
+  email?: string
+  nickname?: string
+  phone?: string
   /** ✅ 新：直接传 orgId 给 /users */
   orgId?: number
   include_children?: boolean
@@ -114,6 +118,15 @@ export const usersApi = {
   resetPassword: (id: string | number, password?: string) =>
     api.put<void>(`/users/${id}/reset-password`, password ? { password } : {}),
   batchDelete: (ids: number[]) => api.post<{ deleted: number; skipped: number[] }>('/users/batch-delete', { ids }),
+  async uploadAvatar(id: string | number, file: File): Promise<UserDTO> {
+    const form = new FormData()
+    form.append('avatar', file)
+    return unwrap<UserDTO>(
+      api.post<UserDTO>(`/users/${id}/avatar`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    )
+  },
 }
 
 export const users = usersApi

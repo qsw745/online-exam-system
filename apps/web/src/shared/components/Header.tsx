@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import * as pinyin from 'tiny-pinyin'
 
 import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { api } from '@/shared/api/http'
@@ -28,9 +29,146 @@ import { useTabs } from '@/shared/contexts/TabsContext'
 import './css/header.css'
 
 const HEADER_HEIGHT = 48
+const HAN_REGEX = /[\u4e00-\u9fff]/
+const TOKEN_SPLIT_REGEX = /[\/\s\-\._:]+/
 
-type MenuEntry = { id: number; title: string; path: string }
+type MenuEntry = {
+  id: number
+  title: string
+  path: string
+  keywords: string[]
+}
+
+type MenuHistoryEntry = Pick<MenuEntry, 'id' | 'title' | 'path'>
+
+let cachedPinyinSupport: boolean | null = null
+
 const hasDynamic = (p?: string | null) => !!p && /[:\[\{]/.test(p || '')
+
+const ensurePinyinSupport = () => {
+  if (cachedPinyinSupport != null) return cachedPinyinSupport
+  if (typeof window === 'undefined') return false
+  try {
+    cachedPinyinSupport = typeof Intl !== 'undefined' && pinyin.isSupported()
+  } catch {
+    cachedPinyinSupport = false
+  }
+  return cachedPinyinSupport ?? false
+}
+
+const tokenizePinyin = (value: string): string[] => {
+  if (!HAN_REGEX.test(value) || !ensurePinyinSupport()) return []
+  try {
+    const wordsRaw = pinyin.convertToPinyin(value, ' ', true)
+    if (!wordsRaw) return []
+    const words = wordsRaw.split(/\s+/).filter(Boolean)
+    if (!words.length) return []
+
+    const tokens = new Set<string>()
+    words.forEach(w => tokens.add(w))
+    tokens.add(words.join(''))
+
+    const initials = words.map(w => w[0]).join('')
+    if (initials) tokens.add(initials)
+
+    return Array.from(tokens)
+  } catch {
+    return []
+  }
+}
+
+const expandToken = (input: string): string[] => {
+  const trimmed = (input ?? '').trim()
+  if (!trimmed) return []
+
+  const baseTokens = new Set<string>()
+  baseTokens.add(trimmed)
+
+  const fragments = trimmed.split(TOKEN_SPLIT_REGEX).map(f => f.trim()).filter(Boolean)
+  fragments.forEach(f => baseTokens.add(f))
+
+  const lowered = Array.from(baseTokens).map(token => token.toLowerCase())
+  const finalTokens = new Set<string>(lowered)
+
+  lowered.forEach(token => {
+    tokenizePinyin(token).forEach(py => finalTokens.add(py))
+  })
+
+  return Array.from(finalTokens).filter(Boolean)
+}
+
+const buildMenuKeywords = (menu: MenuItem, path: string): string[] => {
+  const rawTokens = new Set<string>()
+  const push = (val?: string | null) => {
+    if (!val) return
+    rawTokens.add(val)
+  }
+
+  push(menu.title)
+  push(menu.name)
+  push(menu.component as string)
+  push((menu as any).permission_code)
+  push(path)
+
+  if (path) {
+    path
+      .split('/')
+      .filter(Boolean)
+      .forEach(seg => push(seg))
+  }
+
+  const meta = (menu as any).meta
+  if (meta) {
+    const metaKeywords = meta.keywords ?? meta.keyword ?? meta.alias ?? meta.aliases
+    if (typeof metaKeywords === 'string') {
+      metaKeywords
+        .split(/[,，;\s]+/)
+        .map((kw: string) => kw.trim())
+        .filter(Boolean)
+        .forEach(push)
+    } else if (Array.isArray(metaKeywords)) {
+      metaKeywords
+        .map(String)
+        .map(kw => kw.trim())
+        .filter(Boolean)
+        .forEach(push)
+    }
+  }
+
+  const tokens = new Set<string>()
+  rawTokens.forEach(token => {
+    expandToken(token).forEach(t => tokens.add(t))
+  })
+
+  return Array.from(tokens)
+}
+
+const computeMatchScore = (entry: MenuEntry, queryParts: string[]): number | null => {
+  if (!queryParts.length) return null
+  let total = 0
+
+  for (const part of queryParts) {
+    let best: number | null = null
+
+    for (const token of entry.keywords) {
+      const idx = token.indexOf(part)
+      if (idx === -1) continue
+
+      const lengthPenalty = Math.max(0, token.length - part.length)
+      const positionPenalty = idx === 0 ? 0 : idx * 2
+      const candidate = positionPenalty + lengthPenalty
+
+      if (best === null || candidate < best) best = candidate
+      if (best === 0) break
+    }
+
+    if (best === null) return null
+    total += best
+  }
+
+  return total + entry.title.length * 0.001
+}
+
 function flattenMenus(ms: MenuItem[]): MenuEntry[] {
   const out: MenuEntry[] = []
   const seen = new Set<string>()
@@ -43,7 +181,12 @@ function flattenMenus(ms: MenuItem[]): MenuEntry[] {
         const path = clean(rawPath)
         if (!seen.has(path)) {
           seen.add(path)
-          out.push({ id: (m as any).id, title: (m as any).title, path })
+          out.push({
+            id: (m as any).id,
+            title: (m as any).title,
+            path,
+            keywords: buildMenuKeywords(m as any, path),
+          })
         }
       }
       const children = (m as any).children
@@ -67,7 +210,7 @@ function Kbd({ children }: { children: React.ReactNode }) {
         fontSize: 12,
         lineHeight: 1.2,
         textAlign: 'center',
-        background: 'var(--app-colorBgContainer, #fff)',
+        background: 'var(--surface-1, #fff)',
         boxShadow: 'inset 0 -1px 0 rgba(0,0,0,.06)',
       }}
     >
@@ -146,14 +289,14 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
 
   const [q, setQ] = useState('')
   const [active, setActive] = useState(0)
-  const [history, setHistory] = useState<MenuEntry[]>([])
+  const [history, setHistory] = useState<MenuHistoryEntry[]>([])
   const [favs, setFavs] = useState<string[]>([])
 
   const inputRef = useRef<HTMLInputElement>(null)
 
   const loadPersist = useCallback(() => {
     try {
-      const hs = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') as MenuEntry[]
+      const hs = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]') as MenuHistoryEntry[]
       const fs = JSON.parse(localStorage.getItem(FAV_KEY) || '[]') as string[]
       setHistory(Array.isArray(hs) ? hs : [])
       setFavs(Array.isArray(fs) ? fs : [])
@@ -163,10 +306,11 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     }
   }, [])
 
-  const saveHistory = useCallback((list: MenuEntry[]) => {
+  const saveHistory = useCallback((list: MenuHistoryEntry[]) => {
     setHistory(list)
     try {
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, 12)))
+      const persisted = list.slice(0, 12).map(item => ({ id: item.id, title: item.title, path: item.path }))
+      localStorage.setItem(HISTORY_KEY, JSON.stringify(persisted))
     } catch {}
   }, [])
 
@@ -200,15 +344,18 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
   const results = useMemo(() => {
     const kw = q.trim().toLowerCase()
     if (!kw) return [] as MenuEntry[]
+    const parts = kw.split(/\s+/).filter(Boolean)
+    if (!parts.length) return [] as MenuEntry[]
+
     return entries
-      .map(e => ({
-        e,
-        score: e.title.toLowerCase().includes(kw) ? 0 : e.path.toLowerCase().includes(kw) ? 1 : 9,
-      }))
-      .filter(x => x.score < 9)
-      .sort((a, b) => a.score - b.score || a.e.title.localeCompare(b.e.title))
+      .map(entry => {
+        const score = computeMatchScore(entry, parts)
+        return score == null ? null : { entry, score }
+      })
+      .filter((item): item is { entry: MenuEntry; score: number } => !!item)
+      .sort((a, b) => a.score - b.score || a.entry.title.localeCompare(b.entry.title))
       .slice(0, 12)
-      .map(x => x.e)
+      .map(item => item.entry)
   }, [q, entries])
 
   const favEntries = useMemo(
@@ -220,9 +367,15 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     return history.map(h => ok.get(h.path)).filter(Boolean) as MenuEntry[]
   }, [history, entries])
 
+  const toHistoryEntry = (entry: MenuEntry): MenuHistoryEntry => ({
+    id: entry.id,
+    title: entry.title,
+    path: entry.path,
+  })
+
   const go = (entry: MenuEntry) => {
     addOrActivate({ key: entry.path, title: entry.title, closable: entry.path !== '/' })
-    const next = [entry, ...history.filter(h => h.path !== entry.path)]
+    const next = [toHistoryEntry(entry), ...history.filter(h => h.path !== entry.path)]
     saveHistory(next)
     setQ('')
     setActive(0)
@@ -235,8 +388,8 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
     saveFavs(next)
   }
 
-  const removeHistory = (entry: MenuEntry) => {
-    saveHistory(history.filter(h => h.path !== entry.path))
+  const removeHistory = (path: string) => {
+    saveHistory(history.filter(h => h.path !== path))
   }
 
   const visibleList: MenuEntry[] = q.trim() ? results : [...favEntries, ...historyEntries]
@@ -261,7 +414,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
             display: 'flex',
             alignItems: 'center',
             gap: 8,
-            background: 'var(--app-colorBgContainer, #fff)',
+            background: 'var(--surface-1, #fff)',
             border: '1px solid var(--app-colorSplit, rgba(0,0,0,.08))',
             borderRadius: 10,
             padding: '6px 10px',
@@ -429,7 +582,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                           <span
                             onClick={e => {
                               e.stopPropagation()
-                              removeHistory(r)
+                              removeHistory(r.path)
                             }}
                             title="移除"
                             style={{ fontSize: 16, lineHeight: 1, opacity: 0.6 }}
@@ -519,7 +672,7 @@ function UserBadge({
           padding: '0 10px 0 6px',
           borderRadius: 999,
           border: '1px solid var(--app-colorSplit, rgba(0,0,0,.08))',
-          background: 'var(--app-colorBgContainer, #fff)',
+          background: 'var(--surface-1, #fff)',
           color: 'var(--app-colorText, inherit)',
           cursor: 'pointer',
         }}
@@ -928,9 +1081,9 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         width: `calc(100% - ${offsetLeft}px)`,
         zIndex: 1000,
         height: HEADER_HEIGHT,
-        borderBottom: '1px solid var(--app-colorSplit, #e5e7eb)',
-        backgroundColor: 'var(--app-colorBgElevated, rgba(255,255,255,.95))',
-        color: 'var(--app-colorText, #111827)',
+        borderBottom: '1px solid var(--header-border)',
+        backgroundColor: 'var(--header-bg)',
+        color: 'var(--text-1)',
         backdropFilter: 'blur(8px)',
       }}
     >
@@ -978,7 +1131,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
           {mode !== 'side' && (
             <div style={{ minWidth: 0, flex: 1 }}>
-              <TopNav />
+              <TopNav className="app-topnav" />
             </div>
           )}
         </div>

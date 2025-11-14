@@ -48,6 +48,7 @@
   border-bottom: none;
   padding: 0;
   background: transparent;
+  color: var(--text-1);
 }
 
 /* antd 横向菜单的 overflow 容器也要等高 */
@@ -78,4 +79,15 @@
   bottom: 0; /* 留在内部 47px 容器的底部 */
 }
 
+.app-header .app-topnav .ant-menu,
+.app-header .app-topnav .ant-menu-submenu,
+.app-header .app-topnav .ant-menu-item {
+  background: transparent !important;
+  color: var(--text-1) !important;
+}
+
+.app-header .app-topnav .ant-menu-item-selected {
+  background: rgba(59, 130, 246, 0.14) !important;
+  color: var(--text-1) !important;
+}
 

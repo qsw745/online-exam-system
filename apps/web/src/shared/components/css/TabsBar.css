@@ -4,7 +4,7 @@
   --tab-px: 12px;
   --tab-gap: 0px;
   --tab-minw: 96px;
-  --split: #e5e7eb;
+  --split: var(--sider-border, #e5e7eb);
   --hover-bar-h: 2px;
   --hover-bar-pad: 0px;
   --close-size: 16px;
@@ -12,8 +12,8 @@
   --more-w: 36px;
   --right-safe: var(--more-w);
   --left-safe: 0;
-  border-bottom: 1px solid #f0f0f0;
-  background: #fff;
+  border-bottom: 1px solid var(--sider-border, #f0f0f0);
+  background: var(--surface-1, #fff);
   position: relative;
 }
 
@@ -32,7 +32,7 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  background: #fff;
+  background: var(--surface-1, #fff);
   z-index: 8;
   pointer-events: none;
   display: block;
@@ -59,8 +59,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
-  color: rgba(0, 0, 0, 0.75);
+  background: var(--surface-1, #fff);
+  color: var(--text-1, rgba(255, 255, 255, 0.9));
   z-index: 10;
  
   cursor: e-resize;
@@ -104,7 +104,7 @@
   min-width: var(--tab-minw);
   height: var(--tab-h);
   padding: 0 var(--tab-px);
-  background: #fff;
+  background: var(--surface-1, #fff);
   cursor: pointer;
 }
 .scroll-item.is-active {
@@ -121,7 +121,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #303133;
+  color: var(--text-1, #303133);
 }
 .tag-close {
   margin-left: 6px;
@@ -131,7 +131,7 @@
   align-items: center;
   justify-content: center;
   border-radius: 4px;
-  color: #9aa0a6;
+  color: var(--text-2, #9aa0a6);
   opacity: 0.9;
   transition: background 0.12s ease, color 0.12s ease;
 }
@@ -139,8 +139,8 @@
   opacity: 1;
 }
 .tag-close:hover {
-  background: rgba(0, 0, 0, 0.06);
-  color: #555;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-1, #fff);
 }
 
 /* 下划线：active 与 hover */
@@ -174,7 +174,7 @@
   display: grid;
   place-items: center;
   z-index: 11;
-  background: #fff;
+  background: var(--surface-1, #fff);
 }
 .arrow-down {
   height: 26px;
@@ -193,10 +193,10 @@
   padding: 6px 0;
   margin: 0;
   list-style: none;
-  background: #fff;
-  border: 1px solid #eee;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--sider-border, #eee);
   border-radius: 8px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(5, 5, 5, 0.35);
 }
 .contextmenu li {
   padding: 8px 12px;
