@@ -4,6 +4,7 @@ import { App, Pagination, Table } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { logsApi, type LogEntry } from '@/shared/api/endpoints/logs'
+import './security-tab.css'
 
 type Row = LogEntry & {
   // 兼容后端可能在 details 里放地理和客户端信息
@@ -59,32 +60,38 @@ export default function SecurityTab() {
       {
         title: '详情',
         dataIndex: 'message',
+        ellipsis: true,
         render: (_: any, r: Row) => brief(r),
       },
       {
         title: 'IP 地址',
         dataIndex: 'ip_address',
-        width: 180,
+        width: 160,
+        ellipsis: true,
       },
       {
         title: '地点',
-        width: 220,
+        width: 200,
+        ellipsis: true,
         render: (_: any, r: Row) => pickLocation(r),
       },
       {
         title: '操作系统',
         width: 140,
+        ellipsis: true,
         render: (_: any, r: Row) => r.client?.os || parseOS(r.user_agent) || '-',
       },
       {
         title: '浏览器类型',
         width: 160,
+        ellipsis: true,
         render: (_: any, r: Row) => r.client?.browser || parseBrowser(r.user_agent) || '-',
       },
       {
         title: '时间',
         dataIndex: 'created_at',
         width: 200,
+        ellipsis: true,
         align: 'right' as const,
         render: (t: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
       },
@@ -123,6 +130,7 @@ export default function SecurityTab() {
       <h2 style={{ marginBottom: 16 }}>安全日志</h2>
 
       <Table<Row>
+        className="security-log-table"
         columns={columns as any}
         dataSource={rows}
         rowKey={r => String(r.id)}
@@ -130,6 +138,7 @@ export default function SecurityTab() {
         pagination={false}
         size="middle"
         tableLayout="fixed"
+        scroll={{ x: 900 }}
         rowClassName={(_, idx) => (idx % 2 ? 'ant-table-row-striped' : '')}
       />
 

@@ -1,6 +1,7 @@
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import { useAuth } from './AuthContext'
+import { useLanguage } from './LanguageContext'
 
 export interface MenuItem {
   id: number
@@ -47,7 +48,8 @@ function getCurrentOrgId(): number | undefined {
 
 export function MenuPermissionProvider({ children }: MenuPermissionProviderProps) {
   const { user } = useAuth()
-  const [menus, setMenus] = useState<MenuItem[]>([])
+  const { t } = useLanguage()
+  const [rawMenus, setRawMenus] = useState<MenuItem[]>([])
   const [permissions, setPermissions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -63,9 +65,39 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     walk(menuTree)
     return list
   }
+  const inferMenuKey = (item: MenuItem): string | null => {
+    const metaKey = item?.meta?.i18nKey
+    if (typeof metaKey === 'string' && metaKey.trim()) return metaKey.trim()
+    if (item?.name) return `menus.${item.name}`
+    return null
+  }
+
+  const translateMenuTitle = useCallback(
+    (item: MenuItem): string => {
+      const key = inferMenuKey(item)
+      if (key) return t(key, item.title)
+      return item.title
+    },
+    [t]
+  )
+
+  const translateMenuTree = useCallback(
+    (nodes: MenuItem[] = []): MenuItem[] =>
+      nodes.map(node => {
+        const translatedChildren = node.children?.length ? translateMenuTree(node.children) : undefined
+        return {
+          ...node,
+          title: translateMenuTitle(node),
+          children: translatedChildren,
+        }
+      }),
+    [translateMenuTitle]
+  )
+
+  const menus = useMemo(() => translateMenuTree(rawMenus), [rawMenus, translateMenuTree])
 const fetchUserMenus = async () => {
   if (!user?.id) {
-    setMenus([])
+    setRawMenus([])
     setPermissions([])
     setError(null)
     return
@@ -94,11 +126,11 @@ const fetchUserMenus = async () => {
       menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
     }
 
-    setMenus(menuTree)
+    setRawMenus(menuTree)
     setPermissions(extractPermissions(menuTree))
   } catch (err: any) {
     console.error('获取用户菜单失败:', err)
-    setMenus([])
+    setRawMenus([])
     setPermissions([])
     setError(err?.message || '获取菜单权限失败')
   } finally {

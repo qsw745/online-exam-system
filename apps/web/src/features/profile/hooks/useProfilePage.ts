@@ -13,7 +13,10 @@ export function useProfilePage() {
 
   // 表单
   const [form, setForm] = useState<ProfileForm>({
-    nickname: user?.nickname,
+    nickname: user?.nickname ?? '',
+    email: user?.email ?? '',
+    phone: (user as any)?.phone ?? '',
+    bio: (user as any)?.bio ?? '',
     school: user?.school || '',
     class_name: user?.class_name || '',
   })
@@ -28,12 +31,44 @@ export function useProfilePage() {
   // 同步用户更新
   useEffect(() => {
     if (!user) return
-    setForm({
-      nickname: user.nickname,
-      school: user.school || '',
-      class_name: user.class_name || '',
-    })
+    setForm(prev => ({
+      ...prev,
+      nickname: user.nickname ?? prev.nickname ?? '',
+      email: user.email ?? prev.email ?? '',
+      phone: (user as any)?.phone ?? prev.phone ?? '',
+      bio: (user as any)?.bio ?? prev.bio ?? '',
+      school: user.school || prev.school || '',
+      class_name: user.class_name || prev.class_name || '',
+    }))
   }, [user])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const ret = await profileApi.get()
+        if ((ret as any)?.success !== true) throw new Error((ret as any)?.error || 'load profile failed')
+        const data: ProfileForm | undefined = (ret as any)?.data
+        if (!data || cancelled) return
+        setForm(prev => ({
+          ...prev,
+          nickname: data.nickname ?? prev.nickname ?? '',
+          email: data.email ?? prev.email ?? '',
+          phone: data.phone ?? prev.phone ?? '',
+          bio: data.bio ?? prev.bio ?? '',
+          school: data.school ?? prev.school ?? '',
+          class_name: data.class_name ?? prev.class_name ?? '',
+        }))
+      } catch (e) {
+        console.error('load profile error', e)
+        message.error(t('profile.load_error') || '加载个人资料失败')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   // 预览 URL 释放
   const lastUrl = useRef<string>('')
@@ -69,6 +104,9 @@ export function useProfilePage() {
       // 1) 更新资料
       await profileApi.update({
         nickname: form.nickname?.trim(),
+        email: form.email?.trim(),
+        phone: form.phone?.trim(),
+        bio: form.bio?.trim(),
         school: form.school?.trim(),
         class_name: form.class_name?.trim(),
       })

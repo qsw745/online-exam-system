@@ -216,7 +216,16 @@ export class UserService {
     return me
   }
 
-  async list(params: { page: number; limit: number; role?: UserRole; search?: string }) {
+  async list(params: {
+    page: number
+    limit: number
+    role?: UserRole
+    search?: string
+    email?: string
+    nickname?: string
+    phone?: string
+    status?: UserStatus
+  }) {
     const ck = kUserList(params)
     const hit = await cget(ck)
     if (hit) return hit
@@ -232,6 +241,10 @@ export class UserService {
     role?: string
     search?: string
     includeChildren?: boolean
+    email?: string
+    nickname?: string
+    phone?: string
+    status?: UserStatus
   }): Promise<{ items: UserDTO[]; total: number }> {
     // 纯委托到仓储
     return this.repo.listByOrg(params)
@@ -259,9 +272,17 @@ export class UserService {
     return updated
   }
 
-  async uploadAvatar(userId: number, avatarUrl: string, req?: any) {
+  private async applyAvatar(userId: number, avatarUrl: string) {
     const updated = await this.repo.updateUser(userId, { avatar_url: avatarUrl })
     if (!updated) throw new Error('更新头像失败')
+    await cdel(kUserFull(userId), kUserMe(userId), kUserSettings(userId))
+    await cdelByPattern('user:list:*')
+    await publishToUser(userId, { type: 'user_updated' })
+    return updated
+  }
+
+  async uploadAvatar(userId: number, avatarUrl: string, req?: any) {
+    const updated = await this.applyAvatar(userId, avatarUrl)
 
     await LogService.log(
       {
@@ -275,9 +296,29 @@ export class UserService {
       req
     )
 
-    await cdel(kUserFull(userId), kUserMe(userId), kUserSettings(userId))
-    await cdelByPattern('user:list:*')
-    await publishToUser(userId, { type: 'user_updated' })
+    return updated
+  }
+
+  async adminUploadAvatar(
+    targetUserId: number,
+    avatarUrl: string,
+    actor?: { id?: number; email?: string },
+    req?: any
+  ) {
+    const updated = await this.applyAvatar(targetUserId, avatarUrl)
+
+    await LogService.log(
+      {
+        type: 'user',
+        userId: actor?.id || 0,
+        action: '管理员上传用户头像',
+        resourceType: 'user',
+        resourceId: Number(targetUserId),
+        details: { 头像地址: avatarUrl, 操作者: actor },
+      },
+      req
+    )
+
     return updated
   }
 

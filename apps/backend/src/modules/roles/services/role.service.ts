@@ -1,5 +1,6 @@
 import type { CreateRoleRequest, Role, UpdateRoleRequest } from '../domain/role.model.js'
 import { RoleRepository } from '../repositories/role.repository.js'
+import { MenuService } from '@/modules/menus/services/menus.service.js'
 import { pool } from '@/config/database.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
@@ -174,6 +175,7 @@ export class RoleService {
   static async setRoleMenus(roleId: number, menuIds: number[]) {
     const codes = await RoleRepository.permissionCodesFromMenuIds(menuIds)
     await RoleRepository.setPermissionCodes(roleId, codes)
+    await MenuService.assignRoleMenus(roleId, menuIds)
     invalidateAuthCache()
   }
 
@@ -189,34 +191,47 @@ export class RoleService {
     return rows as unknown as Role[]
   }
 
+  static async getRolesForAssign(userId: number, orgId?: number | null) {
+    const orgRoles = typeof orgId === 'number' && Number.isFinite(orgId) ? await RoleRepository.listRolesByOrg(orgId) : []
+    const globalRoles = await RoleRepository.findAll()
+    const current = await this.getUserRoles(userId)
+
+    const merged = new Map<number, Role>()
+    for (const r of globalRoles) merged.set(r.id, r)
+    for (const r of orgRoles) merged.set(r.id, r)
+    for (const r of current) merged.set(r.id, r)
+
+    const roles = Array.from(merged.values()).sort((a, b) => {
+      const sysDiff = Number(b.is_system ? 1 : 0) - Number(a.is_system ? 1 : 0)
+      if (sysDiff !== 0) return sysDiff
+      const sortA = Number(a.sort_order ?? 0)
+      const sortB = Number(b.sort_order ?? 0)
+      if (sortA !== sortB) return sortA - sortB
+      return Number(a.id) - Number(b.id)
+    })
+    const selected = current.map(r => Number(r.id)).filter(Number.isFinite)
+    return { roles, selected }
+  }
+
   static async setUserRoles(userId: number, roleIds: number[]) {
-    const conn = await (pool as any).getConnection()
     try {
-      await conn.beginTransaction()
-      await conn.execute(`DELETE FROM user_roles WHERE user_id = ?`, [userId])
-      if (roleIds.length) {
-        await conn.execute(
-          `INSERT INTO user_roles (user_id, role_id, assigned_at)
-           VALUES ${roleIds.map(() => '(?, ?, NOW())').join(', ')}`,
-          roleIds.flatMap((rid: number) => [userId, rid])
-        )
+      await MenuService.assignUserRoles(userId, roleIds)
+    } catch (err: any) {
+      if (err?.message && /没有主组织|primary org/i.test(err.message)) {
+        await RoleRepository.replaceUserRoles(userId, roleIds)
+      } else {
+        throw err
       }
-      await conn.commit()
-    } catch (e) {
-      await conn.rollback()
-      throw e
-    } finally {
-      conn.release()
     }
     invalidateAuthCache()
   }
 
   static async getRoleUsers(roleId: number) {
     const [rows] = (await (pool as any).execute(
-      `SELECT u.id, u.username, u.email, ur.assigned_at
+      `SELECT u.id, u.username, u.email, ur.created_at AS assigned_at
          FROM users u JOIN user_roles ur ON ur.user_id = u.id
         WHERE ur.role_id = ?
-        ORDER BY ur.assigned_at DESC`,
+        ORDER BY ur.created_at DESC`,
       [roleId]
     )) as [RowDataPacket[], any]
     return rows
@@ -291,7 +306,7 @@ export class RoleService {
     const userIds = (urows as any[]).map((r: any) => Number(r.user_id)).filter(Boolean)
     if (!userIds.length) return 0
 
-    const sql = `INSERT IGNORE INTO user_roles (user_id, role_id, assigned_at)
+    const sql = `INSERT IGNORE INTO user_roles (user_id, role_id, created_at)
                  VALUES ${userIds.map(() => '(?, ?, NOW())').join(', ')}`
     const params = userIds.flatMap(uid => [uid, roleId])
     const [ret] = (await (pool as any).execute(sql, params)) as [ResultSetHeader, any]

@@ -1,0 +1,13 @@
+.security-log-table .ant-table-container {
+  overflow-x: auto;
+}
+
+.security-log-table .ant-table-thead > tr > th {
+  white-space: nowrap;
+}
+
+@media (max-width: 992px) {
+  .security-log-table {
+    font-size: 13px;
+  }
+}

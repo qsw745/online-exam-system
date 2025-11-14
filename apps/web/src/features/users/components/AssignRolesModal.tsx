@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { App, Form, Input, Modal, Select } from 'antd'
 import type { SelectProps } from 'antd'
 import { rolesApi } from '@/shared/api/endpoints/roles'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 type AntdLV = { value: number; label: string }
 
@@ -24,6 +25,12 @@ interface Props {
 const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }) => {
   const { message } = App.useApp()
   const [form] = Form.useForm()
+  const { t } = useLanguage()
+  const formatMessage = React.useCallback(
+    (template: string, vars: Record<string, string | number> = {}) =>
+      template.replace(/\{(\w+)\}/g, (_, key) => (vars[key] !== undefined ? String(vars[key]) : '')),
+    []
+  )
 
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -32,8 +39,13 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
   const [selected, setSelected] = useState<AntdLV[]>([]) // labelInValue 形式，保证显示“名称”
 
   // 小工具：解包 ApiResult
-  const unwrap = <T,>(r: any): T =>
-    r && typeof r === 'object' && 'success' in r ? (r.success ? (r.data as T) : ([] as any)) : (r as T)
+  const unwrap = <T,>(r: any): T => {
+    if (r && typeof r === 'object' && 'success' in r) {
+      if (r.success) return r.data as T
+      throw new Error(r?.message || r?.error || t('users.roles.request_failed'))
+    }
+    return r as T
+  }
 
   // 拉取可选角色 & 用户现有角色
   useEffect(() => {
@@ -41,33 +53,30 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
     ;(async () => {
       setLoading(true)
       try {
-        // 1) 角色选项：优先取机构内角色
-        let list: Role[] = []
-        if (orgId != null) {
-          const r = await rolesApi.listInOrg(orgId, { page: 1, pageSize: 1000 })
-          const data = unwrap<{ roles: Role[]; total: number }>(r)
-          list = Array.isArray(data?.roles) ? data.roles : []
-        } else {
-          const r = await rolesApi.list({ page: 1, pageSize: 1000 })
-          const data = unwrap<{ roles: Role[]; total: number } | Role[]>(r)
-          list = Array.isArray((data as any)?.roles) ? (data as any).roles : (data as Role[])
-        }
+        const resp = await rolesApi.getRolesForUserAssign(user.id, orgId ?? undefined)
+        const data = unwrap<{ roles?: Role[]; selected?: number[] }>(resp)
+        const baseList = Array.isArray(data?.roles) ? data.roles : []
+        const selectedIds = Array.isArray(data?.selected) ? data.selected : []
 
-        // 2) 用户当前角色
-        const cur = await rolesApi.getUserRoles(user.id)
-        const curRoles = unwrap<Role[]>(cur)
+        const roleMap = new Map<number, Role>()
+        baseList.forEach(r => roleMap.set(r.id, r))
+        const fullList: Role[] = [...baseList]
+        selectedIds.forEach(id => {
+          if (!roleMap.has(id)) {
+            const placeholder: Role = { id, name: formatMessage(t('users.roles.placeholder'), { id }), code: `role-${id}` }
+            roleMap.set(id, placeholder)
+            fullList.push(placeholder)
+          }
+        })
 
-        // 3) 统一设定
-        setAllRoles(list)
+        setAllRoles(fullList)
 
-        // 让已选在 options 未出现也能展示正确名称（例如全局角色）
-        const mergedMap = new Map<number, Role>()
-        ;[...list, ...curRoles].forEach(r => mergedMap.set(r.id, r))
-
-        const initialSelected: AntdLV[] = curRoles
-          .map(r => mergedMap.get(r.id))
-          .filter(Boolean)
-          .map(r => ({ value: (r as Role).id, label: (r as Role).name }))
+        const initialSelected: AntdLV[] = selectedIds.map(id => {
+          const r = roleMap.get(id)
+          return r
+            ? { value: r.id, label: r.name }
+            : { value: id, label: formatMessage(t('users.roles.placeholder'), { id }) }
+        })
 
         setSelected(initialSelected)
         form.setFieldsValue({
@@ -76,7 +85,7 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
         })
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载角色数据失败')
+        message.error(e?.message || t('users.roles.load_failed'))
       } finally {
         setLoading(false)
       }
@@ -96,14 +105,14 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
       const res = await rolesApi.setUserRoles(Number(user?.id), roleIds)
       const ok = !('success' in (res as any)) || (res as any).success !== false
       if (!ok) {
-        throw new Error((res as any)?.message || '保存失败')
+        throw new Error((res as any)?.message || t('users.roles.save_failed'))
       }
-      message.success('角色已更新')
+      message.success(t('users.roles.updated'))
       onOk?.()
     } catch (e: any) {
       if (e?.errorFields) return // 表单校验错误
       console.error(e)
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('users.roles.save_failed'))
     } finally {
       setSaving(false)
     }
@@ -112,7 +121,9 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
   return (
     <Modal
       open={open}
-      title={`分配 ${user?.real_name || user?.nickname || user?.username || ''} 用户的角色`}
+      title={formatMessage(t('users.roles.title'), {
+        name: user?.real_name || user?.nickname || user?.username || '',
+      })}
       onCancel={onCancel}
       onOk={handleOk}
       confirmLoading={saving}
@@ -120,18 +131,23 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
       maskClosable={false}
     >
       <Form form={form} layout="vertical">
-        <Form.Item label="用户昵称" name="nickname">
+        <Form.Item label={t('users.form.nickname')} name="nickname">
           <Input disabled />
         </Form.Item>
 
-        <Form.Item label="角色列表" name="roles" rules={[{ required: true, message: '请选择至少一个角色' }]} required>
+        <Form.Item
+          label={t('users.form.roles')}
+          name="roles"
+          rules={[{ required: true, message: t('users.form.roles_required') }]}
+          required
+        >
           <Select
             mode="multiple"
             labelInValue
             value={selected}
             onChange={vals => setSelected(vals as AntdLV[])}
             options={options}
-            placeholder="请选择角色"
+            placeholder={t('users.form.roles_placeholder')}
             optionFilterProp="label"
             showSearch
             allowClear

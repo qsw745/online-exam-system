@@ -21,6 +21,8 @@ interface User {
   school?: string
   class_name?: string
   avatar_url?: string
+  phone?: string
+  bio?: string
 }
 
 interface AuthContextType {
@@ -187,7 +189,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem(USER_ROLE_KEY, (userData as any).role)
       sessionStorage.setItem(USER_ROLE_KEY, (userData as any).role)
     }
-    setUser(userData)
+    try {
+      await refreshUser()
+    } catch (err) {
+      console.error('登录后刷新用户信息失败:', err)
+      setUser(userData)
+    }
   }
 
   const signUp = async (email: string, password: string, opts?: {  nickname?: string; keep7Days?: boolean }) => {

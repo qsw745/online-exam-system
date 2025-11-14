@@ -1,4 +1,3 @@
-// === 完整可复制：UserManagementPage.tsx ===
 import { usersApi } from '@/shared/api/endpoints/users'
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
@@ -37,7 +36,7 @@ import {
   Typography,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import React, { useEffect, useMemo, useRef, useState, type Key } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react'
 import { createPortal } from 'react-dom'
 
 // 弹窗
@@ -45,9 +44,11 @@ import AssignRolesModal from '../components/AssignRolesModal'
 import AddUserModal, { type SubmitPayload } from '../components/AddUserModal'
 import { EditUserModal } from '../components/EditUserModal'
 import { ResetPasswordModal } from '../components/ResetPasswordModal'
+import { UploadAvatarModal } from '../components/UploadAvatarModal'
 
 import { useOrgPathMap } from '../hooks/useOrgPathMap'
 import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Sider, Content } = Layout
 const { Text } = Typography
@@ -84,17 +85,17 @@ type Row = {
   createdAt?: string | null
 }
 
-const LABELS: Record<ColKey, string> = {
-  id: '用户编号',
-  avatar: '用户头像',
-  email: '邮箱',
-  nickname: '用户昵称',
-  gender: '性别',
-  department: '部门',
-  phone: '手机号码',
-  status: '状态',
-  created_at: '创建时间',
-  actions: '操作',
+const COLUMN_LABEL_KEYS: Record<ColKey, string> = {
+  id: 'users.columns.id',
+  avatar: 'users.columns.avatar',
+  email: 'users.columns.email',
+  nickname: 'users.columns.nickname',
+  gender: 'users.columns.gender',
+  department: 'users.columns.department',
+  phone: 'users.columns.phone',
+  status: 'users.columns.status',
+  created_at: 'users.columns.created_at',
+  actions: 'users.columns.actions',
 }
 const FIXED: ColKey = 'actions'
 const DEFAULT_ORDER: ColKey[] = [
@@ -118,29 +119,22 @@ function pickFirstId(tree: any[]): number | null {
 const maskPhone = (p?: string | null) => (p ? p.replace(/^(\d{3})\d*(\d{4})$/, '$1****$2') : '')
 const toEnabled = (s?: string) => (s === 'active' ? true : s === 'disabled' ? false : undefined)
 const created = (r: Row) => r.created_at || r.createdAt || null
-const genderTag = (g?: Row['gender']) => {
-  if (!g) return ''
-  if (g === '男' || g === 'male') return <Tag>男</Tag>
-  if (g === '女' || g === 'female') return <Tag>女</Tag>
-  return <Tag>保密</Tag>
-}
 const avatarUrl = (r: Row) => r.avatar_url || r.avatar || null
 
-function useUniqueRows(rows: Row[] | undefined | null) {
-  return useMemo<Row[]>(() => {
-    if (!Array.isArray(rows) || rows.length === 0) return []
-    const seen = new Set<number>()
-    const uniq: Row[] = []
-    for (const r of rows) {
-      const idNum = Number((r as any)?.id)
-      if (Number.isFinite(idNum)) {
-        if (seen.has(idNum)) continue
-        seen.add(idNum)
-      }
-      uniq.push(r)
+// 纯函数：去重
+function dedupeRows(rows: Row[] | undefined | null): Row[] {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  const seen = new Set<number>()
+  const uniq: Row[] = []
+  for (const r of rows) {
+    const idNum = Number((r as any)?.id)
+    if (Number.isFinite(idNum)) {
+      if (seen.has(idNum)) continue
+      seen.add(idNum)
     }
-    return uniq
-  }, [rows])
+    uniq.push(r)
+  }
+  return uniq
 }
 
 async function safeCreateUser(payload: SubmitPayload) {
@@ -149,7 +143,6 @@ async function safeCreateUser(payload: SubmitPayload) {
 
 /** 统一解包批量删除响应：兼容 data 包裹与直返两种形式 */
 function normalizeBatchDeleteResult(ret: any): { deleted: number; skipped: number; rawMsg?: string } {
-  // 兼容后端通用包裹：{ success, message, data:{deleted,skipped} }
   const data = ret && (ret.deleted !== undefined || ret.skipped !== undefined) ? ret : ret?.data || ret?.result || {}
   const deleted = Number(data?.deleted ?? 0)
   const skipped = Array.isArray(data?.skipped) ? data.skipped.length : Number((data?.skipped ?? 0) || 0)
@@ -158,7 +151,32 @@ function normalizeBatchDeleteResult(ret: any): { deleted: number; skipped: numbe
 }
 
 export default function UserManagementPage() {
+  // ✅ 仅在顶层调用一次 Hook
   const { message } = App.useApp()
+  const { t } = useLanguage()
+
+  const formatMessage = useCallback((template: string, vars: Record<string, string | number> = {}) => {
+    if (!template) return ''
+    return template.replace(/\{(\w+)\}/g, (_, key) => (vars[key] !== undefined ? String(vars[key]) : ''))
+  }, [])
+
+  const labels = useMemo<Record<ColKey, string>>(() => {
+    const entries = {} as Record<ColKey, string>
+    ;(Object.keys(COLUMN_LABEL_KEYS) as ColKey[]).forEach(key => {
+      entries[key] = t(COLUMN_LABEL_KEYS[key])
+    })
+    return entries
+  }, [t])
+
+  const renderGenderTag = useCallback(
+    (g?: Row['gender']) => {
+      if (!g) return ''
+      if (g === '男' || g === 'male') return <Tag>{t('users.gender.male')}</Tag>
+      if (g === '女' || g === 'female') return <Tag>{t('users.gender.female')}</Tag>
+      return <Tag>{t('users.gender.secret')}</Tag>
+    },
+    [t]
+  )
 
   // 左侧机构树
   const { tree, loading: treeLoading, refetch: refetchTree } = useOrgTree()
@@ -191,10 +209,14 @@ export default function UserManagementPage() {
   const [batchLoading, setBatchLoading] = useState(false)
 
   const doSearch = () => {
-    const parts = [fUsername.trim(), fNickname.trim(), fPhone.trim()].filter(Boolean)
-    q.setKeyword(parts.join(' '))
+    q.setFilters({
+      email: fUsername.trim() || undefined,
+      nickname: fNickname.trim() || undefined,
+      phone: fPhone.trim() || undefined,
+    })
+    q.setKeyword('')
     q.setPage(1)
-    if (fStatus) q.setRole(fStatus)
+    q.setStatus(fStatus || undefined)
     setSelectedRowKeys([])
   }
   const doReset = () => {
@@ -202,8 +224,9 @@ export default function UserManagementPage() {
     setFNickname('')
     setFPhone('')
     setFStatus('')
+    q.setFilters({})
     q.setKeyword('')
-    q.setRole(undefined)
+    q.setStatus(undefined)
     q.setPage(1)
     setSelectedRowKeys([])
   }
@@ -263,6 +286,8 @@ export default function UserManagementPage() {
   const [addOpen, setAddOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [resetOpen, setResetOpen] = useState(false)
+  const [avatarOpen, setAvatarOpen] = useState(false)
+  const [avatarLoading, setAvatarLoading] = useState(false)
   const [currentUser, setCurrentUser] = useState<any | null>(null)
 
   const onEdit = async (u: any) => {
@@ -272,25 +297,27 @@ export default function UserManagementPage() {
   }
   const onAssignRoles = (u: any) => (setCurrentUser(u), setAssignOpen(true))
   const onReset = (u: any) => (setCurrentUser(u), setResetOpen(true))
+  const onUploadAvatar = (u: any) => (setCurrentUser(u), setAvatarOpen(true))
   const onToggle = async (u: any) => {
     await q.toggleStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
-    App.useApp().message?.success?.(u.status === 'active' ? '状态已禁用' : '状态已启用')
+    // ❌ 禁止在回调里再次调用 App.useApp()
+    message.success(u.status === 'active' ? t('users.message.status_disabled') : t('users.message.status_enabled'))
     q.refetch()
   }
   const onUnbind = async (u: any) => {
     if (!selectedOrgId) return
     await q.unbind(selectedOrgId, u.id)
-    App.useApp().message?.success?.('已从机构移除')
+    message.success(t('users.message.removed_org'))
     q.refetch()
   }
   const onDelete = async (u: any) => {
     Modal.confirm({
-      title: '确定要删除该用户吗？',
+      title: t('users.modal.delete_title'),
       okButtonProps: { danger: true },
-      okText: '删除',
+      okText: t('users.action.delete'),
       onOk: async () => {
         await q.deleteUser(u.id)
-        App.useApp().message?.success?.('删除成功')
+        message.success(t('users.message.delete_success'))
         const rest = q.total - 1 - (q.page - 1) * q.limit
         if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
         else q.refetch()
@@ -298,16 +325,16 @@ export default function UserManagementPage() {
     })
   }
   const openAddModal = () => {
-    if (!selectedOrgId) return App.useApp().message?.warning?.('请先选择左侧机构')
+    if (!selectedOrgId) return message.warning(t('users.message.select_org'))
     setAddOpen(true)
   }
 
-  // 批量删除：走后端 /users/batch-delete，并兼容多种响应结构
+  // 批量删除
   const onBatchDelete = () => {
     if (selectedRowKeys.length === 0 || batchLoading) return
     Modal.confirm({
-      title: `确定批量删除选中的 ${selectedRowKeys.length} 个用户吗？`,
-      okText: '批量删除',
+      title: formatMessage(t('users.modal.batch_delete_title'), { count: selectedRowKeys.length }),
+      okText: t('users.action.batch_delete'),
       okButtonProps: { danger: true, loading: batchLoading },
       onOk: async () => {
         const ids = selectedRowKeys.map(k => Number(k)).filter(n => Number.isFinite(n)) as number[]
@@ -316,15 +343,13 @@ export default function UserManagementPage() {
         try {
           const ret = await usersApi.batchDelete(ids)
           const { deleted, skipped, rawMsg } = normalizeBatchDeleteResult(ret)
-
-          // 成功提示优先使用后端 message
           if (skipped > 0) {
-            message.warning(rawMsg || `已删除 ${deleted} 个，跳过管理员 ${skipped} 个`)
+            message.warning(
+              rawMsg || formatMessage(t('users.message.batch_warning'), { deleted, skipped })
+            )
           } else {
-            message.success(rawMsg || `已删除 ${deleted} 个`)
+            message.success(rawMsg || formatMessage(t('users.message.batch_success'), { deleted }))
           }
-
-          // 页码与刷新：用真实 deleted 数来计算是否需要回退页
           const rest = q.total - deleted - (q.page - 1) * q.limit
           setSelectedRowKeys([])
           if (rest <= 0 && q.page > 1) {
@@ -333,7 +358,7 @@ export default function UserManagementPage() {
             q.refetch()
           }
         } catch (e: any) {
-          message.error(e?.message || '批量删除失败')
+          message.error(e?.message || t('users.message.batch_failed'))
         } finally {
           setBatchLoading(false)
         }
@@ -344,15 +369,15 @@ export default function UserManagementPage() {
   // 列
   const columns = useMemo<ColumnsType<Row>>(() => {
     const ALL: Record<ColKey, any> = {
-      id: { title: LABELS.id, dataIndex: 'id', width: 80, align: 'center' },
+      id: { title: labels.id, dataIndex: 'id', width: 80, align: 'center' },
       avatar: {
-        title: LABELS.avatar,
+        title: labels.avatar,
         key: 'avatar',
         width: 70,
         align: 'center',
         render: (_: any, r: Row) => {
           const url = avatarUrl(r)
-          const txt = (r.nickname || r.real_name || '').trim().slice(-2) || '用户'
+          const txt = (r.nickname || r.real_name || '').trim().slice(-2) || t('users.tag.user')
           return url ? (
             <Avatar src={url} />
           ) : (
@@ -362,25 +387,25 @@ export default function UserManagementPage() {
           )
         },
       },
-      email: { title: LABELS.email, dataIndex: 'email', ellipsis: true, width: 140, render: (t: any) => t || '' },
+      email: { title: labels.email, dataIndex: 'email', ellipsis: true, width: 180, render: (t: any) => t || '' },
       nickname: {
-        title: LABELS.nickname,
+        title: labels.nickname,
         dataIndex: 'nickname',
         ellipsis: true,
-        width: 110,
+        width: 140,
         render: (t: any, r: Row) => t || r.real_name || '',
       },
       gender: {
-        title: LABELS.gender,
+        title: labels.gender,
         key: 'gender',
         width: 80,
         align: 'center',
-        render: (_: any, r: Row) => genderTag(r.gender) || '',
+        render: (_: any, r: Row) => renderGenderTag(r.gender) || '',
       },
       department: {
-        title: LABELS.department,
+        title: labels.department,
         key: 'department',
-        width: 200,
+        width: 240,
         ellipsis: true,
         render: (_: any, r: Row) => {
           const direct =
@@ -388,14 +413,15 @@ export default function UserManagementPage() {
             (r.department && String(r.department)) ||
             (r.orgName && String(r.orgName)) ||
             null
-          const id = (r.orgId ?? r.org_id) as number | undefined
-          const v = getOrgPath(id ?? null, direct) || direct
-          return v || ''
+          const rawId = (r.orgId ?? r.org_id) as number | null | undefined
+          const id = Number.isFinite(Number(rawId)) ? Number(rawId) : undefined
+          const mapped = getOrgPath(id ?? null, direct)
+          return mapped || <Text type="secondary">{t('users.tag.unassigned')}</Text>
         },
       },
-      phone: { title: LABELS.phone, dataIndex: 'phone', width: 130, align: 'center', render: (p: any) => maskPhone(p) },
+      phone: { title: labels.phone, dataIndex: 'phone', width: 130, align: 'center', render: (p: any) => maskPhone(p) },
       status: {
-        title: LABELS.status,
+        title: labels.status,
         dataIndex: 'status',
         width: 150,
         align: 'center',
@@ -403,8 +429,8 @@ export default function UserManagementPage() {
           const checked = toEnabled(r.status)
           return (
             <Switch
-              checkedChildren="已启用"
-              unCheckedChildren="已禁用"
+              checkedChildren={t('users.status.switch_enabled')}
+              unCheckedChildren={t('users.status.switch_disabled')}
               checked={!!checked}
               onChange={() => onToggle(r)}
             />
@@ -412,7 +438,7 @@ export default function UserManagementPage() {
         },
       },
       created_at: {
-        title: LABELS.created_at,
+        title: labels.created_at,
         key: 'created_at',
         width: 170,
         align: 'center',
@@ -422,26 +448,27 @@ export default function UserManagementPage() {
         },
       },
       actions: {
-        title: LABELS.actions,
+        title: labels.actions,
         key: 'actions',
-        width: 220,
+        width: 160,
         align: 'center',
         fixed: 'right',
         onCell: () => ({ className: 'users-actions-cell', style: { background: '#fff' } }),
         onHeaderCell: () => ({ className: 'users-actions-cell', style: { background: '#fff' } }),
         render: (_: any, r: Row) => {
           const items = [
-            { key: 'assign', label: '分配角色' },
-            { key: 'reset', label: '重置密码' },
-            { key: 'toggle', label: r.status === 'active' ? '禁用' : '启用' },
-            ...(selectedOrgId ? [{ key: 'unbind', label: '从机构移除' }] : []),
+            { key: 'assign', label: t('users.action.assign_roles') },
+            { key: 'reset', label: t('users.action.reset_password') },
+            { key: 'uploadAvatar', label: t('users.action.upload_avatar') },
+            { key: 'toggle', label: r.status === 'active' ? t('users.action.disable') : t('users.action.enable') },
+            ...(selectedOrgId ? [{ key: 'unbind', label: t('users.action.remove_from_org') }] : []),
             { type: 'divider' as const },
-            { key: 'delete', label: '删除', danger: true },
+            { key: 'delete', label: t('users.action.delete'), danger: true },
           ]
           return (
             <Space size="small">
               <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>
-                修改
+                {t('users.action.edit')}
               </Button>
               <Dropdown
                 trigger={['click']}
@@ -454,6 +481,9 @@ export default function UserManagementPage() {
                         break
                       case 'reset':
                         onReset(r)
+                        break
+                      case 'uploadAvatar':
+                        onUploadAvatar(r)
                         break
                       case 'toggle':
                         onToggle(r)
@@ -476,9 +506,18 @@ export default function UserManagementPage() {
       },
     }
     return orderedVisibleKeys.map(k => ALL[k])
-  }, [orderedVisibleKeys, selectedOrgId])
+  }, [orderedVisibleKeys, selectedOrgId, labels, renderGenderTag, getOrgPath, t])
 
-  const dataSource = useUniqueRows((q.rows || []) as Row[])
+  // 先去重，再做二次映射
+  const baseRows = useMemo<Row[]>(() => dedupeRows((q.rows || []) as Row[]), [q.rows])
+  const dataSource = useMemo<Row[]>(
+    () =>
+      baseRows.map(r => {
+        const orgId = r.orgId ?? r.org_id ?? null
+        return orgId === r.orgId ? r : { ...r, orgId }
+      }),
+    [baseRows]
+  )
 
   // UI
   const allChecked = visible.length === DEFAULT_VISIBLE.length
@@ -486,18 +525,18 @@ export default function UserManagementPage() {
 
   const Toolbar = (
     <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-      <div style={{ fontWeight: 600, fontSize: 16 }}>用户管理</div>
+      <div style={{ fontWeight: 600, fontSize: 16 }}>{t('users.title')}</div>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Button type="primary" icon={<UserAddOutlined />} onClick={openAddModal} disabled={!selectedOrgId}>
-          新增用户
+          {t('users.button.add')}
         </Button>
-        <Tooltip title={siderCollapsed ? '展开机构树' : '折叠机构树'}>
+        <Tooltip title={siderCollapsed ? t('users.tooltip.expand_org') : t('users.tooltip.collapse_org')}>
           <Button
             icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             onClick={() => setSiderCollapsed(v => !v)}
           />
         </Tooltip>
-        <Tooltip title="刷新">
+        <Tooltip title={t('app.refresh')}>
           <Button icon={<ReloadOutlined />} onClick={() => q.refetch()} />
         </Tooltip>
         <Dropdown
@@ -506,14 +545,14 @@ export default function UserManagementPage() {
             selectable: true,
             selectedKeys: [tableSize],
             items: [
-              { key: 'large', label: '宽松' },
-              { key: 'middle', label: '默认' },
-              { key: 'small', label: '紧凑' },
+              { key: 'large', label: t('users.density.loose') },
+              { key: 'middle', label: t('users.density.default') },
+              { key: 'small', label: t('users.density.compact') },
             ],
             onClick: ({ key }) => setTableSize(key as any),
           }}
         >
-          <Tooltip title="密度">
+          <Tooltip title={t('users.tooltip.density')}>
             <Button icon={<ColumnHeightOutlined />} />
           </Tooltip>
         </Dropdown>
@@ -521,7 +560,8 @@ export default function UserManagementPage() {
         <Dropdown
           trigger={['click']}
           menu={{ items: [] }}
-          dropdownRender={() => (
+          // ⛳️ antd 新 API：用 popupRender 替代 dropdownRender
+          popupRender={() => (
             <div className="col-setting-panel">
               <div
                 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px' }}
@@ -531,7 +571,7 @@ export default function UserManagementPage() {
                   indeterminate={indeterminate}
                   onChange={e => setVisible(e.target.checked ? DEFAULT_VISIBLE : [])}
                 >
-                  列展示
+                  {t('users.columns.panel_title')}
                 </Checkbox>
                 <a
                   onClick={() => {
@@ -539,7 +579,7 @@ export default function UserManagementPage() {
                     setVisible(DEFAULT_VISIBLE)
                   }}
                 >
-                  重置
+                  {t('users.columns.reset')}
                 </a>
               </div>
               <div style={{ padding: '6px 12px 0' }}>
@@ -557,7 +597,7 @@ export default function UserManagementPage() {
                       checked={visible.includes(k)}
                       onChange={e => setVisible(prev => (e.target.checked ? [...prev, k] : prev.filter(x => x !== k)))}
                     >
-                      {LABELS[k]}
+                      {labels[k]}
                     </Checkbox>
                   </div>
                 ))}
@@ -569,19 +609,19 @@ export default function UserManagementPage() {
                       setVisible(prev => (e.target.checked ? [...prev, 'actions'] : prev.filter(x => x !== 'actions')))
                     }
                   >
-                    {LABELS.actions}（固定）
+                    {labels.actions}（{t('users.columns.fixed')}）
                   </Checkbox>
                 </div>
               </div>
             </div>
           )}
         >
-          <Tooltip title="列设置">
+          <Tooltip title={t('users.tooltip.column_settings')}>
             <Button icon={<SettingOutlined />} />
           </Tooltip>
         </Dropdown>
 
-        <Tooltip title={fs ? '退出全屏' : '全屏'}>
+        <Tooltip title={fs ? t('users.tooltip.exit_fullscreen') : t('users.tooltip.fullscreen')}>
           <Button icon={fs ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={() => setFs(v => !v)} />
         </Tooltip>
       </div>
@@ -603,11 +643,11 @@ export default function UserManagementPage() {
         }}
       >
         <Space>
-          <Text>已选 {selectedRowKeys.length} 项</Text>
-          <a onClick={() => setSelectedRowKeys([])}>取消选择</a>
+          <Text>{formatMessage(t('users.selection.count'), { count: selectedRowKeys.length })}</Text>
+          <a onClick={() => setSelectedRowKeys([])}>{t('users.selection.clear')}</a>
         </Space>
         <Button danger onClick={onBatchDelete} loading={batchLoading}>
-          批量删除
+          {t('users.action.batch_delete')}
         </Button>
       </div>
     ) : null
@@ -619,57 +659,57 @@ export default function UserManagementPage() {
     >
       <Space wrap size={12} style={{ width: '100%' }}>
         <Space>
-          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>邮箱：</span>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.email_label')}</span>
           <Input
             allowClear
-            placeholder="输入邮箱"
+            placeholder={t('users.filters.email_placeholder')}
             style={{ width: 200 }}
             value={fUsername}
             onChange={e => setFUsername(e.target.value)}
           />
         </Space>
         <Space>
-          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>用户昵称：</span>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.nickname_label')}</span>
           <Input
             allowClear
-            placeholder="输入昵称"
+            placeholder={t('users.filters.nickname_placeholder')}
             style={{ width: 200 }}
             value={fNickname}
             onChange={e => setFNickname(e.target.value)}
           />
         </Space>
         <Space>
-          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>手机号：</span>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.phone_label')}</span>
           <Input
             allowClear
-            placeholder="输入手机号"
+            placeholder={t('users.filters.phone_placeholder')}
             style={{ width: 200 }}
             value={fPhone}
             onChange={e => setFPhone(e.target.value)}
           />
         </Space>
         <Space>
-          <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>状态：</span>
+          <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.status_label')}</span>
           <Select
             allowClear
-            placeholder="请选择"
+            placeholder={t('users.filters.status_placeholder')}
             style={{ width: 160 }}
             value={fStatus || undefined}
             options={[
-              { label: '已启用', value: 'active' },
-              { label: '已禁用', value: 'disabled' },
+              { label: t('users.status.enabled'), value: 'active' },
+              { label: t('users.status.disabled'), value: 'disabled' },
             ]}
             onChange={v => setFStatus((v as any) || '')}
           />
         </Space>
         <Space style={{ marginLeft: 'auto' }} align="center">
           <Button type="primary" icon={<SearchOutlined />} onClick={doSearch}>
-            搜索
+            {t('app.search')}
           </Button>
           <Button icon={<ReloadOutlined />} onClick={doReset}>
-            重置
+            {t('app.reset')}
           </Button>
-          <Text type="secondary">含子部门</Text>
+          <Text type="secondary">{t('users.filters.include_children')}</Text>
           <Switch
             checked={!!q.includeChildren}
             onChange={v => {
@@ -700,7 +740,7 @@ export default function UserManagementPage() {
         bordered
       />
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, alignItems: 'center', gap: 12 }}>
-        <span style={{ color: '#6b7280' }}>共 {q.total} 条</span>
+        <span style={{ color: '#6b7280' }}>{formatMessage(t('users.pagination.total'), { count: q.total })}</span>
         <Pagination
           current={q.page}
           pageSize={q.limit}
@@ -769,7 +809,7 @@ export default function UserManagementPage() {
                 if (selectedOrgId == null) setSelectedOrgId(first)
               }
             }}
-            title="机构"
+            title={t('users.org_tree.title')}
           />
         </div>
       </Sider>
@@ -789,7 +829,7 @@ export default function UserManagementPage() {
           if (!currentUser) return
           await q.update(currentUser.id, v)
           setEditOpen(false)
-          message.success('用户已更新')
+          message.success(t('users.message.update_success'))
           q.refetch()
         }}
       />
@@ -815,8 +855,32 @@ export default function UserManagementPage() {
           if (!currentUser) return
           await q.resetPassword(currentUser.id, newPwd)
           setResetOpen(false)
-          message.success('密码已重置')
+          message.success(t('users.message.reset_success'))
           q.refetch()
+        }}
+      />
+
+      {/* 上传头像 */}
+      <UploadAvatarModal
+        open={avatarOpen}
+        user={currentUser ?? undefined}
+        loading={avatarLoading}
+        onCancel={() => {
+          if (!avatarLoading) setAvatarOpen(false)
+        }}
+        onSubmit={async file => {
+          if (!currentUser) return
+          setAvatarLoading(true)
+          try {
+            await q.uploadAvatar(currentUser.id, file)
+            message.success(t('users.message.avatar_success'))
+            setAvatarOpen(false)
+            q.refetch()
+          } catch (e: any) {
+            message.error(e?.message || t('users.message.avatar_failed'))
+          } finally {
+            setAvatarLoading(false)
+          }
         }}
       />
 

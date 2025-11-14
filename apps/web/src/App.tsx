@@ -35,14 +35,14 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <MenuPermissionProvider>
-          <LanguageProvider>
+        <LanguageProvider>
+          <MenuPermissionProvider>
             {/* v5 全局 Suspense：用 React 的 <Suspense> 包裹路由 */}
             <Suspense fallback={null}>
               <RouterProvider router={router} />
             </Suspense>
-          </LanguageProvider>
-        </MenuPermissionProvider>
+          </MenuPermissionProvider>
+        </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>
   )

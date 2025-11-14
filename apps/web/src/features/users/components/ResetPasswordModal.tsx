@@ -1,6 +1,7 @@
 // src/features/users/components/ResetPasswordModal.tsx
 import React from 'react'
 import { Modal, Form, Input, Typography, Space } from 'antd'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Text } = Typography
 
@@ -14,8 +15,6 @@ function scorePassword(pwd: string): number {
   return Math.min(5, score)
 }
 
-const labels = ['非常弱', '弱', '一般', '强', '非常强']
-
 export const ResetPasswordModal: React.FC<{
   open: boolean
   username?: string
@@ -23,20 +22,31 @@ export const ResetPasswordModal: React.FC<{
   onSubmit: (password: string) => Promise<void> | void
 }> = ({ open, username, onCancel, onSubmit }) => {
   const [form] = Form.useForm()
+  const { t } = useLanguage()
   const pwd = Form.useWatch('password', form) || ''
   const s = scorePassword(pwd)
   const bars = Array.from({ length: 5 })
+  const strengthLabels = React.useMemo(
+    () => [
+      t('users.reset_password.strength.1'),
+      t('users.reset_password.strength.2'),
+      t('users.reset_password.strength.3'),
+      t('users.reset_password.strength.4'),
+      t('users.reset_password.strength.5'),
+    ],
+    [t]
+  )
 
   return (
     <Modal
       open={open}
-      title={`重置 ${username ?? ''} 用户的密码`}
+      title={t('users.reset_password.title').replace('{name}', username ?? '')}
       onCancel={() => {
         form.resetFields()
         onCancel()
       }}
       onOk={() => form.submit()}
-      okText="确定"
+      okText={t('app.confirm')}
       destroyOnHidden
       maskClosable={false}
     >
@@ -49,21 +59,23 @@ export const ResetPasswordModal: React.FC<{
         }}
       >
         <Form.Item
-          label="请输入新密码"
+          label={t('users.reset_password.label')}
           name="password"
           rules={[
-            { required: true, message: '请输入新密码' },
-            { min: 8, message: '至少 8 位' },
+            { required: true, message: t('users.reset_password.required') },
+            { min: 8, message: t('users.reset_password.min').replace('{count}', '8') },
             {
               validator: (_, v) => {
                 if (!v) return Promise.resolve()
                 const kinds = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/].reduce((n, r) => n + (r.test(v) ? 1 : 0), 0)
-                return kinds >= 2 ? Promise.resolve() : Promise.reject(new Error('至少包含两类字符(大小写/数字/符号)'))
+                return kinds >= 2
+                  ? Promise.resolve()
+                  : Promise.reject(new Error(t('users.reset_password.rule')))
               },
             },
           ]}
         >
-          <Input.Password placeholder="请输入新密码" allowClear />
+          <Input.Password placeholder={t('users.reset_password.placeholder')} allowClear />
         </Form.Item>
 
         <Space direction="vertical" style={{ width: '100%' }}>
@@ -80,7 +92,7 @@ export const ResetPasswordModal: React.FC<{
               />
             ))}
           </div>
-          <Text type="secondary">{labels[Math.max(0, s - 1)] || '非常弱'}</Text>
+          <Text type="secondary">{strengthLabels[Math.max(0, s - 1)] || strengthLabels[0]}</Text>
         </Space>
       </Form>
     </Modal>

@@ -9,6 +9,8 @@ export function useOrgUsersQuery(orgId: number | null) {
   const [limit, setLimit] = useState(10)
   const [keyword, setKeyword] = useState('')
   const [role, setRole] = useState<string | undefined>(undefined)
+  const [status, setStatus] = useState<string | undefined>(undefined)
+  const [filters, setFilters] = useState<{ email?: string; nickname?: string; phone?: string }>({})
   const [includeChildren, setIncludeChildren] = useState(false)
 
   const [rows, setRows] = useState<any[]>([])
@@ -35,12 +37,18 @@ export function useOrgUsersQuery(orgId: number | null) {
     setLoading(true)
     try {
       // ✅ 只请求按机构的接口
+      const { email, nickname, phone } = filters
+
       const data = await usersApi.list({
         page,
         limit,
         search: keyword || undefined,
         role: role || undefined,
         orgId, // 有 orgId 时 usersApi.list 内部只会请求 /orgs/:id/users
+        status: status || undefined,
+        email: email || undefined,
+        nickname: nickname || undefined,
+        phone: phone || undefined,
         include_children: includeChildren || undefined,
       })
 
@@ -53,7 +61,7 @@ export function useOrgUsersQuery(orgId: number | null) {
     } finally {
       setLoading(false)
     }
-  }, [orgId, page, limit, keyword, role, includeChildren])
+  }, [orgId, page, limit, keyword, role, status, filters.email, filters.nickname, filters.phone, includeChildren])
 
   useEffect(() => {
     // 机构切换时，重置页码到 1，避免新机构下页码越界
@@ -105,6 +113,10 @@ export function useOrgUsersQuery(orgId: number | null) {
     return unwrap<any>(r, '删除失败')
   }
 
+  const uploadAvatar = async (id: number | string, file: File) => {
+    return usersApi.uploadAvatar(id, file)
+  }
+
   return {
     rows,
     total,
@@ -117,6 +129,10 @@ export function useOrgUsersQuery(orgId: number | null) {
     setKeyword,
     role,
     setRole,
+    status,
+    setStatus,
+    filters,
+    setFilters,
     includeChildren,
     setIncludeChildren,
     refetch: fetchList,
@@ -127,6 +143,7 @@ export function useOrgUsersQuery(orgId: number | null) {
     unbind,
     bind,
     deleteUser,
+    uploadAvatar,
   }
 }
 

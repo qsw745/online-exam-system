@@ -330,8 +330,15 @@ export class MenuService {
     return this.getUserMenuPermissionsInOrg(userId, orgId, opts)
   }
 
-  static async getUserMenuTree(userId: number, opts?: BuildOpts) {
-    const orgId = await MenuRepository.getPrimaryOrgId(userId)
+  static async getUserMenuTree(userId: number, opts?: BuildOpts & { orgId?: number | null }) {
+    let orgId: number | null | undefined = opts?.orgId
+    if (orgId === undefined) {
+      orgId = await MenuRepository.getPrimaryOrgId(userId)
+    }
+    if (orgId === null) return []
+    if (!orgId) {
+      orgId = await MenuRepository.findAnyOrgId()
+    }
     if (!orgId) return []
     return this.getUserMenuTreeInOrg(userId, orgId, opts)
   }

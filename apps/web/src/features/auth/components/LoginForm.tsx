@@ -9,6 +9,7 @@ import {
   SafetyCertificateOutlined,
 } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Text } = Typography
 
@@ -40,12 +41,17 @@ type Props = {
 }
 
 export const LoginForm: React.FC<Props> = p => {
+  const { t } = useLanguage()
+
+  const format = (template: string, vars: Record<string, string>) =>
+    template.replace(/\{([^}]+)\}/g, (_, key) => vars[key] ?? '')
+
   const lockedNow = p.isLocked && p.lockCountdownText !== '00:00'
   const btnText = !lockedNow
-    ? '登录'
+    ? t('auth.login')
     : p.lockTryRemainSec > 0
-    ? `已锁定 ${p.lockCountdownText} · 重试 ${p.lockRetryCountdownText}`
-    : `重试登录（剩余 ${p.lockCountdownText}）`
+    ? format(t('auth.login_locked'), { time: p.lockCountdownText, retry: p.lockRetryCountdownText })
+    : format(t('auth.login_retry_countdown'), { time: p.lockCountdownText })
 
   return (
     <form
@@ -57,13 +63,13 @@ export const LoginForm: React.FC<Props> = p => {
     >
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
         <div>
-          <Text style={{ display: 'block', marginBottom: 8 }}>邮箱地址</Text>
+          <Text style={{ display: 'block', marginBottom: 8 }}>{t('auth.email_label')}</Text>
           <Input
             prefix={<UserOutlined />}
             type="email"
             value={p.email}
             onChange={e => p.onEmailChange(e.target.value)}
-            placeholder="请输入您的邮箱"
+            placeholder={t('auth.email_placeholder')}
             size="large"
             required
             autoComplete="username"
@@ -73,8 +79,8 @@ export const LoginForm: React.FC<Props> = p => {
 
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <Text style={{ display: 'block', marginBottom: 8 }}>密码</Text>
-            <Tooltip title="强密码请包含大小写字母/数字/符号">
+            <Text style={{ display: 'block', marginBottom: 8 }}>{t('auth.password_label')}</Text>
+            <Tooltip title={t('auth.password_tip')}>
               <SafetyCertificateOutlined style={{ opacity: 0.6 }} />
             </Tooltip>
           </div>
@@ -82,7 +88,7 @@ export const LoginForm: React.FC<Props> = p => {
             prefix={<LockOutlined />}
             value={p.password}
             onChange={e => p.onPasswordChange(e.target.value)}
-            placeholder="请输入您的密码"
+            placeholder={t('auth.password_placeholder')}
             size="large"
             iconRender={v => (v ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
             required
@@ -93,13 +99,13 @@ export const LoginForm: React.FC<Props> = p => {
 
         {p.captchaRequired && (
           <div>
-            <Text style={{ display: 'block', marginBottom: 8 }}>验证码</Text>
+            <Text style={{ display: 'block', marginBottom: 8 }}>{t('auth.captcha_label')}</Text>
             <Row gutter={8} align="middle">
               <Col flex="auto">
                 <Input
                   value={p.captcha}
                   onChange={e => p.onCaptchaChange(e.target.value)}
-                  placeholder="请输入图片中的字符"
+                  placeholder={t('auth.captcha_placeholder')}
                   size="large"
                   autoComplete="off"
                   disabled={p.inputsDisabled}
@@ -109,7 +115,7 @@ export const LoginForm: React.FC<Props> = p => {
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   <img
                     src={p.captchaImgUrl}
-                    alt="captcha"
+                    alt={t('auth.captcha_label')}
                     style={{
                       height: 40,
                       borderRadius: 6,
@@ -138,14 +144,14 @@ export const LoginForm: React.FC<Props> = p => {
             onChange={e => p.onRememberChange(e.target.checked)}
             disabled={p.inputsDisabled}
           >
-            记住我
+            {t('auth.remember_me')}
           </Checkbox>
           <Checkbox
             checked={p.keep7Days}
             onChange={e => p.onKeep7DaysChange(e.target.checked)}
             disabled={p.inputsDisabled}
           >
-            7 天免登录
+            {t('auth.keep7days')}
           </Checkbox>
           <Link
             to="/forgot-password"
@@ -155,7 +161,7 @@ export const LoginForm: React.FC<Props> = p => {
               opacity: p.inputsDisabled ? 0.6 : 1,
             }}
           >
-            忘记密码？
+            {t('auth.forgot')}
           </Link>
         </div>
 

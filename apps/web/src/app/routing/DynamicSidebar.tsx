@@ -293,8 +293,8 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           zIndex: 1100,
           inset: '0 auto 0 0',
           width: siderW,
-          background: '#fff',
-          borderRight: '1px solid #f0f0f0',
+          background: 'var(--sider-bg, #fff)',
+          borderRight: '1px solid var(--sider-border, #f0f0f0)',
         }}
       >
         <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
@@ -312,8 +312,8 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           zIndex: 1100,
           inset: '0 auto 0 0',
           width: siderW,
-          background: '#fff',
-          borderRight: '1px solid #f0f0f0',
+          background: 'var(--sider-bg, #fff)',
+          borderRight: '1px solid var(--sider-border, #f0f0f0)',
         }}
       >
         <div style={{ padding: 16, color: '#dc2626' }}>菜单加载失败：{error}</div>
@@ -337,8 +337,8 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
         top: 0,
         bottom: 0,
         width: siderW,
-        background: '#fff',
-        borderRight: '1px solid #f0f0f0',
+        background: 'var(--sider-bg, #fff)',
+        borderRight: '1px solid var(--sider-border, #f0f0f0)',
         overflowX: 'hidden',
         overflow: 'hidden',
         boxSizing: 'border-box',
@@ -459,9 +459,9 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
               display: 'grid',
               placeItems: 'center',
               borderRadius: 4,
-              border: '1px solid rgba(0,0,0,.08)',
-              background: '#fff',
-              boxShadow: '0 4px 14px rgba(0,0,0,.08)',
+              border: '1px solid var(--sider-border, rgba(0,0,0,.12))',
+              background: 'var(--surface-1, #fff)',
+              boxShadow: '0 4px 14px rgba(15,23,42,.18)',
               cursor: 'pointer',
             }}
           >
@@ -479,8 +479,8 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           bottom: 0,
           width: '100%',
           height: BOTTOM_CTRL_H,
-          borderTop: '1px solid #f0f0f0',
-          background: '#fff',
+          borderTop: '1px solid var(--sider-border, #f0f0f0)',
+          background: 'var(--sider-bg, #fff)',
           display: 'flex',
           alignItems: 'center',
           paddingLeft: 16,

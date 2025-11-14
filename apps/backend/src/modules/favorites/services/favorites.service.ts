@@ -10,6 +10,13 @@ import type {
 } from '../domain/favorites.model.js'
 import { FavoritesRepository } from '../repositories/favorites.repository.js'
 
+const DEFAULT_CATEGORY_SEED: Array<Pick<IFavoriteCategory, 'name' | 'description' | 'color' | 'icon' | 'sort_order'>> = [
+  { name: '未分类', description: '未选择分类的收藏', color: '#94A3B8', icon: 'Tag', sort_order: 0 },
+  { name: '刷题集', description: '常用练习集合', color: '#60A5FA', icon: 'BookOpen', sort_order: 1 },
+  { name: '错题本', description: '需要重点复习的错题', color: '#F97316', icon: 'AlertTriangle', sort_order: 2 },
+  { name: '收藏', description: '临时收纳，稍后整理', color: '#A78BFA', icon: 'Star', sort_order: 3 },
+]
+
 export class FavoritesService {
   constructor(private readonly repo = new FavoritesRepository()) {}
 
@@ -113,6 +120,14 @@ export class FavoritesService {
   }
 
   async categories(): Promise<IFavoriteCategory[]> {
-    return this.repo.allCategories()
+    const list = await this.repo.allCategories()
+    if (list.length) return list
+
+    return withTransaction(async conn => {
+      const existing = await this.repo.allCategories(conn)
+      if (existing.length) return existing
+      await this.repo.insertCategoriesBulk(conn, DEFAULT_CATEGORY_SEED)
+      return this.repo.allCategories(conn)
+    })
   }
 }

@@ -5,22 +5,23 @@ import {
   createRole,
   deleteRole,
   getAllRoles,
-  getNextSortOrder, // ✅ 补上导入
+  getNextSortOrder,
   getRoleById,
   getRoleMenus,
-  getRoleMenusAll, // ✅ 新增：一次返回全部菜单 + 选中
+  getRoleMenusAll,
   getRoleUsers,
+  getRoleEffectiveMenus,
+  getRoleOrgs,
   getUserRoles,
+  getRolesForUserAssign,
+  removeRoleOrg,
   removeUserFromRole,
   setRoleMenus,
   setUserRoles,
   suggestCode,
   updateRole,
-  getRoleEffectiveMenus,
   addUsersToRole,
-  getRoleOrgs,
   addRoleOrgs,
-  removeRoleOrg,
   addUsersToRoleByOrg,
 } from '../controllers/role.controller.js'
 import { authenticateToken } from '../../../common/middleware/auth.js'
@@ -45,7 +46,7 @@ router.get('/suggest-code', requireRole([...ADMIN_AND_SUPER] as unknown as any[]
 
 // 角色管理（全局）
 router.get('/', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getAllRoles))
-router.get('/next-sort-order', wrap(getNextSortOrder)) // ✅ 修复
+router.get('/next-sort-order', wrap(getNextSortOrder))
 router.get('/:id(\\d+)', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleById))
 router.post('/', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(createRole))
 router.put('/:id(\\d+)', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(updateRole))
@@ -53,9 +54,8 @@ router.delete('/:id(\\d+)', requireRole([...ADMIN_ONLY] as unknown as any[]), wr
 
 // 菜单权限
 router.get('/:id(\\d+)/menus', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleMenus))
-router.get('/:id(\\d+)/menus/all', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleMenusAll)) // ✅ 新增
+router.get('/:id(\\d+)/menus/all', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getRoleMenusAll))
 router.put('/:id(\\d+)/menus', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setRoleMenus))
-// 生效菜单（保留）
 router.get(
   '/:id(\\d+)/menus/effective',
   requireRole([...ADMIN_AND_SUPER] as unknown as any[]),
@@ -69,6 +69,11 @@ router.delete('/:id(\\d+)/orgs/:orgId(\\d+)', requireRole([...ADMIN_ONLY] as unk
 
 // 用户 ⇄ 角色（按用户）
 router.get('/users/:userId(\\d+)/roles', requireRole([...ADMIN_AND_SUPER] as unknown as any[]), wrap(getUserRoles))
+router.get(
+  '/users/:userId(\\d+)/roles-form',
+  requireRole([...ADMIN_AND_SUPER] as unknown as any[]),
+  wrap(getRolesForUserAssign)
+)
 router.put('/users/:userId(\\d+)/roles', requireRole([...ADMIN_ONLY] as unknown as any[]), wrap(setUserRoles))
 
 // 按机构批量把用户添加到角色

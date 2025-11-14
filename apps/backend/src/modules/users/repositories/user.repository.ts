@@ -48,6 +48,71 @@ export class UserRepository {
     }
   }
 
+  // —— 获取 organizations 表父级列（自适配） —— //
+  private async detectOrgParentColumn(runner: Pool | PoolConnection): Promise<string> {
+    const col =
+      (await this.detectColumn(runner, 'organizations', [
+        'parent_id',
+        'parentId',
+        'pid',
+        'p_id',
+        'parent',
+        'parentid',
+      ])) || 'parent_id'
+    return col
+  }
+
+  // —— 用递归 CTE 获取所有子孙 orgId（MySQL8+），失败则回退到 JS 遍历 —— //
+  private async getOrgDescendantIds(rootOrgId: number, runner: Pool | PoolConnection): Promise<number[]> {
+    const parentCol = await this.detectOrgParentColumn(runner)
+
+    // 先尝试递归 CTE（MySQL 8）
+    try {
+      const sql = `
+        WITH RECURSIVE org_tree AS (
+          SELECT id FROM organizations WHERE id = ?
+          UNION ALL
+          SELECT o.id
+          FROM organizations o
+          JOIN org_tree t ON o.\`${parentCol}\` = t.id
+        )
+        SELECT id FROM org_tree
+      `
+      const [rows] = await runner.query<RowDataPacket[]>(sql, [rootOrgId])
+      const ids = rows.map(r => Number((r as any).id)).filter(Number.isFinite)
+      if (ids.length > 0) return Array.from(new Set(ids))
+    } catch {
+      // 忽略，回退到 JS
+    }
+
+    // 回退：一次性全量查 organizations -> JS 构建 children map 深度遍历
+    try {
+      const [all] = await runner.query<RowDataPacket[]>('SELECT id, ?? AS p FROM organizations', [parentCol] as any)
+      const childrenMap = new Map<number, number[]>()
+      for (const o of all) {
+        const pid = (o as any).p ?? null
+        const id = Number((o as any).id)
+        if (!Number.isFinite(id)) continue
+        if (pid != null) {
+          const pnum = Number(pid)
+          if (!childrenMap.has(pnum)) childrenMap.set(pnum, [])
+          childrenMap.get(pnum)!.push(id)
+        }
+      }
+      const stack = [rootOrgId]
+      const seen = new Set<number>([rootOrgId])
+      while (stack.length) {
+        const cur = stack.pop()!
+        const kids = childrenMap.get(cur) || []
+        for (const k of kids) if (!seen.has(k)) seen.add(k), stack.push(k)
+      }
+      return Array.from(seen)
+    } catch {
+      // 最坏兜底：仅自身
+      return [rootOrgId]
+    }
+  }
+
   // —— 特例：answer_records 外键名不一致时做探测 —— //
   private async detectAnswerRecordFk(runner: Pool | PoolConnection): Promise<string | null> {
     return this.detectColumn(runner, 'answer_records', ['exam_result_id', 'result_id', 'submission_id'])
@@ -228,13 +293,26 @@ export class UserRepository {
     }
   }
 
-  async list(params: { page: number; limit: number; role?: UserRole; search?: string }) {
-    const { page, limit, role, search } = params
+  async list(params: {
+    page: number
+    limit: number
+    role?: UserRole
+    search?: string
+    email?: string
+    nickname?: string
+    phone?: string
+    status?: UserStatus
+  }) {
+    const { page, limit, role, search, email, nickname, phone, status } = params
     const offset = (page - 1) * limit
     const hasU = await hasUsernameCol(this.db)
 
+    const joins: string[] = []
     const clauses: string[] = []
     const values: any[] = []
+
+    joins.push('LEFT JOIN user_organizations uo ON uo.user_id = u.id AND uo.is_primary = 1')
+    joins.push('LEFT JOIN organizations o ON o.id = uo.org_id')
 
     if (role) {
       clauses.push('u.role = ?')
@@ -249,12 +327,31 @@ export class UserRepository {
         values.push(`%${search}%`, `%${search}%`, `%${search}%`)
       }
     }
+    if (email) {
+      clauses.push('u.email LIKE ?')
+      values.push(`%${email}%`)
+    }
+    if (nickname) {
+      clauses.push('u.nickname LIKE ?')
+      values.push(`%${nickname}%`)
+    }
+    if (phone) {
+      clauses.push('u.phone LIKE ?')
+      values.push(`%${phone}%`)
+    }
+    if (status) {
+      clauses.push('u.status = ?')
+      values.push(status)
+    }
 
     const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
 
     const [rows] = await this.db.query<UserDTO[]>(
-      `SELECT ${selectFields(hasU)}
+      `SELECT ${selectFields(hasU)},
+              uo.org_id AS org_id,
+              o.name AS org_name
          FROM users u
+    ${joins.join('\n')}
         ${where}
      ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?`,
@@ -272,36 +369,18 @@ export class UserRepository {
     role?: string
     search?: string
     includeChildren?: boolean
+    email?: string
+    nickname?: string
+    phone?: string
+    status?: UserStatus
   }): Promise<{ items: UserDTO[]; total: number }> {
-    const { orgId, page, limit, role, search, includeChildren } = params
+    const { orgId, page, limit, role, search, includeChildren, email, nickname, phone, status } = params
 
-    let orgIds: number[] = [orgId]
-    if (includeChildren) {
-      // organizations 全量 + 手动构建 children map
-      const [all] = await this.db.query<RowDataPacket[]>(
-        'SELECT id, parent_id FROM organizations /* findAll(true) 等效 */'
-      )
-      const childrenMap = new Map<number, number[]>()
-      for (const o of all) {
-        const pid = (o as any).parent_id ?? null
-        if (pid != null) {
-          if (!childrenMap.has(pid)) childrenMap.set(pid, [])
-          childrenMap.get(pid)!.push(Number((o as any).id))
-        }
-      }
-      const stack = [orgId]
-      const seen = new Set<number>([orgId])
-      while (stack.length) {
-        const cur = stack.pop()!
-        const kids = childrenMap.get(cur) || []
-        for (const k of kids) if (!seen.has(k)) seen.add(k), stack.push(k)
-      }
-      orgIds = Array.from(seen)
-    }
+    const orgIds = includeChildren ? await this.getOrgDescendantIds(orgId, this.db) : [orgId]
 
     const hasU = await this.hasUsername()
-    const clauses: string[] = ['uo.org_id IN (?)']
-    const vals: any[] = [orgIds]
+    const clauses: string[] = []
+    const vals: any[] = []
     if (role) {
       clauses.push('u.role = ?')
       vals.push(role)
@@ -315,30 +394,55 @@ export class UserRepository {
         vals.push(`%${search}%`, `%${search}%`, `%${search}%`)
       }
     }
-    const where = `WHERE ${clauses.join(' AND ')}`
+    if (email) {
+      clauses.push('u.email LIKE ?')
+      vals.push(`%${email}%`)
+    }
+    if (nickname) {
+      clauses.push('u.nickname LIKE ?')
+      vals.push(`%${nickname}%`)
+    }
+    if (phone) {
+      clauses.push('u.phone LIKE ?')
+      vals.push(`%${phone}%`)
+    }
+    if (status) {
+      clauses.push('u.status = ?')
+      vals.push(status)
+    }
+    const where = clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''
     const offset = (page - 1) * limit
 
-    const rowsRes: any = await this.db.query(
-      `SELECT ${hasU ? 'u.username' : 'u.email AS username'}, 
-              u.id, u.email, u.role, u.nickname, u.school, u.class_name, u.experience_points, u.level,
-              u.avatar_url, u.status, u.phone, u.gender, u.remark, u.created_at, u.updated_at
-         FROM users u
-         INNER JOIN user_organizations uo ON uo.user_id = u.id
-        ${where}
-     GROUP BY u.id
-     ORDER BY u.created_at DESC
-        LIMIT ? OFFSET ?`,
-      [...vals, limit, offset]
-    )
+    const filterSubquery = `
+      SELECT uo.user_id, MIN(uo.org_id) AS org_id
+        FROM user_organizations uo
+       WHERE uo.org_id IN (?)
+       GROUP BY uo.user_id
+    `
+
+    const rowsSql = `
+      SELECT ${selectFields(hasU)},
+             filt.org_id AS org_id,
+             o.name AS org_name
+        FROM users u
+        INNER JOIN (${filterSubquery}) AS filt ON filt.user_id = u.id
+        LEFT JOIN organizations o ON o.id = filt.org_id
+       ${where}
+    ORDER BY u.created_at DESC
+       LIMIT ? OFFSET ?
+    `
+
+    const rowsParams = [orgIds, ...vals, limit, offset]
+    const rowsRes: any = await this.db.query(rowsSql, rowsParams)
     const items: UserDTO[] = (rowsRes && rowsRes[0]) || []
 
-    const cntRes: any = await this.db.query(
-      `SELECT COUNT(DISTINCT u.id) AS total
-         FROM users u
-         INNER JOIN user_organizations uo ON uo.user_id = u.id
-        ${where}`,
-      vals
-    )
+    const countSql = `
+      SELECT COUNT(*) AS total
+        FROM users u
+        INNER JOIN (${filterSubquery}) AS filt ON filt.user_id = u.id
+       ${where}
+    `
+    const cntRes: any = await this.db.query(countSql, [orgIds, ...vals])
     const total = Number(((cntRes && cntRes[0] && cntRes[0][0]) || ({} as any)).total || 0)
 
     return { items, total }
@@ -415,16 +519,16 @@ export class UserRepository {
   async setPrimaryOrg(userId: number, nextOrgId: number | null, runner?: PoolConnection): Promise<void> {
     const db = runner || this.db
     if (nextOrgId === null) {
-      // 删除主组织
-      await db.query('DELETE FROM user_organizations WHERE user_id=? AND is_primary=1', [userId])
+      // 删除该用户的全部组织关联
+      await db.query('DELETE FROM user_organizations WHERE user_id=?', [userId])
       return
     }
-    // 置为主组织（幂等）
-    await db.query('UPDATE user_organizations SET is_primary=0 WHERE user_id=?', [userId])
+    // 移除其它组织，确保只保留当前主组织
+    await db.query('DELETE FROM user_organizations WHERE user_id=? AND org_id <> ?', [userId, nextOrgId])
     await db.query(
       `INSERT INTO user_organizations (user_id, org_id, is_primary, assigned_at)
        VALUES (?, ?, 1, NOW())
-       ON DUPLICATE KEY UPDATE is_primary=1, assigned_at=VALUES(assigned_at)`,
+       ON DUPLICATE KEY UPDATE is_primary=VALUES(is_primary), assigned_at=VALUES(assigned_at)`,
       [userId, nextOrgId]
     )
   }

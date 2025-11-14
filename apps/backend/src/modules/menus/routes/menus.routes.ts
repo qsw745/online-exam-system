@@ -6,6 +6,7 @@ const router = Router()
 
 // 功能菜单树（系统）
 router.get('/functions/tree', MenuController.getFunctionsTree)
+router.get('/users/:userId(\\d+)/menus', authenticateToken, MenuController.getUserDefaultMenuTree)
 
 // 系统菜单：列表/树/单条
 router.get('/', MenuController.getAllMenus)

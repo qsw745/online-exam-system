@@ -300,7 +300,8 @@ export const TabsBar: React.FC = () => {
         right: 0,
         zIndex: 999,
         height: 36,
-        background: '#fff',
+        background: 'var(--surface-1, #fff)',
+        color: 'var(--text-1)',
       }}
     >
       {/* 左箭头（隐藏时不占位） */}

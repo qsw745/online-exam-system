@@ -1,6 +1,6 @@
 // src/shared/contexts/LanguageContext.tsx
 import importedTranslations from '@/app/i18n'
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { useAuth } from './AuthContext'
 
 type Language = 'zh-CN' | 'en-US'
@@ -12,7 +12,7 @@ interface Translations {
 interface LanguageContextType {
   language: Language
   setLanguage: (language: Language) => void
-  t: (key: string) => string
+  t: (key: string, fallback?: string) => string
   translations: Translations
 }
 
@@ -82,7 +82,17 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     // 其他同步动作由上面的 useEffect 统一处理
   }
 
-  const t = (key: string): string => translations[language]?.[key] || key
+  const t = useCallback(
+    (key: string, fallback?: string): string => {
+      const localized = translations[language]?.[key]
+      if (typeof localized === 'string') return localized
+      if (fallback) return fallback
+      const zhDefault = translations['zh-CN']?.[key]
+      if (language !== 'zh-CN' && typeof zhDefault === 'string') return zhDefault
+      return key
+    },
+    [language, translations]
+  )
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, t, translations }}>{children}</LanguageContext.Provider>

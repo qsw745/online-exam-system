@@ -230,6 +230,21 @@ export const getUserRoles = async (req: Request, res: Res) => {
     return res.internal('获取用户角色失败')
   }
 }
+
+export const getRolesForUserAssign = async (req: Request, res: Res) => {
+  try {
+    const uid = Number(req.params.userId)
+    if (!Number.isFinite(uid)) return res.badRequest('无效的用户ID')
+    const orgIdRaw = req.query.orgId
+    const orgId = typeof orgIdRaw === 'string' && orgIdRaw.trim() !== '' ? Number(orgIdRaw) : undefined
+    if (orgId !== undefined && !Number.isFinite(orgId)) return res.badRequest('无效的机构ID')
+    const data = await RoleService.getRolesForAssign(uid, orgId)
+    return res.ok(data)
+  } catch (e) {
+    console.error('获取角色选项失败:', e)
+    return res.internal('获取角色选项失败')
+  }
+}
 export const setUserRoles = async (req: Request, res: Res) => {
   try {
     const uid = Number(req.params.userId)

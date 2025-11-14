@@ -389,6 +389,7 @@ export default function MenusListPage() {
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
+              verticalAlign: 'middle',
             }}
             title={v}
           >
@@ -589,7 +590,17 @@ export default function MenusListPage() {
             return (
               <span
                 onClick={e => onExpand?.(record as any, e)}
-                style={{ cursor: 'pointer', display: 'inline-flex', alignItems: 'center' }}
+                style={{
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 16,
+                  height: '100%',
+                  lineHeight: 0,
+                  verticalAlign: 'middle',
+                  marginRight: 6,
+                }}
               >
                 {expanded ? <DownOutlined /> : <RightOutlined />}
               </span>
