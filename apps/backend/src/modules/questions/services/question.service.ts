@@ -3,6 +3,7 @@ import { log } from '@/infrastructure/logging/logger'
 import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
+import { computeQuestionContentSignature } from '../utils/content-hash'
 
 let RC: any = null
 let RL: any = null
@@ -181,6 +182,9 @@ export class QuestionService {
     const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledge_points))
     const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tags))
     const questionTitle = title || (content.length > 50 ? content.substring(0, 50) + '...' : content)
+    const { hash: contentHash } = computeQuestionContentSignature(question_type, content)
+    const dupId = await QuestionRepository.findDupByContentHash(contentHash, question_type)
+    if (dupId) throw new httpError('同类型下已有相同题干，请勿重复创建')
 
     const id = await QuestionRepository.insert({
       title: questionTitle,
@@ -194,6 +198,7 @@ export class QuestionService {
       difficulty,
       exam_id,
       score,
+      content_hash: contentHash,
     })
 
     await LogService.log({
@@ -234,6 +239,11 @@ export class QuestionService {
       score,
     } = body
 
+    const existing = await QuestionRepository.findById(id)
+    if (!existing) throw new httpError('问题不存在')
+    let nextContent = existing.content
+    let nextQuestionType = existing.question_type
+
     const sets: string[] = []
     const vals: any[] = []
     if (title !== undefined) {
@@ -243,10 +253,12 @@ export class QuestionService {
     if (content !== undefined) {
       sets.push('content = ?')
       vals.push(content)
+      nextContent = content
     }
     if (question_type !== undefined) {
       sets.push('question_type = ?')
       vals.push(question_type)
+      nextQuestionType = question_type
     }
     if (options !== undefined) {
       sets.push('options = ?')
@@ -279,6 +291,14 @@ export class QuestionService {
     if (score !== undefined) {
       sets.push('score = ?')
       vals.push(Number(score))
+    }
+
+    if (content !== undefined || question_type !== undefined) {
+      const { hash: contentHash } = computeQuestionContentSignature(nextQuestionType, nextContent)
+      const dupId = await QuestionRepository.findDupByContentHash(contentHash, nextQuestionType, id)
+      if (dupId) throw new httpError('同类型下已有内容相同的题目')
+      sets.push('content_hash = ?')
+      vals.push(contentHash)
     }
 
     if (!sets.length) throw new httpError('没有需要更新的字段')
@@ -405,8 +425,8 @@ export class QuestionService {
         const correctAnswerStr = typeof finalCorrect === 'string' ? finalCorrect : JSON.stringify(finalCorrect)
         const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledgeRaw))
         const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tagsRaw))
-
-        const dupId = await QuestionRepository.findDup(content, question_type)
+        const { hash: contentHash } = computeQuestionContentSignature(question_type, content)
+        const dupId = await QuestionRepository.findDupByContentHash(contentHash, question_type)
         if (dupId) {
           if (upsertFlag) {
             await QuestionRepository.update(
@@ -435,6 +455,7 @@ export class QuestionService {
           difficulty,
           exam_id: null,
           score,
+          content_hash: contentHash,
         })
         successCount++
       } catch (e: any) {

@@ -10,6 +10,10 @@ export interface INotification extends RowDataPacket {
   is_read: boolean
   created_at: Date
   updated_at: Date
+  attachments?: any
+  source?: string
+  target_path?: string | null
+  metadata?: any
 }
 
 export type NotificationListData = {

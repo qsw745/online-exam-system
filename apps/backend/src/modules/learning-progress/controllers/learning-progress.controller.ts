@@ -15,10 +15,10 @@ import { LearningProgressService } from '../services/learning-progress.service.j
 const service = new LearningProgressService()
 
 export class LearningProgressController {
-  async recordProgress(req: AuthRequest, res: Res) {
+  async recordProgress(req: AuthRequest, res?: Res) {
     try {
       const userId = req.user?.id
-      if (!userId) return res.unauthorized('用户未登录')
+      if (!userId) return res ? res.unauthorized('用户未登录') : undefined
       const { subjectId, studyTime, questionsAnswered, correctAnswers, studyContent } = req.body
       const progress = await service.recordProgress({
         userId,
@@ -28,9 +28,11 @@ export class LearningProgressController {
         correctAnswers,
         studyContent,
       })
-      return res.ok<LearningProgress>(progress, '学习进度记录成功')
+      if (res?.ok) return res.ok<LearningProgress>(progress, '学习进度记录成功')
+      return progress
     } catch (e: any) {
-      return res.internal(e?.message || '记录学习进度失败')
+      if (res?.internal) return res.internal(e?.message || '记录学习进度失败')
+      throw e
     }
   }
 

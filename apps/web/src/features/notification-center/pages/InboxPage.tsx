@@ -1,43 +1,29 @@
 import { Badge, Card, List, Modal, Space, Tag, Typography } from 'antd'
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useState } from 'react'
+import dayjs from '@/shared/utils/dayjs'
 import './inbox-page.css'
+import { notificationsApi, type NotificationAttachment, type NotificationDTO } from '@/shared/api/endpoints/notifications'
 
 const { Paragraph, Text } = Typography
 
-type Item = {
-  id: number
-  title: string
-  type: 'notice' | 'message'
-  read?: boolean
-  created_at: string
-  content: string
-}
-
 export default function InboxPage() {
-  const [list] = useState<Item[]>(
-    useMemo(
-      () => [
-        {
-          id: 1,
-          title: '系统维护公告',
-          type: 'notice',
-          created_at: '2025-01-05 08:00',
-          content: '系统将在 01-05 08:30 至 09:00 期间进行例行维护，期间可能无法正常访问。',
-        },
-        {
-          id: 2,
-          title: '考试开始提醒',
-          type: 'message',
-          created_at: '2025-01-05 09:00',
-          content: '您报名的《综合素质测试》将于 09:30 开始，请提前 15 分钟登录系统检查设备。',
-        },
-      ],
-      []
-    )
-  )
-  const [active, setActive] = useState<Item | null>(null)
+  const [list, setList] = useState<NotificationDTO[]>([])
+  const [active, setActive] = useState<NotificationDTO | null>(null)
 
-  const unread = list.filter(i => !i.read).length
+  const load = async () => {
+    try {
+      const items = await notificationsApi.list()
+      setList(items)
+    } catch {
+      setList([])
+    }
+  }
+
+  useEffect(() => {
+    load()
+  }, [])
+
+  const unread = list.filter(i => !i.is_read).length
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={12}>
@@ -46,11 +32,24 @@ export default function InboxPage() {
           <List
             dataSource={list}
             renderItem={it => (
-              <List.Item className="inbox-list-item" onClick={() => setActive(it)}>
+              <List.Item
+                className="inbox-list-item"
+                onClick={async () => {
+                  setActive(it)
+                  if (!it.is_read) {
+                    await notificationsApi.markRead(it.id)
+                    load()
+                  }
+                }}
+              >
                 <Space size={12} wrap>
-                  <Tag color={it.type === 'notice' ? 'blue' : 'green'}>{it.type === 'notice' ? '公告' : '消息'}</Tag>
+                  <Tag color={it.type === 'announcement' ? 'blue' : 'green'}>
+                    {it.type === 'announcement' ? '公告' : '消息'}
+                  </Tag>
                   <span className="inbox-title">{it.title}</span>
-                  <span className="inbox-time">{it.created_at}</span>
+                  <span className="inbox-time">
+                    {it.created_at ? dayjs(it.created_at).format('YYYY-MM-DD HH:mm') : ''}
+                  </span>
                 </Space>
               </List.Item>
             )}
@@ -58,16 +57,26 @@ export default function InboxPage() {
         </Card>
       </Badge>
 
-      <Modal
-        open={!!active}
-        title={active?.title}
-        onCancel={() => setActive(null)}
-        footer={null}
-        centered
-      >
+      <Modal open={!!active} title={active?.title} onCancel={() => setActive(null)} footer={null} centered>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary">{active?.created_at}</Text>
+          <Text type="secondary">
+            {active?.created_at ? dayjs(active.created_at).format('YYYY-MM-DD HH:mm') : ''}
+          </Text>
           <Paragraph>{active?.content}</Paragraph>
+          {active?.attachments && active.attachments.length > 0 && (
+            <div>
+              <Text strong>附件：</Text>
+              <ul style={{ paddingLeft: 16 }}>
+                {active.attachments.map((att: NotificationAttachment) => (
+                  <li key={att.id}>
+                    <a href={att.url} target="_blank" rel="noreferrer">
+                      {att.file_name}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </Space>
       </Modal>
     </Space>

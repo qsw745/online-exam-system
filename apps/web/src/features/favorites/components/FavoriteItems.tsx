@@ -4,7 +4,7 @@ import type { FavoriteItem } from '@/shared/api/endpoints/favorites'
 
 const { Text } = Typography
 
-function getDifficultyColor(d: string) {
+function getDifficultyColor(d?: string) {
   switch ((d || '').toLowerCase()) {
     case 'easy':
       return 'green'
@@ -16,7 +16,7 @@ function getDifficultyColor(d: string) {
       return 'default'
   }
 }
-function getDifficultyText(d: string) {
+function getDifficultyText(d?: string) {
   switch ((d || '').toLowerCase()) {
     case 'easy':
       return '简单'
@@ -45,7 +45,15 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
         renderItem={item => (
           <List.Item
             actions={[
-              <Button key="view" type="link" onClick={() => onView(item.question_id)}>
+              <Button
+                key="view"
+                type="link"
+                disabled={!(item.question_id ?? item.item_id)}
+                onClick={() => {
+                  const qid = item.question_id ?? item.item_id
+                  if (typeof qid === 'number') onView(qid)
+                }}
+              >
                 查看题目
               </Button>,
               <Button
@@ -69,13 +77,14 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
               description={
                 <Space size="large">
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    科目: {item.subject}
+                    科目: {item.subject || '-'}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    类型: {item.question_type}
+                    类型: {item.question_type || item.item_type || '-'}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    收藏时间: {new Date(item.added_at).toLocaleDateString()}
+                    收藏时间:{' '}
+                    {item.added_at ? new Date(item.added_at).toLocaleDateString() : '未知'}
                   </Text>
                 </Space>
               }

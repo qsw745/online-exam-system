@@ -9,8 +9,8 @@ export class MessageController {
     try {
       const uid = req.user?.id
       if (!uid) return res.unauthorized('未授权访问')
-      const { user_id, title, content, type = 'info' } = req.body
-      const data = await MessageService.create(uid, { user_id, title, content, type })
+      const { user_id, title, content, type = 'info', source, target_path, metadata } = req.body
+      const data = await MessageService.create(uid, { user_id, title, content, type, source, target_path, metadata })
       return res.ok<IMessage>(data)
     } catch (e: any) {
       return res.internal(e?.message || '创建消息失败')
@@ -21,8 +21,8 @@ export class MessageController {
     try {
       const uid = req.user?.id
       if (!uid) return res.unauthorized('未授权访问')
-      const { user_ids, title, content, type = 'info' } = req.body
-      const data = await MessageService.createBatch(uid, { user_ids, title, content, type })
+      const { user_ids, title, content, type = 'info', source, target_path, metadata } = req.body
+      const data = await MessageService.createBatch(uid, { user_ids, title, content, type, source, target_path, metadata })
       return res.ok<{ count: number }>(data)
     } catch (e: any) {
       return res.internal(e?.message || '批量创建消息失败')

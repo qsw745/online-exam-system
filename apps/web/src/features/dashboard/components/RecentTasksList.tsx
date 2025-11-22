@@ -1,6 +1,6 @@
 // apps/web/src/features/dashboard/components/RecentTasksList.tsx
-import { Card, Empty, List, Space, Tag, Typography } from 'antd'
-import { BookmarkPlus, Calendar } from 'lucide-react'
+import { Button, Card, Empty, List, Space, Tag, Typography } from 'antd'
+import { BookmarkPlus, Calendar, Play } from 'lucide-react'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import dayjs from '@/shared/utils/dayjs'
@@ -25,6 +25,7 @@ type Props = {
   tasks: RecentTask[]
   locale: 'zh-CN' | 'en-US'
   label: { start: string; exam: string; practice: string }
+  onStartTask?: (task: RecentTask) => void
 }
 
 const STATUS_TAG_COLORS: Record<UiStatus, 'default' | 'processing' | 'success' | 'error'> = {
@@ -48,7 +49,17 @@ function toUiStatus(s: string): UiStatus {
   return 'not_started'
 }
 
-export const RecentTasksList: React.FC<Props> = ({ title, viewAllText, emptyText, tasks, locale, label }) => {
+const canStartStatus = (status: UiStatus) => status === 'not_started' || status === 'in_progress'
+
+export const RecentTasksList: React.FC<Props> = ({
+  title,
+  viewAllText,
+  emptyText,
+  tasks,
+  locale,
+  label,
+  onStartTask,
+}) => {
   const getTaskTypeText = (type: TaskType) => (type === 'exam' ? label.exam : label.practice)
 
   return (
@@ -70,10 +81,41 @@ export const RecentTasksList: React.FC<Props> = ({ title, viewAllText, emptyText
               const d = dayjs(task.start_time)
               if (d.isValid()) start = d.locale(locale).format('YYYY/MM/DD HH:mm')
             }
+            const clickable = Boolean(onStartTask)
+            const canStart = onStartTask && canStartStatus(ui)
             return (
-              <List.Item>
+              <List.Item
+                actions={
+                  onStartTask
+                    ? [
+                        <Button
+                          type="link"
+                          size="small"
+                          key="start"
+                          icon={<Play style={{ width: 14, height: 14 }} />}
+                          onClick={e => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            if (canStart) onStartTask(task)
+                          }}
+                          disabled={!canStart}
+                        >
+                          {task.type === 'exam' ? '进入考试' : '开始练习'}
+                        </Button>,
+                      ]
+                    : undefined
+                }
+              >
                 <List.Item.Meta
-                  title={<Text strong>{task.title}</Text>}
+                  title={
+                    <Text
+                      strong
+                      style={{ cursor: clickable ? 'pointer' : 'default' }}
+                      onClick={clickable ? () => onStartTask?.(task) : undefined}
+                    >
+                      {task.title}
+                    </Text>
+                  }
                   description={
                     <Space>
                       <Calendar style={{ width: 14, height: 14 }} />

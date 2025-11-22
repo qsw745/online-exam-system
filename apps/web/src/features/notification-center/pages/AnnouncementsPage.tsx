@@ -1,11 +1,21 @@
 import { Card, List, Typography } from 'antd'
-import React from 'react'
+import React, { useEffect, useState } from 'react'
+import { announcementsApi, type Announcement } from '@/shared/api/endpoints/announcements'
 
 export default function AnnouncementsPage() {
-  const items = [
-    { id: 1, title: '系统维护公告', content: '本周六凌晨 1:00 — 3:00 维护升级。' },
-    { id: 2, title: '新版功能上线', content: '新增考试统计、消息中心等功能。' },
-  ]
+  const [items, setItems] = useState<Announcement[]>([])
+
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const list = await announcementsApi.list()
+        setItems(list)
+      } catch {
+        setItems([])
+      }
+    })()
+  }, [])
+
   return (
     <Card title="公告">
       <List

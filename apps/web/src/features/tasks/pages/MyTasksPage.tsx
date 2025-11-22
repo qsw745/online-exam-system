@@ -1,12 +1,13 @@
 // src/features/tasks/pages/MyTasksPage.tsx
 import React from 'react'
-import { Card, Pagination, Space, Input, Select, DatePicker, Button, App } from 'antd'
+import { Card, Space, Input, Select, DatePicker, Button, App } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 const { RangePicker } = DatePicker
 
@@ -75,7 +76,6 @@ const MyTasksPage: React.FC = () => {
             value={rg}
             onChange={v => setRg(v || null)}
             showTime
-            disabledDate={d => !!d && d > dayjs().endOf('day')}
           />
           <Button type="primary" onClick={applySearch}>
             查询
@@ -102,20 +102,15 @@ const MyTasksPage: React.FC = () => {
           onStart={handleStart}
         />
 
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <Pagination
-            current={page}
-            pageSize={pageSize}
-            total={total}
-            showSizeChanger
-            showQuickJumper
-            onChange={(p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            }}
-            showTotal={(t, r) => `共 ${t} 条，当前 ${r[0]}-${r[1]}`}
-          />
-        </div>
+        <GlobalPagination
+          total={total}
+          current={page}
+          pageSize={pageSize}
+          onChange={(p, size) => {
+            setPage(p)
+            setPageSize(size)
+          }}
+        />
       </Card>
     </Space>
   )

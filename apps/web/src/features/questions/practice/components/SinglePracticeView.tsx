@@ -40,6 +40,7 @@ type Props = {
   ids: string[]
   startIndex: number
   onExit: () => void
+  onIndexChange?: (index: number) => void
 }
 
 function judge(q: Question, selected: number[], text: string) {
@@ -55,7 +56,7 @@ function judge(q: Question, selected: number[], text: string) {
   return false
 }
 
-export default function SinglePracticeView({ ids, startIndex, onExit }: Props) {
+export default function SinglePracticeView({ ids, startIndex, onExit, onIndexChange }: Props) {
   const [index, setIndex] = useState(startIndex)
   const qid = ids[index]
   const cacheRef = useRef<Map<string, Question>>(new Map())
@@ -107,6 +108,14 @@ export default function SinglePracticeView({ ids, startIndex, onExit }: Props) {
       mounted = false
     }
   }, [qid])
+
+  useEffect(() => {
+    setIndex(startIndex)
+  }, [startIndex, ids])
+
+  useEffect(() => {
+    if (typeof onIndexChange === 'function') onIndexChange(index)
+  }, [index, onIndexChange])
 
   const progress = useMemo(() => `${index + 1} / ${ids.length}`, [index, ids.length])
 

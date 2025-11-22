@@ -1,8 +1,8 @@
 // apps/web/src/features/analytics/components/StudentsTable.tsx
-import { Card, Pagination, Progress, Table } from 'antd'
+import { Card, Progress, Table } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import React, { useMemo } from 'react'
-import { createPaginationConfig } from '@/shared/constants/pagination'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 // ==== 本地最小类型与工具，去除对 ../types 与 ../utils 的依赖 ====
 export type StudentRow = {
@@ -112,13 +112,12 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         pagination={false}
         size="small"
       />
-      <Pagination
+      <GlobalPagination
         current={current}
         total={total}
         pageSize={pageSize}
         onChange={onPageChange}
-        onShowSizeChange={onPageSizeChange}
-        {...createPaginationConfig()}
+        onPageSizeChange={onPageSizeChange}
       />
     </Card>
   )

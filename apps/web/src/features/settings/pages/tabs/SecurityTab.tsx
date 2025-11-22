@@ -1,10 +1,11 @@
 // src/features/settings/pages/tabs/SecurityTab.tsx
 import React, { useEffect, useMemo, useState } from 'react'
-import { App, Pagination, Table } from 'antd'
+import { App, Table } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { logsApi, type LogEntry } from '@/shared/api/endpoints/logs'
 import './security-tab.css'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 type Row = LogEntry & {
   // 兼容后端可能在 details 里放地理和客户端信息
@@ -143,15 +144,7 @@ export default function SecurityTab() {
       />
 
       {!loading && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 14 }}>
-          <Pagination
-            current={page}
-            total={total}
-            pageSize={pageSize}
-            showSizeChanger={false}
-            onChange={p => setPage(p)}
-          />
-        </div>
+        <GlobalPagination total={total} current={page} pageSize={pageSize} onChange={p => setPage(p)} showSizeChanger={false} />
       )}
     </div>
   )

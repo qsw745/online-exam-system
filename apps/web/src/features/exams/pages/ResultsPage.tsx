@@ -1,12 +1,12 @@
 
-import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
-import { Card, Col, Empty, Pagination, Row, Space, Spin, Typography } from 'antd'
+import { Card, Col, Empty, Row, Space, Spin, Typography } from 'antd'
 import { BookmarkPlus } from 'lucide-react'
 import ResultCard, { type UiStatus } from '../components/ResultCard'
 import ResultsFilters from '../components/ResultsFilters'
 import useResults from '../hooks/useResults'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 const { Title, Text } = Typography
 
 export default function ResultsPage() {
@@ -89,13 +89,7 @@ export default function ResultsPage() {
 
       {total > limit && (
         <Card>
-          <Pagination
-            current={page}
-            total={total}
-            pageSize={limit}
-            onChange={setPage}
-            {...createPaginationConfig({ showSizeChanger: false })}
-          />
+          <GlobalPagination total={total} current={page} pageSize={limit} onChange={setPage} showSizeChanger={false} />
         </Card>
       )}
     </Space>

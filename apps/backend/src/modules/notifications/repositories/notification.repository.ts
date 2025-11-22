@@ -9,13 +9,42 @@ type Queryable = {
 }
 const db: Queryable = pool as unknown as Queryable
 
+type NotificationInsertPayload = {
+  user_id: number
+  title: string
+  content: string
+  type?: string
+  attachments?: any
+  source?: string
+  target_path?: string | null
+  metadata?: any
+}
+
+const parseJson = (value: any) => {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value as string)
+  } catch {
+    return null
+  }
+}
+
 export class NotificationRepository {
+  private static mapRows(rows: INotification[]) {
+    return rows.map(r => {
+      const attachments = parseJson(r.attachments) || []
+      const metadata = parseJson((r as any).metadata)
+      return { ...r, attachments, metadata: metadata ?? null }
+    })
+  }
+
   static async findByUser(userId: number) {
     const [rows] = await db.query<INotification[]>(
       'SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC',
       [userId]
     )
-    return rows
+    return this.mapRows(rows as INotification[])
   }
 
   static async countUnread(userId: number) {
@@ -42,19 +71,41 @@ export class NotificationRepository {
     return ret.affectedRows
   }
 
-  static async insertOne(user_id: number, title: string, content: string, type: string) {
+  static async insertOne(payload: NotificationInsertPayload) {
+    const { user_id, title, content, type = 'info', attachments, source = 'system', target_path = null, metadata } = payload
     const [ret] = await db.query<ResultSetHeader>(
-      'INSERT INTO notifications (user_id, title, content, type) VALUES (?, ?, ?, ?)',
-      [user_id, title, content, type]
+      `INSERT INTO notifications (user_id, title, content, type, attachments, source, target_path, metadata)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        user_id,
+        title,
+        content,
+        type,
+        attachments ? JSON.stringify(attachments) : null,
+        source,
+        target_path,
+        metadata ? JSON.stringify(metadata) : null,
+      ]
     )
     return ret.insertId
   }
 
-  static async insertMany(values: Array<[number, string, string, string]>) {
-    const placeholders = values.map(() => '(?, ?, ?, ?)').join(', ')
-    const flat = values.flat()
+  static async insertMany(payloads: NotificationInsertPayload[]) {
+    if (!payloads.length) return 0
+    const placeholders = payloads.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')
+    const flat = payloads.flatMap(item => [
+      item.user_id,
+      item.title,
+      item.content,
+      item.type ?? 'info',
+      item.attachments ? JSON.stringify(item.attachments) : null,
+      item.source ?? 'system',
+      item.target_path ?? null,
+      item.metadata ? JSON.stringify(item.metadata) : null,
+    ])
     const [ret] = await db.query<ResultSetHeader>(
-      `INSERT INTO notifications (user_id, title, content, type) VALUES ${placeholders}`,
+      `INSERT INTO notifications (user_id, title, content, type, attachments, source, target_path, metadata)
+       VALUES ${placeholders}`,
       flat
     )
     return ret.affectedRows
@@ -75,7 +126,7 @@ export class NotificationRepository {
        LEFT JOIN users u ON n.user_id = u.id 
        ORDER BY n.created_at DESC`
     )
-    return rows
+    return this.mapRows(rows as unknown as INotification[])
   }
 
   static async adminDeleteById(id: number) {

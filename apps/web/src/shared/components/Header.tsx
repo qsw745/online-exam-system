@@ -757,6 +757,20 @@ function useInbox() {
   }
 
   // —— 列表：按 Tab 拉取
+  const normalizeNotice = (items: any[]): InboxItem[] =>
+    (items || []).map(it => ({
+      ...it,
+      read: typeof it.read === 'boolean' ? it.read : !!it.is_read,
+      created_at: it.created_at || it.createdAt,
+    }))
+  const normalizeMessage = normalizeNotice
+  const normalizeTodo = (items: any[]): InboxItem[] =>
+    (items || []).map(it => ({
+      ...it,
+      done: typeof it.done === 'boolean' ? it.done : !!it.is_done,
+      created_at: it.created_at || it.createdAt,
+    }))
+
   const loadList = async (tab: InboxTabKey) => {
     try {
       setLoading(s => ({ ...s, [tab]: true }))
@@ -765,17 +779,17 @@ function useInbox() {
         const arr: InboxItem[] = Array.isArray(resp?.data?.notifications ?? resp?.notifications)
           ? resp?.data?.notifications ?? resp?.notifications
           : []
-        setLists(s => ({ ...s, notice: arr }))
+        setLists(s => ({ ...s, notice: normalizeNotice(arr) }))
       } else if (tab === 'message') {
         const resp: any = await api.get('/messages')
         const arr: InboxItem[] = Array.isArray(resp?.data?.messages ?? resp?.messages)
           ? resp?.data?.messages ?? resp?.messages
           : []
-        setLists(s => ({ ...s, message: arr }))
+        setLists(s => ({ ...s, message: normalizeMessage(arr) }))
       } else {
         const resp: any = await api.get('/todos')
         const arr: InboxItem[] = Array.isArray(resp?.data?.todos ?? resp?.todos) ? resp?.data?.todos ?? resp?.todos : []
-        setLists(s => ({ ...s, todo: arr }))
+        setLists(s => ({ ...s, todo: normalizeTodo(arr) }))
       }
     } catch (e: any) {
       antdMsg.error(e?.message || '加载失败')
@@ -788,7 +802,10 @@ function useInbox() {
   const markNoticeRead = async (id: string) => {
     try {
       await api.put(`/notifications/${id}/read`)
-      setLists(s => ({ ...s, notice: s.notice.map(i => (i.id === id ? { ...i, read: true } : i)) }))
+      setLists(s => ({
+        ...s,
+        notice: s.notice.map(i => (i.id === id ? { ...i, read: true, is_read: true } : i)),
+      }))
       setCounts(c => ({ ...c, notice: Math.max(0, c.notice - 1) }))
     } catch {}
   }

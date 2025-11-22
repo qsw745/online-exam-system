@@ -5,19 +5,72 @@ import { pool } from '@/config/database.js'
 import type { RowDataPacket } from 'mysql2'
 
 export class TodoService {
-  static async create(currentUserId: number, payload: { user_id: number; title: string; content: string }) {
+  static async create(
+    currentUserId: number,
+    payload: {
+      user_id: number
+      title: string
+      content: string
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
+  ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const id = await TodoRepository.insertOne(payload.user_id, payload.title, payload.content)
+    const id = await TodoRepository.insertOne({
+      user_id: payload.user_id,
+      title: payload.title,
+      content: payload.content,
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    })
     const [rows] = await pool.query<ITodo[]>(
-      'SELECT id, user_id, title, content, is_done AS done, created_at, updated_at FROM todos WHERE id = ?',
+      `SELECT id,
+              user_id,
+              title,
+              content,
+              is_done AS done,
+              created_at,
+              updated_at,
+              source,
+              target_path,
+              metadata
+         FROM todos
+        WHERE id = ?`,
       [id]
     )
-    return rows[0]
+    const todo = rows[0]
+    if (todo && typeof (todo as any).metadata === 'string') {
+      try {
+        ;(todo as any).metadata = JSON.parse((todo as any).metadata)
+      } catch {
+        ;(todo as any).metadata = null
+      }
+    }
+    return todo
   }
 
-  static async createBatch(currentUserId: number, payload: { user_ids: number[]; title: string; content: string }) {
+  static async createBatch(
+    currentUserId: number,
+    payload: {
+      user_ids: number[]
+      title: string
+      content: string
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
+  ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const values = payload.user_ids.map(uid => [uid, payload.title, payload.content] as [number, string, string])
+    const values = payload.user_ids.map(uid => ({
+      user_id: uid,
+      title: payload.title,
+      content: payload.content,
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    }))
     const count = await TodoRepository.insertMany(values)
     return { count }
   }

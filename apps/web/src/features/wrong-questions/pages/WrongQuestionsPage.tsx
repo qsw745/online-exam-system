@@ -1,10 +1,11 @@
 // apps/web/src/features/wrong-questions/pages/WrongQuestionsPage.tsx
 
-import { Button, Card, Empty, Pagination, Segmented, Space, Spin, Typography } from 'antd'
+import { Button, Card, Empty, Segmented, Space, Spin, Typography } from 'antd'
 import { BookOpen, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
 import { useWrongQuestions } from '../hooks/useWrongQuestions'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 const { Title, Text } = Typography
 
 // 小工具：统一中文展示
@@ -143,17 +144,13 @@ export default function WrongQuestionsPage() {
         )}
 
         {totalPages > 1 && (
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 32 }}>
-            <Pagination
-              current={page}
-              total={total}
-              pageSize={pageSize}
-              onChange={onPageChange}
-              showSizeChanger={false}
-              showQuickJumper
-              showTotal={(t, r) => `第 ${r[0]}-${r[1]} 条，共 ${t} 条`}
-            />
-          </div>
+          <GlobalPagination
+            total={total}
+            current={page}
+            pageSize={pageSize}
+            onChange={p => onPageChange(p)}
+            showSizeChanger={false}
+          />
         )}
       </Space>
     </>

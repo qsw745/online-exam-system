@@ -114,7 +114,20 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
     setPage(1)
   }
 
-  return { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset, refetch: fetch }
+  return {
+    rows,
+    total,
+    page,
+    pageSize,
+    setPage,
+    setPageSize,
+    loading,
+    filters,
+    search,
+    reset,
+    refetch: fetch,
+    setRows,
+  }
 }
 
 export default useTasksQuery

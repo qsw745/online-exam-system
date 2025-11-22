@@ -134,7 +134,7 @@ const LoginPage: React.FC = () => {
           right: 24,
         }}
       />
-      <Card style={cardStyle} bodyStyle={{ padding: 32 }}>
+      <Card style={cardStyle} styles={{ body: { padding: 32 } }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div
             style={{

@@ -72,6 +72,39 @@ export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
     return null
   }, [config])
 
+  useEffect(() => {
+    setConfig(prev => {
+      const total = prev.totalQuestions
+      const sum = Object.values(prev.questionTypes).reduce((a, b) => a + b, 0)
+      if (total <= 0 || sum === total) return prev
+      const entries = Object.entries(prev.questionTypes)
+      if (!entries.length) {
+        return {
+          ...prev,
+          questionTypes: { single_choice: total, multiple_choice: 0, true_false: 0, fill_blank: 0, essay: 0 },
+        }
+      }
+      const ratio = total / (sum || 1)
+      let allocated = 0
+      const normalized = entries.reduce<Record<string, number>>((acc, [key, value], idx) => {
+        if (idx === entries.length - 1) {
+          acc[key] = Math.max(0, total - allocated)
+        } else {
+          const next = Math.max(0, Math.round((value || 0) * ratio))
+          acc[key] = next
+          allocated += next
+        }
+        return acc
+      }, {})
+      const finalSum = Object.values(normalized).reduce((a, b) => a + b, 0)
+      if (finalSum !== total) {
+        const [firstKey] = Object.keys(normalized)
+        if (firstKey) normalized[firstKey] = Math.max(0, normalized[firstKey] + (total - finalSum))
+      }
+      return { ...prev, questionTypes: normalized as SmartPaperConfig['questionTypes'] }
+    })
+  }, [config.totalQuestions])
+
   /**
    * 智能生成：
    * - 若服务返回 {questions:[]} → 进入预览步骤

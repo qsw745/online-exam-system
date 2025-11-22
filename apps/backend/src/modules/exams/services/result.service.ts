@@ -37,15 +37,15 @@ export class ResultService {
     })
   }
 
-  async getById(userId: number | undefined, id: number, include?: string) {
-    if (!userId) throw new Error('未授权')
+  async getById(user: { id?: number; role?: string } | undefined, id: number, include?: string) {
+    if (!user?.id) throw new Error('未授权')
     const needQs = include === 'questions' || include === 'all' || include === 'true'
     if (needQs) {
-      const detail = await ResultRepository.getDetailByIdOwned(userId, id)
+      const detail = await ResultRepository.getDetailById(user, id)
       if (!detail) throw new Error('考试结果不存在')
       return detail
     }
-    const row = await ResultRepository.getByIdOwned(userId, id)
+    const row = await ResultRepository.getById(user, id)
     if (!row) throw new Error('考试结果不存在')
     return row
   }

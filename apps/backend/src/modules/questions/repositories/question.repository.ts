@@ -47,11 +47,12 @@ export const QuestionRepository = {
     difficulty: 'easy' | 'medium' | 'hard'
     exam_id: number | null
     score: number
+    content_hash: string
   }): Promise<number> {
     const [ret] = await db.query<ResultSetHeader>(
       `INSERT INTO questions
-       (title, content, question_type, options, correct_answer, knowledge_points, tags, explanation, difficulty, exam_id, score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (title, content, question_type, options, correct_answer, knowledge_points, tags, explanation, difficulty, exam_id, score, content_hash)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         data.title,
         data.content,
@@ -64,6 +65,7 @@ export const QuestionRepository = {
         data.difficulty,
         data.exam_id,
         data.score,
+        data.content_hash,
       ]
     )
     return ret.insertId
@@ -82,11 +84,16 @@ export const QuestionRepository = {
     return ret.affectedRows
   },
 
-  async findDup(content: string, type: string): Promise<number | null> {
-    const [rows] = await db.query<RowDataPacket[]>('SELECT id FROM questions WHERE content = ? AND question_type = ?', [
-      content,
-      type,
-    ])
+  async findDupByContentHash(hash: string, type: string, excludeId?: number): Promise<number | null> {
+    if (!hash) return null
+    let sql = 'SELECT id FROM questions WHERE question_type = ? AND content_hash = ?'
+    const params: any[] = [type, hash]
+    if (excludeId) {
+      sql += ' AND id <> ?'
+      params.push(excludeId)
+    }
+    sql += ' LIMIT 1'
+    const [rows] = await db.query<RowDataPacket[]>(sql, params)
     return (rows as any[])[0]?.id ?? null
   },
 

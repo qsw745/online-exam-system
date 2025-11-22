@@ -6,7 +6,7 @@ import { Card, Col, Input, Row, Select, Space, Spin, Typography } from 'antd'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
-import { PaginationBar } from '../components/PaginationBar'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 import { QuestionGrid } from '../components/QuestionGrid'
 import { diffLabel as diffLbl, typeLabel as typeLbl } from '../utils/labelMaps'
 import { buildPracticeLink } from '../utils/practiceLink'
@@ -135,12 +135,14 @@ export default function QuestionsPage() {
       </Spin>
 
       {q.viewType === 'all' && q.items.length > 0 && (
-        <PaginationBar
-          current={q.page} // ✅ 改这里：使用 q.page
+        <GlobalPagination
+          current={q.page}
           total={q.total}
           pageSize={q.pageSize}
-          onChange={q.setPage}
-          onSizeChange={(_c: number, size: number) => q.setPageSize(size)}
+          onChange={(p, size) => {
+            q.setPage(p)
+            q.setPageSize(size)
+          }}
         />
       )}
     </Space>

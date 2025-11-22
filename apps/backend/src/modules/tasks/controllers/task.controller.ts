@@ -7,6 +7,28 @@ import type { TaskStatus } from '../domain/task.model'
 import { log } from '@/infrastructure/logging/logger'
 
 const svc = new TaskService()
+const pickDateParam = (value?: unknown): string | undefined => {
+  if (!value) return undefined
+  const raw = Array.isArray(value) ? value[0] : value
+  if (!raw) return undefined
+  const ts = Date.parse(String(raw))
+  if (Number.isNaN(ts)) return undefined
+  return new Date(ts).toISOString()
+}
+const normalizeRange = (start?: string, end?: string): [string | undefined, string | undefined] => {
+  if (start && end && new Date(start).getTime() > new Date(end).getTime()) {
+    return [end, start]
+  }
+  return [start, end]
+}
+const normalizeStatusParam = (value?: unknown): TaskStatus | '' => {
+  if (!value) return ''
+  const raw = Array.isArray(value) ? value[0] : value
+  if (!raw) return ''
+  const str = String(raw).trim()
+  if (!str || str === 'all') return ''
+  return str as TaskStatus
+}
 // ✅ 本地增强类型（与中间件一致）
 type Res<T = any> = Response<T> & {
   ok<D = any>(data?: D, message?: string, extra?: any): Res<T>
@@ -42,6 +64,7 @@ type ExamPayloadResponse = ApiResponse<{
         score: number
         order: number
     }>
+    antiCheat?: { level: 'none' | 'basic' | 'strict'; maxSwitches: number; disableCopy?: boolean; autoSubmit?: boolean }
 }>
 
 export class TaskController {
@@ -53,9 +76,10 @@ export class TaskController {
       const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
       const limit = Math.max(1, Math.min(100, parseInt(String(req.query.limit ?? '10')) || 10))
       const search = (req.query.search as string) || ''
-      const status = (req.query.status as TaskStatus | '') || ''
+      const status = normalizeStatusParam(req.query.status)
+      const [startFrom, endTo] = normalizeRange(pickDateParam(req.query.start_from), pickDateParam(req.query.end_to))
 
-      const result = await svc.list({ page, limit, search, status, userId, userRole: 'student' })
+      const result = await svc.list({ page, limit, search, status, userId, userRole: 'student', startFrom, endTo })
       return res.ok({
         tasks: result.tasks,
         pagination: {
@@ -80,9 +104,10 @@ export class TaskController {
       const page = Math.max(1, parseInt(String(req.query.page ?? '1')) || 1)
       const limit = Math.max(1, Math.min(100, parseInt(String(req.query.limit ?? '10')) || 10))
       const search = (req.query.search as string) || ''
-      const status = (req.query.status as TaskStatus | '') || ''
+      const status = normalizeStatusParam(req.query.status)
+      const [startFrom, endTo] = normalizeRange(pickDateParam(req.query.start_from), pickDateParam(req.query.end_to))
 
-      const result = await svc.list({ page, limit, search, status, userId, userRole: role })
+      const result = await svc.list({ page, limit, search, status, userId, userRole: role, startFrom, endTo })
       return res.ok({
         tasks: result.tasks,
         pagination: {

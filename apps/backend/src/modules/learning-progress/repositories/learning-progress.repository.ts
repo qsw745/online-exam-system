@@ -46,6 +46,25 @@ type ProgressRecordRow = RowDataPacket & ProgressRecord
 type SubjectRow = RowDataPacket & Subject
 
 export class LearningProgressRepository {
+  private tableCache = new Map<string, boolean>()
+
+  private async hasTable(name: string, runner: PoolConnection | typeof pool): Promise<boolean> {
+    const key = name.toLowerCase()
+    if (this.tableCache.has(key)) return this.tableCache.get(key)!
+    const exec = runner.execute.bind(runner)
+    const [rows] = await exec<RowDataPacket[]>(
+      `SELECT 1
+         FROM information_schema.tables
+        WHERE table_schema = DATABASE()
+          AND table_name = ?
+        LIMIT 1`,
+      [name]
+    )
+    const ok = Array.isArray(rows) && rows.length > 0
+    this.tableCache.set(key, ok)
+    return ok
+  }
+
   // progress insert/merge
   async upsertProgress(
     conn: PoolConnection,
@@ -71,6 +90,7 @@ export class LearningProgressRepository {
   }
 
   async insertTrack(conn: PoolConnection, userId: number, payload: any, subjectId: number | null) {
+    if (!(await this.hasTable('learning_tracks', conn))) return
     await conn.execute<ResultSetHeader>(
       `INSERT INTO learning_tracks (user_id, activity_type, activity_data, subject_id)
        VALUES (?, 'study_session', ?, ?)`,

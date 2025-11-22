@@ -130,4 +130,21 @@ export class FavoritesService {
       return this.repo.allCategories(conn)
     })
   }
+
+  async createShare(userId: number, favoriteId: number, shareCode: string): Promise<void> {
+    const fav = await this.repo.findByIdForUser(favoriteId, userId)
+    if (!fav) throw HttpError.notFound('收藏夹不存在或无权分享')
+    await this.repo.createShareRecord({ favorite_id: favoriteId, shared_by: userId, share_code: shareCode })
+  }
+
+  async getSharedFavorite(shareCode: string): Promise<{
+    favorite: IFavorite
+    items: IFavoriteItem[]
+    owner?: { id: number; username: string | null; nickname: string | null }
+  }> {
+    const record = await this.repo.findShareByCode(shareCode)
+    if (!record) throw HttpError.notFound('分享链接不存在或已失效')
+    const items = await this.repo.listItems(record.share.favorite_id)
+    return { favorite: record.favorite, items, owner: record.owner }
+  }
 }

@@ -36,6 +36,18 @@ export default function BasicInfoCard({
               onChange={e => setField('totalScore', parseInt(e.target.value) || 1)}
             />
           </Form.Item>
+          <Form.Item label="题目总数" className="col-span-2">
+            <Input
+              type="number"
+              min={1}
+              value={config.totalQuestions}
+              onChange={e => {
+                const next = parseInt(e.target.value)
+                setField('totalQuestions', Number.isNaN(next) ? 1 : Math.max(1, next))
+              }}
+              placeholder="请输入题目总数"
+            />
+          </Form.Item>
         </div>
         <Form.Item label="整体难度">
           <Select

@@ -67,7 +67,7 @@ export class ResultController {
     try {
       const id = Number(req.params.id)
       const include = (String(req.query.include || req.query.include_questions || '') || '').toLowerCase()
-      const data = await svc.getById(req.user?.id, id, include)
+      const data = await svc.getById(pickUser(req.user), id, include)
       return (res as any).ok(data, '获取考试结果详情成功')
     } catch (e: any) {
       const msg = e?.message || '获取考试结果详情失败'

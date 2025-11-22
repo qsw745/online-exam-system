@@ -24,9 +24,9 @@ import {
   Checkbox,
   Dropdown,
   Input,
+  InputNumber,
   Layout,
   Modal,
-  Pagination,
   Select,
   Space,
   Switch,
@@ -38,6 +38,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import React, { useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react'
 import { createPortal } from 'react-dom'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 // 弹窗
 import AssignRolesModal from '../components/AssignRolesModal'
@@ -723,6 +724,16 @@ export default function UserManagementPage() {
     </Card>
   )
 
+  const totalPages = Math.max(1, Math.ceil((q.total || 0) / Math.max(1, q.limit)))
+  const [gotoPage, setGotoPage] = useState<number | null>(null)
+
+  const handleGoto = () => {
+    if (!gotoPage) return
+    const target = Math.min(totalPages, Math.max(1, gotoPage))
+    if (target === q.page) return
+    q.setPage(target)
+  }
+
   const TableBlock = (
     <Card className="users-table-card" styles={{ body: { padding: 10, overflowX: 'auto' } }}>
       {Toolbar}
@@ -739,21 +750,31 @@ export default function UserManagementPage() {
         rowSelection={{ selectedRowKeys, onChange: keys => setSelectedRowKeys(keys), preserveSelectedRowKeys: true }}
         bordered
       />
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, alignItems: 'center', gap: 12 }}>
-        <span style={{ color: '#6b7280' }}>{formatMessage(t('users.pagination.total'), { count: q.total })}</span>
-        <Pagination
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, alignItems: 'center', gap: 8 }}>
+        <GlobalPagination
+          fullWidth={false}
           current={q.page}
           pageSize={q.limit}
           total={q.total}
-          showSizeChanger
-          showQuickJumper
           onChange={(p, ps) => {
             if (ps !== q.limit) q.setPage(1)
             else q.setPage(p)
             q.setLimit(ps)
             setSelectedRowKeys([])
           }}
+          renderTotal={totalNum => formatMessage(t('users.pagination.total'), { count: totalNum })}
         />
+        <span style={{ color: '#6b7280' }}>{t('roles.pagination.goto_label')}</span>
+        <InputNumber
+          size="middle"
+          min={1}
+          max={totalPages}
+          value={gotoPage ?? q.page}
+          onChange={v => setGotoPage(v ?? null)}
+          onPressEnter={handleGoto}
+          style={{ width: 72, textAlign: 'center' }}
+        />
+        <span style={{ color: '#6b7280' }}>{t('roles.pagination.page_suffix')}</span>
       </div>
     </Card>
   )

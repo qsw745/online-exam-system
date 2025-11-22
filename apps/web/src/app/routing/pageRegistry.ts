@@ -46,6 +46,18 @@ const LoginLogsPage = lazy(() => import('@/features/logs/pages/LoginLogsPage'))
 const OperationLogsPage = lazy(() => import('@/features/logs/pages/OperationLogsPage'))
 const SystemLogsPage = lazy(() => import('@/features/logs/pages/SystemLogsPage'))
 const OnlineUsersPage = lazy(() => import('@/features/logs/pages/OnlineUsersPage'))
+const FilesLibraryPage = lazy(() => import('@/features/files/pages/FilesLibraryPage'))
+const FilesUploadPage = lazy(() => import('@/features/files/pages/FilesUploadPage'))
+const DictManagementPage = lazy(() => import('@/features/system/pages/DictManagementPage'))
+const SystemConfigPage = lazy(() => import('@/features/system/pages/SystemConfigPage'))
+const SystemJobsPage = lazy(() => import('@/features/system/pages/SystemJobsPage'))
+const CacheManagementPage = lazy(() => import('@/features/system/pages/CacheManagementPage'))
+const IntegrationsWebhooksPage = lazy(() => import('@/features/system/pages/IntegrationsWebhooksPage'))
+const IntegrationsOauthPage = lazy(() => import('@/features/system/pages/IntegrationsOauthPage'))
+const MailInboxPage = lazy(() => import('@/features/mail/pages/MailInboxPage'))
+const MailComposePage = lazy(() => import('@/features/mail/pages/MailComposePage'))
+const MailSentPage = lazy(() => import('@/features/mail/pages/MailSentPage'))
+const MailDraftPage = lazy(() => import('@/features/mail/pages/MailDraftPage'))
 
 // Notification Center / Manager
 const InboxPage = lazy(() => import('@/features/notification-center/pages/InboxPage'))
@@ -97,6 +109,18 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-user': UserManagementPage,
   'menu-list': MenusListPage,
   'system-settings': SystemSettingsPage,
+  'files-library': FilesLibraryPage,
+  'files-uploads': FilesUploadPage,
+  'system-dict': DictManagementPage,
+  'system-config': SystemConfigPage,
+  'system-jobs': SystemJobsPage,
+  'system-cache': CacheManagementPage,
+  'integrations-webhooks': IntegrationsWebhooksPage,
+  'integrations-oauth': IntegrationsOauthPage,
+  'mail-inbox': MailInboxPage,
+  'mail-compose': MailComposePage,
+  'mail-sent': MailSentPage,
+  'mail-draft': MailDraftPage,
 
   // Tasks
   'task-my': MyTasksPage,

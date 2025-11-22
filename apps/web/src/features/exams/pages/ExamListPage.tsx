@@ -1,11 +1,11 @@
 // src/features/exams/pages/ExamListPage.tsx
 
-import { createPaginationConfig } from '@/shared/constants/pagination'
 import { FilterOutlined, SearchOutlined } from '@ant-design/icons'
-import { Card, Col, Empty, Input, Pagination, Row, Select, Space, Typography } from 'antd'
+import { Card, Col, Empty, Input, Row, Select, Space, Typography } from 'antd'
 import { BookOpen } from 'lucide-react'
 import { ExamCard } from '../components/ExamCard'
 import { useExams } from '../hooks/useExams'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 const { Search } = Input
 const { Option } = Select
 const { Title, Paragraph } = Typography
@@ -81,15 +81,7 @@ export default function ExamListPage() {
 
       {/* 分页 */}
       {total > limit && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
-          <Pagination
-            current={page}
-            total={total}
-            pageSize={limit}
-            onChange={onPageChange}
-            {...createPaginationConfig({ pageSizeOptions: ['6', '10', '12', '18', '24'] })}
-          />
-        </div>
+        <GlobalPagination total={total} current={page} pageSize={limit} onChange={onPageChange} />
       )}
     </div>
   )

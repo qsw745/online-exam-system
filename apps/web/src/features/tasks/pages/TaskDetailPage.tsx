@@ -98,15 +98,24 @@ export default function TaskDetailPage() {
     try {
       setSaving(true)
       // 提交前再做一遍 number 归一化，防止控件返回字符串
+      const normalizeDate = (input: any) => {
+        if (!input) return null
+        if (typeof input === 'string') return input
+        if (typeof input?.format === 'function') return input.format('YYYY-MM-DD HH:mm:ss')
+        if (input instanceof Date && !isNaN(input.getTime())) {
+          return dayjs(input).format('YYYY-MM-DD HH:mm:ss')
+        }
+        return null
+      }
+
       const patch = {
         ...payload,
         exam_id: toNum(payload?.exam_id),
         paper_id: toNum(payload?.paper_id),
         assigned_user_ids: toNumArr(payload?.assigned_user_ids),
         assigned_department_ids: toNumArr(payload?.assigned_department_ids),
-        // dayjs -> 字符串
-        start_time: payload?.start_time ? payload.start_time.format('YYYY-MM-DD HH:mm:ss') : null,
-        end_time: payload?.end_time ? payload.end_time.format('YYYY-MM-DD HH:mm:ss') : null,
+        start_time: normalizeDate(payload?.start_time),
+        end_time: normalizeDate(payload?.end_time),
       }
 
       const res: any = (await (tasksApi as any).update?.(id, patch)) ?? {}

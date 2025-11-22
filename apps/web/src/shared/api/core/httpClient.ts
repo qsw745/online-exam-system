@@ -162,6 +162,9 @@ export const api = {
   put<T = any>(url: string, data?: any, config?: any) {
     return normalize<T>(http.put(url, data, config))
   },
+  patch<T = any>(url: string, data?: any, config?: any) {
+    return normalize<T>(http.patch(url, data, config))
+  },
   delete<T = any>(url: string, config?: any) {
     return normalize<T>(http.delete(url, config))
   },

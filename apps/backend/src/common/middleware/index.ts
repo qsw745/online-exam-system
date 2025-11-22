@@ -7,6 +7,7 @@ export * from './requestId'
 export * from './role-auth'
 export * from './validation'
 export * from './upload'
+export * from './upload-file'
 export * from './jwt-role-hydrator'
 export * from './rbac'
 

@@ -1,9 +1,10 @@
 import { ApartmentOutlined, SearchOutlined } from '@ant-design/icons'
-import { App, Button, Form, Input, Layout, Modal, Pagination, Space, Switch, Table, Tabs, Tag, Typography } from 'antd'
+import { App, Button, Form, Input, Layout, Modal, Space, Switch, Table, Tabs, Tag, Typography } from 'antd'
 import React from 'react'
 import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import { usersApi } from '@/shared/api/endpoints/users'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 const { Sider, Content } = Layout
 const { Text } = Typography
@@ -283,21 +284,16 @@ export const BindUserModal: React.FC<{
                     }}
                   />
 
-                  <div style={{ textAlign: 'right', marginTop: 12 }}>
-                    <Pagination
-                      current={bPage}
-                      pageSize={bLimit}
-                      total={bTotal}
-                      showSizeChanger
-                      showQuickJumper
-                      onChange={(p, ps) => {
-                        if (ps !== bLimit) setBPage(1)
-                        else setBPage(p)
-                        setBLimit(ps)
-                      }}
-                      showTotal={(t, r) => `${r[0]}-${r[1]} / 共 ${t} 条`}
-                    />
-                  </div>
+                  <GlobalPagination
+                    current={bPage}
+                    pageSize={bLimit}
+                    total={bTotal}
+                    onChange={(p, ps) => {
+                      if (ps !== bLimit) setBPage(1)
+                      else setBPage(p)
+                      setBLimit(ps)
+                    }}
+                  />
                 </Content>
               </Layout>
             ),

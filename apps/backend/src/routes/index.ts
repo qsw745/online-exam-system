@@ -40,6 +40,15 @@ import * as taskRoutesMod from '@/modules/tasks/routes/task.routes'
 import * as wrongQuestionRoutesMod from '@/modules/wrong-questions/routes/wrong-question.routes'
 import * as adminSettingsRoutesMod from '@/modules/admin-settings/routes/admin-settings.routes'
 import * as profileRoutesMod from '@/modules/profile/routes/profile.routes'
+import * as fileRoutesMod from '@/modules/files/routes/file.routes'
+import * as dictRoutesMod from '@/modules/dicts/routes/dict.routes'
+import * as configRoutesMod from '@/modules/configs/routes/config.routes'
+import * as jobRoutesMod from '@/modules/jobs/routes/job.routes'
+import * as cacheRoutesMod from '@/modules/cache/routes/cache.routes'
+import * as integrationRoutesMod from '@/modules/integrations/routes/integration.routes'
+import * as announcementRoutesMod from '@/modules/announcements/routes/announcement.routes'
+import * as notificationUploadRoutesMod from '@/modules/notifications/routes/notification-upload.routes'
+import * as mailRoutesMod from '@/modules/mail/routes/mail.routes'
 
 import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
 import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
@@ -73,6 +82,15 @@ const taskRoutes = pick(taskRoutesMod, 'taskRoutes')
 const wrongQuestionRoutes = pick(wrongQuestionRoutesMod, 'wrongQuestionRoutes')
 const adminSettingsRoutes = pick(adminSettingsRoutesMod, 'adminSettingsRoutes')
 const profileRoutes = pick(profileRoutesMod, 'profileRoutes')
+const fileRoutes = pick(fileRoutesMod, 'fileRoutes')
+const dictRoutes = pick(dictRoutesMod, 'dictRoutes')
+const configRoutes = pick(configRoutesMod, 'configRoutes')
+const jobRoutes = pick(jobRoutesMod, 'jobRoutes')
+const cacheRoutes = pick(cacheRoutesMod, 'cacheRoutes')
+const integrationRoutes = pick(integrationRoutesMod, 'integrationRoutes')
+const announcementRoutes = pick(announcementRoutesMod, 'announcementRoutes')
+const notificationUploadRoutes = pick(notificationUploadRoutesMod, 'notificationUploadRoutes')
+const mailRoutes = pick(mailRoutesMod, 'mailRoutes')
 const captchaRoutes = pick(captchaRoutesMod, 'captchaRoutes')
 const cryptoRoutes = pick(cryptoRoutesMod, 'cryptoRoutes')
 const publicRoutes = pick(publicRoutesMod, 'publicRoutes')
@@ -105,6 +123,15 @@ const mounts: Array<[string, any]> = [
   ['/wrong-questions', wrongQuestionRoutes],
   ['/admin', adminSettingsRoutes],
   ['/profile', profileRoutes],
+  ['/files', fileRoutes],
+  ['/dicts', dictRoutes],
+  ['/configs', configRoutes],
+  ['/jobs', jobRoutes],
+  ['/cache', cacheRoutes],
+  ['/integrations', integrationRoutes],
+  ['/announcements', announcementRoutes],
+  ['/mail', mailRoutes],
+  ['/notifications/uploads', notificationUploadRoutes],
   ['/captcha', captchaRoutes],
   ['/crypto', cryptoRoutes],
   ['/public', publicRoutes],

@@ -116,8 +116,19 @@ export class ResultRepository {
     }
 
     /** 详情：基础信息 + 题目、作答、判定 */
-    static async getDetailByIdOwned(userId: number, id: number): Promise<ResultDetail | null> {
+    static async getDetailById(
+        user: { id?: number; role?: string } | undefined,
+        id: number
+    ): Promise<ResultDetail | null> {
         const paperIdExpr = 'COALESCE(r.paper_id, e.paper_id)'
+        const isStudent = user?.role === 'student'
+        const params: any[] = [id]
+        let where = 'WHERE r.id = ?'
+        if (isStudent) {
+            if (!user?.id) return null
+            where += ' AND r.user_id = ?'
+            params.push(user.id)
+        }
 
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT
@@ -135,8 +146,8 @@ export class ResultRepository {
              FROM exam_results r
                       LEFT JOIN exams e ON r.exam_id = e.id
                       LEFT JOIN papers p ON p.id = ${paperIdExpr}
-             WHERE r.id = ? AND r.user_id = ?`,
-            [id, userId]
+             ${where}`,
+            params
         )
         const base = (rows as any[])[0]
         if (!base) return null
@@ -189,7 +200,15 @@ export class ResultRepository {
     }
 
     /** 老实现（仅基础信息），供兼容 */
-    static async getByIdOwned(userId: number, id: number) {
+    static async getById(user: { id?: number; role?: string } | undefined, id: number) {
+        const isStudent = user?.role === 'student'
+        const params: any[] = [id]
+        let where = 'WHERE r.id = ?'
+        if (isStudent) {
+            if (!user?.id) return null
+            where += ' AND r.user_id = ?'
+            params.push(user.id)
+        }
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT
           r.id, r.user_id, r.exam_id,
@@ -203,8 +222,8 @@ export class ResultRepository {
        FROM exam_results r
        LEFT JOIN exams e ON r.exam_id = e.id
        LEFT JOIN papers p ON p.id = COALESCE(r.paper_id, e.paper_id)
-       WHERE r.id = ? AND r.user_id = ?`,
-            [id, userId]
+       ${where}`,
+            params
         )
         return (rows as any[])[0] ?? null
     }

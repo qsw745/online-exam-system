@@ -15,36 +15,88 @@ async function publishToUser(uid: number, payload: any) {
   } catch {}
 }
 
+const parseJson = (value: any) => {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value as string)
+  } catch {
+    return null
+  }
+}
+
 export class NotificationService {
   static async create(
     currentUserId: number,
-    payload: { user_id: number; title: string; content: string; type?: INotification['type'] }
+    payload: {
+      user_id: number
+      title: string
+      content: string
+      attachments?: any[]
+      type?: INotification['type']
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
   ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const id = await NotificationRepository.insertOne(
-      payload.user_id,
-      payload.title,
-      payload.content,
-      payload.type ?? 'info'
-    )
-      const [rows] = await pool.query<INotification[]>('SELECT * FROM notifications WHERE id = ?', [id])
-      await publishToUser(payload.user_id, { type: 'notify', title: payload.title, content: payload.content })
+    const id = await NotificationRepository.insertOne({
+      user_id: payload.user_id,
+      title: payload.title,
+      content: payload.content,
+      type: payload.type ?? 'info',
+      attachments: payload.attachments ?? [],
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    })
+    const [rows] = await pool.query<INotification[]>('SELECT * FROM notifications WHERE id = ?', [id])
+    const data = rows[0] ? { ...rows[0], attachments: parseJson(rows[0].attachments) || [], metadata: parseJson((rows[0] as any).metadata) } : rows[0]
+    await publishToUser(payload.user_id, {
+      type: 'notify',
+      title: payload.title,
+      content: payload.content,
+      target_path: payload.target_path,
+      source: payload.source ?? 'system',
+    })
 
-    return rows[0]
+    return data as INotification
   }
 
   static async createBatch(
     currentUserId: number,
-    payload: { user_ids: number[]; title: string; content: string; type?: INotification['type'] }
+    payload: {
+      user_ids: number[]
+      title: string
+      content: string
+      attachments?: any[]
+      type?: INotification['type']
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
   ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const values = payload.user_ids.map(
-      uid => [uid, payload.title, payload.content, payload.type ?? 'info'] as [number, string, string, string]
-    )
-      const count = await NotificationRepository.insertMany(values)
-      for (const uid of payload.user_ids) {
-        await publishToUser(uid, { type: 'notify', title: payload.title, content: payload.content })
-      }
+    const values = payload.user_ids.map(uid => ({
+      user_id: uid,
+      title: payload.title,
+      content: payload.content,
+      type: payload.type ?? 'info',
+      attachments: payload.attachments ?? [],
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    }))
+    const count = await NotificationRepository.insertMany(values)
+    for (const uid of payload.user_ids) {
+      await publishToUser(uid, {
+        type: 'notify',
+        title: payload.title,
+        content: payload.content,
+        target_path: payload.target_path,
+        source: payload.source ?? 'system',
+      })
+    }
 
     return { count }
   }
@@ -107,7 +159,7 @@ export class NotificationService {
     if (!t) throw new Error('未知的通知类型')
 
     const values = data.userIds.map(
-      (uid: number) => [uid, t.title, t.content, 'info'] as [number, string, string, string]
+      (uid: number) => [uid, t.title, t.content, 'info', []]
     )
     const count = await NotificationRepository.insertMany(values)
     return { success: true, count }

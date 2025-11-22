@@ -14,6 +14,7 @@ type ListItem = {
   type: NotifType
   is_read: boolean
   created_at: string // ← 必填 string
+  attachments?: any[]
 }
 
 // 小工具：把后端来的字符串规范到联合类型；未知一律归为 system
@@ -60,6 +61,7 @@ export default function NotificationManagementPage() {
     type: normalizeType(n.type ?? n.level ?? 'system'),
     is_read: Boolean(n.is_read ?? n.read ?? n.read_at),
     created_at: String(n.created_at ?? n.createdAt ?? ''), // ← 强转为 string
+    attachments: Array.isArray(n.attachments) ? n.attachments : [],
   }))
 
   const unread = items.filter(i => !i.is_read).length

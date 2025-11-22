@@ -19,6 +19,7 @@ const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'))
+const SharedFavoritePage = lazy(() => import('@/features/favorites/pages/SharedFavoritePage'))
 
 /**
  * 关键点：
@@ -39,6 +40,7 @@ export const router = createBrowserRouter([
       { path: 'register', element: withSuspense(<RegisterPage />) },
       { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
       { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
+      { path: 'shared/favorites/:code', element: withSuspense(<SharedFavoritePage />) },
       // ✅ 放在 "*" 之前
       {
         path: 'settings',

@@ -91,6 +91,19 @@ function normalizeAnyDepth(nodes: MenuSeed[] | undefined): MenuSeed[] {
 
 /* ------------------------- 原始种子（任意层） -------------------------- */
 const RAW_MENU: MenuSeed[] = [
+  // ===== 根目录占位：仅用于层级控制，默认隐藏 =====
+  {
+    name: 'root',
+    title: '根目录',
+    path: null,
+    component: null,
+    icon: 'home',
+    menu_type: 'menu',
+    sort_order: 0,
+    is_hidden: true,
+    is_system: true,
+  },
+
   // ===== 仪表盘 =====
   {
     name: 'dashboard',
@@ -354,6 +367,57 @@ const RAW_MENU: MenuSeed[] = [
     sort_order: 60,
     meta: { requireAuth: true, keepAlive: true },
     permission_code: 'profile:view',
+  },
+
+  // ===== 邮件管理（与系统管理同级）=====
+  {
+    name: 'system-mail',
+    title: '邮件管理',
+    path: '/mail',
+    icon: 'mail',
+    menu_type: 'menu',
+    sort_order: 90,
+    redirect: '/mail/inbox',
+    meta: { requireAuth: true },
+    permission_code: 'system:mail',
+    children: [
+      {
+        name: 'mail-inbox',
+        title: '收件箱',
+        path: '/mail/inbox',
+        component: 'mail-inbox',
+        menu_type: 'page',
+        sort_order: 1,
+        permission_code: 'mail:inbox',
+      },
+      {
+        name: 'mail-compose',
+        title: '写邮件',
+        path: '/mail/compose',
+        component: 'mail-compose',
+        menu_type: 'page',
+        sort_order: 2,
+        permission_code: 'mail:compose',
+      },
+      {
+        name: 'mail-sent',
+        title: '发件箱',
+        path: '/mail/sent',
+        component: 'mail-sent',
+        menu_type: 'page',
+        sort_order: 3,
+        permission_code: 'mail:sent',
+      },
+      {
+        name: 'mail-draft',
+        title: '草稿箱',
+        path: '/mail/drafts',
+        component: 'mail-draft',
+        menu_type: 'page',
+        sort_order: 4,
+        permission_code: 'mail:draft',
+      },
+    ],
   },
 
   // ===== 系统管理（后台）=====

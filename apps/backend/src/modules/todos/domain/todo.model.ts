@@ -9,6 +9,9 @@ export interface ITodo extends RowDataPacket {
   done: boolean // 注意：SQL 中使用 is_done，这里通过 SELECT ... AS done 映射
   created_at: Date
   updated_at: Date
+  source?: string
+  target_path?: string | null
+  metadata?: any
 }
 
 export type TodoListData = {

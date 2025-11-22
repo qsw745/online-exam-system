@@ -38,6 +38,8 @@ export interface TaskListQuery {
   status?: TaskStatus | ''
   userRole: 'admin' | 'teacher' | 'student'
   userId: number
+  startFrom?: string
+  endTo?: string
 }
 
 export interface TaskListResult {

@@ -1,7 +1,7 @@
 import React from 'react'
 import {
   App,
-  Affix,
+  Alert,
   Button,
   Card,
   Col,
@@ -34,6 +34,13 @@ type Question = {
   order: number
 }
 
+type AntiCheatConfig = {
+  level: 'none' | 'basic' | 'strict'
+  maxSwitches: number
+  disableCopy?: boolean
+  autoSubmit?: boolean
+}
+
 type ExamPayload = {
   taskId: number
   examId: number
@@ -45,10 +52,16 @@ type ExamPayload = {
   title: string
   description?: string | null
   questions: Question[]
+  antiCheat?: AntiCheatConfig
 }
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
+const antiCheatLabels: Record<AntiCheatConfig['level'], string> = {
+  none: '关闭',
+  basic: '基础',
+  strict: '严格',
+}
 
 const letter = (i: number) => String.fromCharCode(65 + i)
 const isSingle = (t: string) => ['single', 'single_choice'].includes(t?.toLowerCase())
@@ -241,6 +254,75 @@ export default function ExamPage() {
       setSubmitting(false)
     }
   }
+  const doSubmitRef = React.useRef<(auto?: boolean) => Promise<void>>(async () => {})
+  React.useEffect(() => {
+    doSubmitRef.current = doSubmit
+  }, [doSubmit])
+  const antiCheat = exam?.antiCheat ?? { level: 'none' as AntiCheatConfig['level'], maxSwitches: Number.MAX_SAFE_INTEGER }
+  const violationRef = React.useRef(0)
+  const [violationCount, setViolationCount] = React.useState(0)
+  const forcedRef = React.useRef(false)
+
+  React.useEffect(() => {
+    violationRef.current = 0
+    forcedRef.current = false
+    setViolationCount(0)
+  }, [antiCheat.level])
+
+  React.useEffect(() => {
+    if (!exam || antiCheat.level === 'none') return
+    const limit = antiCheat.maxSwitches && Number.isFinite(antiCheat.maxSwitches)
+      ? antiCheat.maxSwitches
+      : antiCheat.level === 'strict'
+      ? 1
+      : 3
+
+    const handleViolation = (reason: string) => {
+      violationRef.current += 1
+      setViolationCount(violationRef.current)
+      const remaining = Math.max(0, limit - violationRef.current)
+      message.warning(`${reason}${remaining < Number.MAX_SAFE_INTEGER ? `（剩余 ${remaining} 次）` : ''}`)
+      if (!forcedRef.current && violationRef.current >= limit) {
+        forcedRef.current = true
+        if (antiCheat.autoSubmit) {
+          Modal.warning({
+            title: '防作弊提醒',
+            content: '检测到多次离开考试页面，系统将自动提交试卷。',
+            okText: '立即提交',
+            centered: true,
+            closable: false,
+            maskClosable: false,
+            onOk: () => doSubmitRef.current(true),
+          })
+        } else {
+          message.error('请立即回到考试页面，继续作答')
+        }
+      }
+    }
+
+    const handleBlur = () => handleViolation('检测到离开考试窗口')
+    const handleVisibility = () => {
+      if (document.hidden) handleViolation('检测到切换到其他标签')
+    }
+    const handleCopy = (e: ClipboardEvent) => {
+      if (antiCheat.disableCopy) {
+        e.preventDefault()
+        message.warning('考试期间禁止复制内容')
+      }
+    }
+    window.addEventListener('blur', handleBlur)
+    document.addEventListener('visibilitychange', handleVisibility)
+    if (antiCheat.disableCopy) {
+      document.addEventListener('copy', handleCopy)
+    }
+    return () => {
+      window.removeEventListener('blur', handleBlur)
+      document.removeEventListener('visibilitychange', handleVisibility)
+      if (antiCheat.disableCopy) {
+        document.removeEventListener('copy', handleCopy)
+      }
+    }
+  }, [exam, antiCheat.level, antiCheat.maxSwitches, antiCheat.disableCopy, antiCheat.autoSubmit, message])
 
   /** ---------------- UI 渲染 ---------------- */
   if (loading) return <LoadingSpinner center="page" text="加载中…" />
@@ -270,7 +352,7 @@ export default function ExamPage() {
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
       {/* 顶部栏（固定） */}
-      <Affix offsetTop={0}>
+      <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
         <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,.04)' }}>
           <Row gutter={16} align="middle">
             <Col flex="auto">
@@ -279,6 +361,14 @@ export default function ExamPage() {
                   {exam.title}
                 </Title>
                 {exam.description ? <Text type="secondary">{exam.description}</Text> : null}
+                <Space size="small" wrap style={{ marginTop: 4 }}>
+                  <Tag color={antiCheat.level === 'strict' ? 'red' : antiCheat.level === 'basic' ? 'orange' : 'default'}>
+                    防作弊：{antiCheatLabels[antiCheat.level]}
+                  </Tag>
+                  {antiCheat.level !== 'none' && Number.isFinite(antiCheat.maxSwitches) ? (
+                    <Text type="secondary">允许切换次数：{antiCheat.maxSwitches}</Text>
+                  ) : null}
+                </Space>
               </Space>
             </Col>
             <Col>
@@ -297,7 +387,7 @@ export default function ExamPage() {
             </Col>
           </Row>
         </Card>
-      </Affix>
+      </div>
 
       <Divider />
 
@@ -403,7 +493,7 @@ export default function ExamPage() {
 
         {/* 右侧：答题卡 */}
         <Col xs={24} lg={7} style={{ marginTop: 16 }}>
-          <Affix offsetTop={92}>
+          <div style={{ position: 'sticky', top: 92 }}>
             <Card
               title={
                 <Space>
@@ -415,6 +505,21 @@ export default function ExamPage() {
               }
               style={{ borderRadius: 12 }}
             >
+              {antiCheat.level !== 'none' && (
+                <Alert
+                  type={antiCheat.level === 'strict' ? 'error' : 'warning'}
+                  showIcon
+                  style={{ marginBottom: 12 }}
+                  message={`防作弊模式：${antiCheatLabels[antiCheat.level]}`}
+                  description={
+                    Number.isFinite(antiCheat.maxSwitches)
+                      ? `已记录 ${violationCount} 次异常切换，达到 ${antiCheat.maxSwitches} 次${
+                          antiCheat.autoSubmit ? '将自动提交试卷' : '将被标记'
+                        }。`
+                      : '请保持考试窗口在最前，勿复制试题。'
+                  }
+                />
+              )}
               <Row gutter={[8, 8]}>
                 {exam.questions.map((q, idx) => {
                   const a = answers[q.id]
@@ -456,7 +561,7 @@ export default function ExamPage() {
                 提交答卷
               </Button>
             </Card>
-          </Affix>
+          </div>
         </Col>
       </Row>
     </div>

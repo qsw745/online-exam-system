@@ -178,11 +178,12 @@ export class FavoritesController {
   // POST /:id/share
   static async share(req: MaybeAuth, res: Res) {
     try {
-      ensureUser(req, res)
+      const userId = ensureUser(req, res)
       const favoriteId = Number(req.params.id)
       if (!Number.isFinite(favoriteId)) return res.internal('无效的收藏夹ID')
 
       const share_code = randomHex(16)
+      await svc.createShare(userId, favoriteId, share_code)
       const host = req.get('host') ?? (req as any)?.headers?.host ?? ''
       const protocol = (req as any)?.protocol ?? ((req as any)?.secure ? 'https' : 'http')
       const frontendBase = (process.env.FRONTEND_URL || '').replace(/\/$/, '')
@@ -193,6 +194,18 @@ export class FavoritesController {
       return res.ok<{ share_code: string; share_url: string }>({ share_code, share_url })
     } catch (e: any) {
       return res.internal(e?.message || '生成分享链接失败')
+    }
+  }
+
+  // GET /shared/:code
+  static async getSharedByCode(req: MaybeAuth, res: Res) {
+    try {
+      const code = String(req.params.code || '').trim()
+      if (!code) return res.internal('无效的分享链接')
+      const data = await svc.getSharedFavorite(code)
+      return res.ok<any>(data)
+    } catch (e: any) {
+      return res.internal(e?.message || '获取分享内容失败')
     }
   }
 

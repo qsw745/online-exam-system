@@ -8,6 +8,15 @@ export interface NotificationDTO {
   type: NotificationType
   is_read: boolean
   created_at: string
+  attachments?: NotificationAttachment[]
+}
+
+export type NotificationAttachment = {
+  id: number
+  file_name: string
+  url: string
+  file_size: number
+  mime_type?: string
 }
 
 const pickArray = <T = unknown>(resp: any, fb: T[] = []): T[] => {
@@ -29,7 +38,21 @@ const pickNumber = (resp: any, keys: string[], fb = 0) => {
 export const notificationsApi = {
   async list() {
     const resp = await api.get<NotificationDTO[] | { notifications: NotificationDTO[] }>('/notifications')
-    return pickArray<NotificationDTO>(resp, [])
+    const arr = pickArray<NotificationDTO>(resp, [])
+    return arr.map(item => {
+      let attachments: NotificationAttachment[] = []
+      try {
+        const raw = (item as any).attachments
+        if (Array.isArray(raw)) attachments = raw as NotificationAttachment[]
+        else if (typeof raw === 'string' && raw) {
+          const parsed = JSON.parse(raw)
+          if (Array.isArray(parsed)) attachments = parsed
+        }
+      } catch {
+        attachments = []
+      }
+      return { ...item, attachments }
+    })
   },
   async unreadCount() {
     const resp = await api.get<{ count?: number; unreadCount?: number }>('/notifications/unread-count')
@@ -43,5 +66,11 @@ export const notificationsApi = {
   },
   async remove(id: number) {
     return api.delete(`/notifications/${id}`)
+  },
+  async create(payload: { user_id: number; title: string; content: string; type?: string }) {
+    return api.post('/notifications', payload)
+  },
+  async createBatch(payload: { user_ids: number[]; title: string; content: string; type?: string }) {
+    return api.post('/notifications/batch', payload)
   },
 }

@@ -2,6 +2,7 @@ import type { UserDTO } from '@/shared/api/http'
 import type { CreateNotificationForm } from '@/shared/hooks/useNotifications'
 import { Button, Checkbox, Form, Input, Modal, Select, Space } from 'antd'
 import { Send } from 'lucide-react'
+import AttachmentUploader from './AttachmentUploader'
 const { TextArea } = Input
 const { Option } = Select
 
@@ -29,20 +30,29 @@ export default function NotificationFormModal({
       footer={null}
       width={600}
     >
-      <Form form={form} layout="vertical" onFinish={onSubmit} initialValues={{ type: 'info', send_to_all: false }}>
+      <Form
+        form={form}
+        layout="vertical"
+        onFinish={onSubmit}
+        initialValues={{ type: 'info', send_to_all: false, attachments: [] }}
+      >
         <Form.Item name="title" label="通知标题" rules={[{ required: true, message: '请输入通知标题' }]}>
           <Input placeholder="请输入通知标题" />
         </Form.Item>
         <Form.Item name="content" label="通知内容" rules={[{ required: true, message: '请输入通知内容' }]}>
           <TextArea rows={4} placeholder="请输入通知内容" showCount maxLength={500} />
         </Form.Item>
-        <Form.Item name="type" label="通知类型" rules={[{ required: true, message: '请选择通知类型' }]}>
+        <Form.Item name="type" label="通知类型" rules={[{ required: true, message: '请选择通知类型' }]}> 
           <Select placeholder="请选择通知类型">
             <Option value="info">信息</Option>
             <Option value="success">成功</Option>
             <Option value="warning">警告</Option>
             <Option value="error">错误</Option>
           </Select>
+        </Form.Item>
+
+        <Form.Item name="attachments" label="附件">
+          <AttachmentUploader />
         </Form.Item>
 
         {/* 编辑时不展示分发范围（只改内容与类型） */}

@@ -1,6 +1,7 @@
 // apps/web/src/features/analytics/components/GradePagination.tsx
 import React from 'react'
-import { Flex, Pagination, Typography } from 'antd'
+import { Flex, Typography } from 'antd'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 type Props = {
   page: number
@@ -23,7 +24,13 @@ export const GradePagination: React.FC<Props> = ({ page, pageSize, totalPages, t
       <Text type="secondary">
         显示第 {start} - {end} 条，共 {totalResults} 条记录
       </Text>
-      <Pagination current={page} pageSize={pageSize} total={totalResults} showSizeChanger={false} onChange={onChange} />
+      <GlobalPagination
+        current={page}
+        pageSize={pageSize}
+        total={totalResults}
+        onChange={(p: number) => onChange(p)}
+        showSizeChanger={false}
+      />
     </Flex>
   )
 }

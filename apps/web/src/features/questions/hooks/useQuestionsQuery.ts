@@ -230,7 +230,12 @@ export function useQuestionsQuery(user?: { id?: number } | null): QueryResult {
 
   // —— setters —— //
   const setPage = (page: number) => setPg(s => ({ ...s, page }))
-  const setPageSize = (size: number) => setPg(s => ({ ...s, pageSize: size, page: 1 }))
+  const setPageSize = (size: number) =>
+    setPg(s => {
+      const nextSize = Number.isFinite(size) && size > 0 ? size : s.pageSize
+      if (nextSize === s.pageSize) return s
+      return { ...s, pageSize: nextSize, page: 1 }
+    })
 
   const setFilter = (key: keyof Filters, value: string) => {
     setFilters(s => ({ ...s, [key]: value }))

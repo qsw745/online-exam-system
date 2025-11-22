@@ -1,13 +1,13 @@
 
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
-import { createPaginationConfig } from '@/shared/constants/pagination'
 import { usePapersList } from '@/shared/hooks/usePapersList'
-import { App, Button, Card, Pagination, Popconfirm, Space, Typography } from 'antd'
+import { App, Button, Card, Popconfirm, Space, Typography } from 'antd'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ConfirmDialog from '../components/ConfirmDialog'
 import PapersTable from '../components/PapersTable'
 import PapersToolbar from '../components/PapersToolbar'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 const { Title, Text } = Typography
 
 export default function PaperManagementPage() {
@@ -92,19 +92,15 @@ export default function PaperManagementPage() {
         />
       </Card>
       <Card>
-        <Pagination
-          {...createPaginationConfig()}
+        <GlobalPagination
           current={h.pagination.current}
           total={h.pagination.total}
           pageSize={h.pagination.pageSize}
-          onChange={(p, s) => {
-            if (s && s !== h.pagination.pageSize) h.pagination.setPageSize(s)
+          onChange={(p, size) => {
+            if (size && size !== h.pagination.pageSize) h.pagination.setPageSize(size)
             h.pagination.setCurrent(p)
           }}
-          onShowSizeChange={(_, s) => h.pagination.setPageSize(s)}
-          showTotal={(t, range) => `共 ${t} 条，当前 ${range[0]}-${range[1]}`}
-          showSizeChanger
-          showQuickJumper
+          onPageSizeChange={(_, size) => h.pagination.setPageSize(size)}
         />
       </Card>
       <ConfirmDialog

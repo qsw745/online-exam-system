@@ -7,27 +7,60 @@ import type { RowDataPacket } from 'mysql2'
 export class MessageService {
   static async create(
     currentUserId: number,
-    payload: { user_id: number; title: string; content: string; type?: IMessage['type'] }
+    payload: {
+      user_id: number
+      title: string
+      content: string
+      type?: IMessage['type']
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
   ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const id = await MessageRepository.insertOne(
-      payload.user_id,
-      payload.title,
-      payload.content,
-      payload.type ?? 'info'
-    )
+    const id = await MessageRepository.insertOne({
+      user_id: payload.user_id,
+      title: payload.title,
+      content: payload.content,
+      type: payload.type ?? 'info',
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    })
     const [rows] = await pool.query<IMessage[]>('SELECT * FROM messages WHERE id = ?', [id])
-    return rows[0]
+    const data = rows[0]
+    if (data && typeof (data as any).metadata === 'string') {
+      try {
+        ;(data as any).metadata = JSON.parse((data as any).metadata)
+      } catch {
+        ;(data as any).metadata = null
+      }
+    }
+    return data
   }
 
   static async createBatch(
     currentUserId: number,
-    payload: { user_ids: number[]; title: string; content: string; type?: IMessage['type'] }
+    payload: {
+      user_ids: number[]
+      title: string
+      content: string
+      type?: IMessage['type']
+      source?: string
+      target_path?: string | null
+      metadata?: any
+    }
   ) {
     await this.assertRole(currentUserId, ['admin', 'teacher'])
-    const values = payload.user_ids.map(
-      uid => [uid, payload.title, payload.content, payload.type ?? 'info'] as [number, string, string, string]
-    )
+    const values = payload.user_ids.map(uid => ({
+      user_id: uid,
+      title: payload.title,
+      content: payload.content,
+      type: payload.type ?? 'info',
+      source: payload.source,
+      target_path: payload.target_path,
+      metadata: payload.metadata,
+    }))
     const count = await MessageRepository.insertMany(values)
     return { count }
   }

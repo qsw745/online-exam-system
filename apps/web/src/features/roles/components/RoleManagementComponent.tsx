@@ -25,7 +25,6 @@ import {
   Input,
   InputNumber,
   Modal,
-  Pagination,
   Select,
   Space,
   Switch,
@@ -47,6 +46,7 @@ import UserSelectModal from '@/features/roles/components/UserSelectModal'
 import { useRoleMembers } from '@/features/roles/hooks/useRoleMembers'
 import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 // —— 小工具 —— //
 const isOk = (r: any) => r?.success !== false && !r?.error
@@ -645,25 +645,24 @@ export default function RoleManagementComponent() {
             flexWrap: 'wrap',
           }}
         >
-          <span style={{ color: '#6b7280' }}>{formatMessage(t('roles.pagination.total'), { count: total })}</span>
-          <Pagination
+          <GlobalPagination
+            fullWidth={false}
             current={page}
             total={total}
             pageSize={pageSize}
-            showSizeChanger
-            showQuickJumper
-            simple={isXs} // 小屏更简洁
-            pageSizeOptions={['5', '10', '15', '20', '50', '100']}
             onChange={(p, s) => {
               setPage(Number(p) || 1)
               setPageSize(Number(s) || pageSize)
               void load(Number(p) || 1, Number(s) || pageSize)
             }}
-            onShowSizeChange={(_p, s) => {
+            onPageSizeChange={(_p, s) => {
               setPage(1)
               setPageSize(Number(s) || pageSize)
               void load(1, Number(s) || pageSize)
             }}
+            pageSizeOptions={['5', '10', '15', '20', '50', '100']}
+            showQuickJumper
+            renderTotal={totalNum => formatMessage(t('roles.pagination.total'), { count: totalNum })}
           />
           {!isXs && (
             <>

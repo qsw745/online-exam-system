@@ -345,41 +345,38 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
         cursor: 'default',
       }}
     >
-      {/* 顶部品牌区 —— 点击返回仪表盘 */}
+      {/* 顶部品牌区 */}
       {showBrand && (
-        <Tooltip title="回到仪表盘">
-          <div
-            role="button"
-            tabIndex={0}
-            aria-label="回到仪表盘"
-            onClick={goDashboard}
-            onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && goDashboard()}
-            style={{
-              height: HEADER_H,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '0 12px',
-              boxSizing: 'border-box',
-              cursor: 'pointer',
-              userSelect: 'none',
-            }}
-          >
-            <img
-              src="/brand-logo.svg"
-              alt="Logo"
-              width={20}
-              height={20}
-              style={{ display: 'block' }}
-              onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-            />
-            {!collapsed && (
-              <strong className="brand-title" style={{ fontSize: 14 }}>
-                在线考试系统
-              </strong>
-            )}
-          </div>
-        </Tooltip>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={goDashboard}
+          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && goDashboard()}
+          style={{
+            height: HEADER_H,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 12px',
+            boxSizing: 'border-box',
+            userSelect: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <img
+            src="/brand-logo.svg"
+            alt="Logo"
+            width={20}
+            height={20}
+            style={{ display: 'block' }}
+            onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+          />
+          {!collapsed && (
+            <strong className="brand-title" style={{ fontSize: 14 }}>
+              在线考试系统
+            </strong>
+          )}
+        </div>
       )}
 
       {/* 菜单滚动区（预留底部固定区域高度） */}

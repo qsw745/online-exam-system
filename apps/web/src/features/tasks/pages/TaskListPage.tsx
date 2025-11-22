@@ -1,11 +1,11 @@
 import React from 'react'
-import { Breadcrumb, Card, Pagination, Space, App, Input, Select, DatePicker, Button } from 'antd'
+import { Breadcrumb, Card, Space, App, Input, Select, DatePicker, Button } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
-import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
+import { useTasksQuery, type TaskFilters, type Task } from '../hooks/useTasksQuery'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
-
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 const { RangePicker } = DatePicker
 
@@ -20,6 +20,39 @@ const TaskListPage: React.FC = () => {
   const [st, setSt] = React.useState(filters.status || 'all')
   const [rg, setRg] = React.useState(filters.range || null)
 
+  const [statusOverrides, setStatusOverrides] = React.useState<Record<string, Task['status']>>({})
+
+  const displayRows = React.useMemo(() => {
+    if (!rows?.length) return rows as Task[]
+    return rows.map(row => {
+      const override = statusOverrides[String(row.id)]
+      return override ? { ...row, status: override } : row
+    })
+  }, [rows, statusOverrides])
+
+  const overrideStatus = React.useCallback((id: string, status: Task['status']) => {
+    setStatusOverrides(prev => {
+      if (prev[id] === status) return prev
+      return { ...prev, [id]: status }
+    })
+  }, [])
+
+  React.useEffect(() => {
+    if (!rows.length) return
+    setStatusOverrides(prev => {
+      let changed = false
+      const next = { ...prev }
+      for (const row of rows) {
+        const key = String(row.id)
+        if (key in next && next[key] === row.status) {
+          delete next[key]
+          changed = true
+        }
+      }
+      return changed ? next : prev
+    })
+  }, [rows])
+
   const applySearch = () => {
     const next: TaskFilters = {
       keyword: kw || undefined,
@@ -30,24 +63,35 @@ const TaskListPage: React.FC = () => {
   }
 
   const onPublish = async (id: string) => {
+    const idStr = String(id)
     try {
-      const r: any = (tasksApi as any).update?.(id, { status: 'published' }) ?? (tasksApi as any).publish?.(id)
+      const r: any =
+        (tasksApi as any).publish?.(id) ?? (tasksApi as any).update?.(id, { status: 'published' }) ?? null
+      if (!r) throw new Error('未找到可用的发布接口')
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '发布失败')
+      overrideStatus(idStr, 'published')
       msg.success('发布成功')
-      refetch()
+      await refetch()
     } catch (e: any) {
       msg.error(e?.message || '发布失败')
     }
   }
 
   const onUnpublish = async (id: string) => {
+    const idStr = String(id)
     try {
-      const r: any = (tasksApi as any).update?.(id, { status: 'draft' }) ?? (tasksApi as any).unpublish?.(id)
+      const r: any =
+        (tasksApi as any).unpublish?.(id) ??
+        (tasksApi as any).update?.(id, { status: 'unpublished' }) ??
+        (tasksApi as any).update?.(id, { status: 'draft' }) ??
+        null
+      if (!r) throw new Error('未找到可用的下线接口')
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '下线失败')
+      overrideStatus(idStr, 'unpublished')
       msg.success('已下线')
-      refetch()
+      await refetch()
     } catch (e: any) {
       msg.error(e?.message || '下线失败')
     }
@@ -121,7 +165,7 @@ const TaskListPage: React.FC = () => {
 
       <Card variant="outlined">
         <TasksTable
-          data={rows as any}
+          data={displayRows as any}
           loading={loading}
           onEdit={(id: string) => nav(`/admin/tasks/detail/${id}?edit=1`)} // ★ 直接进编辑态
           onPublish={onPublish}
@@ -129,20 +173,15 @@ const TaskListPage: React.FC = () => {
           onDelete={onDelete}
           showPublishActions
         />
-        <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <Pagination
-            current={page}
-            pageSize={pageSize}
-            total={total}
-            showSizeChanger
-            showQuickJumper
-            onChange={(p, ps) => {
-              setPage(p)
-              setPageSize(ps)
-            }}
-            showTotal={(t, r) => `共 ${t} 条，当前 ${r[0]}-${r[1]}`}
-          />
-        </div>
+        <GlobalPagination
+          current={page}
+          pageSize={pageSize}
+          total={total}
+          onChange={(p, size) => {
+            setPage(p)
+            setPageSize(size)
+          }}
+        />
       </Card>
     </Space>
   )

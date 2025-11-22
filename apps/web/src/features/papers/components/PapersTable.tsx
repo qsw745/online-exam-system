@@ -93,6 +93,8 @@ export default function PapersTable({
       key: 'actions',
       width: 200,
       fixed: 'right',
+      onCell: () => ({ style: { background: '#fff' } }),
+      onHeaderCell: () => ({ style: { background: '#fff' } }),
       render: (_: any, r) => (
         <Space size={4} wrap>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>

@@ -9,8 +9,8 @@ export class TodoController {
     try {
       const uid = req.user?.id
       if (!uid) return res.unauthorized('未授权访问')
-      const { user_id, title, content } = req.body
-      const data = await TodoService.create(uid, { user_id, title, content })
+      const { user_id, title, content, source, target_path, metadata } = req.body
+      const data = await TodoService.create(uid, { user_id, title, content, source, target_path, metadata })
       return res.ok<ITodo>(data)
     } catch (e: any) {
       return res.internal(e?.message || '创建待办失败')
@@ -21,8 +21,8 @@ export class TodoController {
     try {
       const uid = req.user?.id
       if (!uid) return res.unauthorized('未授权访问')
-      const { user_ids, title, content } = req.body
-      const data = await TodoService.createBatch(uid, { user_ids, title, content })
+      const { user_ids, title, content, source, target_path, metadata } = req.body
+      const data = await TodoService.createBatch(uid, { user_ids, title, content, source, target_path, metadata })
       return res.ok<{ count: number }>(data)
     } catch (e: any) {
       return res.internal(e?.message || '批量创建待办失败')

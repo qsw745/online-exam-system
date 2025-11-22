@@ -6,14 +6,45 @@ import type { ITodo } from '../domain/todo.model'
 type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
 const db: Queryable = pool as unknown as Queryable
 
+type TodoInsertPayload = {
+  user_id: number
+  title: string
+  content: string
+  source?: string
+  target_path?: string | null
+  metadata?: any
+}
+
+const parseJson = (value: any) => {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value as string)
+  } catch {
+    return null
+  }
+}
+
 export class TodoRepository {
   static async findByUser(userId: number) {
     // 把 is_done 别名成 done，直接契合前端
     const [rows] = await db.query<ITodo[]>(
-      'SELECT id, user_id, title, content, is_done AS done, created_at, updated_at FROM todos WHERE user_id = ? ORDER BY created_at DESC',
+      `SELECT id,
+              user_id,
+              title,
+              content,
+              is_done AS done,
+              created_at,
+              updated_at,
+              source,
+              target_path,
+              metadata
+         FROM todos
+        WHERE user_id = ?
+        ORDER BY created_at DESC`,
       [userId]
     )
-    return rows
+    return (rows as any[]).map(r => ({ ...r, metadata: parseJson((r as any).metadata) }))
   }
 
   static async countPending(userId: number) {
@@ -40,20 +71,29 @@ export class TodoRepository {
     return ret.affectedRows
   }
 
-  static async insertOne(user_id: number, title: string, content: string) {
-    const [ret] = await db.query<ResultSetHeader>('INSERT INTO todos (user_id, title, content) VALUES (?, ?, ?)', [
-      user_id,
-      title,
-      content,
-    ])
+  static async insertOne(payload: TodoInsertPayload) {
+    const { user_id, title, content, source = 'todo', target_path = null, metadata } = payload
+    const [ret] = await db.query<ResultSetHeader>(
+      'INSERT INTO todos (user_id, title, content, source, target_path, metadata) VALUES (?, ?, ?, ?, ?, ?)',
+      [user_id, title, content, source, target_path, metadata ? JSON.stringify(metadata) : null]
+    )
     return ret.insertId
   }
 
-  static async insertMany(values: Array<[number, string, string]>) {
-    const placeholders = values.map(() => '(?, ?, ?)').join(', ')
+  static async insertMany(payloads: TodoInsertPayload[]) {
+    if (!payloads.length) return 0
+    const placeholders = payloads.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')
+    const flat = payloads.flatMap(p => [
+      p.user_id,
+      p.title,
+      p.content,
+      p.source ?? 'todo',
+      p.target_path ?? null,
+      p.metadata ? JSON.stringify(p.metadata) : null,
+    ])
     const [ret] = await db.query<ResultSetHeader>(
-      `INSERT INTO todos (user_id, title, content) VALUES ${placeholders}`,
-      values.flat()
+      `INSERT INTO todos (user_id, title, content, source, target_path, metadata) VALUES ${placeholders}`,
+      flat
     )
     return ret.affectedRows
   }
@@ -71,7 +111,7 @@ export class TodoRepository {
        LEFT JOIN users u ON t.user_id = u.id
        ORDER BY t.created_at DESC`
     )
-    return rows
+    return (rows as any[]).map(r => ({ ...r, metadata: parseJson((r as any).metadata) }))
   }
 
   static async adminDeleteById(id: number) {

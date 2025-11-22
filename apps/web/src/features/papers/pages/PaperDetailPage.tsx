@@ -313,7 +313,7 @@ const PaperDetailPage: React.FC = () => {
           </Space>
         }
       >
-        <Descriptions column={2} bordered labelStyle={{ width: 120 }}>
+        <Descriptions column={2} bordered styles={{ label: { width: 120 } }}>
           <Descriptions.Item label="试卷标题" span={2}>
             {paper.title}
           </Descriptions.Item>
@@ -323,7 +323,9 @@ const PaperDetailPage: React.FC = () => {
           <Descriptions.Item label="总分">{paper.total_score ?? totalScore ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="时长（分钟）">{paper.duration ?? '—'}</Descriptions.Item>
           <Descriptions.Item label="创建时间">{fmt(paper.created_at ?? (paper as any).createdAt)}</Descriptions.Item>
-          <Descriptions.Item label="更新时间">{fmt(paper.updated_at ?? (paper as any).updatedAt)}</Descriptions.Item>
+          <Descriptions.Item label="更新时间" span={2}>
+            {fmt(paper.updated_at ?? (paper as any).updatedAt)}
+          </Descriptions.Item>
           <Descriptions.Item label="描述" span={2}>
             {paper.description || '—'}
           </Descriptions.Item>

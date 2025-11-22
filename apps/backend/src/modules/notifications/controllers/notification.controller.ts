@@ -9,8 +9,17 @@ export class NotificationController {
     try {
       const currentUserId = req.user?.id
       if (!currentUserId) return res.unauthorized('未授权访问')
-      const { user_id, title, content, type = 'info' } = req.body
-      const data = await NotificationService.create(currentUserId, { user_id, title, content, type })
+      const { user_id, title, content, attachments, type = 'info', source, target_path, metadata } = req.body
+      const data = await NotificationService.create(currentUserId, {
+        user_id,
+        title,
+        content,
+        attachments,
+        type,
+        source,
+        target_path,
+        metadata,
+      })
       return res.ok<INotification>(data)
     } catch (error: any) {
       const status = error?.status ?? 500
@@ -25,8 +34,17 @@ export class NotificationController {
     try {
       const currentUserId = req.user?.id
       if (!currentUserId) return res.unauthorized('未授权访问')
-      const { user_ids, title, content, type = 'info' } = req.body
-      const data = await NotificationService.createBatch(currentUserId, { user_ids, title, content, type })
+      const { user_ids, title, content, attachments, type = 'info', source, target_path, metadata } = req.body
+      const data = await NotificationService.createBatch(currentUserId, {
+        user_ids,
+        title,
+        content,
+        attachments,
+        type,
+        source,
+        target_path,
+        metadata,
+      })
       return res.ok<{ count: number }>(data)
     } catch (error: any) {
       return res.internal(error?.message || '批量创建通知失败')

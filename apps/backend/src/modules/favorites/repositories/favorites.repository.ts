@@ -1,7 +1,7 @@
 // 保留你原有的导入路径
 import { pool } from '@/infrastructure/db/index.js'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
-import type { IFavorite, IFavoriteCategory, IFavoriteItem } from '../domain/favorites.model.js'
+import type { IFavorite, IFavoriteCategory, IFavoriteItem, IFavoriteShare } from '../domain/favorites.model.js'
 
 /** 统一的最小 Query 接口，避免 “Pool | PoolConnection 没有 query” 的联合类型报错 */
 type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
@@ -416,5 +416,83 @@ export class FavoritesRepository {
       `INSERT INTO favorite_categories (${cols.join(', ')}) VALUES ${qms.join(', ')}`,
       values
     )
+  }
+
+  async createShareRecord(
+    data: { favorite_id: number; shared_by: number; share_code: string; expires_at?: Date | null },
+    conn?: PoolConnection
+  ): Promise<void> {
+    await this.db(conn).query(
+      `INSERT INTO favorite_shares (favorite_id, shared_by, share_code, expires_at, created_at)
+       VALUES (?, ?, ?, ?, NOW())`,
+      [data.favorite_id, data.shared_by, data.share_code, data.expires_at ?? null]
+    )
+  }
+
+  async findShareByCode(
+    shareCode: string,
+    conn?: PoolConnection
+  ): Promise<{
+    share: IFavoriteShare
+    favorite: IFavorite
+    owner?: { id: number; username: string | null; nickname: string | null }
+  } | null> {
+    const schema = await this.getFavoriteSchema(conn)
+    const selectFavorite = [
+      'f.*',
+      `f.${schema.nameColumn} AS name`,
+      schema.hasCategory ? 'fc.name AS category_name' : 'NULL AS category_name',
+      schema.hasCategory ? 'fc.color AS category_color' : 'NULL AS category_color',
+    ]
+    const joinCategory = schema.hasCategory ? 'LEFT JOIN favorite_categories fc ON f.category_id = fc.id' : ''
+    const sql = `
+      SELECT fs.id AS share_id,
+             fs.favorite_id,
+             fs.shared_by,
+             fs.share_code,
+             fs.expires_at,
+             fs.created_at AS share_created_at,
+             fs.accessed_at,
+             ${selectFavorite.join(', ')},
+             u.username AS shared_by_username,
+             u.nickname AS shared_by_nickname
+        FROM favorite_shares fs
+        JOIN favorites f ON f.id = fs.favorite_id
+        ${joinCategory}
+        LEFT JOIN users u ON u.id = fs.shared_by
+       WHERE fs.share_code = ?
+         AND (fs.expires_at IS NULL OR fs.expires_at > NOW())
+       LIMIT 1`
+    const [rows] = await this.db(conn).query<RowDataPacket[]>(sql, [shareCode])
+    if (!rows.length) return null
+    const row = rows[0] as any
+    const share: IFavoriteShare = {
+      id: Number(row.share_id),
+      favorite_id: Number(row.favorite_id),
+      shared_by: Number(row.shared_by),
+      share_code: String(row.share_code),
+      expires_at: row.expires_at ?? null,
+      created_at: row.share_created_at,
+      accessed_at: row.accessed_at ?? null,
+    } as IFavoriteShare
+    const favorite = this.normalizeFavoriteRows([
+      {
+        id: Number(row.id ?? row.favorite_id),
+        user_id: Number(row.user_id),
+        name: row.name,
+        description: row.description ?? null,
+        is_public: typeof row.is_public === 'boolean' ? row.is_public : Boolean(row.is_public ?? false),
+        category_id: row.category_id ?? null,
+        category_name: row.category_name ?? null,
+        category_color: row.category_color ?? null,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      } as IFavorite,
+    ])[0]
+    const owner =
+      typeof row.shared_by !== 'undefined'
+        ? { id: Number(row.shared_by), username: row.shared_by_username ?? null, nickname: row.shared_by_nickname ?? null }
+        : undefined
+    return { share, favorite, owner }
   }
 }

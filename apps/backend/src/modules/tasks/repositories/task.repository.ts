@@ -99,11 +99,11 @@ export class TaskRepository {
     await this.db.execute('DELETE FROM task_department_assignments WHERE task_id = ?', [taskId])
     const ids = Array.from(new Set(departmentIds.filter(n => Number.isFinite(n) && n > 0)))
     if (!ids.length) return
-    const now = new Date()
-    const values = ids.map(id => [taskId, id, assignedBy, now])
+    const rows = ids.map(id => [taskId, id, assignedBy, new Date()])
+    const placeholders = rows.map(() => '(?, ?, ?, ?)').join(', ')
     await this.db.execute(
-      'INSERT INTO task_department_assignments (task_id, department_id, assigned_by, assigned_at) VALUES ?',
-      [values]
+      `INSERT INTO task_department_assignments (task_id, department_id, assigned_by, assigned_at) VALUES ${placeholders}`,
+      rows.flat()
     )
   }
 
@@ -149,6 +149,16 @@ export class TaskRepository {
       params.push(q.status)
     }
 
+    if (q.startFrom) {
+      where += ' AND COALESCE(t.start_time, t.created_at) >= ?'
+      params.push(q.startFrom)
+    }
+
+    if (q.endTo) {
+      where += ' AND COALESCE(t.end_time, t.start_time, t.created_at) <= ?'
+      params.push(q.endTo)
+    }
+
     const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT COUNT(DISTINCT t.id) AS total
          FROM tasks t
@@ -179,6 +189,16 @@ export class TaskRepository {
     if (q.status) {
       where += ' AND t.status = ?'
       params.push(q.status)
+    }
+
+    if (q.startFrom) {
+      where += ' AND COALESCE(t.start_time, t.created_at) >= ?'
+      params.push(q.startFrom)
+    }
+
+    if (q.endTo) {
+      where += ' AND COALESCE(t.end_time, t.start_time, t.created_at) <= ?'
+      params.push(q.endTo)
     }
 
     // ✅ 关键修复：不要在 PREPARE 里用 LIMIT ? / OFFSET ?
@@ -356,10 +376,13 @@ export class TaskRepository {
   async replaceAssignments(taskId: number, userIds: number[], assignedBy: number): Promise<void> {
     await this.db.execute('DELETE FROM task_assignments WHERE task_id = ?', [taskId])
     if (!userIds.length) return
-    const values = userIds.map(uid => [taskId, uid, assignedBy])
-    await this.db.execute('INSERT INTO task_assignments (task_id, user_id, assigned_by, assigned_at) VALUES ?', [
-      values.map(v => [...v, new Date()]),
-    ])
+    const rows = userIds.map(uid => [taskId, uid, assignedBy, new Date()])
+    const placeholders = rows.map(() => '(?, ?, ?, ?)').join(', ')
+    const flatValues = rows.flat()
+    await this.db.execute(
+      `INSERT INTO task_assignments (task_id, user_id, assigned_by, assigned_at) VALUES ${placeholders}`,
+      flatValues
+    )
   }
 
   async findExistingUserIds(userIds: number[]): Promise<number[]> {
@@ -385,10 +408,12 @@ export class TaskRepository {
     if (!deptIds.length) return []
     const placeholders = deptIds.map(() => '?').join(',')
     const [rows] = await this.db.execute<RowDataPacket[]>(
-      `SELECT id FROM users WHERE department_id IN (${placeholders})`,
+      `SELECT DISTINCT uo.user_id
+         FROM user_organizations uo
+        WHERE uo.org_id IN (${placeholders})`,
       deptIds
     )
-    return rows.map((r: any) => Number(r.id))
+    return rows.map((r: any) => Number(r.user_id))
   }
 
   /** 考试：更新试卷 */
@@ -602,14 +627,15 @@ export class TaskRepository {
           totalScore += qScore
           correctCount += 1
         }
-        values.push([examResultId, qid, ua ?? '', ok ? 1 : 0])
+        values.push([examResultId, args.examId, args.userId, qid, ua ?? '', ok ? 1 : 0])
       }
 
       await conn.execute('DELETE FROM answer_records WHERE exam_result_id = ?', [examResultId])
       if (values.length) {
+        const placeholders = values.map(() => '(?, ?, ?, ?, ?, ?)').join(', ')
         await conn.execute(
-          'INSERT INTO answer_records (exam_result_id, question_id, user_answer, is_correct) VALUES ?',
-          [values]
+          `INSERT INTO answer_records (exam_result_id, exam_id, user_id, question_id, user_answer, is_correct) VALUES ${placeholders}`,
+          values.flat()
         )
       }
 
@@ -672,11 +698,11 @@ export class TaskRepository {
   }
 
   /** ---------- 通知 & 工具 ---------- */
-  async insertNotification(userId: number, title: string, content: string): Promise<void> {
+  async insertNotification(userId: number, title: string, content: string, targetPath?: string | null): Promise<void> {
     await this.db.execute(
-      `INSERT INTO notifications (user_id, title, content, type, is_read, created_at)
-       VALUES (?, ?, ?, 'task', false, NOW())`,
-      [userId, title, content]
+      `INSERT INTO notifications (user_id, title, content, type, is_read, created_at, source, target_path, metadata)
+       VALUES (?, ?, ?, 'task', false, NOW(), 'tasks', ?, NULL)`,
+      [userId, title, content, targetPath ?? null]
     )
   }
 

@@ -35,6 +35,7 @@ export interface IQuestion extends RowDataPacket {
   score: number
   created_at: Date
   updated_at: Date
+  content_hash?: string
 
   /** ↓↓↓ 仅“查重列表”用的窗口字段（不会入库）↓↓↓ */
   dup_total?: number // 该标题+题型下总重复数

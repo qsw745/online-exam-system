@@ -88,6 +88,7 @@ export const TasksTable: React.FC<Props> = ({
       loading={loading}
       dataSource={data}
       pagination={false}
+      scroll={{ x: 1200 }}
       columns={[
         { title: '任务标题', dataIndex: 'title', key: 'title', ellipsis: true },
         {
@@ -111,13 +112,31 @@ export const TasksTable: React.FC<Props> = ({
           title: '操作',
           key: 'actions',
           width: 280,
+          fixed: 'right',
+          onHeaderCell: () => ({
+            style: {
+              background: '#fff',
+            },
+          }),
+          onCell: () => ({
+            style: {
+              background: '#fff',
+            },
+          }),
           render: (_: any, r: Task) => {
             const canStart =
               showStartAction && (r.status === 'not_started' || r.status === 'published' || r.status === 'in_progress')
 
             return (
-              <Space wrap>
-                <Button onClick={() => onEdit?.(r.id)}>编辑</Button>
+              <Space
+                wrap
+                style={{
+                  background: '#fff',
+                  padding: 8,
+                  borderRadius: 6,
+                }}
+              >
+                {onEdit && <Button onClick={() => onEdit?.(r.id)}>编辑</Button>}
 
                 {canStart && (
                   <Button type="primary" onClick={() => onStart?.(r)}>

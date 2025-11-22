@@ -28,6 +28,7 @@ export interface CreateNotificationForm {
   user_ids?: number[]
   send_to_all?: boolean
   role_filter?: string
+  attachments?: Array<{ id: number; file_name: string; url: string; file_size: number }>
 }
 
 export function useNotifications() {
@@ -51,7 +52,7 @@ export function useNotifications() {
   const loadNotifications = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await api.get<any>('/notifications', { params: { page, limit: pageSize } })
+      const r = await api.get<any>('/notifications/admin/list', { params: { page, limit: pageSize } })
       if (!isSuccess(r)) throw new Error(getErr(r, '获取通知列表失败'))
       const data = r.data
       const items: NotificationDTO[] = Array.isArray(data) ? data : data?.items ?? data?.list ?? []
@@ -99,7 +100,7 @@ export function useNotifications() {
   }
   const onDelete = async (id: number) => {
     try {
-      const r = await api.delete(`/notifications/${id}`)
+      const r = await api.delete(`/notifications/admin/${id}`)
       if (!isSuccess(r)) throw new Error(getErr(r, '删除失败'))
       message.success('删除成功')
       loadNotifications()
@@ -111,14 +112,8 @@ export function useNotifications() {
   const onSubmit = async (values: CreateNotificationForm) => {
     try {
       if (editing) {
-        // 更新通知
-        const r = await api.put(`/notifications/${editing.id}`, {
-          title: values.title,
-          content: values.content,
-          type: values.type,
-        })
-        if (!isSuccess(r)) throw new Error(getErr(r, '更新失败'))
-        message.success('更新成功')
+        message.info('通知发送后暂不支持编辑，请删除后重新发送')
+        return
       } else {
         // 发送通知
         let targetIds: number[] = []
@@ -132,12 +127,15 @@ export function useNotifications() {
           return
         }
 
+        const attachments = values.attachments || []
+
         if (targetIds.length <= 1) {
           const r = await api.post('/notifications', {
             user_id: targetIds[0],
             title: values.title,
             content: values.content,
             type: values.type,
+            attachments,
           })
           if (!isSuccess(r)) throw new Error(getErr(r, '发送失败'))
           message.success('通知发送成功')
@@ -149,6 +147,7 @@ export function useNotifications() {
               title: values.title,
               content: values.content,
               type: values.type,
+              attachments,
             })
             if (!isSuccess(r)) throw new Error(getErr(r, '批量发送失败'))
             const cnt = (r.data as any)?.count ?? targetIds.length
@@ -161,6 +160,7 @@ export function useNotifications() {
                   title: values.title,
                   content: values.content,
                   type: values.type,
+                  attachments,
                 })
               )
             )

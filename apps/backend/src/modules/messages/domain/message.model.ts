@@ -10,6 +10,9 @@ export interface IMessage extends RowDataPacket {
   is_read: boolean
   created_at: Date
   updated_at: Date
+  source?: string
+  target_path?: string | null
+  metadata?: any
 }
 
 export type MessageListData = {

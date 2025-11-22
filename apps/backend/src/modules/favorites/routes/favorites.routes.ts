@@ -12,6 +12,10 @@ const C: any =
   FavoritesControllerMod
 
 const router = Router()
+
+// Public shared routes
+router.get('/shared/:code', wrap(C.getSharedByCode))
+
 router.use(authenticateToken)
 
 /**

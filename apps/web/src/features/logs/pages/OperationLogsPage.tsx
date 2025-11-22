@@ -1,11 +1,11 @@
 // apps/web/src/features/logs/pages/OperationLogsPage.tsx
 import React from 'react'
-import { Button, Card, Pagination, Space, Typography } from 'antd'
+import { Button, Card, Space, Typography } from 'antd'
 import { Download, Activity } from 'lucide-react'
 import OperationFiltersBar from '@/features/logs/components/OperationFiltersBar'
 import OperationLogsTable from '@/features/logs/components/OperationLogsTable'
-import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useLogs } from '@/features/logs/hooks/useLogs'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 const { Title } = Typography
 
@@ -60,25 +60,19 @@ export default function OperationLogsPage() {
       <Card>
         <OperationLogsTable data={logs} loading={loading} page={page} pageSize={pageSize} />
         {!loading && (
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-            <Pagination
-              {...createPaginationConfig()}
-              current={page}
-              total={total}
-              pageSize={pageSize}
-              onChange={(p, size) => {
-                setPage(p)
-                if (size && size !== pageSize) {
-                  setPageSize(size)
-                  setPage(1)
-                }
-              }}
-              onShowSizeChange={(_, size) => {
-                setPageSize(size)
-                setPage(1)
-              }}
-            />
-          </div>
+          <GlobalPagination
+            total={total}
+            current={page}
+            pageSize={pageSize}
+            onChange={(p, size) => {
+              setPage(p)
+              if (size && size !== pageSize) setPageSize(size)
+            }}
+            onPageSizeChange={(_, size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+          />
         )}
       </Card>
     </div>

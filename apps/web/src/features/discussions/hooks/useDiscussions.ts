@@ -149,7 +149,7 @@ export function useDiscussions() {
       if (!selectedDiscussion?.id) return
       const created = await discussionsApi.reply(selectedDiscussion.id, values)
       if (created) {
-        setReplies(prev => [...prev, created])
+        await fetchReplies(selectedDiscussion.id)
         setSelectedDiscussion(prev => (prev ? { ...prev, replies_count: (prev.replies_count ?? 0) + 1 } : prev))
         setReplyOpen(false)
         replyForm.resetFields()
@@ -158,7 +158,7 @@ export function useDiscussions() {
         message.error('回复失败')
       }
     },
-    [message, replyForm, selectedDiscussion]
+    [fetchReplies, message, replyForm, selectedDiscussion]
   )
 
   const selectDiscussion = useCallback(

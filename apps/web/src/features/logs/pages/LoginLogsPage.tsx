@@ -1,10 +1,10 @@
 import React from 'react'
-import { Button, Card, Pagination, Space, Typography } from 'antd'
+import { Button, Card, Space, Typography } from 'antd'
 import { Download, LogIn } from 'lucide-react'
 import LoginFiltersBar from '@/features/logs/components/LoginFiltersBar'
 import LoginLogsTable from '@/features/logs/components/LoginLogsTable'
-import { createPaginationConfig } from '@/shared/constants/pagination'
 import { useLogs } from '@/features/logs/hooks/useLogs'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
 const { Title } = Typography
 
@@ -59,25 +59,21 @@ export default function LoginLogsPage() {
       <Card>
         <LoginLogsTable data={logs} loading={loading} page={page} pageSize={pageSize} />
         {!loading && (
-          <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-            <Pagination
-              {...createPaginationConfig()}
-              current={page}
-              total={total}
-              pageSize={pageSize}
-              onChange={(p, size) => {
-                setPage(p)
-                if (size && size !== pageSize) {
-                  setPageSize(size)
-                  setPage(1)
-                }
-              }}
-              onShowSizeChange={(_, size) => {
+          <GlobalPagination
+            total={total}
+            current={page}
+            pageSize={pageSize}
+            onChange={(p, size) => {
+              setPage(p)
+              if (size && size !== pageSize) {
                 setPageSize(size)
-                setPage(1)
-              }}
-            />
-          </div>
+              }
+            }}
+            onPageSizeChange={(_, size) => {
+              setPageSize(size)
+              setPage(1)
+            }}
+          />
         )}
       </Card>
     </div>

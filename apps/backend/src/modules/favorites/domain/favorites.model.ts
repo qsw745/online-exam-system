@@ -38,6 +38,16 @@ export interface IFavoriteCategory extends RowDataPacket {
   sort_order: number | null
 }
 
+export interface IFavoriteShare extends RowDataPacket {
+  id: number
+  favorite_id: number
+  shared_by: number
+  share_code: string
+  expires_at: Date | null
+  created_at: Date
+  accessed_at?: Date | null
+}
+
 export type CreateFavoriteInput = {
   userId: number
   name: string

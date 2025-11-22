@@ -16,12 +16,16 @@ export interface Favorite {
 }
 export interface FavoriteItem {
   id: number
-  question_id: number
-  question_title: string
-  question_type: string
-  difficulty: string
-  subject: string
-  added_at: string
+  question_id?: number
+  question_title?: string
+  question_type?: string
+  difficulty?: string
+  subject?: string
+  added_at?: string
+  item_type?: string
+  item_id?: number
+  title?: string
+  description?: string
 }
 export interface FavoriteCategory {
   id: number
@@ -86,6 +90,10 @@ export const favoritesApi = {
     // 后端返回 { share_code, share_url }，这里统一取 share_url
     const data = pickObject<{ share_url?: string }>(res, {})
     return data?.share_url ?? null
+  },
+  async getShared(code: string): Promise<{ favorite: Favorite; items: FavoriteItem[]; owner?: { id: number; username?: string | null; nickname?: string | null } } | null> {
+    const res = await api.get(`/favorites/shared/${code}`)
+    return pickObject(res)
   },
 }
 export default favoritesApi

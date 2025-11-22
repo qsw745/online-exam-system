@@ -10,6 +10,7 @@ import type {
   UpdateTaskInput,
 } from '../domain/task.model.js'
 import { TaskRepository } from '../repositories/task.repository.js'
+import { ConfigRepository } from '@/modules/configs/repositories/config.repository'
 
 let RC: any = null,
   RL: any = null,
@@ -236,7 +237,11 @@ export class TaskService {
     const msg = `任务「${task.title}」已发布，请及时完成。开始时间：${new Date(
       task.start_time!
     ).toLocaleString()}，结束时间：${new Date(task.end_time!).toLocaleString()}`
-    await Promise.all(assignees.map(uid => this.repo.insertNotification(uid as any, '新任务发布', msg) as any))
+    await Promise.all(
+      assignees.map(uid =>
+        this.repo.insertNotification(uid as any, '新任务发布', msg, `/tasks/detail/${taskId}`) as any
+      )
+    )
   }
 
   async unpublish(taskId: number, operator: { id: number; role: 'admin' | 'teacher' | 'student' }, reason?: string) {
@@ -252,7 +257,11 @@ export class TaskService {
 
     const assignees = await this.repo.getAssignedUserIds(taskId)
     const content = reason ? `任务「${task.title}」已下线。下线原因：${reason}` : `任务「${task.title}」已下线。`
-    await Promise.all(assignees.map(uid => this.repo.insertNotification(uid as any, '任务下线通知', content) as any))
+    await Promise.all(
+      assignees.map(uid =>
+        this.repo.insertNotification(uid as any, '任务下线通知', content, `/tasks/detail/${taskId}`) as any
+      )
+    )
   }
 
   async batchPublish(taskIds: number[], operator: { id: number; role: 'admin' | 'teacher' | 'student' }) {
@@ -334,7 +343,6 @@ export class TaskService {
         const { learningProgressController } = await import(
           '../../learning-progress/controllers/learning-progress.controller.js'
         )
-        const resLike = { json: () => {}, status: () => ({ json: () => {} }) } as any
         const accuracy = questionCount > 0 ? Math.round((correctCount / questionCount) * 100) : 0
         await learningProgressController.recordProgress(
           {
@@ -345,8 +353,7 @@ export class TaskService {
               correctAnswers: correctCount,
               studyContent: `任务：${taskId}（正确率 ${accuracy}%）`,
             },
-          } as any,
-          resLike
+          } as any
         )
       } catch (e) {
         log.error('记录学习进度失败:', e)
@@ -415,6 +422,7 @@ export class TaskService {
 
     const result = await this.repo.ensureExamResultStandalone(meta.exam_id, userId)
     const questions = await this.repo.getQuestionsViewByPaperId(meta.paper_id)
+    const antiCheat = await this.getAntiCheatSetting()
 
     return {
       taskId: meta.taskId,
@@ -427,6 +435,7 @@ export class TaskService {
       title: meta.title,
       description: meta.description ?? null,
       questions,
+      antiCheat,
     }
   }
 
@@ -434,5 +443,21 @@ export class TaskService {
     if (!v) return null
     const d = new Date(v)
     return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ')
+  }
+
+  private async getAntiCheatSetting() {
+    try {
+      const cfg = await ConfigRepository.getByKey('exam.anticheat.level')
+      const value = (cfg?.config_value || 'basic').toLowerCase()
+      if (value === 'strict') {
+        return { level: 'strict', maxSwitches: 1, disableCopy: true, autoSubmit: true }
+      }
+      if (value === 'none' || value === 'off') {
+        return { level: 'none', maxSwitches: Number.MAX_SAFE_INTEGER, disableCopy: false, autoSubmit: false }
+      }
+      return { level: 'basic', maxSwitches: 3, disableCopy: true, autoSubmit: false }
+    } catch {
+      return { level: 'basic', maxSwitches: 3, disableCopy: true, autoSubmit: false }
+    }
   }
 }
