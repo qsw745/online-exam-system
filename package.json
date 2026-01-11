@@ -2,6 +2,7 @@
   "name": "online-exam-system",
   "private": true,
   "version": "1.0.0",
+  "packageManager": "pnpm@9.15.9",
   "description": "Monorepo for Online Exam System",
   "workspaces": [
     "apps/*",
