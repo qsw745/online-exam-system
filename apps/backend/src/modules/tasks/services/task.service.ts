@@ -140,6 +140,9 @@ export class TaskService {
 
     let finalExamId = exam_id ?? null
     if (type === 'exam') {
+      if (!paper_id && !finalExamId) {
+        throw new Error('考试任务必须关联试卷')
+      }
       if (finalExamId) {
         if (paper_id) await this.repo.updateExamPaper(finalExamId, paper_id)
       } else {
@@ -189,7 +192,31 @@ export class TaskService {
     userScope: { userId: number; role: 'admin' | 'teacher' | 'student' },
     patch: UpdateTaskInput & { assigned_user_ids?: number[]; assigned_department_ids?: number[] }
   ): Promise<TaskWithAssigned> {
-    const ok = await this.repo.updateTask(taskId, userScope, patch)
+    const existing = await this.repo.getForAccess(taskId, userScope.userId, userScope.role)
+    if (!existing) throw new Error('任务不存在或无权限修改')
+
+    let targetExamId = patch.exam_id ?? (existing as any).exam_id ?? null
+    const targetType = (patch.type as any) || (existing as any).type || 'practice'
+    const paperId = (patch.paper_id as any) ?? (existing as any).paper_id ?? null
+
+    if (targetType === 'exam') {
+      if (!targetExamId && !paperId) throw new Error('考试任务必须选择试卷')
+      if (!targetExamId) {
+        targetExamId = await this.repo.createExam({
+          title: patch.title ?? existing.title,
+          description: patch.description ?? existing.description ?? '',
+          paper_id: paperId ?? null,
+          duration: 60,
+          start_time: this.asDateTime(patch.start_time ?? existing.start_time),
+          end_time: this.asDateTime(patch.end_time ?? existing.end_time),
+          created_by: userScope.userId,
+        })
+      } else if (paperId) {
+        await this.repo.updateExamPaper(targetExamId, paperId)
+      }
+    }
+
+    const ok = await this.repo.updateTask(taskId, userScope, { ...patch, exam_id: targetExamId, type: targetType })
     if (!ok) throw new Error('任务不存在或无权限修改')
 
     const deptIds = Array.isArray(patch.assigned_department_ids) ? patch.assigned_department_ids : undefined

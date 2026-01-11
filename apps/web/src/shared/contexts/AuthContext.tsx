@@ -98,6 +98,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const me = await users.getCurrentUser()
     if ('success' in me && me.success) {
       const u = me.data as any
+      // 兼容后端 avatar 字段命名差异
+      u.avatar_url = u.avatar_url || u.avatar
       if (!u.role) {
         const r = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
         if (r) u.role = r
@@ -115,6 +117,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const me2 = await users.getCurrentUser()
       if ('success' in me2 && me2.success) {
         const u2 = me2.data as any
+        u2.avatar_url = u2.avatar_url || u2.avatar
         if (!u2.role) {
           const r = localStorage.getItem(USER_ROLE_KEY) || sessionStorage.getItem(USER_ROLE_KEY)
           if (r) u2.role = r
@@ -183,6 +186,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
     const userData: User | undefined = payload.user
     if (!token || !userData) throw new Error('登录响应缺少 token 或用户信息')
+
+    // 兼容 avatar 命名
+    ;(userData as any).avatar_url = (userData as any).avatar_url || (userData as any).avatar
 
     storageSetAccessToken(token, mode)
     if ((userData as any)?.role) {

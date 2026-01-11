@@ -18,6 +18,7 @@ function formatTime(d = new Date()) {
 export function httpLogger(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
     const start = Date.now()
+    ;(req as any).__req_start_ms = (req as any).__req_start_ms || start
     const rid = cryptoRandomLike()
 
     const clientIp = getClientIp(req)

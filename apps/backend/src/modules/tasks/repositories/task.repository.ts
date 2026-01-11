@@ -345,6 +345,14 @@ export class TaskRepository {
       fields.push('end_time = ?')
       values.push(this.asDateTime(patch.end_time))
     }
+    if (patch.exam_id !== undefined) {
+      fields.push('exam_id = ?')
+      values.push(patch.exam_id ?? null)
+    }
+    if (patch.type !== undefined) {
+      fields.push('type = ?')
+      values.push(patch.type)
+    }
 
     if (!fields.length) return true
     let where = 'WHERE id = ?'

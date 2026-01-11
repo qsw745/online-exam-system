@@ -56,10 +56,10 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
         const resp = await rolesApi.getRolesForUserAssign(user.id, orgId ?? undefined)
         const data = unwrap<{ roles?: Role[]; selected?: number[] }>(resp)
         const baseList = Array.isArray(data?.roles) ? data.roles : []
-        const selectedIds = Array.isArray(data?.selected) ? data.selected : []
+        const selectedIds = (Array.isArray(data?.selected) ? data.selected : []).map(id => Number(id)).filter(Number.isFinite)
 
         const roleMap = new Map<number, Role>()
-        baseList.forEach(r => roleMap.set(r.id, r))
+        baseList.forEach(r => roleMap.set(Number(r.id), { ...r, id: Number(r.id) }))
         const fullList: Role[] = [...baseList]
         selectedIds.forEach(id => {
           if (!roleMap.has(id)) {
@@ -73,9 +73,7 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
 
         const initialSelected: AntdLV[] = selectedIds.map(id => {
           const r = roleMap.get(id)
-          return r
-            ? { value: r.id, label: r.name }
-            : { value: id, label: formatMessage(t('users.roles.placeholder'), { id }) }
+          return r ? { value: Number(r.id), label: r.name } : { value: id, label: formatMessage(t('users.roles.placeholder'), { id }) }
         })
 
         setSelected(initialSelected)
@@ -93,16 +91,18 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
   }, [open, user?.id, orgId, form, message, user?.nickname, user?.real_name, user?.username])
 
   const options: SelectProps['options'] = useMemo(
-    () => allRoles.map(r => ({ value: r.id, label: r.name, disabled: !!r.is_disabled })),
+    () => allRoles.map(r => ({ value: Number(r.id), label: r.name, disabled: !!r.is_disabled })),
     [allRoles]
   )
 
   const handleOk = async () => {
     try {
       const vals = await form.validateFields()
-      const roleIds = (vals.roles as AntdLV[]).map(v => Number(v.value)).filter(n => Number.isFinite(n))
+      const roleIds = (vals.roles as AntdLV[])
+        .map(v => Number(v.value))
+        .filter(n => Number.isFinite(n))
       setSaving(true)
-      const res = await rolesApi.setUserRoles(Number(user?.id), roleIds)
+      const res = await rolesApi.setUserRoles(Number(user?.id), roleIds, orgId)
       const ok = !('success' in (res as any)) || (res as any).success !== false
       if (!ok) {
         throw new Error((res as any)?.message || t('users.roles.save_failed'))
@@ -145,7 +145,10 @@ const AssignRolesModal: React.FC<Props> = ({ open, user, orgId, onOk, onCancel }
             mode="multiple"
             labelInValue
             value={selected}
-            onChange={vals => setSelected(vals as AntdLV[])}
+            onChange={vals => {
+              setSelected(vals as AntdLV[])
+              form.setFieldsValue({ roles: vals })
+            }}
             options={options}
             placeholder={t('users.form.roles_placeholder')}
             optionFilterProp="label"

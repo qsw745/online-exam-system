@@ -75,8 +75,9 @@ const pickDuration = (r: Row) => {
     d.duration ??
     d.performance?.duration_ms ??
     d.metrics?.duration ??
-    0
-  return Number(ms) || 0
+    null
+  const num = Number(ms)
+  return Number.isFinite(num) && num >= 0 ? num : undefined
 }
 
 function normalizeText(value: any): string {
@@ -89,7 +90,8 @@ function normalizeText(value: any): string {
     return String(value)
   }
 }
-const durTag = (ms: number) => {
+const durTag = (ms?: number) => {
+  if (ms == null) return <Tag>-</Tag>
   const color = ms <= 100 ? 'green' : ms <= 1000 ? 'orange' : 'red'
   return <Tag color={color}>{`${ms} ms`}</Tag>
 }

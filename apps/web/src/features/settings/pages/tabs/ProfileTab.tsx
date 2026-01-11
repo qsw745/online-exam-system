@@ -6,6 +6,7 @@ import ProfileForm, { type ProfileFormType } from '@/features/profile/components
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { api } from '@/shared/api/http'
+import { profileApi } from '@/shared/api/endpoints/profile'
 
 export default function ProfileTab() {
   const { t } = useLanguage()
@@ -67,7 +68,7 @@ export default function ProfileTab() {
     if (!form) return
     try {
       setSaving(true)
-      await api.put('/profile', form)
+      await profileApi.update(form)
       const fresh: any = await api.get('/profile')
       const d = (fresh?.data?.data ?? fresh?.data ?? fresh) || {}
       setForm({
@@ -93,7 +94,7 @@ export default function ProfileTab() {
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <AvatarUploader
-          src={user?.avatar_url || undefined}
+          src={(user as any)?.avatar_url || (user as any)?.avatar || undefined}
           email={user?.email}
           subtitle={t('profile.avatar_tip') || '支持 PNG/JPG，建议 256×256'}
           onPick={handlePickAvatar}

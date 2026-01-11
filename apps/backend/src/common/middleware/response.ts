@@ -22,11 +22,15 @@ function requestIdOf(req: Request): string {
   return anyReq.id || anyReq.requestId || (req.get('x-request-id') as string) || ''
 }
 
-function attachStart(res: Response) {
+function attachStart(req: Request, res: Response) {
   const p: any = process
   try {
     if (p?.hrtime?.bigint) (res as any).__res_start_hrtime = p.hrtime.bigint()
     else if (p?.hrtime) (res as any).__res_start_hrtime = p.hrtime()
+    // 兜底：毫秒时间
+    ;(res as any).__res_start_ms = Date.now()
+    // 传递给 req 以便业务日志读取耗时
+    if (!(req as any).__req_start_ms) (req as any).__req_start_ms = (res as any).__res_start_ms
   } catch {}
 }
 function getDurationMs(res: Response) {
@@ -41,13 +45,15 @@ function getDurationMs(res: Response) {
       const diff = p.hrtime(start)
       return Math.round(diff[0] * 1e3 + diff[1] / 1e6)
     }
+    const startMs = (res as any).__res_start_ms
+    if (typeof startMs === 'number') return Date.now() - startMs
   } catch {}
   return undefined
 }
 
 export function responseEnvelope() {
   return function (req: Request, res: Response, next: NextFunction) {
-    attachStart(res)
+    attachStart(req, res)
 
     const send = (status: number, code: string, data: any, message?: string, extra?: Extra) => {
       // ✅ 用 res.set(...) 填充额外响应头

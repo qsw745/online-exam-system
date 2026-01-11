@@ -182,11 +182,19 @@ export class RoleService {
   // ===== 用户 ⇄ 角色 =====
   static async getUserRoles(userId: number) {
     const [rows] = (await (pool as any).execute(
-      `SELECT r.* FROM roles r
-         JOIN user_roles ur ON ur.role_id = r.id
+      `
+      SELECT r.*
+        FROM roles r
+        JOIN user_roles ur ON ur.role_id = r.id
        WHERE ur.user_id = ?
-       ORDER BY r.is_system DESC, r.created_at ASC`,
-      [userId]
+      UNION
+      SELECT r2.*
+        FROM roles r2
+        JOIN user_org_roles uor ON uor.role_id = r2.id
+       WHERE uor.user_id = ?
+       ORDER BY is_system DESC, created_at ASC, id ASC
+      `,
+      [userId, userId]
     )) as [RowDataPacket[], any]
     return rows as unknown as Role[]
   }
@@ -213,12 +221,17 @@ export class RoleService {
     return { roles, selected }
   }
 
-  static async setUserRoles(userId: number, roleIds: number[]) {
+  static async setUserRoles(userId: number, roleIds: number[], orgId?: number) {
     try {
-      await MenuService.assignUserRoles(userId, roleIds)
+      if (Number.isFinite(orgId)) {
+        await MenuService.assignUserRolesInOrg(userId, Number(orgId), roleIds)
+      } else {
+        await MenuService.assignUserRoles(userId, roleIds)
+      }
     } catch (err: any) {
       if (err?.message && /没有主组织|primary org/i.test(err.message)) {
         await RoleRepository.replaceUserRoles(userId, roleIds)
+        invalidateAuthCache()
       } else {
         throw err
       }

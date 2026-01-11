@@ -118,8 +118,8 @@ export const rolesApi = {
       params: orgId ? { orgId } : undefined,
     })
   },
-  setUserRoles(userId: number, roleIds: number[]) {
-    return api.put<ApiResult<void>>(`/roles/users/${userId}/roles`, { roleIds })
+  setUserRoles(userId: number, roleIds: number[], orgId?: number) {
+    return api.put<ApiResult<void>>(`/roles/users/${userId}/roles`, { roleIds, orgId }, { params: orgId ? { orgId } : undefined })
   },
 
   // 角色 ⇄ 用户

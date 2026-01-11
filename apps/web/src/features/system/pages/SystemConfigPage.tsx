@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { App, Button, Card, Form, Input, Modal, Select, Space, Switch, Table, Typography } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
+import type { Breakpoint } from 'antd/es/_util/responsiveObserver'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { SystemConfig } from '@/shared/api/endpoints/systemConfigs'
 import { systemConfigsApi } from '@/shared/api/endpoints/systemConfigs'
@@ -119,14 +121,15 @@ export default function SystemConfigPage() {
     }
   }
 
-  const columns = [
-    { title: '键', dataIndex: 'config_key', key: 'config_key' },
-    { title: '名称', dataIndex: 'config_name', key: 'config_name' },
-    { title: '值', dataIndex: 'config_value', key: 'config_value' },
+  const columns: ColumnsType<SystemConfig> = [
+    { title: '键', dataIndex: 'config_key', key: 'config_key', ellipsis: true },
+    { title: '名称', dataIndex: 'config_name', key: 'config_name', ellipsis: true },
+    { title: '值', dataIndex: 'config_value', key: 'config_value', ellipsis: true },
     {
       title: '类型',
       dataIndex: 'value_type',
       key: 'value_type',
+      responsive: ['md'] as Breakpoint[],
     },
     {
       title: '启用',
@@ -218,7 +221,15 @@ export default function SystemConfigPage() {
         </Space>
       </Card>
       <Card>
-        <Table rowKey="id" loading={loading} columns={columns} dataSource={rows} pagination={false} />
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns}
+          dataSource={rows}
+          pagination={false}
+          size="small"
+          scroll={{ x: 900 }}
+        />
       </Card>
       <Modal
         open={modal.open}

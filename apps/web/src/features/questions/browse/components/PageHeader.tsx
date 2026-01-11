@@ -9,15 +9,11 @@ export function PageHeader({
   viewType,
   title,
   desc,
-  isAdmin,
-  manageHref,
   practiceHref,
 }: {
   viewType: string
   title: string
   desc: string
-  isAdmin: boolean
-  manageHref: string
   practiceHref?: string
 }) {
   return (
@@ -29,11 +25,6 @@ export function PageHeader({
         <Text type="secondary">{desc}</Text>
       </div>
       <Space>
-        {isAdmin && (
-          <Link to={manageHref}>
-            <Button type="primary">去后台管理</Button>
-          </Link>
-        )}
         {viewType === 'all' && practiceHref && (
           <Link to={practiceHref}>
             <Button type="primary" icon={<Play size={16} />}>

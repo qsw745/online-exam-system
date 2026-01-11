@@ -249,9 +249,13 @@ export const setUserRoles = async (req: Request, res: Res) => {
   try {
     const uid = Number(req.params.userId)
     const roleIds: number[] = req.body?.roleIds || []
+    const orgIdRaw = (req.query.orgId ?? req.body?.orgId) as any
+    const orgId =
+      orgIdRaw === undefined || orgIdRaw === null || String(orgIdRaw).trim() === '' ? undefined : Number(orgIdRaw)
     if (!Number.isFinite(uid)) return res.badRequest('无效的用户ID')
     if (!Array.isArray(roleIds)) return res.badRequest('roleIds 必须为数组')
-    await RoleService.setUserRoles(uid, roleIds)
+    if (orgId !== undefined && !Number.isFinite(orgId)) return res.badRequest('无效的机构ID')
+    await RoleService.setUserRoles(uid, roleIds, orgId)
     return res.ok(null, '用户角色设置成功')
   } catch (e) {
     console.error('设置用户角色失败:', e)

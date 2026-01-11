@@ -90,8 +90,6 @@ export default function QuestionsPage() {
           viewType={q.viewType}
           title={title}
           desc={desc}
-          isAdmin={(user as any)?.role === 'admin'}
-          manageHref="/admin/questions"
           practiceHref={practiceHref}
         />
       </Card>

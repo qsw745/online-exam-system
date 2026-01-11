@@ -1,6 +1,8 @@
 .global-pagination {
   display: flex;
   justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
   margin-top: 16px;
   width: 100%;
 }
@@ -64,4 +66,15 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+.global-pagination .gp-quick-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.global-pagination .gp-quick-jump .ant-input-number {
+  width: 88px;
 }

@@ -67,4 +67,7 @@ export interface UpdateTaskInput {
   status?: TaskStatus
   start_time?: string | Date
   end_time?: string | Date
+  exam_id?: number
+  type?: TaskType
+  paper_id?: number
 }

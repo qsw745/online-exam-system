@@ -2,6 +2,7 @@ import { api } from '../core/httpClient'
 
 export interface ProfileForm {
   avatar?: string
+  avatar_url?: string
   nickname?: string
   email?: string
   phone?: string
@@ -16,7 +17,19 @@ export const profileApi = {
   get: () => api.get<ProfileForm>('/profile'),
 
   // 更新资料（昵称/学校/班级/邮箱/电话/签名等）
-  update: (payload: ProfileForm) => api.put<ProfileForm>('/profile', payload),
+  update: (payload: ProfileForm) => {
+    // 过滤空字符串，避免后端校验失败（如 phone 为空字符串）
+    const normalized: ProfileForm = {}
+    Object.entries(payload || {}).forEach(([k, v]) => {
+      if (typeof v === 'string') {
+        const trimmed = v.trim()
+        if (trimmed) (normalized as any)[k] = trimmed
+      } else if (v !== undefined) {
+        ;(normalized as any)[k] = v
+      }
+    })
+    return api.put<ProfileForm>('/profile', normalized)
+  },
 
   // 旧接口：直接用字符串更新头像（比如你已经有 OSS URL）
   updateAvatar: (fileIdOrUrl: string) => api.put<ProfileForm>('/profile/avatar', { value: fileIdOrUrl }),

@@ -93,10 +93,10 @@ export function useProfilePage() {
 
   const avatarSrc = useMemo(() => {
     const apiBase = import.meta.env.VITE_API_URL || ''
-    const raw = user?.avatar_url || ''
+    const raw = user?.avatar_url || (user as any)?.avatar || ''
     const absolute = getAbsoluteAvatarUrl(raw, apiBase)
     return previewUrl || absolute || '/default-avatar.png'
-  }, [previewUrl, user?.avatar_url])
+  }, [previewUrl, user?.avatar_url, user])
 
   const submit = async () => {
     setLoading(true)

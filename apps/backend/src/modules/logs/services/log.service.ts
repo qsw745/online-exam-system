@@ -153,6 +153,12 @@ function inferLevel(input: LogInput): NonNullable<LogInput['level']> {
 export class LogService {
   static async log(input: LogInput, req?: Request) {
     const meta = metaFromReq(req)
+    const startMs = (req as any)?.__req_start_ms
+    const durationMs = typeof startMs === 'number' ? Date.now() - startMs : undefined
+    const details =
+      input.details && typeof input.details === 'object' && !Array.isArray(input.details) ? { ...input.details } : {}
+    if (durationMs != null) details.duration_ms = durationMs
+
     await LogRepository.insert({
       type: input.type || 'system',
       level: inferLevel(input),
@@ -162,7 +168,7 @@ export class LogService {
       message: input.message,
       resourceType: input.resourceType,
       resourceId: input.resourceId,
-      details: input.details,
+      details: Object.keys(details).length ? details : input.details,
       status: input.status,
       ipAddress: input.ipAddress ?? meta.ipAddress,
       userAgent: input.userAgent ?? meta.userAgent,
