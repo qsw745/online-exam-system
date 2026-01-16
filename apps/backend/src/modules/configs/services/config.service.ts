@@ -1,5 +1,5 @@
 import type { SystemConfig } from '../domain/config.model'
-import { ConfigRepository } from '../repositories/config.repository'
+import { ConfigRepository, type SystemConfigPayload } from '../repositories/config.repository'
 
 export class ConfigService {
   list(): Promise<SystemConfig[]> {
@@ -14,15 +14,16 @@ export class ConfigService {
     enabled?: boolean
     description?: string
   }) {
-    const id = await ConfigRepository.create({
+    const toSave: SystemConfigPayload = {
       ...payload,
       enabled: payload.enabled === undefined ? 1 : payload.enabled ? 1 : 0,
-    })
+    }
+    const id = await ConfigRepository.create(toSave)
     return id
   }
 
   async update(id: number, payload: any) {
-    const normalized = { ...payload }
+    const normalized: SystemConfigPayload = { ...payload }
     if (payload.enabled !== undefined) normalized.enabled = payload.enabled ? 1 : 0
     await ConfigRepository.update(id, normalized)
   }

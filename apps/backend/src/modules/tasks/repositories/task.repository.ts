@@ -400,6 +400,11 @@ export class TaskRepository {
     return rows.map((r: any) => Number(r.id))
   }
 
+  async listAllUserIds(): Promise<number[]> {
+    const [rows] = await this.db.execute<RowDataPacket[]>(`SELECT id FROM users`)
+    return rows.map((r: any) => Number(r.id))
+  }
+
   async setStatus(taskId: number, status: 'published' | 'unpublished'): Promise<void> {
     await this.db.execute('UPDATE tasks SET status = ?, updated_at = NOW() WHERE id = ?', [status, taskId])
   }
@@ -651,7 +656,7 @@ export class TaskRepository {
         'UPDATE exam_results SET score = ?, submit_time = NOW(), status = "submitted", answers = ?, time_spent = ? WHERE id = ?',
         [totalScore, JSON.stringify(args.answers || {}), args.time_spent || 0, examResultId]
       )
-      await conn.execute('UPDATE tasks SET status = "completed" WHERE id = ?', [args.taskId])
+      // 不要在单个用户提交后把任务标记为全局 completed，避免其他用户无法继续考试
 
       await conn.commit()
       return { score: totalScore, correctCount, questionCount: questions.length, examResultId }

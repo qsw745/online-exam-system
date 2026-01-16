@@ -31,7 +31,9 @@ export class NotificationUploadController {
         return res.badRequest('缺少必要参数', { code: CODES.VALIDATION_ERROR })
       const file = (req as any).file
       if (!file) return res.badRequest('缺少分片数据', { code: CODES.VALIDATION_ERROR })
-      await NotificationUploadService.uploadChunk(hash, index, (file as Express.Multer.File).buffer)
+      const buffer = (file as Express.Multer.File).buffer
+      if (!buffer) return res.badRequest('分片内容为空', { code: CODES.VALIDATION_ERROR })
+      await NotificationUploadService.uploadChunk(hash, index, buffer)
       return res.ok({ index }, '上传成功')
     } catch (e: any) {
       return res.internal(e?.message || '上传分片失败', { code: CODES.INTERNAL_ERROR })

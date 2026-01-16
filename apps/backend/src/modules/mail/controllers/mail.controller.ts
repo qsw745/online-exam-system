@@ -60,6 +60,7 @@ export class MailController {
       content: payload.content,
       recipients: payload.recipients,
       attachments: payload.attachments,
+      send_external: !!payload.send_external,
     })
     return res.ok(sent, '发送成功')
   }

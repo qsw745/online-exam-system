@@ -2,6 +2,15 @@ import { pool } from '@/config/database'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { SystemConfig } from '../domain/config.model'
 
+export type SystemConfigPayload = {
+  config_key?: string
+  config_name?: string
+  config_value?: string | null
+  value_type?: string
+  enabled?: number
+  description?: string | null
+}
+
 type Queryable = {
   query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
 }
@@ -24,7 +33,7 @@ export const ConfigRepository = {
     return (rows as SystemConfig[])[0] || null
   },
 
-  async create(payload: Partial<SystemConfig>): Promise<number> {
+  async create(payload: SystemConfigPayload): Promise<number> {
     const [ret] = await db.query<ResultSetHeader>(
       'INSERT INTO system_configs (config_key, config_name, config_value, value_type, enabled, description) VALUES (?, ?, ?, ?, ?, ?)',
       [
@@ -39,7 +48,7 @@ export const ConfigRepository = {
     return ret.insertId
   },
 
-  async update(id: number, payload: Partial<SystemConfig>): Promise<number> {
+  async update(id: number, payload: SystemConfigPayload): Promise<number> {
     const sets: string[] = []
     const vals: any[] = []
     if (payload.config_key !== undefined) {

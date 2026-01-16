@@ -2,6 +2,15 @@ import { pool } from '@/config/database'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { Integration } from '../domain/integration.model'
 
+export type IntegrationPayload = {
+  name?: string
+  type?: string
+  endpoint?: string | null
+  config?: any
+  enabled?: number
+  description?: string | null
+}
+
 type Queryable = {
   query<T = any>(sql: string, params?: any[]): Promise<[T, any]>
 }
@@ -16,7 +25,7 @@ export const IntegrationRepository = {
     return rows as Integration[]
   },
 
-  async create(payload: Partial<Integration>): Promise<number> {
+  async create(payload: IntegrationPayload): Promise<number> {
     const [ret] = await db.query<ResultSetHeader>(
       'INSERT INTO integrations (name, type, endpoint, config, enabled, description) VALUES (?, ?, ?, ?, ?, ?)',
       [payload.name, payload.type, payload.endpoint ?? null, payload.config ?? null, payload.enabled ?? true, payload.description ?? null]
@@ -24,7 +33,7 @@ export const IntegrationRepository = {
     return ret.insertId
   },
 
-  async update(id: number, payload: Partial<Integration>): Promise<number> {
+  async update(id: number, payload: IntegrationPayload): Promise<number> {
     const sets: string[] = []
     const vals: any[] = []
     ;(['name', 'type', 'endpoint', 'config', 'enabled', 'description'] as const).forEach(key => {

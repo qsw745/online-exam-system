@@ -59,6 +59,7 @@ export interface CreateTaskInput {
   exam_id?: number
   type?: TaskType
   assigned_user_ids?: number[]
+  assign_all?: boolean
 }
 
 export interface UpdateTaskInput {

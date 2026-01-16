@@ -25,5 +25,23 @@ declare module 'express-serve-static-core' {
   }
 }
 
+declare global {
+  namespace Express {
+    namespace Multer {
+      interface File {
+        fieldname: string
+        originalname: string
+        encoding: string
+        mimetype: string
+        size: number
+        destination?: string
+        filename?: string
+        path?: string
+        buffer?: Buffer
+      }
+    }
+  }
+}
+
 // 避免成为全局脚本模块
 export {}

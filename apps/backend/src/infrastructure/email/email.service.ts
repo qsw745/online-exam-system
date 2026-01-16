@@ -61,6 +61,14 @@ class EmailService {
     return this.sendEmail(to, template)
   }
 
+  async sendPlainEmail(to: string, subject: string, content: string): Promise<boolean> {
+    const safeSubject = String(subject || '').trim() || '通知'
+    const safeContent = String(content || '').trim() || '请查看系统消息。'
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"></head><body><pre style="white-space:pre-wrap;font-family:Arial">${safeContent}</pre></body></html>`
+    const template: EmailTemplate = { subject: safeSubject, html, text: safeContent }
+    return this.sendEmail(to, template)
+  }
+
   private generatePasswordResetTemplate(username: string, resetUrl: string): EmailTemplate {
     const subject = '密码重置请求 - 在线考试系统'
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>

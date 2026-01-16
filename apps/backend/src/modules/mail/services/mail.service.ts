@@ -1,6 +1,7 @@
 import HttpError from '@/common/errors/http-error'
 import type { MailComposePayload, MailInboxItem, MailMessage, MailRecipientOption } from '../domain/mail.types'
 import { MailRepository } from '../repositories/mail.repository'
+import { emailService } from '@/infrastructure/email/email.service'
 
 const ensureSubject = (subject?: string) => (subject ?? '').trim()
 const ensureContent = (content?: string) => (content ?? '').trim()
@@ -102,6 +103,14 @@ export class MailService {
       messageId,
       recipients.map(r => r.id)
     )
+    if (payload.send_external) {
+      const users = await MailRepository.findUsersByIds(recipients.map(r => r.id))
+      const targets = users.map(u => u.email).filter((v): v is string => !!v)
+      if (!targets.length) throw HttpError.badRequest('收件人邮箱为空')
+      const results = await Promise.all(targets.map(to => emailService.sendPlainEmail(to, subject, content)))
+      const failed = targets.filter((_, idx) => !results[idx])
+      if (failed.length) throw HttpError.internal(`外部邮件发送失败: ${failed.join(',')}`)
+    }
     return (await MailRepository.getMessageById(messageId))!
   }
 

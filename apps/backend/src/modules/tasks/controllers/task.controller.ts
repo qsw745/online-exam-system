@@ -176,6 +176,7 @@ export class TaskController {
       const assigned_department_ids = Array.isArray(req.body.assigned_department_ids)
         ? req.body.assigned_department_ids
         : []
+      const assign_all = String((req.body as any)?.assign_all ?? '').toLowerCase() === 'true' || req.body?.assign_all === true
 
       const task = await svc.create({
         creatorId,
@@ -189,11 +190,12 @@ export class TaskController {
         type: req.body.type || 'practice',
         assigned_user_ids,
         assigned_department_ids,
+        assign_all,
       })
       return res.created({ task }, '创建成功')
     } catch (e: any) {
       const msg = e?.message || ''
-      if (/分配用户不存在|无效的分配用户|assigned user/i.test(msg)) {
+      if (/分配用户不存在|无效的分配用户|assigned user|试卷|考试任务必须|无效的试卷ID/i.test(msg)) {
         return res.badRequest(msg)
       }
       return res.internal(msg || '创建任务失败')
@@ -227,7 +229,9 @@ export class TaskController {
       return res.ok({ task }, '更新成功')
     } catch (e: any) {
       log.error('更新任务错误:', e)
-      return res.internal(e?.message || '更新任务失败')
+      const msg = e?.message || ''
+      if (/试卷|考试任务必须|无效的试卷ID/i.test(msg)) return res.badRequest(msg)
+      return res.internal(msg || '更新任务失败')
     }
   }
 

@@ -72,6 +72,7 @@ const MessageTemplatesPage = lazy(() => import('@/features/notifications-manager
 const ChannelsPage = lazy(() => import('@/features/notifications-manager/pages/ChannelsPage'))
 const BroadcastAndTestPage = lazy(() => import('@/features/notifications-manager/pages/BroadcastAndTestPage'))
 const PushLogsPage = lazy(() => import('@/features/notifications-manager/pages/PushLogsPage'))
+const AiLogsPage = lazy(() => import('@/features/ai-logs/pages/AiLogsPage'))
 
 // Errors
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
@@ -145,6 +146,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'logs-ops': OperationLogsPage,
   'logs-system': SystemLogsPage,
   'online-users': OnlineUsersPage,
+  'ai-logs': AiLogsPage,
 
   // Notification Center
   'notify-inbox': InboxPage,

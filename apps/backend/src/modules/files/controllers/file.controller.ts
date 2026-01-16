@@ -68,8 +68,17 @@ export class FileController {
     try {
       const file = (req as AuthRequest & { file?: Express.Multer.File }).file
       if (!file) return res.badRequest('请上传文件', { code: CODES.VALIDATION_ERROR })
+      if (!file.filename || !file.path) {
+        return res.badRequest('上传文件缺少存储信息', { code: CODES.VALIDATION_ERROR })
+      }
       const payload = {
-        file,
+        file: {
+          filename: file.filename,
+          originalname: file.originalname,
+          mimetype: file.mimetype,
+          size: file.size,
+          path: file.path,
+        },
         parent_id: toNumber((req.body as any)?.parent_id ?? (req.body as any)?.parentId ?? null),
         name: (req.body as any)?.name,
         description: (req.body as any)?.description,

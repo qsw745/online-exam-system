@@ -87,6 +87,7 @@ export type MailComposePayload = {
   content?: string
   recipients?: number[]
   attachments?: MailAttachment[]
+  send_external?: boolean
 }
 
 export type RecipientOption = { id: number; name: string; email?: string | null }

@@ -1,6 +1,8 @@
 // apps/web/src/features/exams/components/ResultDetailView.tsx
-import { Card, Descriptions, Space, Tag, Typography, Button, List, Divider } from 'antd'
+import { Card, Descriptions, Space, Tag, Typography, Button, List, Divider, message } from 'antd'
+import { useState } from 'react'
 import type { ResultDetail } from '@/shared/api/endpoints/results'
+import { aiApi } from '@/shared/api/endpoints/ai'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -75,6 +77,57 @@ export default function ResultDetailView({ data, onBack }: Props) {
   const uiStatus = toUiStatus(String(data.status))
   const tagColor = uiStatus === 'completed' ? 'success' : uiStatus === 'in_progress' ? 'warning' : 'default'
   const scoreLine = `${data.score} / ${data.total_score}`
+  const [aiSummary, setAiSummary] = useState<any | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const strengths = Array.isArray(aiSummary?.strengths) ? aiSummary.strengths.map(String) : []
+  const weaknesses = Array.isArray(aiSummary?.weaknesses) ? aiSummary.weaknesses.map(String) : []
+  const nextSteps = Array.isArray(aiSummary?.next_steps) ? aiSummary.next_steps.map(String) : []
+
+  const requestAiSummary = async () => {
+    if (aiLoading) return
+    setAiLoading(true)
+    try {
+      const questions = (data.questions || []).map(q => ({
+        type: q.type,
+        score: q.score,
+        is_correct: q.is_correct,
+      }))
+      const wrong = (data.questions || [])
+        .filter(q => q.is_correct === 0)
+        .slice(0, 5)
+        .map(q => ({
+          type: q.type,
+          content: String(q.content || '').slice(0, 200),
+          correct_answer: q.correct_answer,
+          user_answer: q.user_answer,
+        }))
+      const payload = {
+        exam: {
+          title: data.paper_title,
+          exam_id: data.exam_id,
+          paper_id: data.paper_id,
+        },
+        result: {
+          score: data.score,
+          total_score: data.total_score,
+          percentage: data.percentage,
+          duration: data.duration,
+          status: data.status,
+        },
+        questions,
+        wrong_questions: wrong,
+      }
+      const res: any = await aiApi.examSummary(payload)
+      if (!res?.success) throw new Error(res?.error || 'AI 总结失败')
+      const root = res?.data ?? {}
+      const parsed = root?.data ?? root
+      setAiSummary(parsed)
+    } catch (e: any) {
+      message.error(e?.message || 'AI 总结失败')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
@@ -86,6 +139,9 @@ export default function ResultDetailView({ data, onBack }: Props) {
           <Tag color={tagColor}>
             {uiStatus === 'completed' ? '已完成' : uiStatus === 'in_progress' ? '进行中' : '未开始'}
           </Tag>
+          <Button onClick={requestAiSummary} loading={aiLoading}>
+            AI总结
+          </Button>
           {onBack && <Button onClick={onBack}>返回列表</Button>}
         </Space>
       </div>
@@ -103,6 +159,45 @@ export default function ResultDetailView({ data, onBack }: Props) {
           </Descriptions.Item>
         </Descriptions>
       </Card>
+
+      {aiSummary && (
+        <Card title="AI总结">
+          {'summary' in aiSummary && <Paragraph>{aiSummary.summary}</Paragraph>}
+          {strengths.length > 0 && (
+            <>
+              <Text strong>优势：</Text>
+              <List<string>
+                size="small"
+                dataSource={strengths}
+                renderItem={item => <List.Item>{item}</List.Item>}
+              />
+            </>
+          )}
+          {weaknesses.length > 0 && (
+            <>
+              <Divider style={{ margin: '12px 0' }} />
+              <Text strong>薄弱点：</Text>
+              <List<string>
+                size="small"
+                dataSource={weaknesses}
+                renderItem={item => <List.Item>{item}</List.Item>}
+              />
+            </>
+          )}
+          {nextSteps.length > 0 && (
+            <>
+              <Divider style={{ margin: '12px 0' }} />
+              <Text strong>建议：</Text>
+              <List<string>
+                size="small"
+                dataSource={nextSteps}
+                renderItem={item => <List.Item>{item}</List.Item>}
+              />
+            </>
+          )}
+          {!aiSummary?.summary && typeof aiSummary?.raw === 'string' && <Paragraph>{aiSummary.raw}</Paragraph>}
+        </Card>
+      )}
 
       <Card title="题目明细">
         <List

@@ -269,22 +269,6 @@ export class MailRepository {
     return { ok: true, remaining, removed: ret.affectedRows }
   }
 
-  static async deleteRecipient(messageId: number, recipientId: number) {
-    const [ret] = await db.query<ResultSetHeader>(
-      `DELETE FROM mail_recipients WHERE message_id = ? AND recipient_id = ?`,
-      [messageId, recipientId]
-    )
-    return ret.affectedRows > 0
-  }
-
-  static async deleteBySender(id: number, senderId: number) {
-    const [ret] = await db.query<ResultSetHeader>(`DELETE FROM mail_messages WHERE id = ? AND sender_id = ?`, [
-      id,
-      senderId,
-    ])
-    return ret.affectedRows > 0
-  }
-
   static async recallMessage(id: number, senderId: number) {
     const [ret] = await db.query<ResultSetHeader>(
       `UPDATE mail_messages 

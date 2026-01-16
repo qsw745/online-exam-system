@@ -47,6 +47,7 @@ export class ResultRepository {
 
         const offset = (page - 1) * limit
         const sortField = ['created_at', 'score', 'start_time', 'end_time'].includes(sort) ? sort : 'created_at'
+        const sortExpr = sortField === 'end_time' ? 'r.submit_time' : `r.${sortField}`
 
         const vals: any[] = []
         let where = role === 'student' ? 'WHERE r.user_id = ?' : 'WHERE 1=1'
@@ -104,7 +105,7 @@ export class ResultRepository {
              FROM exam_results r
                  ${join}
                  ${where}
-             ORDER BY r.${sortField} DESC
+             ORDER BY ${sortExpr} DESC
                  LIMIT ? OFFSET ?`,
             [...vals, limit, offset]
         )

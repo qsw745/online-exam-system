@@ -1,5 +1,5 @@
 import type { Integration } from '../domain/integration.model'
-import { IntegrationRepository } from '../repositories/integration.repository'
+import { IntegrationRepository, type IntegrationPayload } from '../repositories/integration.repository'
 
 export class IntegrationService {
   list(type?: string): Promise<Integration[]> {
@@ -14,15 +14,16 @@ export class IntegrationService {
     enabled?: boolean
     description?: string
   }) {
-    const id = await IntegrationRepository.create({
+    const toSave: IntegrationPayload = {
       ...payload,
       enabled: payload.enabled === undefined ? 1 : payload.enabled ? 1 : 0,
-    })
+    }
+    const id = await IntegrationRepository.create(toSave)
     return id
   }
 
   async update(id: number, payload: Partial<Integration>) {
-    const normalized = { ...payload }
+    const normalized: IntegrationPayload = { ...payload }
     if (payload.enabled !== undefined) normalized.enabled = payload.enabled ? 1 : 0
     await IntegrationRepository.update(id, normalized)
   }

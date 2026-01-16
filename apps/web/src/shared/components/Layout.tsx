@@ -10,6 +10,7 @@ import { useLocation } from 'react-router-dom'
 import Header from './Header'
 import LoadingSpinner from './LoadingSpinner'
 import LayoutOffsetVars from './LayoutOffsetVars'
+import AiAssistantWidget from './AiAssistantWidget'
 
 const { Content } = AntLayout
 const HEADER_H = 48
@@ -80,6 +81,7 @@ const Layout: React.FC = () => {
           </Content>
         </AntLayout>
       </AntLayout>
+      <AiAssistantWidget />
     </TabsProvider>
   )
 }

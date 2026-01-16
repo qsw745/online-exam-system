@@ -12,6 +12,7 @@ import {
   Heart,
   HeartOff,
   SkipForward,
+  Sparkles,
 } from 'lucide-react'
 import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input } from 'antd'
 import { wrongQuestions } from '@/shared/api/http'
@@ -21,6 +22,7 @@ import {
   addQuestionToFavorites,
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
+import { aiApi } from '@/shared/api/endpoints/ai'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -43,6 +45,9 @@ type Props = {
   onIndexChange?: (index: number) => void
 }
 
+const SHORT_ANSWER_PASS_RATE = 0.6
+const SHORT_ANSWER_MAX_SCORE = 10
+
 function judge(q: Question, selected: number[], text: string) {
   if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
     const correct = q.options?.map((opt, i) => (opt.is_correct ? i : -1)).filter(i => i !== -1) || []
@@ -52,7 +57,7 @@ function judge(q: Question, selected: number[], text: string) {
     const idx = (q.correct_answer as string) === 'true' ? 0 : 1
     return selected[0] === idx
   }
-  if (q.question_type === 'short_answer') return true
+  if (q.question_type === 'short_answer') return false
   return false
 }
 
@@ -71,6 +76,10 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
   const [correct, setCorrect] = useState(false)
   const [showExp, setShowExp] = useState(false)
   const [fav, setFav] = useState(false)
+  const [aiExp, setAiExp] = useState<string | null>(null)
+  const [aiLoading, setAiLoading] = useState(false)
+  const [gradeLoading, setGradeLoading] = useState(false)
+  const [gradeDetail, setGradeDetail] = useState<{ score: number; maxScore: number; feedback?: string } | null>(null)
 
   // 加载题目
   useEffect(() => {
@@ -94,6 +103,8 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
         setAnswered(false)
         setCorrect(false)
         setShowExp(false)
+        setAiExp(null)
+        setGradeDetail(null)
         try {
           const f = await isQuestionFavorited(qid)
           if (mounted) setFav(!!f)
@@ -121,7 +132,38 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
 
   const submit = async () => {
     if (!q) return
-    const ok = judge(q, selected, text)
+    let ok = judge(q, selected, text)
+    if (q.question_type === 'short_answer') {
+      setGradeLoading(true)
+      try {
+        const payload = {
+          question: q.content,
+          rubric: q.correct_answer,
+          answer: text,
+          max_score: SHORT_ANSWER_MAX_SCORE,
+        }
+        const res: any = await aiApi.gradeShortAnswer(payload)
+        if (!res?.success) throw new Error(res?.error || 'AI 评分失败')
+        const root = res?.data ?? {}
+        const data = root?.data ?? root
+        const score = Number(data?.score)
+        const maxScore = Number(data?.max_score ?? payload.max_score)
+        if (Number.isFinite(score) && Number.isFinite(maxScore)) {
+          ok = score >= maxScore * SHORT_ANSWER_PASS_RATE
+          setGradeDetail({ score, maxScore, feedback: data?.feedback })
+          message.info(`AI 评分：${score}/${maxScore}`)
+        } else {
+          ok = false
+          setGradeDetail(null)
+          message.warning('AI 评分结果不完整')
+        }
+      } catch (e: any) {
+        message.error(e?.message || 'AI 评分失败')
+        return
+      } finally {
+        setGradeLoading(false)
+      }
+    }
     setCorrect(ok)
     setAnswered(true)
     setShowExp(true)
@@ -153,6 +195,35 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
     ] || t)
 
   const diffLabel = (d?: string) => (({ easy: '简单', medium: '中等', hard: '困难' } as any)[d || ''] || d)
+
+  const requestAiExplain = async () => {
+    if (!q || aiLoading) return
+    setAiLoading(true)
+    try {
+      const payload = {
+        question_type: q.question_type,
+        content: q.content,
+        options: q.options,
+        correct_answer: q.correct_answer,
+        user_answer: q.question_type === 'short_answer' ? text : selected,
+      }
+      const res: any = await aiApi.explainQuestion(payload)
+      if (!res?.success) throw new Error(res?.error || 'AI 解析失败')
+      const root = res?.data ?? {}
+      const data = root?.data ?? root
+      const exp = data?.explanation || data?.raw || ''
+      if (exp) {
+        setAiExp(exp)
+        setShowExp(true)
+      } else {
+        message.warning('AI 未返回解析内容')
+      }
+    } catch (e: any) {
+      message.error(e?.message || 'AI 解析失败')
+    } finally {
+      setAiLoading(false)
+    }
+  }
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
@@ -209,6 +280,9 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
             >
               {showExp ? '隐藏解析' : '查看解析'}
             </Button>
+            <Button icon={<Sparkles size={16} />} onClick={requestAiExplain} loading={aiLoading} disabled={!q}>
+              AI解析
+            </Button>
           </Space>
         </div>
 
@@ -240,6 +314,11 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
                   {answered && (
                     <Tag color={correct ? 'success' : 'error'} icon={<CheckCircle size={16} />}>
                       {correct ? '回答正确' : '回答错误'}
+                    </Tag>
+                  )}
+                  {answered && gradeDetail && (
+                    <Tag color="purple">
+                      AI 评分 {gradeDetail.score}/{gradeDetail.maxScore}
                     </Tag>
                   )}
                 </div>
@@ -351,6 +430,7 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
                     size="large"
                     icon={<CheckCircle size={16} />}
                     onClick={submit}
+                    loading={gradeLoading}
                     disabled={
                       ((q.question_type === 'single_choice' ||
                         q.question_type === 'multiple_choice' ||
@@ -371,6 +451,7 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
                         setAnswered(false)
                         setCorrect(false)
                         setShowExp(false)
+                        setGradeDetail(null)
                       }}
                     >
                       重新练习
@@ -393,6 +474,19 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
                   style={{ backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
                 >
                   <Text style={{ color: '#1890ff', lineHeight: 1.6 }}>{q.explanation}</Text>
+                </Card>
+              )}
+
+              {showExp && aiExp && (
+                <Card
+                  title={
+                    <Title level={4} style={{ margin: 0, color: '#389e0d' }}>
+                      AI解析
+                    </Title>
+                  }
+                  style={{ backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}
+                >
+                  <Text style={{ color: '#237804', lineHeight: 1.6 }}>{aiExp}</Text>
                 </Card>
               )}
 

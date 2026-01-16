@@ -7,6 +7,7 @@ import {
   isQuestionFavorited,
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
+import { aiApi } from '@/shared/api/endpoints/ai'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -26,7 +27,10 @@ type Props = {
   onExit: () => void
 }
 
-function judge(q: Question, selected: number[], text: string) {
+const SHORT_ANSWER_PASS_RATE = 0.6
+const SHORT_ANSWER_MAX_SCORE = 10
+
+function judge(q: Question, selected: number[], text: string, aiCorrect?: boolean) {
   if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
     const correct = q.options?.map((opt, i) => (opt.is_correct ? i : -1)).filter(i => i !== -1) || []
     return selected.length === correct.length && selected.every(i => correct.includes(i))
@@ -35,7 +39,7 @@ function judge(q: Question, selected: number[], text: string) {
     const idx = (q.correct_answer as string) === 'true' ? 0 : 1
     return selected[0] === idx
   }
-  if (q.question_type === 'short_answer') return true
+  if (q.question_type === 'short_answer') return aiCorrect === true
   return false
 }
 
@@ -43,10 +47,23 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qs, setQs] = useState<Question[]>([])
-  const [answers, setAnswers] = useState<Record<string, { selected: number[]; text: string }>>({})
+  const [answers, setAnswers] = useState<
+    Record<
+      string,
+      {
+        selected: number[]
+        text: string
+        aiCorrect?: boolean
+        aiScore?: number
+        aiMaxScore?: number
+        aiFeedback?: string
+      }
+    >
+  >({})
   const [submitted, setSubmitted] = useState(false)
   const [showExp, setShowExp] = useState(false)
   const [fav, setFav] = useState<Record<string, boolean>>({})
+  const [grading, setGrading] = useState(false)
 
   // 全局导航高度，按你的页面调整
   const TOP_OFFSET = 64
@@ -86,7 +103,10 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
         setSubmitted(false)
         setShowExp(false)
 
-        const ans: Record<string, { selected: number[]; text: string }> = {}
+        const ans: Record<
+          string,
+          { selected: number[]; text: string; aiCorrect?: boolean; aiScore?: number; aiMaxScore?: number; aiFeedback?: string }
+        > = {}
         const favMap: Record<string, boolean> = {}
         for (const q of ordered) {
           const k = String(q.id)
@@ -117,18 +137,66 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
     let c = 0
     qs.forEach(q => {
       const a = answers[String(q.id)] || { selected: [], text: '' }
-      if (judge(q, a.selected, a.text)) c++
+      if (judge(q, a.selected, a.text, a.aiCorrect)) c++
     })
     return { total: qs.length, correct: c }
   }, [submitted, qs, answers])
 
   const submitAll = async () => {
     setSubmitted(true)
-    const payloads = qs.map(q => {
-      const a = answers[String(q.id)] || { selected: [], text: '' }
-      const ok = judge(q, a.selected, a.text)
-      return { id: String(q.id), ok, payload: q.question_type === 'short_answer' ? a.text : a.selected }
-    })
+    setGrading(true)
+    const nextAnswers = { ...answers }
+    const payloads: Array<{ id: string; ok: boolean; payload: any }> = []
+
+    for (const q of qs) {
+      const id = String(q.id)
+      const a = nextAnswers[id] || { selected: [], text: '' }
+      let ok = judge(q, a.selected, a.text, a.aiCorrect)
+
+      if (q.question_type === 'short_answer') {
+        if (!a.text?.trim()) {
+          ok = false
+          nextAnswers[id] = { ...a, aiCorrect: false, aiFeedback: '未作答' }
+          payloads.push({ id, ok, payload: a.text })
+          continue
+        }
+        try {
+          const payload = {
+            question: q.content,
+            rubric: q.correct_answer,
+            answer: a.text,
+            max_score: SHORT_ANSWER_MAX_SCORE,
+          }
+          const res: any = await aiApi.gradeShortAnswer(payload)
+          if (!res?.success) throw new Error(res?.error || 'AI 评分失败')
+          const root = res?.data ?? {}
+          const data = root?.data ?? root
+          const score = Number(data?.score)
+          const maxScore = Number(data?.max_score ?? payload.max_score)
+          if (Number.isFinite(score) && Number.isFinite(maxScore)) {
+            ok = score >= maxScore * SHORT_ANSWER_PASS_RATE
+            nextAnswers[id] = {
+              ...a,
+              aiCorrect: ok,
+              aiScore: score,
+              aiMaxScore: maxScore,
+              aiFeedback: data?.feedback,
+            }
+          } else {
+            ok = false
+            nextAnswers[id] = { ...a, aiCorrect: false }
+          }
+        } catch (e: any) {
+          ok = false
+          nextAnswers[id] = { ...a, aiCorrect: false, aiFeedback: 'AI 评分失败' }
+        }
+      }
+
+      payloads.push({ id, ok, payload: q.question_type === 'short_answer' ? a.text : a.selected })
+    }
+
+    setAnswers(nextAnswers)
+    setGrading(false)
     Promise.allSettled(
       payloads.map(p =>
         wrongQuestions.recordPractice({
@@ -185,7 +253,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                 {showExp ? '隐藏解析' : '显示解析'}
               </Button>
               {!submitted ? (
-                <Button type="primary" onClick={submitAll}>
+                <Button type="primary" onClick={submitAll} loading={grading}>
                   提交全部
                 </Button>
               ) : (
@@ -221,7 +289,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
             qs.map((q, idx) => {
               const k = String(q.id)
               const a = answers[k] || { selected: [], text: '' }
-              const ok = submitted ? judge(q, a.selected, a.text) : undefined
+              const ok = submitted ? judge(q, a.selected, a.text, a.aiCorrect) : undefined
               return (
                 <Card key={k} style={{ marginTop: 16 }}>
                   <div

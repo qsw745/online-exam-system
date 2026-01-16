@@ -11,6 +11,7 @@ import type {
 } from '../domain/task.model.js'
 import { TaskRepository } from '../repositories/task.repository.js'
 import { ConfigRepository } from '@/modules/configs/repositories/config.repository'
+import { PaperRepository } from '@/modules/exams/repositories/paper.repository'
 
 let RC: any = null,
   RL: any = null,
@@ -105,7 +106,7 @@ export class TaskService {
   }
 
   async create(
-    input: CreateTaskInput & { paper_id?: number; assigned_department_ids?: number[] }
+    input: CreateTaskInput & { paper_id?: number; assigned_department_ids?: number[]; assign_all?: boolean }
   ): Promise<TaskWithAssigned> {
     const {
       creatorId,
@@ -119,11 +120,18 @@ export class TaskService {
       type = 'practice',
       assigned_user_ids,
       assigned_department_ids = [],
+      assign_all,
     } = input
 
-    const deptUserIds = await this.findUsersByDepartments(assigned_department_ids)
-    const cleanUsers = uniqueNums([...(assigned_user_ids || []), ...deptUserIds])
-    const assignees = cleanUsers.length ? cleanUsers : [creatorId]
+    let assignees: number[] = []
+    if (assign_all) {
+      assignees = await this.repo.listAllUserIds()
+    } else {
+      const deptUserIds = await this.findUsersByDepartments(assigned_department_ids)
+      const cleanUsers = uniqueNums([...(assigned_user_ids || []), ...deptUserIds])
+      assignees = cleanUsers.length ? cleanUsers : [creatorId]
+    }
+    if (!assignees.length) assignees = [creatorId]
 
     const existing = await this.repo.findExistingUserIds(assignees)
     if (existing.length !== assignees.length) {
@@ -139,17 +147,24 @@ export class TaskService {
         : 'not_started'
 
     let finalExamId = exam_id ?? null
+    const normalizedPaperId = paper_id == null ? null : Number(paper_id)
     if (type === 'exam') {
-      if (!paper_id && !finalExamId) {
+      if (normalizedPaperId != null) {
+        if (!Number.isFinite(normalizedPaperId) || normalizedPaperId <= 0) {
+          throw new Error('无效的试卷ID')
+        }
+        await this.ensurePaperExists(normalizedPaperId)
+      }
+      if (!normalizedPaperId && !finalExamId) {
         throw new Error('考试任务必须关联试卷')
       }
       if (finalExamId) {
-        if (paper_id) await this.repo.updateExamPaper(finalExamId, paper_id)
+        if (normalizedPaperId) await this.repo.updateExamPaper(finalExamId, normalizedPaperId)
       } else {
         finalExamId = await this.repo.createExam({
           title,
           description: description ?? '',
-          paper_id: paper_id ?? null,
+          paper_id: normalizedPaperId ?? null,
           duration: 60,
           start_time: this.asDateTime(start_time),
           end_time: this.asDateTime(end_time),
@@ -173,7 +188,7 @@ export class TaskService {
 
     const task = await this.repo.getForAccess(taskId, creatorId, 'admin')
     if (!task) throw new Error('创建任务失败')
-    if (paper_id) (task as any).paper_id = paper_id
+    if (type === 'exam' && normalizedPaperId) (task as any).paper_id = normalizedPaperId
     return task
   }
 
@@ -197,7 +212,19 @@ export class TaskService {
 
     let targetExamId = patch.exam_id ?? (existing as any).exam_id ?? null
     const targetType = (patch.type as any) || (existing as any).type || 'practice'
-    const paperId = (patch.paper_id as any) ?? (existing as any).paper_id ?? null
+    const patchPaperRaw = (patch as any).paper_id
+    let validatedPaperId: number | null | undefined = undefined
+    if (patchPaperRaw !== undefined) {
+      if (patchPaperRaw == null || patchPaperRaw === '') {
+        validatedPaperId = null
+      } else {
+        const normalized = Number(patchPaperRaw)
+        if (!Number.isFinite(normalized) || normalized <= 0) throw new Error('无效的试卷ID')
+        await this.ensurePaperExists(normalized)
+        validatedPaperId = normalized
+      }
+    }
+    const paperId = validatedPaperId !== undefined ? validatedPaperId : (existing as any).paper_id ?? null
 
     if (targetType === 'exam') {
       if (!targetExamId && !paperId) throw new Error('考试任务必须选择试卷')
@@ -239,6 +266,11 @@ export class TaskService {
     const task = await this.repo.getForAccess(taskId, userScope.userId, userScope.role)
     if (!task) throw new Error('任务不存在或无权限访问')
     return task
+  }
+
+  private async ensurePaperExists(paperId: number) {
+    const { paper } = await PaperRepository.findById(paperId)
+    if (!paper) throw new Error(`试卷不存在（ID: ${paperId}）`)
   }
 
   async remove(taskId: number, userScope: { userId: number; role: 'admin' | 'teacher' | 'student' }): Promise<void> {
@@ -466,7 +498,7 @@ export class TaskService {
     }
   }
 
-  private asDateTime(v?: string | Date) {
+  private asDateTime(v?: string | Date | null) {
     if (!v) return null
     const d = new Date(v)
     return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 19).replace('T', ' ')

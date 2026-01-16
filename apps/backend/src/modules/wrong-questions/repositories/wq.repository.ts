@@ -271,13 +271,14 @@ export class WrongQuestionRepository {
   }
 
   async recentCorrectFlags(wrongQuestionId: number, n = 5) {
+    const limit = Number.isFinite(Number(n)) ? Math.max(1, Math.floor(Number(n))) : 5
     const [rows] = await this.db.execute<RowDataPacket[]>(
       `SELECT is_correct
          FROM wrong_question_practice_records
         WHERE wrong_question_id = ?
         ORDER BY practice_time DESC
-        LIMIT ?`,
-      [wrongQuestionId, n]
+        LIMIT ${limit}`,
+      [wrongQuestionId]
     )
     return rows.map((r: RowDataPacket) => Number((r as any).is_correct) === 1)
   }

@@ -49,6 +49,8 @@ import * as integrationRoutesMod from '@/modules/integrations/routes/integration
 import * as announcementRoutesMod from '@/modules/announcements/routes/announcement.routes'
 import * as notificationUploadRoutesMod from '@/modules/notifications/routes/notification-upload.routes'
 import * as mailRoutesMod from '@/modules/mail/routes/mail.routes'
+import * as aiRoutesMod from '@/modules/ai/routes/ai.routes'
+import * as systemTestsRoutesMod from '@/modules/system-tests/routes/system-tests.routes'
 
 import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
 import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
@@ -91,6 +93,8 @@ const integrationRoutes = pick(integrationRoutesMod, 'integrationRoutes')
 const announcementRoutes = pick(announcementRoutesMod, 'announcementRoutes')
 const notificationUploadRoutes = pick(notificationUploadRoutesMod, 'notificationUploadRoutes')
 const mailRoutes = pick(mailRoutesMod, 'mailRoutes')
+const aiRoutes = pick(aiRoutesMod, 'aiRoutes')
+const systemTestsRoutes = pick(systemTestsRoutesMod, 'systemTestsRoutes')
 const captchaRoutes = pick(captchaRoutesMod, 'captchaRoutes')
 const cryptoRoutes = pick(cryptoRoutesMod, 'cryptoRoutes')
 const publicRoutes = pick(publicRoutesMod, 'publicRoutes')
@@ -135,6 +139,8 @@ const mounts: Array<[string, any]> = [
   ['/captcha', captchaRoutes],
   ['/crypto', cryptoRoutes],
   ['/public', publicRoutes],
+  ['/ai', aiRoutes],
+  ['/system-tests', systemTestsRoutes],
 ]
 
 let ok = 0

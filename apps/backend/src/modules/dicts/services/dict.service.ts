@@ -1,5 +1,5 @@
 import type { DictionaryWithItems } from '../domain/dict.model'
-import { DictRepository } from '../repositories/dict.repository'
+import { DictRepository, type DictionaryItemPayload, type DictionaryPayload } from '../repositories/dict.repository'
 
 export class DictService {
   async list(): Promise<DictionaryWithItems[]> {
@@ -13,16 +13,23 @@ export class DictService {
   }
 
   async create(payload: { code: string; name: string; description?: string; enabled?: boolean; sort_order?: number }) {
-    const id = await DictRepository.create({
+    const toSave: DictionaryPayload = {
       ...payload,
       enabled: payload.enabled ? 1 : 0,
-    })
+    }
+    const id = await DictRepository.create(toSave)
     return id
   }
 
-  async update(id: number, payload: Partial<{ code: string; name: string; description?: string; enabled?: boolean; sort_order?: number }>) {
-    const normalized = { ...payload }
-    if (payload.enabled !== undefined) normalized.enabled = payload.enabled ? 1 : 0
+  async update(
+    id: number,
+    payload: Partial<{ code: string; name: string; description?: string; enabled?: boolean; sort_order?: number }>
+  ) {
+    const { enabled, ...rest } = payload
+    const normalized: DictionaryPayload = {
+      ...rest,
+      ...(enabled !== undefined ? { enabled: enabled ? 1 : 0 } : {}),
+    }
     await DictRepository.update(id, normalized)
   }
 
@@ -34,17 +41,27 @@ export class DictService {
     return DictRepository.listItems(dictId)
   }
 
-  async createItem(dictId: number, payload: { label: string; value: string; tag?: string; enabled?: boolean; sort_order?: number }) {
-    const id = await DictRepository.createItem(dictId, {
+  async createItem(
+    dictId: number,
+    payload: { label: string; value: string; tag?: string; enabled?: boolean; sort_order?: number }
+  ) {
+    const toSave: DictionaryItemPayload = {
       ...payload,
       enabled: payload.enabled ? 1 : 0,
-    })
+    }
+    const id = await DictRepository.createItem(dictId, toSave)
     return id
   }
 
-  async updateItem(id: number, payload: Partial<{ label: string; value: string; tag?: string; enabled?: boolean; sort_order?: number }>) {
-    const normalized = { ...payload }
-    if (payload.enabled !== undefined) normalized.enabled = payload.enabled ? 1 : 0
+  async updateItem(
+    id: number,
+    payload: Partial<{ label: string; value: string; tag?: string; enabled?: boolean; sort_order?: number }>
+  ) {
+    const { enabled, ...rest } = payload
+    const normalized: DictionaryItemPayload = {
+      ...rest,
+      ...(enabled !== undefined ? { enabled: enabled ? 1 : 0 } : {}),
+    }
     await DictRepository.updateItem(id, normalized)
   }
 

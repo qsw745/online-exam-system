@@ -678,6 +678,15 @@ const RAW_MENU: MenuSeed[] = [
             menu_type: 'page',
             sort_order: 4,
           },
+          {
+            name: 'system-logs-ai',
+            title: 'AI问答记录',
+            path: '/admin/logs/ai',
+            component: 'ai-logs',
+            menu_type: 'page',
+            sort_order: 5,
+            permission_code: 'system:ai:logs',
+          },
         ],
       },
 
