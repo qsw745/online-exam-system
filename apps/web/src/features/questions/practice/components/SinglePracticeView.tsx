@@ -43,6 +43,8 @@ type Props = {
   startIndex: number
   onExit: () => void
   onIndexChange?: (index: number) => void
+  onNextPage?: () => boolean | void
+  hasNextPage?: boolean
 }
 
 const SHORT_ANSWER_PASS_RATE = 0.6
@@ -61,7 +63,14 @@ function judge(q: Question, selected: number[], text: string) {
   return false
 }
 
-export default function SinglePracticeView({ ids, startIndex, onExit, onIndexChange }: Props) {
+export default function SinglePracticeView({
+  ids,
+  startIndex,
+  onExit,
+  onIndexChange,
+  onNextPage,
+  hasNextPage,
+}: Props) {
   const [index, setIndex] = useState(startIndex)
   const qid = ids[index]
   const cacheRef = useRef<Map<string, Question>>(new Map())
@@ -181,6 +190,11 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
     setIndex(i => {
       const next = i + 1
       if (next >= ids.length) {
+        if (hasNextPage && onNextPage) {
+          const ok = onNextPage()
+          if (ok !== false) message.success('已进入下一页继续练习')
+          return i
+        }
         message.success('恭喜！您已完成当前页所有题目')
         onExit()
         return i
@@ -225,6 +239,9 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
     }
   }
 
+  const isLast = index === ids.length - 1
+  const canAdvance = !isLast || !!hasNextPage
+
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -246,8 +263,8 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
             >
               跳过
             </Button>
-            <Button type="primary" onClick={goNext} disabled={index === ids.length - 1}>
-              下一题 <ChevronRight size={16} />
+            <Button type="primary" onClick={goNext} disabled={!canAdvance}>
+              {isLast && hasNextPage ? '下一页' : '下一题'} <ChevronRight size={16} />
             </Button>
             <Button
               icon={fav ? <Heart size={16} /> : <HeartOff size={16} />}
@@ -456,9 +473,9 @@ export default function SinglePracticeView({ ids, startIndex, onExit, onIndexCha
                     >
                       重新练习
                     </Button>
-                    <Button type="primary" size="large" onClick={goNext} disabled={index === ids.length - 1}>
-                      {index === ids.length - 1 ? '已完成本页' : '下一题'}{' '}
-                      {index < ids.length - 1 && <ChevronRight size={16} />}
+                    <Button type="primary" size="large" onClick={goNext} disabled={!canAdvance}>
+                      {isLast ? (hasNextPage ? '下一页' : '已完成本页') : '下一题'}{' '}
+                      {!isLast && <ChevronRight size={16} />}
                     </Button>
                   </Space>
                 )}

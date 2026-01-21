@@ -25,6 +25,7 @@ import * as leaderboardRoutesMod from '@/modules/leaderboard/routes/leaderboard.
 import * as analyticsRoutesMod from '@/modules/analytics/routes/analytics.routes'
 import * as dashboardRoutesMod from '@/modules/analytics/routes/dashboard.routes'
 import * as logRoutesMod from '@/modules/logs/routes/log.routes'
+import * as proctoringRoutesMod from '@/modules/proctoring/routes/proctoring.routes'
 // notifications
 import * as notificationRoutesMod from '@/modules/notifications/routes/notification.routes'
 // NEW: messages & todos
@@ -51,6 +52,7 @@ import * as notificationUploadRoutesMod from '@/modules/notifications/routes/not
 import * as mailRoutesMod from '@/modules/mail/routes/mail.routes'
 import * as aiRoutesMod from '@/modules/ai/routes/ai.routes'
 import * as systemTestsRoutesMod from '@/modules/system-tests/routes/system-tests.routes'
+import * as workflowRoutesMod from '@/modules/workflows/routes/workflow.routes'
 
 import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
 import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
@@ -73,6 +75,7 @@ const leaderboardRoutes = pick(leaderboardRoutesMod, 'leaderboardRoutes')
 const analyticsRoutes = pick(analyticsRoutesMod, 'analyticsRoutes')
 const dashboardRoutes = pick(dashboardRoutesMod, 'dashboardRoutes')
 const logRoutes = pick(logRoutesMod, 'logRoutes')
+const proctoringRoutes = pick(proctoringRoutesMod, 'proctoringRoutes')
 const notificationRoutes = pick(notificationRoutesMod, 'notificationRoutes')
 // NEW
 const messageRoutes = pick(messageRoutesMod, 'messageRoutes')
@@ -95,6 +98,7 @@ const notificationUploadRoutes = pick(notificationUploadRoutesMod, 'notification
 const mailRoutes = pick(mailRoutesMod, 'mailRoutes')
 const aiRoutes = pick(aiRoutesMod, 'aiRoutes')
 const systemTestsRoutes = pick(systemTestsRoutesMod, 'systemTestsRoutes')
+const workflowRoutes = pick(workflowRoutesMod, 'workflowRoutes')
 const captchaRoutes = pick(captchaRoutesMod, 'captchaRoutes')
 const cryptoRoutes = pick(cryptoRoutesMod, 'cryptoRoutes')
 const publicRoutes = pick(publicRoutesMod, 'publicRoutes')
@@ -117,6 +121,7 @@ const mounts: Array<[string, any]> = [
   ['/analytics', analyticsRoutes],
   ['/dashboard', dashboardRoutes],
   ['/logs', logRoutes],
+  ['/proctoring', proctoringRoutes],
   ['/notifications', notificationRoutes],
   // NEW: 前端正在调用的两个模块
   ['/messages', messageRoutes],
@@ -141,6 +146,7 @@ const mounts: Array<[string, any]> = [
   ['/public', publicRoutes],
   ['/ai', aiRoutes],
   ['/system-tests', systemTestsRoutes],
+  ['/workflows', workflowRoutes],
 ]
 
 let ok = 0

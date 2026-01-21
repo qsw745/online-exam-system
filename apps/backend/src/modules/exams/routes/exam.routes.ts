@@ -16,6 +16,7 @@ router.get('/:id', authenticateToken, wrap(ExamController.getById))
 router.post('/', authenticateToken, requireRoleStr(['admin', 'teacher']), wrap(ExamController.create))
 router.put('/:id', authenticateToken, requireRoleStr(['admin', 'teacher']), wrap(ExamController.update))
 router.delete('/:id', authenticateToken, requireRoleStr(['admin', 'teacher']), wrap(ExamController.delete))
+router.post('/:id/review', authenticateToken, requireRoleStr(['admin', 'teacher']), wrap(ExamController.submitReview))
 router.post('/:id/start', authenticateToken, wrap(ExamController.start))
 router.post('/:id/submit', authenticateToken, wrap(ExamController.submit))
 

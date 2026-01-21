@@ -49,6 +49,10 @@ export default function ExamListPage() {
                 <Option value="all">所有状态</Option>
                 <Option value="published">已发布</Option>
                 <Option value="draft">草稿</Option>
+                <Option value="reviewing">审核中</Option>
+                <Option value="approved">已审核</Option>
+                <Option value="rejected">已驳回</Option>
+                <Option value="closed">已关闭</Option>
                 <Option value="archived">已归档</Option>
               </Select>
             </Space>

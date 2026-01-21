@@ -103,6 +103,41 @@ export class TodoRepository {
     return ret.affectedRows > 0
   }
 
+  static async markDoneByWorkflowMeta(userId: number, instanceId: number, nodeId: string) {
+    const [ret] = await db.query<ResultSetHeader>(
+      `UPDATE todos
+       SET is_done = true
+       WHERE user_id = ? AND source = 'workflow' AND is_done = false
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.instance_id')) = ?
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.node_id')) = ?`,
+      [userId, String(instanceId), String(nodeId)]
+    )
+    return ret.affectedRows
+  }
+
+  static async markDoneByWorkflowNode(instanceId: number, nodeId: string) {
+    const [ret] = await db.query<ResultSetHeader>(
+      `UPDATE todos
+       SET is_done = true
+       WHERE source = 'workflow' AND is_done = false
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.instance_id')) = ?
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.node_id')) = ?`,
+      [String(instanceId), String(nodeId)]
+    )
+    return ret.affectedRows
+  }
+
+  static async deleteByWorkflowEntity(entityType: string, entityId: number) {
+    const [ret] = await db.query<ResultSetHeader>(
+      `DELETE FROM todos
+       WHERE source = 'workflow'
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.entity_type')) = ?
+         AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.entity_id')) = ?`,
+      [String(entityType), String(entityId)]
+    )
+    return ret.affectedRows
+  }
+
   // admin
   static async adminListAll() {
     const [rows] = await db.query<RowDataPacket[]>(

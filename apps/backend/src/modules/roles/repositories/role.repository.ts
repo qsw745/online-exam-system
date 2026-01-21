@@ -66,6 +66,17 @@ export class RoleRepository {
     return (rows as any[]).length ? (rows[0] as unknown as Role) : null
   }
 
+  static async getUserRoles(userId: number): Promise<Role[]> {
+    const [rows] = await pool.execute<RowDataPacket[]>(
+      `SELECT r.* FROM roles r
+       JOIN user_roles ur ON ur.role_id = r.id
+       WHERE ur.user_id = ?
+       ORDER BY r.sort_order, r.id`,
+      [userId]
+    )
+    return rows as unknown as Role[]
+  }
+
   // ===== 写入/更新/删除 =====
   static async insert(payload: {
     name: string

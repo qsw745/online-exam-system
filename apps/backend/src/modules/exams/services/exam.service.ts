@@ -4,6 +4,7 @@ import type { ExamDetailData } from '../domain/exam.model.js'
 import { ExamRepository } from '../repositories/exam.repository.js'
 import LogService from '@/modules/logs/services/log.service.js'
 import { appLogger } from '@/infrastructure/logging/logger.js'
+import { WorkflowService } from '@/modules/workflows/services/workflow.service.js'
 
 let RC: any = null
 let RL: any = null
@@ -20,6 +21,7 @@ let RL: any = null
 
 const EXAM_TTL = 300
 const kExam = (id: number) => `exam:${id}`
+const workflowSvc = new WorkflowService()
 
 async function cget<T = any>(k: string) {
   try {
@@ -66,7 +68,30 @@ export class ExamService {
 
   async create(userId: number, payload: any) {
     try {
-      const exam = await ExamRepository.createExam(userId, payload)
+      const workflowConfig = payload?.workflow ?? {}
+      const templateId = Number(workflowConfig.template_id ?? workflowConfig.templateId) || undefined
+      const requiresReview = Boolean(workflowConfig.requires_review ?? workflowConfig.requiresReview)
+      const formValues = workflowConfig.form_values ?? workflowConfig.formValues
+      const autoSubmit = Boolean(workflowConfig.auto_submit ?? workflowConfig.autoSubmit)
+      const createPayload = {
+        ...payload,
+        workflow_requires_review: requiresReview,
+        workflow_template_id: templateId,
+        workflow_form_data: formValues,
+      }
+      const exam = await ExamRepository.createExam(userId, createPayload)
+      const reviewerIds = (workflowConfig.reviewer_ids ?? workflowConfig.reviewerIds ?? payload?.reviewer_ids) as any
+      const shouldAutoSubmit = autoSubmit || (Array.isArray(reviewerIds) && reviewerIds.length > 0)
+      if (shouldAutoSubmit && templateId) {
+        await workflowSvc.submitExamReview({ id: userId } as any, Number(exam.id), {
+          template_id: templateId,
+          reviewer_ids: Array.isArray(reviewerIds) ? reviewerIds : undefined,
+          required_approvals: workflowConfig.required_approvals ?? workflowConfig.requiredApprovals,
+          form_values: formValues,
+          meta: workflowConfig.meta,
+        })
+        ;(exam as any).status = 'reviewing'
+      }
 
       await LogService.log({
         type: 'audit',
@@ -108,7 +133,26 @@ export class ExamService {
 
   async update(userId: number, examId: number, payload: any) {
     try {
-      const exam = await ExamRepository.updateExam(userId, examId, payload)
+      const manualBlocked = new Set(['reviewing', 'approved', 'rejected'])
+      if (payload?.status && manualBlocked.has(String(payload.status))) {
+        throw new Error('考试状态不可手动设置')
+      }
+      if (payload?.status === 'published') {
+        const current = await ExamRepository.findById(examId)
+        if (!current) throw new Error('考试不存在')
+        if (current.status !== 'approved') throw new Error('考试尚未审核通过，无法发布')
+      }
+      const workflowConfig = payload?.workflow ?? {}
+      const templateId = Number(workflowConfig.template_id ?? workflowConfig.templateId)
+      const formValues = workflowConfig.form_values ?? workflowConfig.formValues
+      const requiresReview = workflowConfig.requires_review ?? workflowConfig.requiresReview
+      const updatePayload = {
+        ...payload,
+        workflow_template_id: typeof templateId === 'number' && Number.isFinite(templateId) ? templateId : undefined,
+        workflow_form_data: formValues,
+        workflow_requires_review: typeof requiresReview === 'boolean' ? requiresReview : undefined,
+      }
+      const exam = await ExamRepository.updateExam(userId, examId, updatePayload)
 
       await LogService.log({
         type: 'audit',
@@ -145,6 +189,26 @@ export class ExamService {
       })
       throw e
     }
+  }
+
+  async submitReview(userId: number, examId: number, payload: any) {
+    const exam = await ExamRepository.findById(examId)
+    if (!exam) throw new Error('考试不存在')
+    if (exam.created_by !== userId) throw new Error('考试不存在或无权限修改')
+    const templateId = Number(payload?.template_id ?? payload?.templateId ?? exam.workflow_template_id)
+    const formValues = payload?.form_values ?? payload?.formValues
+    await ExamRepository.updateWorkflowFields(examId, userId, {
+      templateId: Number.isFinite(templateId) ? templateId : undefined,
+      formData: formValues,
+      requiresReview: true,
+    })
+    const data = await workflowSvc.submitExamReview({ id: userId } as any, examId, {
+      ...payload,
+      template_id: Number.isFinite(templateId) ? templateId : undefined,
+      form_values: formValues,
+    })
+    await cdel(kExam(examId))
+    return data
   }
 
   async remove(userId: number, examId: number) {

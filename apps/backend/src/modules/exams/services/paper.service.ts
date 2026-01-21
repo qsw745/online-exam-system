@@ -1,6 +1,7 @@
 // apps/backend/src/modules/exams/services/paper.service.ts
 import type { PaperData, PaperListData } from '../domain/paper.model.js'
 import { PaperRepository } from '../repositories/paper.repository.js'
+import { WorkflowService } from '@/modules/workflows/services/workflow.service.js'
 
 let RC: any = null
 ;(async () => {
@@ -13,6 +14,7 @@ let RC: any = null
 const PAPER_TTL = 600
 const kPaper = (id: number) => `paper:${id}`
 const kQOfPaper = (id: number) => `paper:${id}:qs`
+const workflowSvc = new WorkflowService()
 
 async function cget<T = any>(k: string) {
   try {
@@ -88,7 +90,60 @@ export class PaperService {
     return paper
   }
 
+  async updateWorkflow(paperId: number, payload: any) {
+    await PaperRepository.findById(paperId)
+    const requiresReview = payload?.requires_review ?? payload?.workflow_requires_review
+    const templateRaw = payload?.template_id ?? payload?.workflow_template_id
+    const formValues = payload?.form_values ?? payload?.workflow_form_data
+    let templateId: number | null | undefined = undefined
+    if (templateRaw === null) {
+      templateId = null
+    } else if (templateRaw !== undefined && Number.isFinite(Number(templateRaw))) {
+      templateId = Number(templateRaw)
+    }
+    await PaperRepository.updateWorkflowFields(paperId, {
+      templateId,
+      formData: formValues,
+      requiresReview: typeof requiresReview === 'boolean' ? requiresReview : undefined,
+    })
+    await cdel(kPaper(paperId))
+    return { updated: true }
+  }
+
+  async submitReview(userId: number, paperId: number, payload: any) {
+    const data = await PaperRepository.findById(paperId)
+    const paper = data?.paper
+    if (!paper) throw new Error('试卷不存在')
+    const templateId = Number(payload?.template_id ?? payload?.templateId ?? paper.workflow_template_id)
+    const formValues = payload?.form_values ?? payload?.formValues
+    const reviewerIds = Array.isArray(payload?.reviewer_ids) ? payload.reviewer_ids : []
+    const required = payload?.required_approvals
+
+    await PaperRepository.updateWorkflowFields(paperId, {
+      templateId: Number.isFinite(templateId) ? templateId : undefined,
+      formData: formValues,
+      requiresReview: true,
+    })
+
+    const instance = await workflowSvc.startInstance({ id: userId } as any, {
+      entity_type: 'paper',
+      entity_id: paperId,
+      template_id: Number.isFinite(templateId) ? templateId : undefined,
+      payload: {
+        reviewer_ids: reviewerIds,
+        required_approvals: required ?? reviewerIds.length,
+        form_values: formValues,
+      },
+    })
+
+    await cdel(kPaper(paperId))
+    return instance
+  }
+
   async remove(paperId: number) {
+    const data = await PaperRepository.findById(paperId)
+    if (!data?.paper) throw new Error('试卷不存在')
+    await workflowSvc.deleteEntityWorkflows('paper', paperId)
     const r = await PaperRepository.remove(paperId)
     await cdel(kPaper(paperId), kQOfPaper(paperId))
     return r

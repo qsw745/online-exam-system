@@ -1,8 +1,9 @@
 // apps/web/src/features/exams/components/ResultDetailView.tsx
 import { Card, Descriptions, Space, Tag, Typography, Button, List, Divider, message } from 'antd'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ResultDetail } from '@/shared/api/endpoints/results'
 import { aiApi } from '@/shared/api/endpoints/ai'
+import { proctoringApi, type ProctoringList } from '@/shared/api/endpoints/proctoring'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -79,6 +80,8 @@ export default function ResultDetailView({ data, onBack }: Props) {
   const scoreLine = `${data.score} / ${data.total_score}`
   const [aiSummary, setAiSummary] = useState<any | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
+  const [proctoring, setProctoring] = useState<ProctoringList | null>(null)
+  const [proctorLoading, setProctorLoading] = useState(false)
   const strengths = Array.isArray(aiSummary?.strengths) ? aiSummary.strengths.map(String) : []
   const weaknesses = Array.isArray(aiSummary?.weaknesses) ? aiSummary.weaknesses.map(String) : []
   const nextSteps = Array.isArray(aiSummary?.next_steps) ? aiSummary.next_steps.map(String) : []
@@ -128,6 +131,31 @@ export default function ResultDetailView({ data, onBack }: Props) {
       setAiLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!data.exam_id) return
+    let alive = true
+    setProctorLoading(true)
+    proctoringApi
+      .listExamEvents(data.exam_id, { limit: 20 })
+      .then(res => {
+        if (alive) setProctoring(res)
+      })
+      .catch(() => {
+        if (alive) setProctoring(null)
+      })
+      .finally(() => {
+        if (alive) setProctorLoading(false)
+      })
+    return () => {
+      alive = false
+    }
+  }, [data.exam_id])
+
+  const sevColor = (s: string) => (s === 'critical' ? 'error' : s === 'warn' ? 'warning' : 'default')
+  const sevLabel = (s: string) => (s === 'critical' ? '严重' : s === 'warn' ? '警告' : '提示')
+  const proctorSummary = proctoring?.summary ?? { total: 0, info: 0, warn: 0, critical: 0 }
+  const proctorItems = proctoring?.items ?? []
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size="large">
@@ -198,6 +226,36 @@ export default function ResultDetailView({ data, onBack }: Props) {
           {!aiSummary?.summary && typeof aiSummary?.raw === 'string' && <Paragraph>{aiSummary.raw}</Paragraph>}
         </Card>
       )}
+
+      <Card title="AI监管">
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Space wrap>
+            <Tag>总计 {proctorSummary.total}</Tag>
+            <Tag color="warning">警告 {proctorSummary.warn}</Tag>
+            <Tag color="error">严重 {proctorSummary.critical}</Tag>
+            <Tag color="default">提示 {proctorSummary.info}</Tag>
+          </Space>
+          {proctorLoading ? (
+            <Text type="secondary">加载中...</Text>
+          ) : proctorItems.length > 0 ? (
+            <List
+              size="small"
+              dataSource={proctorItems.slice(0, 8)}
+              renderItem={item => (
+                <List.Item>
+                  <Space>
+                    <Tag color={sevColor(item.severity)}>{sevLabel(item.severity)}</Tag>
+                    <Text>{item.message || item.type}</Text>
+                    <Text type="secondary">{item.created_at}</Text>
+                  </Space>
+                </List.Item>
+              )}
+            />
+          ) : (
+            <Text type="secondary">暂无监管记录</Text>
+          )}
+        </Space>
+      </Card>
 
       <Card title="题目明细">
         <List

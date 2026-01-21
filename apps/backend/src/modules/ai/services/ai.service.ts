@@ -54,6 +54,7 @@ const AGENT_ACTIONS = new Set([
   'create_user',
   'create_org',
   'assign_role',
+  'update_paper',
   'suggest_paper',
   'study_plan',
   'explain_question',

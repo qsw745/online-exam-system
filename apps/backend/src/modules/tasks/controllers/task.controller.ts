@@ -65,6 +65,13 @@ type ExamPayloadResponse = ApiResponse<{
         order: number
     }>
     antiCheat?: { level: 'none' | 'basic' | 'strict'; maxSwitches: number; disableCopy?: boolean; autoSubmit?: boolean }
+    proctoring?: {
+        enabled: boolean
+        level: 'off' | 'basic' | 'strict'
+        requireCamera: boolean
+        requireMic: boolean
+        intervalMs: number
+    }
 }>
 
 export class TaskController {

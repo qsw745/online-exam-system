@@ -27,6 +27,8 @@ export * from './notificationUploads'
 export * from './ai'
 export * from './ai-logs'
 export * from './system-tests'
+export * from './proctoring'
+export * from './workflows'
 export { adminSettingsApi } from './admin-settings'
 
 // ✅ 统一导出设置相关：系统设置(settingsApi) + 个人设置(userSettingsApi)

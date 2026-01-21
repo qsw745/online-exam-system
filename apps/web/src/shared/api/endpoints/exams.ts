@@ -4,7 +4,7 @@ import { api } from '../core/httpClient'
 /** ===== Types ===== */
 export type OptionItem = string | { content: string }
 export type QuestionType = 'single' | 'multiple' | 'true_false' | 'short_answer'
-export type ExamStatus = 'draft' | 'published' | 'archived'
+export type ExamStatus = 'draft' | 'reviewing' | 'approved' | 'published' | 'closed' | 'rejected' | 'archived'
 
 export interface Question {
   id: string
@@ -114,6 +114,7 @@ export const exams = {
     const d = (res as any)?.data ?? res
     return d?.resultId ?? d?.id ?? true
   },
+  submitReview: (id: number, payload: any) => api.post(`/exams/${id}/review`, payload),
 }
 
 export type { ExamPaper as TExamPaper, ExamSummary as TExamSummary }

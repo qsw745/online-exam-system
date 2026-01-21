@@ -6,8 +6,8 @@ import SinglePracticeView from '@/features/questions/practice/components/SingleP
 import { usePracticeList } from '@/features/questions/practice/hooks/usePracticeList'
 
 import { useLanguage } from '@/shared/contexts/LanguageContext'
-import { Card, Space, Typography } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
+import { App, Card, Space, Typography } from 'antd'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 const { Title, Text } = Typography
 type View = 'list' | 'single' | 'bulk'
@@ -63,6 +63,7 @@ export default function QuestionPracticePage() {
   const { id: routeQuestionId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
   const { t } = useLanguage()
+  const { message } = App.useApp()
   const {
     list,
     total,
@@ -89,8 +90,11 @@ export default function QuestionPracticePage() {
   const [view, setView] = useState<View>('list')
   const [practiceIds, setPracticeIds] = useState<string[]>([])
   const [activeIndex, setActiveIndex] = useState(0)
+  const advanceRef = useRef(false)
   const ids = useMemo(() => list.map(it => String(it.id)), [list])
   const activeIds = practiceIds.length ? practiceIds : ids
+  const canAdvancePage = view === 'single' && practiceIds.length > 0 && practiceIds.length === ids.length
+  const hasNextPage = canAdvancePage && page * pageSize < total
 
   const enterSingle = (idx: number) => {
     const snapshot = ids.length ? ids : practiceIds
@@ -113,6 +117,7 @@ export default function QuestionPracticePage() {
     setView('list')
     setPracticeIds([])
     setActiveIndex(0)
+    advanceRef.current = false
     if (routeQuestionId) navigate('/learning/practice', { replace: true })
   }
 
@@ -139,6 +144,26 @@ export default function QuestionPracticePage() {
     }
     persistState({ view, ids: practiceIds, index: clampIndex(activeIndex, practiceIds.length) })
   }, [view, practiceIds, activeIndex])
+
+  useEffect(() => {
+    if (!advanceRef.current || view !== 'single') return
+    if (!ids.length) {
+      advanceRef.current = false
+      message.info('下一页没有题目')
+      exitPractice()
+      return
+    }
+    advanceRef.current = false
+    setPracticeIds(ids)
+    setActiveIndex(0)
+  }, [ids, message, view])
+
+  const requestNextPage = () => {
+    if (!hasNextPage) return false
+    advanceRef.current = true
+    setPage(p => p + 1)
+    return true
+  }
 
   return (
     <>
@@ -205,6 +230,8 @@ export default function QuestionPracticePage() {
           startIndex={activeIndex}
           onIndexChange={setActiveIndex}
           onExit={exitPractice}
+          hasNextPage={hasNextPage}
+          onNextPage={requestNextPage}
         />
       )}
 

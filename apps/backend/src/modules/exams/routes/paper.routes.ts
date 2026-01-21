@@ -20,6 +20,7 @@ router.get('/bank', wrap(PaperController.searchBank))
 router.get('/:id', wrap(PaperController.getById))
 router.post('/', wrap(PaperController.create))
 router.put('/:id', wrap(PaperController.update))
+router.put('/:id/workflow', wrap(PaperController.updateWorkflow))
 router.delete('/:id', wrap(PaperController.delete))
 
 router.post('/smart-generate', wrap(PaperController.smartGenerate))
@@ -27,6 +28,7 @@ router.post('/:id/questions/custom', wrap(PaperController.addCustomQuestion)) //
 
 router.post('/create-with-questions', wrap(PaperController.createWithQuestions))
 
+router.post('/:id/review', wrap(PaperController.submitReview))
 router.post('/:id/questions', wrap(PaperController.addQuestion))
 router.delete('/:id/questions/:questionId', wrap(PaperController.removeQuestion))
 router.get('/:id/questions', wrap(PaperController.getQuestions))

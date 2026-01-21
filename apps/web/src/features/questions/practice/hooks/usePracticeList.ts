@@ -102,10 +102,19 @@ export function usePracticeList() {
           difficulty: it.difficulty ?? it.level,
           ...it,
         }))
+        const seen = new Set<string>()
+        const deduped = normalized.filter(it => {
+          const keySource = it.content_hash ?? it.content ?? it.title ?? it.id
+          const key = `${it.question_type ?? it.type ?? ''}::${String(keySource || '')}`.trim()
+          if (!key) return true
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
 
         if (!mounted) return
-        setList(normalized)
-        setTotal(Number(totalFromApi || normalized.length))
+        setList(deduped)
+        setTotal(Number(totalFromApi || deduped.length))
       } catch (e: any) {
         if (!mounted) return
         setList([])

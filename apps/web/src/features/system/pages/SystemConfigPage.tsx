@@ -20,6 +20,7 @@ export default function SystemConfigPage() {
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [form] = Form.useForm<Partial<SystemConfig>>()
   const [antiCheatLoading, setAntiCheatLoading] = useState(false)
+  const [proctoringLoading, setProctoringLoading] = useState(false)
   const [attachLoading, setAttachLoading] = useState(false)
   const [attachSize, setAttachSize] = useState('20')
   const [attachTypes, setAttachTypes] = useState('pdf,doc,docx,xls,xlsx,ppt,pptx,zip,png,jpg,jpeg')
@@ -41,6 +42,7 @@ export default function SystemConfigPage() {
   }, [fetchData])
 
   const antiCheatConfig = rows.find(r => r.config_key === 'exam.anticheat.level')
+  const proctoringConfig = rows.find(r => r.config_key === 'exam.proctoring.level')
   const attachSizeConfig = rows.find(r => r.config_key === 'notify.attach.maxSizeMB')
   const attachTypesConfig = rows.find(r => r.config_key === 'notify.attach.allowedTypes')
 
@@ -69,6 +71,29 @@ export default function SystemConfigPage() {
       message.error(e?.message || '更新失败')
     } finally {
       setAntiCheatLoading(false)
+    }
+  }
+
+  const handleProctoringChange = async (value: string) => {
+    setProctoringLoading(true)
+    try {
+      if (proctoringConfig) {
+        await systemConfigsApi.update(proctoringConfig.id, { config_value: value })
+      } else {
+        await systemConfigsApi.create({
+          config_key: 'exam.proctoring.level',
+          config_name: '考试AI监管等级',
+          config_value: value,
+          value_type: 'select',
+          enabled: true,
+        })
+      }
+      message.success('AI监管等级已更新')
+      fetchData()
+    } catch (e: any) {
+      message.error(e?.message || '更新失败')
+    } finally {
+      setProctoringLoading(false)
     }
   }
 
@@ -191,6 +216,22 @@ export default function SystemConfigPage() {
               { label: '关闭 - 不启用防作弊', value: 'none' },
               { label: '基础 - 提醒并禁止复制', value: 'basic' },
               { label: '严格 - 切屏一次即自动提交', value: 'strict' },
+            ]}
+          />
+        </Space>
+      </Card>
+      <Card title="考试AI监管" extra={proctoringConfig?.description}>
+        <Space direction="vertical" size={8} style={{ width: '100%' }}>
+          <Text type="secondary">开启后将启用摄像头/麦克风检测与异常行为记录。</Text>
+          <Select
+            value={proctoringConfig?.config_value || 'basic'}
+            onChange={handleProctoringChange}
+            loading={proctoringLoading}
+            style={{ width: 240 }}
+            options={[
+              { label: '关闭 - 不启用AI监管', value: 'off' },
+              { label: '基础 - 摄像头检测+记录', value: 'basic' },
+              { label: '严格 - 摄像头+麦克风检测', value: 'strict' },
             ]}
           />
         </Space>

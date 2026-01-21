@@ -33,6 +33,7 @@ const DiscussionPage = lazy(() => import('@/features/discussions/pages/Discussio
 const ExamListPage = lazy(() => import('@/features/exams/pages/ExamListPage'))
 const ExamPage = lazy(() => import('@/features/exams/pages/ExamPage'))
 const ResultsPage = lazy(() => import('@/features/exams/pages/ResultsPage'))
+const ExamReviewPage = lazy(() => import('@/features/exams/pages/ExamReviewPage'))
 const QuestionsPage = lazy(() => import('@/features/questions/browse/pages/QuestionsPage'))
 const QuestionPracticePage = lazy(() => import('@/features/questions/pages/QuestionPracticePage'))
 const FavoritesPage = lazy(() => import('@/features/favorites/pages/FavoritesPage'))
@@ -73,6 +74,8 @@ const ChannelsPage = lazy(() => import('@/features/notifications-manager/pages/C
 const BroadcastAndTestPage = lazy(() => import('@/features/notifications-manager/pages/BroadcastAndTestPage'))
 const PushLogsPage = lazy(() => import('@/features/notifications-manager/pages/PushLogsPage'))
 const AiLogsPage = lazy(() => import('@/features/ai-logs/pages/AiLogsPage'))
+const WorkflowTemplatesPage = lazy(() => import('@/features/workflows/pages/WorkflowTemplatesPage'))
+const WorkflowTasksPage = lazy(() => import('@/features/workflows/pages/WorkflowTasksPage'))
 
 // Errors
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
@@ -89,6 +92,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'exam-list': ExamListPage,
   exam: ExamPage,
   results: ResultsPage,
+  'exam-reviews': ExamReviewPage,
   'result-detail': PaperDetailPage,
   questions: QuestionsPage,
   'question-practice': QuestionPracticePage,
@@ -159,6 +163,8 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'notify-channel': ChannelsPage,
   'notify-send': BroadcastAndTestPage,
   'notify-log': PushLogsPage,
+  'workflow-templates': WorkflowTemplatesPage,
+  'workflow-tasks': WorkflowTasksPage,
 
   // Errors
   'errors-403': Forbidden403,

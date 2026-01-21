@@ -11,9 +11,12 @@ export interface IExam extends RowDataPacket {
   total_score: number
   passing_score: number
   created_by: number
-  status: 'draft' | 'published' | 'closed'   // ← 不再可选
+  status: 'draft' | 'reviewing' | 'approved' | 'published' | 'closed' | 'rejected' // ← 不再可选
   created_at: Date
   updated_at: Date
+  workflow_requires_review: 0 | 1
+  workflow_template_id?: number | null
+  workflow_form_data?: string | null
 }
 
 export interface IQuestionRow extends RowDataPacket {

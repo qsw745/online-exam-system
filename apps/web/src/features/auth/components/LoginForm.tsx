@@ -60,6 +60,7 @@ export const LoginForm: React.FC<Props> = p => {
         if (!p.submitDisabled) p.onSubmit()
       }}
       noValidate
+      autoComplete="on"
     >
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
         <div>
@@ -67,6 +68,8 @@ export const LoginForm: React.FC<Props> = p => {
           <Input
             prefix={<UserOutlined />}
             type="email"
+            name="username"
+            id="login-username"
             value={p.email}
             onChange={e => p.onEmailChange(e.target.value)}
             placeholder={t('auth.email_placeholder')}
@@ -86,6 +89,8 @@ export const LoginForm: React.FC<Props> = p => {
           </div>
           <Input.Password
             prefix={<LockOutlined />}
+            name="password"
+            id="login-password"
             value={p.password}
             onChange={e => p.onPasswordChange(e.target.value)}
             placeholder={t('auth.password_placeholder')}

@@ -61,6 +61,62 @@ const sanitizeAction = (action: any) => {
   return payload ? { type, payload } : { type }
 }
 
+const normalizeText = (text: string) => String(text || '').replace(/\s+/g, ' ').trim()
+
+const extractRenameInfo = (text: string) => {
+  const clean = normalizeText(text)
+  const stripQuotes = (val?: string) => String(val || '').replace(/["'“”]/g, '').trim()
+  const newTitle =
+    stripQuotes(clean.match(/(?:改为|改成|名称为|标题为|更名为)[:：\s]*([^\n，。,.]+)/)?.[1]) ||
+    stripQuotes(clean.match(/将.+?改为[:：\s]*([^\n，。,.]+)/)?.[1])
+  const oldTitle =
+    stripQuotes(clean.match(/把(.+?)改为/)?.[1]) ||
+    stripQuotes(clean.match(/将(.+?)改为/)?.[1])
+  const useLatest = /最新|最近|上次|上一份/.test(clean)
+  return { oldTitle: oldTitle || undefined, newTitle: newTitle || undefined, useLatest }
+}
+
+const extractStarterName = (text: string) => {
+  const clean = normalizeText(text)
+  const m = clean.match(/(?:流程)?发起人(?:员)?[:：\s]*([^\s，。]+)/)
+  return m?.[1] ? String(m[1]).trim() : ''
+}
+
+const adjustAgentAction = (action: any, userText: string) => {
+  if (!action || typeof action !== 'object') return action
+  const type = String(action.type || '')
+  const payload = action.payload && typeof action.payload === 'object' ? { ...action.payload } : {}
+  const text = normalizeText(userText)
+  const hasRenameIntent = /改名|更名|重命名|修改.*(名称|标题)|改为|改成/.test(text)
+  const hasCreateIntent = /生成|创建|组卷/.test(text)
+
+  if (type === 'create_paper') {
+    if (hasRenameIntent && !hasCreateIntent) {
+      const { oldTitle, newTitle, useLatest } = extractRenameInfo(text)
+      if (newTitle && !payload.title) payload.title = newTitle
+      if (oldTitle && !payload.current_title) payload.current_title = oldTitle
+      if (useLatest) payload.use_latest_paper = true
+      return { type: 'update_paper', payload }
+    }
+    if (/流程审核|审批/.test(text)) {
+      payload.enable_review = payload.enable_review === undefined ? true : payload.enable_review
+      const starterName = extractStarterName(text)
+      if (starterName && !payload.starter_name) payload.starter_name = starterName
+    }
+    return { type, payload }
+  }
+
+  if (type === 'update_paper' && hasRenameIntent) {
+    const { oldTitle, newTitle, useLatest } = extractRenameInfo(text)
+    if (newTitle && !payload.title) payload.title = newTitle
+    if (oldTitle && !payload.current_title) payload.current_title = oldTitle
+    if (useLatest) payload.use_latest_paper = true
+    return { type, payload }
+  }
+
+  return action
+}
+
 const sanitizeItems = (items: any[]) =>
   items
     .slice(-200)
@@ -276,7 +332,9 @@ export class AiController {
       try {
         const payload = (data as any)?.data ?? {}
         const reply = typeof payload?.reply === 'string' ? payload.reply : String(payload?.reply || '')
-        const action = payload?.action && typeof payload.action === 'object' ? payload.action : undefined
+        const rawAction = payload?.action && typeof payload.action === 'object' ? payload.action : undefined
+        const adjustedAction = rawAction ? adjustAgentAction(rawAction, lastUser?.content || '') : undefined
+        if (adjustedAction) payload.action = adjustedAction
         const sessionId = String(req.body?.sessionId || '').trim() || undefined
         if (req.user?.id && reply) {
           await AiLogService.recordAgentTurn({
@@ -284,7 +342,7 @@ export class AiController {
             sessionId,
             model: model || undefined,
             messages: [...safeMessages, { role: 'assistant', content: reply }],
-            action,
+            action: adjustedAction,
           })
         }
       } catch (logErr) {

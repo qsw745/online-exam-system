@@ -1,14 +1,16 @@
 // src/features/exams/components/ExamCard.tsx
 
+import React, { useState } from 'react'
 import { Button, Card, Space, Tag, Typography } from 'antd'
 import { BookOpen, Clock, Play, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import ExamWorkflowModal from '@/features/exams/components/ExamWorkflowModal'
 const { Title, Paragraph } = Typography
 // ✅ 本地最小化类型（避免从 http 导入不存在的类型）
 type Exam = {
   id: string | number
   title: string
-  status: 'draft' | 'published' | 'archived' | (string & {})
+  status: 'draft' | 'reviewing' | 'approved' | 'published' | 'closed' | 'rejected' | 'archived' | (string & {})
   description?: string
   duration: number
   total_score: number
@@ -25,31 +27,42 @@ function formatDuration(minutes: number) {
 function StatusBadge({ status }: { status: Exam['status'] }) {
   const map = {
     draft: { label: '草稿', color: 'default' as const },
+    reviewing: { label: '审核中', color: 'warning' as const },
+    approved: { label: '已审核', color: 'processing' as const },
     published: { label: '已发布', color: 'success' as const },
+    closed: { label: '已关闭', color: 'default' as const },
+    rejected: { label: '已驳回', color: 'error' as const },
     archived: { label: '已归档', color: 'error' as const },
   }
   const cfg = map[status as keyof typeof map] ?? map.draft
   return <Tag color={cfg.color}>{cfg.label}</Tag>
 }
 export function ExamCard({ exam }: { exam: Exam }) {
+  const [workflowOpen, setWorkflowOpen] = useState(false)
   return (
-    <Card
-      hoverable
-      style={{ marginBottom: 16 }}
-      actions={[
-        exam.status === 'published' ? (
-          <Link to={`/exam/${exam.id}`} key="start">
-            <Button type="primary" icon={<Play className="w-4 h-4" />}>
-              开始考试
+    <>
+      <Card
+        hoverable
+        style={{ marginBottom: 16 }}
+        actions={[
+          exam.status === 'published' ? (
+            <Link to={`/exam/${exam.id}`} key="start">
+              <Button type="primary" icon={<Play className="w-4 h-4" />}>
+                开始考试
+              </Button>
+            </Link>
+          ) : (
+            <Button disabled key="disabled">
+              暂不可用
             </Button>
-          </Link>
-        ) : (
-          <Button disabled key="disabled">
-            暂不可用
-          </Button>
-        ),
-      ]}
-    >
+          ),
+          ['draft', 'rejected'].includes(exam.status as string) && (
+            <Button type="link" key="workflow" onClick={() => setWorkflowOpen(true)}>
+              提交审批
+            </Button>
+          ),
+        ].filter(Boolean)}
+      >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
@@ -98,6 +111,12 @@ export function ExamCard({ exam }: { exam: Exam }) {
           )}
         </div>
       </div>
-    </Card>
+      </Card>
+      <ExamWorkflowModal
+        examId={Number(exam.id)}
+        open={workflowOpen}
+        onClose={() => setWorkflowOpen(false)}
+      />
+    </>
   )
 }

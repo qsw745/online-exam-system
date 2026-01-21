@@ -482,6 +482,7 @@ export class TaskService {
     const result = await this.repo.ensureExamResultStandalone(meta.exam_id, userId)
     const questions = await this.repo.getQuestionsViewByPaperId(meta.paper_id)
     const antiCheat = await this.getAntiCheatSetting()
+    const proctoring = await this.getProctoringSetting()
 
     return {
       taskId: meta.taskId,
@@ -495,6 +496,7 @@ export class TaskService {
       description: meta.description ?? null,
       questions,
       antiCheat,
+      proctoring,
     }
   }
 
@@ -517,6 +519,46 @@ export class TaskService {
       return { level: 'basic', maxSwitches: 3, disableCopy: true, autoSubmit: false }
     } catch {
       return { level: 'basic', maxSwitches: 3, disableCopy: true, autoSubmit: false }
+    }
+  }
+
+  private async getProctoringSetting() {
+    try {
+      const cfg = await ConfigRepository.getByKey('exam.proctoring.level')
+      const value = (cfg?.config_value || 'basic').toLowerCase()
+      if (value === 'off' || value === 'none') {
+        return {
+          enabled: false,
+          level: 'off',
+          requireCamera: false,
+          requireMic: false,
+          intervalMs: 5000,
+        }
+      }
+      if (value === 'strict') {
+        return {
+          enabled: true,
+          level: 'strict',
+          requireCamera: true,
+          requireMic: true,
+          intervalMs: 2500,
+        }
+      }
+      return {
+        enabled: true,
+        level: 'basic',
+        requireCamera: true,
+        requireMic: false,
+        intervalMs: 4000,
+      }
+    } catch {
+      return {
+        enabled: true,
+        level: 'basic',
+        requireCamera: true,
+        requireMic: false,
+        intervalMs: 4000,
+      }
     }
   }
 }

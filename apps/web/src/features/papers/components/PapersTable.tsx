@@ -1,4 +1,4 @@
-import { Button, Empty, Space, Table, Tag, Tooltip, Typography } from 'antd'
+import { Button, Empty, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { EditOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
 import type { Paper } from '@/shared/api/endpoints/papers'
@@ -31,6 +31,7 @@ export default function PapersTable({
   onSelectionChange,
   onEdit,
   onDelete,
+  onReviewToggle,
 }: {
   items: Paper[]
   loading?: boolean
@@ -38,6 +39,7 @@ export default function PapersTable({
   onSelectionChange: (keys: React.Key[]) => void
   onEdit: (id: string | number) => void
   onDelete: (id: string | number) => void
+  onReviewToggle: (paper: Paper, enabled: boolean) => void
 }) {
   const columns: ColumnsType<Paper> = [
     {
@@ -87,6 +89,27 @@ export default function PapersTable({
       key: 'created_at',
       width: 200,
       render: (_: any, r) => formatDate((r as any).created_at ?? (r as any).createdAt),
+    },
+    {
+      title: '审批',
+      key: 'workflow',
+      width: 180,
+      render: (_: any, r) => {
+        const raw = (r as any).workflow_requires_review
+        const enabled = raw === true || raw === 1 || raw === '1'
+        return (
+          <Space size={8}>
+            <Tag color={enabled ? 'processing' : 'default'}>{enabled ? '需审批' : '无需审批'}</Tag>
+            <Switch
+              size="small"
+              checked={enabled}
+              checkedChildren="是"
+              unCheckedChildren="否"
+              onChange={checked => onReviewToggle(r, checked)}
+            />
+          </Space>
+        )
+      },
     },
     {
       title: '操作',

@@ -119,6 +119,32 @@ export class PaperRepository {
     return { paper: (paper as IPaper[])[0] }
   }
 
+  static async updateWorkflowFields(
+      paperId: number,
+      config: {
+        templateId?: number | null
+        formData?: Record<string, any> | string | null
+        requiresReview?: boolean
+      }
+  ) {
+    const sets: string[] = []
+    const vals: any[] = []
+    if (config.templateId !== undefined) {
+      sets.push('workflow_template_id = ?')
+      vals.push(config.templateId ?? null)
+    }
+    if (config.formData !== undefined) {
+      sets.push('workflow_form_data = ?')
+      vals.push(config.formData ? JSON.stringify(config.formData) : null)
+    }
+    if (typeof config.requiresReview === 'boolean') {
+      sets.push('workflow_requires_review = ?')
+      vals.push(config.requiresReview ? 1 : 0)
+    }
+    if (!sets.length) return
+    await pool.query(`UPDATE papers SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ?`, [...vals, paperId])
+  }
+
   static async remove(paperId: number) {
     const [rs] = await pool.query<ResultSetHeader>('DELETE FROM papers WHERE id = ?', [paperId])
     if (rs.affectedRows === 0) throw new Error('试卷不存在')

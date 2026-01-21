@@ -10,7 +10,7 @@ export class ExamRepository {
     const conds: string[] = []
     const vals: any[] = []
 
-    const ALLOWED = new Set(['draft', 'published', 'closed'])
+    const ALLOWED = new Set(['draft', 'reviewing', 'approved', 'published', 'closed', 'rejected'])
     if (status && ALLOWED.has(status)) {
       conds.push('exams.status = ?') // ← 加表前缀避免歧义
       vals.push(status)
@@ -85,6 +85,9 @@ export class ExamRepository {
         end_time: any
         total_score: number
         passing_score: number
+        workflow_requires_review?: boolean
+        workflow_template_id?: number
+        workflow_form_data?: Record<string, any> | string
         questions?: Array<{ question_id: number }>
       }
   ): Promise<IExam> {
@@ -93,8 +96,8 @@ export class ExamRepository {
       await conn.beginTransaction()
 
       const [ins] = await conn.query<ResultSetHeader>(
-          `INSERT INTO exams (title, description, duration, start_time, end_time, total_score, passing_score, created_by)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO exams (title, description, duration, start_time, end_time, total_score, passing_score, workflow_requires_review, workflow_template_id, workflow_form_data, created_by)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             payload.title,
             payload.description,
@@ -103,6 +106,11 @@ export class ExamRepository {
             payload.end_time,
             payload.total_score,
             payload.passing_score,
+            payload.workflow_requires_review ? 1 : 0,
+            payload.workflow_template_id ?? null,
+            payload.workflow_form_data
+              ? JSON.stringify(payload.workflow_form_data)
+              : null,
             userId,
           ]
       )
@@ -136,6 +144,9 @@ export class ExamRepository {
         total_score: number
         passing_score: number
         status?: string
+        workflow_requires_review?: boolean
+        workflow_template_id?: number | null
+        workflow_form_data?: Record<string, any> | string | null
         questions?: Array<{ question_id: number }>
       }
   ): Promise<IExam> {
@@ -158,6 +169,9 @@ export class ExamRepository {
         'total_score = ?',
         'passing_score = ?',
         typeof payload.status === 'string' ? 'status = ?' : '',
+        typeof payload.workflow_requires_review === 'boolean' ? 'workflow_requires_review = ?' : '',
+        payload.workflow_template_id !== undefined ? 'workflow_template_id = ?' : '',
+        payload.workflow_form_data !== undefined ? 'workflow_form_data = ?' : '',
         'updated_at = NOW()',
       ]
           .filter(Boolean)
@@ -172,6 +186,11 @@ export class ExamRepository {
         payload.total_score,
         payload.passing_score,
         ...(typeof payload.status === 'string' ? [payload.status] : []),
+        ...(typeof payload.workflow_requires_review === 'boolean' ? [payload.workflow_requires_review ? 1 : 0] : []),
+        ...(payload.workflow_template_id !== undefined ? [payload.workflow_template_id] : []),
+        ...(payload.workflow_form_data !== undefined
+          ? [payload.workflow_form_data ? JSON.stringify(payload.workflow_form_data) : null]
+          : []),
       ]
 
       await conn.query(`UPDATE exams SET ${fields} WHERE id = ? AND created_by = ?`, [...params, examId, userId])
@@ -193,6 +212,38 @@ export class ExamRepository {
     } finally {
       conn.release()
     }
+  }
+
+  static async updateWorkflowFields(examId: number, userId: number, config: {
+    templateId?: number | null
+    formData?: Record<string, any> | string | null
+    requiresReview?: boolean
+  }) {
+    const sets: string[] = []
+    const vals: any[] = []
+    if (config.templateId !== undefined) {
+      sets.push('workflow_template_id = ?')
+      vals.push(config.templateId ?? null)
+    }
+    if (config.formData !== undefined) {
+      sets.push('workflow_form_data = ?')
+      vals.push(config.formData ? JSON.stringify(config.formData) : null)
+    }
+    if (typeof config.requiresReview === 'boolean') {
+      sets.push('workflow_requires_review = ?')
+      vals.push(config.requiresReview ? 1 : 0)
+    }
+    if (!sets.length) return
+    await pool.query(
+      `UPDATE exams SET ${sets.join(', ')}, updated_at = NOW() WHERE id = ? AND created_by = ?`,
+      [...vals, examId, userId]
+    )
+  }
+
+  static async updateStatus(examId: number, status: string): Promise<IExam | null> {
+    await pool.query<ResultSetHeader>('UPDATE exams SET status = ?, updated_at = NOW() WHERE id = ?', [status, examId])
+    const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM exams WHERE id = ?', [examId])
+    return (rows as IExam[])[0] ?? null
   }
 
   static async deleteExam(userId: number, examId: number): Promise<IExam> {

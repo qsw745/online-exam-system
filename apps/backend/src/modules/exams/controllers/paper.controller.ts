@@ -97,6 +97,36 @@ export class PaperController {
     }
   }
 
+  static async updateWorkflow(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    try {
+      const paperId = Number(req.params.id)
+      if (!req.user?.id) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(paperId)) return (res as any).badRequest('无效的试卷ID', { code: CODES.VALIDATION_ERROR })
+      const data = await svc.updateWorkflow(paperId, req.body || {})
+      return (res as any).ok(data, '更新审批配置成功')
+    } catch (e: any) {
+      const msg = e?.message || '更新审批配置失败'
+      if (/不存在/.test(msg)) return (res as any).fail(CODES.NOT_FOUND, 404, msg)
+      return (res as any).internal(msg, { code: CODES.INTERNAL_ERROR })
+    }
+  }
+
+  static async submitReview(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    try {
+      const paperId = Number(req.params.id)
+      const userId = req.user?.id
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(paperId)) return (res as any).badRequest('无效的试卷ID', { code: CODES.VALIDATION_ERROR })
+      const data = await svc.submitReview(userId, paperId, req.body || {})
+      return (res as any).ok(data, '提交审核成功')
+    } catch (e: any) {
+      const msg = e?.message || '提交审核失败'
+      if (/不存在|权限/.test(msg)) return (res as any).fail(CODES.NOT_FOUND, 404, msg)
+      if (/缺少|不足|无效/.test(msg)) return (res as any).badRequest(msg, { code: CODES.VALIDATION_ERROR })
+      return (res as any).internal(msg, { code: CODES.INTERNAL_ERROR })
+    }
+  }
+
   static async delete(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       await svc.remove(Number(req.params.id))

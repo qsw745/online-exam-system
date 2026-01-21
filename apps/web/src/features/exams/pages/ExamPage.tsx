@@ -24,6 +24,7 @@ import dayjs from '@/shared/utils/dayjs'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
+import { useAiProctoring, type ProctoringConfig } from '@/features/exams/hooks/useAiProctoring'
 
 type Question = {
   id: number
@@ -53,6 +54,7 @@ type ExamPayload = {
   description?: string | null
   questions: Question[]
   antiCheat?: AntiCheatConfig
+  proctoring?: ProctoringConfig
 }
 
 const { Title, Text, Paragraph } = Typography
@@ -259,6 +261,27 @@ export default function ExamPage() {
     doSubmitRef.current = doSubmit
   }, [doSubmit])
   const antiCheat = exam?.antiCheat ?? { level: 'none' as AntiCheatConfig['level'], maxSwitches: Number.MAX_SAFE_INTEGER }
+  const proctoring = React.useMemo<ProctoringConfig>(() => {
+    if (exam?.proctoring) return exam.proctoring
+    const level = antiCheat.level === 'strict' ? 'strict' : antiCheat.level === 'basic' ? 'basic' : 'off'
+    return {
+      enabled: level !== 'off',
+      level,
+      requireCamera: level !== 'off',
+      requireMic: level === 'strict',
+      intervalMs: level === 'strict' ? 2500 : 4000,
+    }
+  }, [antiCheat.level, exam?.proctoring])
+  const {
+    status: proctorStatus,
+    videoRef: proctorVideoRef,
+    reportEvent: reportProctorEvent,
+    restart: restartProctoring,
+  } = useAiProctoring({
+    examId: exam?.examId,
+    taskId: exam?.taskId,
+    config: proctoring,
+  })
   const violationRef = React.useRef(0)
   const [violationCount, setViolationCount] = React.useState(0)
   const forcedRef = React.useRef(false)
@@ -277,11 +300,18 @@ export default function ExamPage() {
       ? 1
       : 3
 
-    const handleViolation = (reason: string) => {
+    const severity = antiCheat.level === 'strict' ? 'critical' : 'warn'
+    const handleViolation = (reason: string, type: string) => {
       violationRef.current += 1
       setViolationCount(violationRef.current)
       const remaining = Math.max(0, limit - violationRef.current)
       message.warning(`${reason}${remaining < Number.MAX_SAFE_INTEGER ? `（剩余 ${remaining} 次）` : ''}`)
+      reportProctorEvent({
+        type,
+        severity,
+        message: reason,
+        meta: { remaining },
+      })
       if (!forcedRef.current && violationRef.current >= limit) {
         forcedRef.current = true
         if (antiCheat.autoSubmit) {
@@ -300,14 +330,15 @@ export default function ExamPage() {
       }
     }
 
-    const handleBlur = () => handleViolation('检测到离开考试窗口')
+    const handleBlur = () => handleViolation('检测到离开考试窗口', 'window_blur')
     const handleVisibility = () => {
-      if (document.hidden) handleViolation('检测到切换到其他标签')
+      if (document.hidden) handleViolation('检测到切换到其他标签', 'tab_hidden')
     }
     const handleCopy = (e: ClipboardEvent) => {
       if (antiCheat.disableCopy) {
         e.preventDefault()
         message.warning('考试期间禁止复制内容')
+        reportProctorEvent({ type: 'copy_blocked', severity: 'info', message: '检测到复制行为' })
       }
     }
     window.addEventListener('blur', handleBlur)
@@ -322,7 +353,15 @@ export default function ExamPage() {
         document.removeEventListener('copy', handleCopy)
       }
     }
-  }, [exam, antiCheat.level, antiCheat.maxSwitches, antiCheat.disableCopy, antiCheat.autoSubmit, message])
+  }, [
+    exam,
+    antiCheat.level,
+    antiCheat.maxSwitches,
+    antiCheat.disableCopy,
+    antiCheat.autoSubmit,
+    message,
+    reportProctorEvent,
+  ])
 
   /** ---------------- UI 渲染 ---------------- */
   if (loading) return <LoadingSpinner center="page" text="加载中…" />
@@ -348,6 +387,27 @@ export default function ExamPage() {
   const mm = Math.floor(timeLeft / 60)
   const ss = (timeLeft % 60).toString().padStart(2, '0')
   const percent = Math.max(0, Math.min(100, ((exam.duration * 60 - timeLeft) / (exam.duration * 60)) * 100))
+  const statusLabel = (val: string) =>
+    ({
+      init: '检测中',
+      ok: '正常',
+      off: '关闭',
+      denied: '未授权',
+      error: '异常',
+      unknown: '未知',
+      missing: '未检测到人脸',
+      multiple: '多人',
+      dark: '过暗',
+      quiet: '安静',
+      noisy: '有噪声',
+    })[val] ?? val
+  const statusColor = (val: string) => {
+    if (val === 'ok' || val === 'quiet') return 'success'
+    if (val === 'multiple' || val === 'denied' || val === 'error') return 'error'
+    if (val === 'missing' || val === 'dark' || val === 'noisy') return 'warning'
+    if (val === 'off') return 'default'
+    return 'default'
+  }
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
@@ -494,6 +554,36 @@ export default function ExamPage() {
         {/* 右侧：答题卡 */}
         <Col xs={24} lg={7} style={{ marginTop: 16 }}>
           <div style={{ position: 'sticky', top: 92 }}>
+            {proctoring.enabled && (
+              <Card title="AI监管" style={{ borderRadius: 12, marginBottom: 16 }}>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <div style={{ background: '#0f172a', borderRadius: 8, overflow: 'hidden' }}>
+                    <video
+                      ref={proctorVideoRef}
+                      style={{ width: '100%', display: 'block', aspectRatio: '16 / 9', objectFit: 'cover' }}
+                    />
+                  </div>
+                  <Space size={[8, 8]} wrap>
+                    <Tag color={statusColor(proctorStatus.camera)}>摄像头：{statusLabel(proctorStatus.camera)}</Tag>
+                    <Tag color={statusColor(proctorStatus.mic)}>麦克风：{statusLabel(proctorStatus.mic)}</Tag>
+                    <Tag color={statusColor(proctorStatus.face)}>人脸：{statusLabel(proctorStatus.face)}</Tag>
+                    <Tag color={statusColor(proctorStatus.light)}>光线：{statusLabel(proctorStatus.light)}</Tag>
+                    <Tag color={statusColor(proctorStatus.audio)}>声音：{statusLabel(proctorStatus.audio)}</Tag>
+                  </Space>
+                  <Space size="small" wrap>
+                    <Text type="secondary">警告次数：{proctorStatus.warnings}</Text>
+                    <Button size="small" onClick={restartProctoring}>
+                      重新检测
+                    </Button>
+                  </Space>
+                  {proctorStatus.lastEvent && (
+                    <Text type="secondary">
+                      最近：{proctorStatus.lastEvent.message || proctorStatus.lastEvent.type}
+                    </Text>
+                  )}
+                </Space>
+              </Card>
+            )}
             <Card
               title={
                 <Space>

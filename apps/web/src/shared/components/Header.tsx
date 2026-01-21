@@ -706,7 +706,17 @@ function UserBadge({
 
 /* =============== 通知/消息/待办 =============== */
 type InboxTabKey = 'notice' | 'message' | 'todo'
-type InboxItem = { id: string; title: string; content?: string; read?: boolean; done?: boolean; created_at?: string }
+type InboxItem = {
+  id: string
+  title: string
+  content?: string
+  read?: boolean
+  done?: boolean
+  created_at?: string
+  target_path?: string | null
+  source?: string | null
+  metadata?: any
+}
 
 /** 从 ApiResult 或 ApiFailure 中稳定提取字段（解决 TS 上看不到 data 的问题） */
 function extractFieldFromResult(result: unknown, field: string, fallback = 0): number {
@@ -769,6 +779,9 @@ function useInbox() {
       ...it,
       done: typeof it.done === 'boolean' ? it.done : !!it.is_done,
       created_at: it.created_at || it.createdAt,
+      target_path: it.target_path ?? it.targetPath ?? null,
+      source: it.source ?? null,
+      metadata: it.metadata ?? null,
     }))
 
   const loadList = async (tab: InboxTabKey) => {
@@ -828,6 +841,7 @@ function useInbox() {
 }
 
 function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
+  const navigate = useNavigate()
   const { counts, lists, loading, loadCounts, loadList, markNoticeRead, markMessageRead, markTodoDone } = useInbox()
   const totalBadge = counts.notice + counts.message + counts.todo
 
@@ -853,6 +867,15 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [open])
 
+  const getTodoTarget = (item: InboxItem) => {
+    const meta = item.metadata || {}
+    if (meta?.entity_type && meta?.entity_id) {
+      if (meta.entity_type === 'paper') return `/admin/paper-detail/${meta.entity_id}`
+      if (meta.entity_type === 'exam') return `/exam/${meta.entity_id}`
+    }
+    return item.target_path || null
+  }
+
   const renderList = (tab: InboxTabKey) => {
     const data = lists[tab]
     const busy = loading[tab]
@@ -870,6 +893,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
       <div>
         {data.map(item => {
           const muted = tab === 'todo' ? item.done : item.read
+          const todoTarget = tab === 'todo' ? getTodoTarget(item) : null
           const onAction =
             tab === 'notice'
               ? () => markNoticeRead(item.id)
@@ -891,7 +915,15 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
               }}
             >
               <div style={{ display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{ flex: 1, minWidth: 0, cursor: todoTarget ? 'pointer' : 'default' }}
+                  onClick={() => {
+                    if (todoTarget) {
+                      navigate(todoTarget)
+                      setOpen(false)
+                    }
+                  }}
+                >
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--app-colorText)' }}>
                     {item.title || '(无标题)'}
                   </div>
@@ -900,9 +932,15 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                       {item.content}
                     </div>
                   )}
+                  {todoTarget && (
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--app-colorPrimary)' }}>点击查看详情</div>
+                  )}
                 </div>
                 <button
-                  onClick={onAction}
+                  onClick={e => {
+                    e.stopPropagation()
+                    onAction()
+                  }}
                   disabled={muted}
                   style={{
                     flexShrink: 0,

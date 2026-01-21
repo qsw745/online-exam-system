@@ -62,6 +62,22 @@ export class ExamController {
     }
   }
 
+  static async submitReview(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    try {
+      const userId = req.user?.id
+      const examId = Number(req.params.id)
+      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+      if (Number.isNaN(examId)) return (res as any).badRequest('无效的考试ID', { code: CODES.VALIDATION_ERROR })
+      const data = await svc.submitReview(userId, examId, req.body || {})
+      return (res as any).ok(data, '提交审核成功')
+    } catch (e: any) {
+      const msg = e?.message || '提交审核失败'
+      if (/不存在|权限/.test(msg)) return (res as any).fail(CODES.NOT_FOUND, 404, msg)
+      if (/缺少|不足|无效/.test(msg)) return (res as any).badRequest(msg, { code: CODES.VALIDATION_ERROR })
+      return (res as any).internal(msg, { code: CODES.INTERNAL_ERROR })
+    }
+  }
+
   static async delete(req: AuthRequest, res: Response<ApiResponse<null>>) {
     try {
       const userId = req.user?.id

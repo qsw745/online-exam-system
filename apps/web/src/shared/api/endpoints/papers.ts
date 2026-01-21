@@ -11,6 +11,9 @@ export type Paper = {
   duration?: number
   created_at?: string
   updated_at?: string
+  workflow_requires_review?: boolean | 0 | 1
+  workflow_template_id?: number | null
+  workflow_form_data?: Record<string, any> | string | null
 }
 
 export type PaperQuestion = {
@@ -68,6 +71,15 @@ export const papersApi = {
   /** 更新 */
   async update(id: string | number, body: Partial<Paper>) {
     return api.put(`/papers/${id}`, body)
+  },
+
+  /** 审批配置 */
+  async updateWorkflow(id: string | number, body: {
+    requires_review?: boolean
+    template_id?: number | null
+    form_values?: Record<string, any> | null
+  }) {
+    return api.put(`/papers/${id}/workflow`, body)
   },
 
   /** 删除（提供两种别名，兼容不同调用） */
@@ -134,6 +146,19 @@ export const papersApi = {
     }
   ) {
     return api.post(`/papers/${paperId}/questions/custom`, body)
+  },
+
+  /** 提交审批 */
+  async submitReview(
+    paperId: number | string,
+    body: {
+      template_id: number
+      reviewer_ids?: number[]
+      form_values?: Record<string, any>
+      required_approvals?: number
+    }
+  ) {
+    return api.post(`/papers/${paperId}/review`, body)
   },
 }
 

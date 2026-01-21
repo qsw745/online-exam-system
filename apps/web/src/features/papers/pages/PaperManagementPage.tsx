@@ -8,6 +8,8 @@ import ConfirmDialog from '../components/ConfirmDialog'
 import PapersTable from '../components/PapersTable'
 import PapersToolbar from '../components/PapersToolbar'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import PaperWorkflowModal from '../components/PaperWorkflowModal'
+import { papersApi, type Paper } from '@/shared/api/endpoints/papers'
 const { Title, Text } = Typography
 
 export default function PaperManagementPage() {
@@ -17,6 +19,7 @@ export default function PaperManagementPage() {
 
   const [confirmId, setConfirmId] = useState<string | number | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
+  const [workflowPaper, setWorkflowPaper] = useState<Paper | null>(null)
   const canBatch = selectedKeys.length > 0
 
   const onBatchDelete = useCallback(async () => {
@@ -32,6 +35,27 @@ export default function PaperManagementPage() {
     }
     message.success(`批量删除完成，成功 ${ok}/${ids.length}`)
   }, [selectedKeys, h, message, canBatch])
+
+  const onReviewToggle = useCallback(
+    async (paper: Paper, enabled: boolean) => {
+      if (enabled) {
+        setWorkflowPaper(paper)
+        return
+      }
+      try {
+        await papersApi.updateWorkflow(paper.id, {
+          requires_review: false,
+          template_id: null,
+          form_values: null,
+        })
+        message.success('已关闭审批')
+        await h.reload()
+      } catch (e: any) {
+        message.error(e?.response?.data?.message || e?.message || '关闭审批失败')
+      }
+    },
+    [h, message]
+  )
 
   if (h.loading) return <LoadingSpinner text="加载试卷列表..." center="page" />
 
@@ -89,6 +113,7 @@ export default function PaperManagementPage() {
           onSelectionChange={setSelectedKeys}
           onEdit={id => nav(`/admin/paper-detail/${id}`)} // ← 编辑即跳详情
           onDelete={id => setConfirmId(id)}
+          onReviewToggle={onReviewToggle}
         />
       </Card>
       <Card>
@@ -111,6 +136,15 @@ export default function PaperManagementPage() {
         onOk={() => {
           if (confirmId != null) h.onDelete(String(confirmId))
           setConfirmId(null)
+        }}
+      />
+      <PaperWorkflowModal
+        paperId={Number(workflowPaper?.id ?? 0)}
+        open={!!workflowPaper}
+        onClose={() => setWorkflowPaper(null)}
+        onSubmitted={() => {
+          setWorkflowPaper(null)
+          h.reload()
         }}
       />
     </Space>

@@ -6,6 +6,7 @@ import { aiApi } from '@/shared/api/endpoints/ai'
 import { systemTestsApi } from '@/shared/api/endpoints/system-tests'
 import { mailApi } from '@/shared/api/endpoints/mail'
 import { papersApi } from '@/shared/api/endpoints/papers'
+import { workflowsApi } from '@/shared/api/endpoints/workflows'
 import { orgsApi } from '@/shared/api/endpoints/orgs'
 import { rolesApi } from '@/shared/api/endpoints/roles'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
@@ -84,6 +85,7 @@ const ACTION_LABELS: Record<string, string> = {
   create_user: '创建用户',
   create_org: '创建部门',
   assign_role: '分配角色',
+  update_paper: '修改试卷',
   suggest_paper: '组卷建议',
   study_plan: '学习计划',
   explain_question: '题目解析',
@@ -141,6 +143,8 @@ function actionSummary(action: AgentAction): string {
       return `生成试卷 ${p.totalQuestions ?? ''} 题`.trim()
     case 'create_task':
       return `创建任务 ${p.title || ''}`.trim()
+    case 'update_paper':
+      return `修改试卷 ${p.paper_id ?? ''}`.trim()
     case 'create_user':
       return `创建用户 ${p.email || p.username || ''}`.trim()
     case 'create_org':
@@ -857,6 +861,57 @@ export default function AiAssistantWidget() {
                 role: 'assistant',
                 content: `试卷已生成：${d?.title || title}（${d?.count ?? reqPayload.target_count} 题）。`,
               })
+              const enableReview = payload.enable_review === true || payload.enableReview === true
+              if (enableReview) {
+                const starterName = String(payload.starter_name || payload.starterName || '').trim()
+                const currentName = String(user?.nickname || user?.email || '').trim()
+                if (starterName && currentName && starterName !== currentName) {
+                  append({
+                    id: String(Date.now() + 7),
+                    role: 'assistant',
+                    content: `当前登录账号为 ${currentName}，流程发起人需要是 ${starterName}。请切换账号后再发起审核。`,
+                  })
+                  navigate(`/admin/paper-detail/${paperId}`)
+                  return
+                }
+                const templateId = Number(payload.template_id ?? payload.templateId ?? payload.workflow_template_id ?? 0)
+                let resolvedTemplateId = templateId
+                if (!resolvedTemplateId) {
+                  const list = await workflowsApi.listTemplates({ entity_type: 'paper', status: 'published' })
+                  const tpl = list.items?.[0]
+                  resolvedTemplateId = Number(tpl?.id ?? 0)
+                }
+                if (!resolvedTemplateId) {
+                  append({
+                    id: String(Date.now() + 8),
+                    role: 'assistant',
+                    content: '没有找到可用的试卷审批流程模板，请先在流程管理中发布模板。',
+                  })
+                  navigate(`/admin/paper-detail/${paperId}`)
+                  return
+                }
+                try {
+                  const reviewerIds = Array.isArray(payload.reviewer_ids) ? payload.reviewer_ids : []
+                  const requiredApprovals = payload.required_approvals
+                  const reviewRes: any = await papersApi.submitReview(paperId, {
+                    template_id: resolvedTemplateId,
+                    reviewer_ids: reviewerIds,
+                    required_approvals: Number.isFinite(Number(requiredApprovals)) ? Number(requiredApprovals) : undefined,
+                  })
+                  if (!reviewRes?.success) throw new Error(reviewRes?.error || '发起审核失败')
+                  append({
+                    id: String(Date.now() + 8),
+                    role: 'assistant',
+                    content: '已发起试卷审批流程。',
+                  })
+                } catch (err: any) {
+                  append({
+                    id: String(Date.now() + 8),
+                    role: 'assistant',
+                    content: err?.message || '发起审批失败',
+                  })
+                }
+              }
               navigate(`/admin/paper-detail/${paperId}`)
               return
             }
@@ -866,6 +921,83 @@ export default function AiAssistantWidget() {
               content: '已生成试卷预览，请在智能组卷页面继续。',
             })
             navigate('/admin/papers/create/smart')
+            return
+          }
+          case 'update_paper': {
+            const payload = action.payload || {}
+            const wantsLatest =
+              payload.use_latest_paper === true ||
+              payload.use_latest === true ||
+              payload.latest === true ||
+              String(payload.paper_id ?? payload.paperId ?? '').toLowerCase() === 'latest'
+            const paperId = Number(payload.paper_id ?? payload.paperId ?? 0)
+            let resolved: { id: number; title?: string } | null = null
+            if (paperId) {
+              try {
+                const paper = await papersApi.getById(paperId)
+                const pid = Number((paper as any)?.id ?? 0)
+                if (pid) resolved = { id: pid, title: String((paper as any)?.title || '') }
+              } catch {}
+            }
+            if (!resolved && wantsLatest) {
+              const list = await papersApi.list({ page: 1, limit: 1 })
+              const item = list.items?.[0]
+              const pid = Number(item?.id ?? 0)
+              if (pid) resolved = { id: pid, title: String(item?.title || '') }
+            }
+            if (!resolved) {
+              const searchText = String(
+                payload.current_title ||
+                  payload.paper_title ||
+                  payload.old_title ||
+                  payload.source_title ||
+                  payload.search ||
+                  ''
+              ).trim()
+              if (searchText) {
+                const list = await papersApi.list({ page: 1, limit: 10, search: searchText })
+                const exact = list.items?.find(i => String(i.title || '').toLowerCase() === searchText.toLowerCase())
+                const item = exact || list.items?.[0]
+                const pid = Number(item?.id ?? 0)
+                if (pid) resolved = { id: pid, title: String(item?.title || '') }
+              }
+            }
+            if (!resolved) {
+              append({
+                id: String(Date.now() + 11),
+                role: 'assistant',
+                content: '需要明确要修改的试卷ID，请提供试卷ID或说明“最新试卷”。',
+              })
+              return
+            }
+            const patch: any = {}
+            if (payload.title) patch.title = String(payload.title)
+            if (payload.description) patch.description = String(payload.description)
+            if (payload.difficulty) patch.difficulty = String(payload.difficulty)
+            if (payload.total_score ?? payload.totalScore) {
+              const v = Number(payload.total_score ?? payload.totalScore)
+              if (Number.isFinite(v)) patch.total_score = v
+            }
+            if (payload.duration != null) {
+              const v = Number(payload.duration)
+              if (Number.isFinite(v)) patch.duration = v
+            }
+            if (!Object.keys(patch).length) {
+              append({
+                id: String(Date.now() + 11),
+                role: 'assistant',
+                content: '没有可修改的字段，请说明要修改的内容（如标题、时长）。',
+              })
+              return
+            }
+            const res: any = await papersApi.update(resolved.id, patch)
+            if (!res?.success) throw new Error(res?.error || '修改试卷失败')
+            append({
+              id: String(Date.now() + 12),
+              role: 'assistant',
+              content: `试卷已更新：${patch.title || resolved.title || `ID ${resolved.id}`}`,
+            })
+            navigate(`/admin/paper-detail/${resolved.id}`)
             return
           }
           case 'create_task': {

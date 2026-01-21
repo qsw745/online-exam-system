@@ -566,6 +566,41 @@ const RAW_MENU: MenuSeed[] = [
         ],
       },
 
+      // —— 流程管理（自定义工作流）——
+      {
+        name: 'system-workflows',
+        title: '流程管理',
+        path: '/admin/workflows',
+        icon: 'share-alt',
+        menu_type: 'menu',
+        sort_order: 75,
+        redirect: '/admin/workflows/templates',
+        meta: { requireAuth: true },
+        permission_code: 'system:workflows',
+        children: [
+          {
+            name: 'workflow-templates',
+            title: '流程模板',
+            path: '/admin/workflows/templates',
+            component: 'workflow-templates',
+            menu_type: 'page',
+            sort_order: 1,
+            meta: { requireAuth: true },
+            permission_code: 'workflow:templates',
+          },
+          {
+            name: 'workflow-tasks',
+            title: '我的审批',
+            path: '/admin/workflows/tasks',
+            component: 'workflow-tasks',
+            menu_type: 'page',
+            sort_order: 2,
+            meta: { requireAuth: true },
+            permission_code: 'workflow:tasks',
+          },
+        ],
+      },
+
       // —— 通知管理（公告/模板/渠道/群发/日志）【新增】——
       {
         name: 'system-notify',

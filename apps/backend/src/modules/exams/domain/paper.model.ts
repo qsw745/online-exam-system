@@ -10,6 +10,9 @@ export interface IPaper extends RowDataPacket {
   duration: number
   created_at: Date
   updated_at: Date
+  workflow_requires_review: 0 | 1
+  workflow_template_id?: number | null
+  workflow_form_data?: string | null
 }
 
 export interface IPaperQuestion extends RowDataPacket {
