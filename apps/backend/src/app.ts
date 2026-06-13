@@ -57,7 +57,7 @@ const configuredApiPrefix = normalizeMountPath(
 )
 const webBasePath = normalizeMountPath((process as any).env?.WEB_BASE_PATH)
 const API_PREFIXES = Array.from(
-  new Set(['/api', configuredApiPrefix, webBasePath ? `${webBasePath}/api` : ''].filter(Boolean))
+  new Set(['/api', '/exam/api', configuredApiPrefix, webBasePath ? `${webBasePath}/api` : ''].filter(Boolean))
 )
 
 // 如在反向代理后（Nginx/Ingress），建议开启：可让 req.ip/secure 等更准确
