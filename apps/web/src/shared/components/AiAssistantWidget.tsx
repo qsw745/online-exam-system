@@ -1,5 +1,18 @@
-import { App, Button, Drawer, FloatButton, Input, List, Modal, Select, Space, Tag, Typography } from 'antd'
-import { CopyOutlined, EditOutlined, MessageOutlined, SendOutlined } from '@ant-design/icons'
+import { App, Badge, Button, Drawer, FloatButton, Input, List, Modal, Select, Space, Tag, Tooltip, Typography } from 'antd'
+import {
+  CheckCircleOutlined,
+  ClearOutlined,
+  CopyOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  HistoryOutlined,
+  MessageOutlined,
+  PlusOutlined,
+  RobotOutlined,
+  SendOutlined,
+  ThunderboltOutlined,
+  ToolOutlined,
+} from '@ant-design/icons'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { aiApi } from '@/shared/api/endpoints/ai'
@@ -13,6 +26,8 @@ import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { api, getErr, isSuccess } from '@/shared/api/http'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { redirectToLogin } from '@/shared/router/basePath'
+import './AiAssistantWidget.css'
 
 const { Text } = Typography
 const { TextArea } = Input
@@ -95,6 +110,29 @@ const ACTION_LABELS: Record<string, string> = {
   run_test: '系统测速',
 }
 
+const QUICK_COMMANDS = [
+  { label: '生成题目', prompt: '帮我生成 10 道中等难度单选题，主题是本周课程重点，先给预览，不入库。' },
+  { label: '智能组卷', prompt: '按中等难度生成一份 20 题、100 分、60 分钟的试卷，并在生成后带我去查看。' },
+  { label: '审批流程', prompt: '查看我待处理的审批任务，并说明每个任务需要我做什么。' },
+  { label: '学习计划', prompt: '根据我的薄弱知识点生成 4 周学习计划，按周列出训练重点。' },
+  { label: '系统测速', prompt: '运行一次系统测速，覆盖 users、questions、exams、notifications、mail。' },
+]
+
+const HIGH_IMPACT_ACTIONS = new Set([
+  'send_mail',
+  'open_url',
+  'generate_questions',
+  'create_paper',
+  'create_task',
+  'create_user',
+  'create_org',
+  'assign_role',
+  'update_paper',
+  'change_password',
+  'reset_password',
+  'run_test',
+])
+
 const MODEL_OPTIONS = [
   { label: '默认模型', value: '' },
   { label: 'OpenAI · gpt-4o-mini', value: 'gpt-4o-mini' },
@@ -114,9 +152,8 @@ const MODEL_OPTIONS = [
   { label: 'Gemini · gemini-3-pro-preview', value: 'gemini-3-pro-preview' },
   { label: 'Gemini · gemini-3-pro-preview-maxthinking', value: 'gemini-3-pro-preview-maxthinking' },
   { label: 'Gemini · gemini-3-flash-preview', value: 'gemini-3-flash-preview' },
-  { label: 'DeepSeek · deepseek-v3.2-exp', value: 'deepseek-v3.2-exp' },
-  { label: 'DeepSeek · deepseek-v3.2-exp-thinking', value: 'deepseek-v3.2-exp-thinking' },
-  { label: 'DeepSeek · deepseek-v3.2-speciale', value: 'deepseek-v3.2-speciale' },
+  { label: 'DeepSeek · deepseek-v4-flash', value: 'deepseek-v4-flash' },
+  { label: 'DeepSeek · deepseek-v4-pro', value: 'deepseek-v4-pro' },
   { label: '通义 · qwen3-max', value: 'qwen3-max' },
   { label: '豆包 · doubao-seed-1.6-thinking', value: 'doubao-seed-1.6-thinking' },
   { label: '通义 · qwen-turbo', value: 'qwen-turbo' },
@@ -173,11 +210,8 @@ function actionSummary(action: AgentAction): string {
 }
 
 function needsConfirm(action: AgentAction): boolean {
-  if (action.type === 'change_password' || action.type === 'reset_password') return false
-  if (action.type === 'send_mail' || action.type === 'open_url') return true
-  if (action.type === 'generate_questions' && action.payload?.persist) return true
-  if (action.type === 'run_test') return true
-  return false
+  if (action.type === 'generate_questions' && !action.payload?.persist) return false
+  return HIGH_IMPACT_ACTIONS.has(action.type)
 }
 
 export default function AiAssistantWidget() {
@@ -194,6 +228,7 @@ export default function AiAssistantWidget() {
   const [activeId, setActiveId] = useState<string>('')
   const [hydrating, setHydrating] = useState(false)
   const [lastTouchedId, setLastTouchedId] = useState<string | null>(null)
+  const [executingActionKey, setExecutingActionKey] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement | null>(null)
   const saveTimer = useRef<number | null>(null)
 
@@ -284,6 +319,10 @@ export default function AiAssistantWidget() {
     [sessions]
   )
 
+  const actionCount = useMemo(() => items.filter(i => !!i.action).length, [items])
+  const lastAction = useMemo(() => [...items].reverse().find(i => !!i.action)?.action, [items])
+  const currentModelLabel = customModel.trim() || model || '默认模型'
+
   const append = (item: ChatItem) => {
     setSessions(prev =>
       prev.map(s => {
@@ -311,7 +350,7 @@ export default function AiAssistantWidget() {
       content: '需要重新登录后才能继续执行，是否跳转登录？',
       okText: '去登录',
       cancelText: '取消',
-      onOk: () => window.location.assign('/login'),
+      onOk: () => redirectToLogin(),
     })
   }
 
@@ -728,8 +767,15 @@ export default function AiAssistantWidget() {
     setTimeout(() => inputRef.current?.focus?.(), 0)
   }
 
+  const fillQuickCommand = (prompt: string) => {
+    setInput(prompt)
+    setTimeout(() => inputRef.current?.focus?.(), 0)
+  }
+
   const executeAction = async (action: AgentAction) => {
     const run = async () => {
+      const actionKey = `${action.type}:${actionSummary(action)}`
+      setExecutingActionKey(actionKey)
       try {
         switch (action.type) {
           case 'navigate':
@@ -1612,6 +1658,8 @@ export default function AiAssistantWidget() {
           return
         }
         message.error(e?.message || '操作失败')
+      } finally {
+        setExecutingActionKey(null)
       }
     }
 
@@ -1630,175 +1678,248 @@ export default function AiAssistantWidget() {
 
   return (
     <>
-      <FloatButton
-        icon={<MessageOutlined />}
-        onClick={() => setOpen(true)}
-        tooltip={<div>AI 助手</div>}
-      />
+      <FloatButton icon={<MessageOutlined />} onClick={() => setOpen(true)} tooltip={<div>AI 助手</div>} />
       <Drawer
-        title="AI 助手"
+        rootClassName="ai-assistant-drawer"
+        title={
+          <Space size={10}>
+            <RobotOutlined />
+            <span>AI 助手</span>
+            <Badge color={loading ? 'orange' : 'green'} text={loading ? '思考中' : '就绪'} />
+          </Space>
+        }
         placement="right"
-        width={360}
+        width="min(760px, calc(100vw - 24px))"
         onClose={() => setOpen(false)}
         open={open}
+        styles={{ body: { padding: 0, background: '#f7f8fa' } }}
         extra={
           <Space>
-            <Button
-              onClick={() => {
-                const next = createSession()
-                setSessions(prev => [next, ...prev])
-                setActiveId(next.id)
-                setLastTouchedId(next.id)
-              }}
-            >
-              新建对话
-            </Button>
-            <Button
-              onClick={() => {
-                if (!activeSession) return
-                const deletingId = activeSession.id
-                if (sessions.length <= 1) {
+            <Tooltip title="新建对话">
+              <Button
+                icon={<PlusOutlined />}
+                onClick={() => {
                   const next = createSession()
-                  setSessions([next])
-                  setActiveId('')
+                  setSessions(prev => [next, ...prev])
+                  setActiveId(next.id)
                   setLastTouchedId(next.id)
-                } else {
-                  setSessions(prev => prev.filter(s => s.id !== activeSession.id))
-                  setActiveId(sessions.find(s => s.id !== activeSession.id)?.id || '')
-                }
-                if (user?.id) {
-                  aiApi.deleteSession(deletingId).catch(() => {})
-                }
-              }}
-            >
-              删除当前
-            </Button>
-            <Button
-              onClick={() => {
-                if (!activeSession) return
-                setSessions(prev =>
-                  prev.map(s =>
-                    s.id === activeSession.id
-                      ? { ...s, title: '新对话', items: [HELLO_ITEM], updatedAt: Date.now() }
-                      : s
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="删除当前">
+              <Button
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  if (!activeSession) return
+                  const deletingId = activeSession.id
+                  if (sessions.length <= 1) {
+                    const next = createSession()
+                    setSessions([next])
+                    setActiveId('')
+                    setLastTouchedId(next.id)
+                  } else {
+                    setSessions(prev => prev.filter(s => s.id !== activeSession.id))
+                    setActiveId(sessions.find(s => s.id !== activeSession.id)?.id || '')
+                  }
+                  if (user?.id) {
+                    aiApi.deleteSession(deletingId).catch(() => {})
+                  }
+                }}
+              />
+            </Tooltip>
+            <Tooltip title="清空当前">
+              <Button
+                icon={<ClearOutlined />}
+                onClick={() => {
+                  if (!activeSession) return
+                  setSessions(prev =>
+                    prev.map(s =>
+                      s.id === activeSession.id
+                        ? { ...s, title: '新对话', items: [HELLO_ITEM], updatedAt: Date.now() }
+                        : s
+                    )
                   )
-                )
-                setLastTouchedId(activeSession.id)
-              }}
-            >
-              清空
-            </Button>
+                  setLastTouchedId(activeSession.id)
+                }}
+              />
+            </Tooltip>
           </Space>
         }
       >
-        <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
-          <Select
-            size="middle"
-            style={{ width: '100%' }}
-            value={activeSession?.id}
-            onChange={val => setActiveId(val)}
-            options={sessionOptions}
-            placeholder="历史对话"
-            showSearch
-          />
-        </Space>
-        <Space direction="vertical" style={{ width: '100%', marginBottom: 12 }}>
-          <Select
-            size="middle"
-            style={{ width: '100%' }}
-            value={model}
-            onChange={val => setModel(val)}
-            options={MODEL_OPTIONS}
-            placeholder="选择模型"
-            showSearch
-            allowClear
-          />
-          <Input
-            size="middle"
-            value={customModel}
-            onChange={e => setCustomModel(e.target.value)}
-            placeholder="自定义模型（优先生效）"
-          />
-          {(customModel.trim() || model) && (
-            <Text type="secondary">当前模型：{customModel.trim() || model}</Text>
-          )}
-        </Space>
-        <div ref={listRef} style={{ maxHeight: '60vh', overflow: 'auto', paddingRight: 8 }}>
-          <List
-            dataSource={items}
-            renderItem={item => (
-              <List.Item style={{ justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                <div style={{ maxWidth: '85%' }}>
-                  <div
-                    style={{
-                      background: item.role === 'user' ? '#e6f4ff' : '#f6ffed',
-                      border: '1px solid #d9d9d9',
-                      padding: '8px 12px',
-                      borderRadius: 8,
-                      whiteSpace: 'pre-wrap',
-                    }}
-                  >
-                    <Text>{item.content}</Text>
-                  </div>
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: item.role === 'user' ? 'flex-end' : 'flex-start',
-                      marginTop: 4,
-                    }}
-                  >
-                    <Space size={4}>
-                      <Button
-                        type="text"
-                        size="small"
-                        icon={<CopyOutlined />}
-                        onClick={() => handleCopy(item.content)}
-                      />
-                      {item.role === 'user' && (
-                        <Button
-                          type="text"
-                          size="small"
-                          icon={<EditOutlined />}
-                          onClick={() => handleEdit(item.content)}
-                        />
+        <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%' }}>
+          <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(0, 1.1fr) minmax(180px, 0.9fr)',
+                gap: 12,
+                alignItems: 'start',
+              }}
+            >
+              <Space direction="vertical" size={10} style={{ width: '100%' }}>
+                <Space wrap size={8}>
+                  <Tag icon={<HistoryOutlined />} color="default">
+                    {sessions.length} 个会话
+                  </Tag>
+                  <Tag icon={<ToolOutlined />} color={actionCount ? 'blue' : 'default'}>
+                    {actionCount} 个动作
+                  </Tag>
+                  <Tag icon={<CheckCircleOutlined />} color={lastAction ? 'green' : 'default'}>
+                    {lastAction ? ACTION_LABELS[lastAction.type] || lastAction.type : '无待办动作'}
+                  </Tag>
+                </Space>
+                <Space wrap size={8}>
+                  {QUICK_COMMANDS.map(item => (
+                    <Button key={item.label} size="small" icon={<ThunderboltOutlined />} onClick={() => fillQuickCommand(item.prompt)}>
+                      {item.label}
+                    </Button>
+                  ))}
+                </Space>
+              </Space>
+              <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                <Select
+                  size="middle"
+                  style={{ width: '100%' }}
+                  value={activeSession?.id}
+                  onChange={val => setActiveId(val)}
+                  options={sessionOptions}
+                  placeholder="历史对话"
+                  showSearch
+                />
+                <Select
+                  size="middle"
+                  style={{ width: '100%' }}
+                  value={model}
+                  onChange={val => setModel(val)}
+                  options={MODEL_OPTIONS}
+                  placeholder="选择模型"
+                  showSearch
+                  allowClear
+                />
+                <Input
+                  size="middle"
+                  value={customModel}
+                  onChange={e => setCustomModel(e.target.value)}
+                  placeholder="自定义模型"
+                />
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  当前：{currentModelLabel}
+                </Text>
+              </Space>
+            </div>
+          </div>
+
+          <div ref={listRef} style={{ overflow: 'auto', padding: '16px 18px' }}>
+            <List
+              split={false}
+              dataSource={items}
+              locale={{ emptyText: '暂无消息' }}
+              renderItem={item => {
+                const isUser = item.role === 'user'
+                const actionKey = item.action ? `${item.action.type}:${actionSummary(item.action)}` : ''
+                return (
+                  <List.Item style={{ justifyContent: isUser ? 'flex-end' : 'flex-start', padding: '7px 0' }}>
+                    <div style={{ maxWidth: '92%', minWidth: item.action ? 'min(460px, 100%)' : undefined }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: isUser ? 'flex-end' : 'flex-start',
+                          marginBottom: 4,
+                        }}
+                      >
+                        <Tag color={isUser ? 'processing' : 'success'}>{isUser ? '你' : '助手'}</Tag>
+                      </div>
+                      <div
+                        style={{
+                          background: isUser ? '#e6f4ff' : '#ffffff',
+                          border: isUser ? '1px solid #91caff' : '1px solid #e5e7eb',
+                          boxShadow: isUser ? 'none' : '0 8px 24px rgba(15, 23, 42, 0.06)',
+                          padding: '10px 12px',
+                          borderRadius: 8,
+                          whiteSpace: 'pre-wrap',
+                          lineHeight: 1.65,
+                        }}
+                      >
+                        <Text>{item.content}</Text>
+                      </div>
+                      <div
+                        style={{
+                          display: 'flex',
+                          justifyContent: isUser ? 'flex-end' : 'flex-start',
+                          marginTop: 4,
+                        }}
+                      >
+                        <Space size={4}>
+                          <Tooltip title="复制">
+                            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(item.content)} />
+                          </Tooltip>
+                          {isUser && (
+                            <Tooltip title="编辑">
+                              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(item.content)} />
+                            </Tooltip>
+                          )}
+                        </Space>
+                      </div>
+                      {item.action && (
+                        <div
+                          style={{
+                            marginTop: 8,
+                            padding: 10,
+                            borderRadius: 8,
+                            border: '1px solid #dbeafe',
+                            background: '#f8fbff',
+                          }}
+                        >
+                          <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                            <Space wrap>
+                              <Tag color="blue">{ACTION_LABELS[item.action.type] || item.action.type}</Tag>
+                              <Text type="secondary">{actionSummary(item.action)}</Text>
+                            </Space>
+                            <Button
+                              size="small"
+                              type="primary"
+                              icon={<ToolOutlined />}
+                              loading={executingActionKey === actionKey}
+                              disabled={!!executingActionKey && executingActionKey !== actionKey}
+                              onClick={() => executeAction(item.action!)}
+                            >
+                              执行
+                            </Button>
+                          </Space>
+                        </div>
                       )}
-                    </Space>
-                  </div>
-                  {item.action && (
-                    <div style={{ marginTop: 8 }}>
-                      <Space>
-                        <Tag color="blue">{ACTION_LABELS[item.action.type] || item.action.type}</Tag>
-                        <Text type="secondary">{actionSummary(item.action)}</Text>
-                        <Button size="small" onClick={() => executeAction(item.action!)}>
-                          执行
-                        </Button>
-                      </Space>
                     </div>
-                  )}
-                </div>
-              </List.Item>
-            )}
-          />
-        </div>
-        <div style={{ marginTop: 12 }}>
-          <Space direction="vertical" style={{ width: '100%' }}>
-            <TextArea
-              rows={3}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              placeholder="问我任何问题，例如：帮我生成5道单选题，或跳转到题库页面"
-              ref={inputRef}
-              onPressEnter={e => {
-                if (!e.shiftKey) {
-                  e.preventDefault()
-                  void send()
-                }
+                  </List.Item>
+                )
               }}
             />
-            <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={send}>
-              发送
-            </Button>
-          </Space>
+          </div>
+
+          <div style={{ padding: 16, borderTop: '1px solid #e5e7eb', background: '#ffffff' }}>
+            <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <TextArea
+                rows={4}
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                placeholder="输入任务或问题"
+                ref={inputRef}
+                onPressEnter={e => {
+                  if (!e.shiftKey) {
+                    e.preventDefault()
+                    void send()
+                  }
+                }}
+              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  {hydrating ? '加载历史中' : activeSession?.title || '新对话'}
+                </Text>
+                <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={send}>
+                  发送
+                </Button>
+              </div>
+            </Space>
+          </div>
         </div>
       </Drawer>
     </>

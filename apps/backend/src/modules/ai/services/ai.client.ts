@@ -1,13 +1,4 @@
-import {
-  AI_API_KEY,
-  AI_BASE_URL_LOCAL,
-  AI_LOCAL_PROVIDER,
-  AI_MAX_TOKENS,
-  AI_MODEL,
-  AI_TEMPERATURE,
-  AI_TIMEOUT_MS,
-  resolveAiBaseUrl,
-} from '@/config/ai'
+import { getAiRuntimeSettings } from './ai.settings'
 
 export type ChatMessage = { role: 'system' | 'user' | 'assistant'; content: string }
 export type ChatOptions = {
@@ -38,23 +29,24 @@ async function withTimeout<T>(fn: (signal: AbortSignal) => Promise<T>, timeoutMs
 export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
   if (typeof fetch !== 'function') throw new Error('fetch is not available in current runtime')
 
-  const baseUrl = resolveAiBaseUrl(opts.model)
-  const isLocal = baseUrl === AI_BASE_URL_LOCAL
-  const isOllama = isLocal && AI_LOCAL_PROVIDER === 'ollama'
-  if (!AI_API_KEY && !isLocal) throw new Error('AI_API_KEY is not set')
+  const settings = await getAiRuntimeSettings(opts.model)
+  const isLocal = settings.provider === 'local'
+  const isOllama = isLocal && settings.localProvider === 'ollama'
+  if (!settings.enabled) throw new Error('AI feature is disabled')
+  if (!settings.apiKey && !isLocal) throw new Error('AI_API_KEY is not set')
 
   if (isOllama) {
     const payload: any = {
-      model: opts.model || AI_MODEL,
+      model: settings.model,
       messages: opts.messages,
       stream: false,
       options: {
-        temperature: typeof opts.temperature === 'number' ? opts.temperature : AI_TEMPERATURE,
-        num_predict: typeof opts.maxTokens === 'number' ? opts.maxTokens : AI_MAX_TOKENS,
+        temperature: typeof opts.temperature === 'number' ? opts.temperature : settings.temperature,
+        num_predict: typeof opts.maxTokens === 'number' ? opts.maxTokens : settings.maxTokens,
       },
     }
     if (opts.jsonObject) payload.format = 'json'
-    const url = `${baseUrl}/api/chat`
+    const url = `${settings.baseUrl}/api/chat`
     const resp = await withTimeout(
       signal =>
         fetch(url, {
@@ -63,7 +55,7 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
           body: JSON.stringify(payload),
           signal,
         }),
-      typeof opts.timeoutMs === 'number' ? opts.timeoutMs : AI_TIMEOUT_MS
+      typeof opts.timeoutMs === 'number' ? opts.timeoutMs : settings.timeoutMs
     )
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
@@ -80,26 +72,29 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
   }
 
   const payload: any = {
-    model: opts.model || AI_MODEL,
+    model: settings.model,
     messages: opts.messages,
-    temperature: typeof opts.temperature === 'number' ? opts.temperature : AI_TEMPERATURE,
-    max_tokens: typeof opts.maxTokens === 'number' ? opts.maxTokens : AI_MAX_TOKENS,
+    temperature: typeof opts.temperature === 'number' ? opts.temperature : settings.temperature,
+    max_tokens: typeof opts.maxTokens === 'number' ? opts.maxTokens : settings.maxTokens,
   }
   if (opts.jsonObject && !isLocal) payload.response_format = { type: 'json_object' }
+  if (settings.provider === 'deepseek' && settings.thinkingMode) {
+    payload.thinking = { type: settings.thinkingMode }
+  }
 
-  const url = `${baseUrl}/chat/completions`
+  const url = `${settings.baseUrl}/chat/completions`
   const resp = await withTimeout(
     signal =>
       fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(AI_API_KEY ? { Authorization: `Bearer ${AI_API_KEY}` } : {}),
+          ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
         },
         body: JSON.stringify(payload),
         signal,
       }),
-    typeof opts.timeoutMs === 'number' ? opts.timeoutMs : AI_TIMEOUT_MS
+    typeof opts.timeoutMs === 'number' ? opts.timeoutMs : settings.timeoutMs
   )
 
   if (!resp.ok) {
@@ -114,15 +109,16 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
 
 export async function embedTexts(texts: string[], model?: string): Promise<number[][]> {
   if (typeof fetch !== 'function') throw new Error('fetch is not available in current runtime')
-  const baseUrl = resolveAiBaseUrl(model)
-  const isLocal = baseUrl === AI_BASE_URL_LOCAL
-  const isOllama = isLocal && AI_LOCAL_PROVIDER === 'ollama'
-  if (!AI_API_KEY && !isLocal) throw new Error('AI_API_KEY is not set')
+  const settings = await getAiRuntimeSettings(model)
+  const isLocal = settings.provider === 'local'
+  const isOllama = isLocal && settings.localProvider === 'ollama'
+  if (!settings.enabled) throw new Error('AI feature is disabled')
+  if (!settings.apiKey && !isLocal) throw new Error('AI_API_KEY is not set')
   const input = Array.isArray(texts) ? texts.map(t => String(t || '')) : []
   if (!input.length) return []
 
   if (isOllama) {
-    const url = `${baseUrl}/api/embeddings`
+    const url = `${settings.baseUrl}/api/embeddings`
     const results = await Promise.all(
       input.map(async prompt => {
         const resp = await withTimeout(
@@ -130,10 +126,10 @@ export async function embedTexts(texts: string[], model?: string): Promise<numbe
             fetch(url, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ model: model || AI_MODEL, prompt }),
+              body: JSON.stringify({ model: settings.model, prompt }),
               signal,
             }),
-          AI_TIMEOUT_MS
+          settings.timeoutMs
         )
         if (!resp.ok) {
           const text = await resp.text().catch(() => '')
@@ -147,23 +143,23 @@ export async function embedTexts(texts: string[], model?: string): Promise<numbe
   }
 
   const payload: any = {
-    model: model || AI_MODEL,
+    model: settings.model,
     input,
   }
 
-  const url = `${baseUrl}/embeddings`
+  const url = `${settings.baseUrl}/embeddings`
   const resp = await withTimeout(
     signal =>
       fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...(AI_API_KEY ? { Authorization: `Bearer ${AI_API_KEY}` } : {}),
+          ...(settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
         },
         body: JSON.stringify(payload),
         signal,
       }),
-    AI_TIMEOUT_MS
+    settings.timeoutMs
   )
 
   if (!resp.ok) {

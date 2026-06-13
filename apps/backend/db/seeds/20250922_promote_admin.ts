@@ -12,6 +12,10 @@ export async function seed(knex: Knex): Promise<void> {
     return
   }
 
+  if (await knex.schema.hasColumn('users', 'role')) {
+    await knex('users').where({ email }).update({ role: 'admin', updated_at: knex.fn.now() })
+  }
+
   // 确保 ADMIN 角色存在
   let role = await knex('roles').where({ code: 'ADMIN' }).first()
   if (!role) {

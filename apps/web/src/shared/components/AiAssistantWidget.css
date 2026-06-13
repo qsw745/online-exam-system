@@ -1,0 +1,14 @@
+.ai-assistant-drawer.ant-drawer-open.ant-drawer-right > .ant-drawer-content-wrapper {
+  transform: translateX(0) !important;
+}
+
+.ai-assistant-drawer .ant-drawer-content-wrapper {
+  max-width: calc(100vw - 24px);
+}
+
+@media (max-width: 640px) {
+  .ai-assistant-drawer .ant-drawer-content-wrapper {
+    width: calc(100vw - 16px) !important;
+    max-width: calc(100vw - 16px);
+  }
+}

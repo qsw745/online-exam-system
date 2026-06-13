@@ -21,6 +21,35 @@ async function hasColumn(knex: Knex, table: string, col: string) {
   return knex.schema.hasColumn(table, col)
 }
 
+async function getColumnType(knex: Knex, table: string, column: string) {
+  const db = (knex.client.config as any).connection.database
+  const [rows] = await knex.raw(
+    `
+    SELECT COLUMN_TYPE
+    FROM information_schema.COLUMNS
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?
+    LIMIT 1
+    `,
+    [db, table, column]
+  )
+  return rows?.[0]?.COLUMN_TYPE as string | undefined
+}
+
+async function dropForeignKeysForColumn(knex: Knex, table: string, column: string) {
+  const db = (knex.client.config as any).connection.database
+  const [rows] = await knex.raw(
+    `
+    SELECT CONSTRAINT_NAME
+    FROM information_schema.KEY_COLUMN_USAGE
+    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ? AND REFERENCED_TABLE_NAME IS NOT NULL
+    `,
+    [db, table, column]
+  )
+  for (const r of rows || []) {
+    await knex.raw(`ALTER TABLE \`${table}\` DROP FOREIGN KEY \`${r.CONSTRAINT_NAME}\``)
+  }
+}
+
 export async function up(knex: Knex): Promise<void> {
   const usersIdColType = await getUsersIdColumnType(knex)
   const db = (knex.client.config as any).connection.database
@@ -119,13 +148,16 @@ export async function up(knex: Knex): Promise<void> {
     )
   }
 
+  const favoriteCategoryIdType = await getColumnType(knex, 'favorite_categories', 'id')
+  if (!favoriteCategoryIdType) throw new Error('Cannot introspect favorite_categories.id COLUMN_TYPE')
+
   if (!(await knex.schema.hasTable('favorites'))) {
     await knex.schema.createTable('favorites', tb => {
       tb.bigIncrements('id').primary()
       tb.specificType('user_id', usersIdColType).notNullable().index('idx_fav_user')
       tb.string('title', 255).notNullable()
       tb.text('description').nullable()
-      tb.bigInteger('category_id').unsigned().nullable().index('idx_fav_cat')
+      tb.specificType('category_id', favoriteCategoryIdType).nullable().index('idx_fav_cat')
       tb.timestamp('created_at').notNullable().defaultTo(knex.fn.now())
       tb.timestamp('updated_at').notNullable().defaultTo(knex.fn.now())
       tb.foreign('user_id').references('users.id').onDelete('CASCADE')
@@ -134,6 +166,27 @@ export async function up(knex: Knex): Promise<void> {
     await knex.raw(
       `ALTER TABLE favorites MODIFY COLUMN updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP`
     )
+  }
+
+  if (await knex.schema.hasTable('favorites')) {
+    await dropForeignKeysForColumn(knex, 'favorites', 'category_id')
+    if (await hasColumn(knex, 'favorites', 'category_id')) {
+      await knex.raw(`ALTER TABLE favorites MODIFY COLUMN category_id ${favoriteCategoryIdType} NULL`)
+    } else {
+      await knex.raw(`ALTER TABLE favorites ADD COLUMN category_id ${favoriteCategoryIdType} NULL`)
+    }
+    await knex.raw(`ALTER TABLE favorites ADD INDEX idx_fav_cat (category_id)`).catch(() => {})
+    await knex
+      .raw(
+        `
+        ALTER TABLE favorites
+        ADD CONSTRAINT favorites_category_id_foreign
+        FOREIGN KEY (category_id)
+        REFERENCES favorite_categories (id)
+        ON DELETE SET NULL
+        `
+      )
+      .catch(() => {})
   }
 
   if (!(await knex.schema.hasTable('favorite_items'))) {

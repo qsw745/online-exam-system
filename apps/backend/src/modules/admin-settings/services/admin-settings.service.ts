@@ -37,13 +37,21 @@ export class AdminSettingsService {
     const hit = await cget<SystemSettings>(kSettings)
     if (hit) return hit
     const data = await AdminSettingsRepository.get()
-    const { defaultPassword, ...safe } = data as any
+    const { defaultPassword, aiApiKey, ...safe } = data as any
+    safe.aiApiKey = ''
+    safe.aiApiKeySet = !!aiApiKey
     await cset(kSettings, safe, 600)
     return safe as SystemSettings
   }
 
   static async update(payload: Partial<SystemSettings>): Promise<void> {
-    await AdminSettingsRepository.update(payload)
+    const next = { ...(payload as any) }
+    if (typeof next.aiApiKey === 'string') {
+      next.aiApiKey = next.aiApiKey.trim()
+      if (!next.aiApiKey) delete next.aiApiKey
+    }
+    delete next.aiApiKeySet
+    await AdminSettingsRepository.update(next)
     await cdel(kSettings) // 变更后失效
   }
 }

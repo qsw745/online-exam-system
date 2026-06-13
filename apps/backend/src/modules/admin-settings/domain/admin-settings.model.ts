@@ -25,5 +25,17 @@ export interface SystemSettings {
     strongPasswordRequireLower?: boolean    // 要求小写
     strongPasswordRequireDigit?: boolean    // 要求数字
     strongPasswordRequireSpecial?: boolean  // 要求特殊字符
-}
 
+    // === AI 大模型配置 ===
+    aiEnabled?: boolean
+    aiProvider?: 'deepseek' | 'openai' | 'custom' | 'local'
+    aiBaseUrl?: string
+    aiApiKey?: string
+    aiApiKeySet?: boolean
+    aiModel?: string
+    aiAllowedModels?: string
+    aiTemperature?: number
+    aiMaxTokens?: number
+    aiTimeoutMs?: number
+    aiThinkingMode?: 'enabled' | 'disabled'
+}

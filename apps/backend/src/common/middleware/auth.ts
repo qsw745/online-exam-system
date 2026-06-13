@@ -38,7 +38,12 @@ async function getPrimaryOrgId(userId: number): Promise<number | null> {
     `SELECT org_id FROM user_organizations WHERE user_id=? ORDER BY is_primary DESC LIMIT 1`,
     [userId]
   )
-  return (row as any)?.org_id ?? null
+  if ((row as any)?.org_id) return Number((row as any).org_id)
+  const [[roleOrg]] = await pool.query<RowDataPacket[]>(
+    `SELECT org_id FROM user_org_roles WHERE user_id=? ORDER BY org_id LIMIT 1`,
+    [userId]
+  )
+  return (roleOrg as any)?.org_id ? Number((roleOrg as any).org_id) : null
 }
 
 export async function resolveOrgId(req: Request, userId: number): Promise<number | null> {
@@ -52,9 +57,9 @@ export async function resolveOrgId(req: Request, userId: number): Promise<number
 async function isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
   const [[row]] = await pool.query<RowDataPacket[]>(
     `SELECT 1
-       FROM user_org_roles uor
-       JOIN roles r ON r.id = uor.role_id
-      WHERE uor.user_id=? AND uor.org_id=? AND r.code='admin' AND r.is_disabled=0
+      FROM user_org_roles uor
+      JOIN roles r ON r.id = uor.role_id
+      WHERE uor.user_id=? AND uor.org_id=? AND LOWER(r.code) IN ('admin','super_admin','superadmin') AND r.is_disabled=0
       LIMIT 1`,
     [userId, orgId]
   )

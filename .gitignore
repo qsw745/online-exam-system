@@ -29,8 +29,12 @@ apps/web/.env
 # 统一把所有包的构建产物忽略
 dist/
 build/
+target/
+*/target/
+apps/backend-java/app.jar
 # 框架/工具缓存
 .cache/
+.playwright-mcp/
 .parcel-cache/
 .next/
 out/

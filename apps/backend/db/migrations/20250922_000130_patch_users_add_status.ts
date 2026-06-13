@@ -6,9 +6,13 @@ export async function up(knex: Knex): Promise<void> {
 
   const hasStatus = await knex.schema.hasColumn('users', 'status')
   if (!hasStatus) {
-    // 用 ENUM，默认 active；若你的 MySQL 版本不支持，这里也可以改成 VARCHAR(20)
+    const hasPassword = await knex.schema.hasColumn('users', 'password')
+    const hasPasswordHash = await knex.schema.hasColumn('users', 'password_hash')
+
     await knex.schema.alterTable('users', t => {
-      t.enu('status', ['active', 'disabled']).notNullable().defaultTo('active').comment('用户状态').after('password') // 放在 password 后面，顺手排个序
+      const status = t.enu('status', ['active', 'disabled']).notNullable().defaultTo('active').comment('用户状态')
+      if (hasPassword) status.after('password')
+      else if (hasPasswordHash) status.after('password_hash')
     })
   }
 

@@ -7,12 +7,12 @@ const num = (v: any, fallback: number) => {
 }
 
 export const AI_BASE_URL = (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, '')
-export const AI_BASE_URL_REMOTE = (process.env.AI_BASE_URL_REMOTE || AI_BASE_URL).replace(/\/+$/, '')
+export const AI_BASE_URL_REMOTE = (process.env.AI_BASE_URL_REMOTE || process.env.DEEPSEEK_BASE_URL || 'https://api.deepseek.com').replace(/\/+$/, '')
 export const AI_BASE_URL_LOCAL = (process.env.AI_BASE_URL_LOCAL || 'http://127.0.0.1:11434/v1').replace(/\/+$/, '')
 export const AI_LOCAL_PROVIDER = String(process.env.AI_LOCAL_PROVIDER || 'openai').toLowerCase()
-export const AI_PROVIDER = String(process.env.AI_PROVIDER || 'remote').toLowerCase()
-export const AI_API_KEY = process.env.AI_API_KEY || ''
-export const AI_MODEL = process.env.AI_MODEL || 'gpt-4o-mini'
+export const AI_PROVIDER = String(process.env.AI_PROVIDER || 'deepseek').toLowerCase()
+export const AI_API_KEY = process.env.AI_API_KEY || process.env.DEEPSEEK_API_KEY || ''
+export const AI_MODEL = process.env.AI_MODEL || 'deepseek-v4-flash'
 export const AI_EMBEDDING_MODEL = process.env.AI_EMBEDDING_MODEL || ''
 export const AI_TEMPERATURE = num(process.env.AI_TEMPERATURE, 0.2)
 export const AI_MAX_TOKENS = num(process.env.AI_MAX_TOKENS, 1200)
@@ -40,8 +40,8 @@ export const AI_LOCAL_MODELS = (process.env.AI_LOCAL_MODELS || '')
   .filter((v: string, i: number, arr: string[]) => arr.indexOf(v) === i)
 
 export function ensureAiEnabled() {
-  if (!AI_ENABLED) throw new Error('AI feature is disabled')
-  if (AI_PROVIDER !== 'local' && !AI_API_KEY) throw new Error('AI_API_KEY is not set')
+  // Runtime AI settings can be changed from the admin console. The actual
+  // enabled/API-key checks happen inside ai.client after those settings load.
 }
 
 export function resolveAiModel(input?: string) {

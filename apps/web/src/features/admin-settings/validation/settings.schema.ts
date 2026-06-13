@@ -25,6 +25,18 @@ export const settingsSchema = z.object({
 
   enableStrongPassword: z.boolean(),
   strongPasswordRules: strongRulesSchema,
+
+  aiEnabled: z.boolean(),
+  aiProvider: z.enum(['deepseek', 'openai', 'custom', 'local']),
+  aiBaseUrl: z.string().max(300).optional().or(z.literal('')).default(''),
+  aiApiKey: z.string().max(300).optional().or(z.literal('')),
+  aiApiKeySet: z.boolean().optional(),
+  aiModel: z.string().min(1).max(100),
+  aiAllowedModels: z.string().max(500).optional().or(z.literal('')).default(''),
+  aiTemperature: z.number().min(0).max(2),
+  aiMaxTokens: z.number().min(1).max(100000),
+  aiTimeoutMs: z.number().min(1000).max(300000),
+  aiThinkingMode: z.enum(['enabled', 'disabled']),
 })
 
 export type SettingsInput = z.infer<typeof settingsSchema>

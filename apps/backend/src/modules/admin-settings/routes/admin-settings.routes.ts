@@ -53,6 +53,17 @@ router.put(
     body('strongPasswordRules.requireSymbol').optional().isBoolean(),
     body('strongPasswordRules.forbidRepeated').optional().isBoolean(),
     body('strongPasswordRules.forbidCommon').optional().isBoolean(),
+
+    body('aiEnabled').optional().isBoolean(),
+    body('aiProvider').optional().isIn(['deepseek', 'openai', 'custom', 'local']),
+    body('aiBaseUrl').optional({ nullable: true }).isString().isLength({ min: 0, max: 300 }),
+    body('aiApiKey').optional({ nullable: true }).isString().isLength({ min: 0, max: 300 }),
+    body('aiModel').optional().isString().isLength({ min: 1, max: 100 }),
+    body('aiAllowedModels').optional({ nullable: true }).isString().isLength({ min: 0, max: 500 }),
+    body('aiTemperature').optional().isFloat({ min: 0, max: 2 }),
+    body('aiMaxTokens').optional().isInt({ min: 1, max: 100000 }),
+    body('aiTimeoutMs').optional().isInt({ min: 1000, max: 300000 }),
+    body('aiThinkingMode').optional().isIn(['enabled', 'disabled']),
   ],
   validateRequest,
   wrap(AdminSettingsController.updateSettings)

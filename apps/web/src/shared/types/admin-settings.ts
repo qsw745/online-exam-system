@@ -23,4 +23,17 @@ export interface SystemSettings {
   // ✅ 新增：强密码相关
   enableStrongPassword: boolean
   strongPasswordRules: StrongPasswordRules
+
+  aiEnabled: boolean
+  aiProvider: 'deepseek' | 'openai' | 'custom' | 'local'
+  aiBaseUrl: string
+  /** 可写不回显 */
+  aiApiKey?: string
+  aiApiKeySet?: boolean
+  aiModel: string
+  aiAllowedModels: string
+  aiTemperature: number
+  aiMaxTokens: number
+  aiTimeoutMs: number
+  aiThinkingMode: 'enabled' | 'disabled'
 }

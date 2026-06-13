@@ -30,6 +30,7 @@ import apiRoutesOrFactory from '@/routes'
 
 // 启动期菜单同步
 import { syncMenus } from './bootstrap/syncMenus'
+import { ensureDefaultMenuGrants } from './bootstrap/defaultMenuGrants'
 
 // 时间格式
 import { formatTime, log } from '@/infrastructure/logging/logger'
@@ -309,6 +310,9 @@ async function start() {
 
     await syncMenus?.({ removeOrphans: false, mode: 'patch' }).catch((e: any) => {
       log.warn('[menu-sync] failed at boot:', e?.message || e)
+    })
+    await ensureDefaultMenuGrants?.().catch((e: any) => {
+      log.warn('[menu-grants] failed at boot:', e?.message || e)
     })
 
     if ((globalThis as any)[LISTEN_FLAG]) {

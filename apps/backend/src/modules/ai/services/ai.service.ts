@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { AI_CACHE_TTL_SEC, AI_QUESTION_TIMEOUT_MS, ensureAiEnabled, resolveAiModel } from '@/config/ai'
+import { AI_CACHE_TTL_SEC, AI_QUESTION_TIMEOUT_MS, ensureAiEnabled } from '@/config/ai'
 import { cacheGet, cacheSet } from './ai.cache'
 import { AiKnowledgeService } from './ai.knowledge'
 import { chatCompletion, type ChatMessage } from './ai.client'
@@ -213,7 +213,7 @@ export class AiService {
     }
     const { content, usage } = await chatCompletion({
       messages: [systemMessage(), { role: 'system', content: prompt }, ...(messages || [])],
-      model: resolveAiModel(model),
+      model,
       jsonObject: true,
     })
     const parsed = tryParseJson(content) ?? { reply: content }

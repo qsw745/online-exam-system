@@ -296,7 +296,12 @@ export class MenuRepository {
       `SELECT org_id FROM user_organizations WHERE user_id=? ORDER BY is_primary DESC LIMIT 1`,
       [userId]
     )
-    return (row as any)?.org_id ?? null
+    if ((row as any)?.org_id) return Number((row as any).org_id)
+    const [[roleOrg]] = await db.query<RowDataPacket[]>(
+      `SELECT org_id FROM user_org_roles WHERE user_id=? ORDER BY org_id LIMIT 1`,
+      [userId]
+    )
+    return (roleOrg as any)?.org_id ? Number((roleOrg as any).org_id) : null
   }
 
   static async findAnyOrgId(): Promise<number | null> {
@@ -320,7 +325,7 @@ export class MenuRepository {
         JOIN roles r2 ON r2.id = ur.role_id
        WHERE ur.user_id = ? AND (r2.org_id IS NULL OR r2.org_id = ?)
     ) t
-    WHERE t.is_disabled = 0 AND t.code IN ('admin','super_admin')
+    WHERE t.is_disabled = 0 AND LOWER(t.code) IN ('admin','super_admin','superadmin')
     LIMIT 1
     `,
       [userId, orgId, userId, orgId]

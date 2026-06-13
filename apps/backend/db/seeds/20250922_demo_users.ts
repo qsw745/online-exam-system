@@ -10,6 +10,7 @@ export async function seed(knex: Knex): Promise<void> {
 
   // 确保 users 有 password 列
   const hasPassword = await knex.schema.hasColumn('users', 'password')
+  const hasRole = await knex.schema.hasColumn('users', 'role')
   if (!hasPassword) {
     await knex.schema.alterTable('users', t => {
       t.string('password', 255).nullable().comment('bcrypt hash')
@@ -34,21 +35,24 @@ export async function seed(knex: Knex): Promise<void> {
   const roleIdByCode = Object.fromEntries(roles.map((r: any) => [r.code, r.id]))
 
   // 2) 三个用户 upsert（只写 password）
-  const base = (email: string, username: string) => ({
+  const base = (email: string, username: string, role: 'admin' | 'teacher' | 'student') => ({
     username,
     email,
+    ...(hasRole ? { role } : {}),
     is_disabled: 0,
     created_at: knex.fn.now(),
     updated_at: knex.fn.now(),
   })
   const rows = [
-    { ...base('admin@demo.com', 'admin'), password: HASH },
-    { ...base('teacher@demo.com', 'teacher'), password: HASH },
-    { ...base('student@demo.com', 'student'), password: HASH },
+    { ...base('admin@demo.com', 'admin', 'admin'), password: HASH },
+    { ...base('teacher@demo.com', 'teacher', 'teacher'), password: HASH },
+    { ...base('student@demo.com', 'student', 'student'), password: HASH },
   ]
 
   try {
-    await knex('users').insert(rows).onConflict('email').merge(['password', 'is_disabled', 'updated_at'])
+    const mergeColumns = ['is_disabled', 'updated_at']
+    if (hasRole) mergeColumns.push('role')
+    await knex('users').insert(rows).onConflict('email').merge(mergeColumns)
   } catch {
     await knex('users')
       .whereIn(

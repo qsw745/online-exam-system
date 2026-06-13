@@ -1,10 +1,22 @@
 // apps/web/src/features/admin-settings/components/SettingsForm.tsx
-import { EditOutlined, KeyOutlined, SaveOutlined } from '@ant-design/icons'
-import { Button, Form, Input, InputNumber, Space, Switch, Divider, Typography } from 'antd'
+import { CloudOutlined, EditOutlined, KeyOutlined, SaveOutlined } from '@ant-design/icons'
+import { Button, Form, Input, InputNumber, Space, Switch, Divider, Typography, Select, Alert } from 'antd'
 import React, { useEffect } from 'react'
 import type { SystemSettings } from '@/shared/types/admin-settings'
 
 const { Text } = Typography
+
+const PROVIDER_OPTIONS = [
+  { label: 'DeepSeek', value: 'deepseek' },
+  { label: 'OpenAI', value: 'openai' },
+  { label: '自定义 OpenAI 兼容接口', value: 'custom' },
+  { label: '本地模型', value: 'local' },
+]
+
+const THINKING_OPTIONS = [
+  { label: '关闭', value: 'disabled' },
+  { label: '开启', value: 'enabled' },
+]
 
 type Props = {
   value?: SystemSettings | null
@@ -26,9 +38,16 @@ export const SettingsForm: React.FC<Props> = ({ value, loading, onChange, onSubm
 
   const enableStrong = Form.useWatch('enableStrongPassword', form)
   const enableCaptcha = Form.useWatch('enableCaptcha', form)
+  const aiEnabled = Form.useWatch('aiEnabled', form)
+  const aiProvider = Form.useWatch('aiProvider', form)
+  const aiApiKeySet = Form.useWatch('aiApiKeySet', form)
 
   return (
     <Form form={form} layout="vertical" onFinish={onSubmit} onValuesChange={handleValuesChange} disabled={loading}>
+      <Form.Item name="aiApiKeySet" valuePropName="checked" hidden>
+        <Switch />
+      </Form.Item>
+
       <Form.Item
         label="系统名称"
         name="systemName"
@@ -117,6 +136,91 @@ export const SettingsForm: React.FC<Props> = ({ value, loading, onChange, onSubm
       </Form.Item>
       <Form.Item label="禁止常见弱口令" name={['strongPasswordRules', 'forbidCommon']} valuePropName="checked">
         <Switch disabled={!enableStrong} />
+      </Form.Item>
+
+      <Divider />
+
+      <Typography.Title level={5} style={{ marginTop: 0 }}>
+        <CloudOutlined style={{ marginRight: 8 }} />
+        大模型设置
+      </Typography.Title>
+
+      <Form.Item label="启用 AI 功能" name="aiEnabled" valuePropName="checked">
+        <Switch />
+      </Form.Item>
+
+      <Form.Item label="大模型厂商" name="aiProvider" rules={[{ required: true, message: '请选择大模型厂商' }]}>
+        <Select options={PROVIDER_OPTIONS} disabled={!aiEnabled} />
+      </Form.Item>
+
+      <Form.Item
+        label="接口地址 Base URL"
+        name="aiBaseUrl"
+        rules={[
+          { required: !!aiEnabled && aiProvider !== 'local', message: '请输入接口地址' },
+          { max: 300, message: '最多300个字符' },
+        ]}
+      >
+        <Input placeholder="https://api.deepseek.com" disabled={!aiEnabled} />
+      </Form.Item>
+
+      <Form.Item
+        label="API Key"
+        name="aiApiKey"
+        tooltip="留空表示不修改已保存的密钥"
+        rules={[{ max: 300, message: '最多300个字符' }]}
+      >
+        <Input.Password
+          prefix={<KeyOutlined />}
+          placeholder={aiApiKeySet ? '已设置，留空不修改' : '请输入 API Key'}
+          disabled={!aiEnabled || aiProvider === 'local'}
+        />
+      </Form.Item>
+
+      {aiApiKeySet && aiProvider !== 'local' && (
+        <Alert type="success" showIcon message="API Key 已设置，保存时留空会继续沿用原密钥" style={{ marginBottom: 16 }} />
+      )}
+
+      <Form.Item label="默认模型" name="aiModel" rules={[{ required: true, message: '请输入模型名称' }]}>
+        <Input placeholder="deepseek-v4-flash" disabled={!aiEnabled} />
+      </Form.Item>
+
+      <Form.Item
+        label="允许使用的模型"
+        name="aiAllowedModels"
+        tooltip="多个模型用英文逗号分隔；留空表示不限制前端传入的模型名"
+      >
+        <Input placeholder="deepseek-v4-flash,deepseek-v4-pro" disabled={!aiEnabled} />
+      </Form.Item>
+
+      {aiProvider === 'deepseek' && (
+        <Form.Item label="DeepSeek 推理模式" name="aiThinkingMode">
+          <Select options={THINKING_OPTIONS} disabled={!aiEnabled} />
+        </Form.Item>
+      )}
+
+      <Form.Item
+        label="温度"
+        name="aiTemperature"
+        rules={[{ type: 'number', min: 0, max: 2, message: '范围 0~2' }]}
+      >
+        <InputNumber min={0} max={2} step={0.1} style={{ width: '100%' }} disabled={!aiEnabled} />
+      </Form.Item>
+
+      <Form.Item
+        label="最大输出 Token"
+        name="aiMaxTokens"
+        rules={[{ type: 'number', min: 1, max: 100000, message: '范围 1~100000' }]}
+      >
+        <InputNumber min={1} max={100000} style={{ width: '100%' }} disabled={!aiEnabled} />
+      </Form.Item>
+
+      <Form.Item
+        label="请求超时（毫秒）"
+        name="aiTimeoutMs"
+        rules={[{ type: 'number', min: 1000, max: 300000, message: '范围 1000~300000' }]}
+      >
+        <InputNumber min={1000} max={300000} step={1000} style={{ width: '100%' }} disabled={!aiEnabled} />
       </Form.Item>
 
       <Divider />

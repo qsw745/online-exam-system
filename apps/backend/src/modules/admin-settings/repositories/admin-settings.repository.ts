@@ -17,6 +17,17 @@ const DEFAULTS: SystemSettings = {
     strongPasswordRequireLower: true,
     strongPasswordRequireDigit: true,
     strongPasswordRequireSpecial: false,
+
+    aiEnabled: false,
+    aiProvider: 'deepseek',
+    aiBaseUrl: 'https://api.deepseek.com',
+    aiApiKey: '',
+    aiModel: 'deepseek-v4-flash',
+    aiAllowedModels: 'deepseek-v4-flash,deepseek-v4-pro',
+    aiTemperature: 0.2,
+    aiMaxTokens: 1200,
+    aiTimeoutMs: 60000,
+    aiThinkingMode: 'disabled',
 }
 
 export class AdminSettingsRepository {
