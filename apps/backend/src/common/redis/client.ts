@@ -1,3 +1,4 @@
+import '@/config/env'
 import IORedis, { type RedisOptions } from 'ioredis'
 import { appLogger } from '@/infrastructure/logging/logger'
 

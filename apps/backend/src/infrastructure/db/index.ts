@@ -2,7 +2,7 @@
 // apps/backend/src/infrastructure/db/index.ts
 // 目标：统一时区，确保 DB 端 CURRENT_TIMESTAMP/NOW() 与应用展示一致。
 
-import 'dotenv/config'
+import '@/config/env'
 import { createPool, type Pool } from 'mysql2/promise'
 import { enableSqlDebug } from '@/config/sql-debug'
 

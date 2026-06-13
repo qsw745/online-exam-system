@@ -1,5 +1,17 @@
 const path = require('node:path')
-require('dotenv').config({ path: path.join(__dirname, '.env') })
+const fs = require('node:fs')
+const dotenv = require('dotenv')
+
+function loadEnvFile(filename, override = false) {
+  const envPath = path.join(__dirname, filename)
+  if (!fs.existsSync(envPath)) return
+  dotenv.config({ path: envPath, override })
+}
+
+loadEnvFile('.env')
+const nodeEnv = process.env.NODE_ENV || 'development'
+loadEnvFile('.env.local', true)
+loadEnvFile(`.env.${nodeEnv}.local`, true)
 
 const common = {
   client: 'mysql2',
