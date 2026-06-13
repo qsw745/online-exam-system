@@ -42,11 +42,31 @@ if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true })
 
 const app = express()
 
+function normalizeMountPath(raw?: string) {
+  let value = String(raw || '').trim()
+  if (!value) return ''
+  try {
+    if (/^https?:\/\//i.test(value)) value = new URL(value).pathname
+  } catch {}
+  value = `/${value.replace(/^\/+/, '').replace(/\/+$/, '')}`
+  return value === '/' ? '' : value
+}
+
+const configuredApiPrefix = normalizeMountPath(
+  (process as any).env?.API_BASE_PATH || (process as any).env?.WEB_API_URL
+)
+const webBasePath = normalizeMountPath((process as any).env?.WEB_BASE_PATH)
+const API_PREFIXES = Array.from(
+  new Set(['/api', configuredApiPrefix, webBasePath ? `${webBasePath}/api` : ''].filter(Boolean))
+)
+
 // 如在反向代理后（Nginx/Ingress），建议开启：可让 req.ip/secure 等更准确
 app.set('trust proxy', true)
 
 // 静态资源也挂在 /api 下，避免与前端路由冲突
-app.use('/api/uploads', express.static(UPLOADS_DIR))
+for (const prefix of API_PREFIXES) {
+  app.use(`${prefix}/uploads`, express.static(UPLOADS_DIR))
+}
 
 // —— 顺序很重要 —— //
 // 1) 请求 ID（为统一响应/日志提供 requestId）
@@ -76,12 +96,14 @@ app.use(optionalAuth)
 app.use(httpLogger())
 
 /** 健康检查（统一响应） */
-app.get('/api/health', (_req: Request, res: Response) => {
-  if (!isRedisReady()) {
-    return res.status(503).json({ ok: false, reason: 'redis_not_ready', time: formatTime() })
-  }
-  return res.ok({ ok: true, time: formatTime() }, 'OK')
-})
+for (const prefix of API_PREFIXES) {
+  app.get(`${prefix}/health`, (_req: Request, res: Response) => {
+    if (!isRedisReady()) {
+      return res.status(503).json({ ok: false, reason: 'redis_not_ready', time: formatTime() })
+    }
+    return res.ok({ ok: true, time: formatTime() }, 'OK')
+  })
+}
 
 /** 将业务路由挂载到 /api */
 async function mountRoutes() {
@@ -90,7 +112,9 @@ async function mountRoutes() {
   if (!apiRouter?.use || !apiRouter?.handle) {
     throw new Error('[@/routes] default export is neither an Express Router nor a factory returning a Router')
   }
-  app.use('/api', apiRouter)
+  for (const prefix of API_PREFIXES) {
+    app.use(prefix, apiRouter)
+  }
 }
 
 /** —— 未命中任何 /api 路由时返回 API 404（统一响应） —— */
@@ -275,8 +299,10 @@ async function start() {
 
     await mountRoutes()
 
-    // 404 放在所有 /api 路由之后
-    app.use('/api', api404)
+    // 404 放在所有 API 路由之后
+    for (const prefix of API_PREFIXES) {
+      app.use(prefix, api404)
+    }
 
     // 错误处理放最后
     app.use(errorHandler)
