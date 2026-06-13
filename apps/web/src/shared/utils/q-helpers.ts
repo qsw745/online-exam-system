@@ -1,6 +1,6 @@
 // src/shared/utils/q-helpers.ts
-import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
+import writeXlsxFile from 'write-excel-file/browser'
 
 export const getMsg = (res: any, fallback = '请求失败') =>
   res?.error ||
@@ -111,13 +111,9 @@ export const exportToCsv = async (rows: any[], filename: string, headers: { key:
 }
 
 export const exportToXlsx = async (rows: any[], filename: string, headers: { key: string; label: string }[]) => {
-  const arr = rows.map(r => {
-    const obj: Record<string, any> = {}
-    headers.forEach(h => (obj[h.label] = r[h.key] ?? ''))
-    return obj
-  })
-  const ws = XLSX.utils.json_to_sheet(arr)
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, '题目')
-  XLSX.writeFile(wb, filename)
+  const data = [
+    headers.map(h => ({ value: h.label, fontWeight: 'bold' as const })),
+    ...rows.map(r => headers.map(h => ({ value: r[h.key] ?? '' }))),
+  ]
+  await writeXlsxFile(data).toFile(filename)
 }

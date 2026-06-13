@@ -2,7 +2,7 @@ const path = require('node:path')
 const fs = require('node:fs')
 const dotenv = require('dotenv')
 
-function loadEnvFile(filename, override = false) {
+function loadEnvFile(filename: string, override = false) {
   const envPath = path.join(__dirname, filename)
   if (!fs.existsSync(envPath)) return
   dotenv.config({ path: envPath, override })

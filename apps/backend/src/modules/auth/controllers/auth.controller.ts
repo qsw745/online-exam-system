@@ -11,8 +11,15 @@ import { CryptoService } from '@/modules/auth/services/crypto.service'
 import { AuthLockService } from '@/modules/auth/services/auth-lock.service'
 import { getClientIp } from '@/common/utils/request-ip'
 import Geo from '@/common/utils/geo'
+import { OAuthService } from '@/modules/auth/services/oauth.service'
 
 const svc = new AuthService()
+const OAUTH_STATE_COOKIE = 'oauth_state'
+
+function oauthCookieOptions(maxAgeMs?: number) {
+  const isProd = process?.env?.NODE_ENV === 'production'
+  return { httpOnly: true, secure: isProd, sameSite: 'lax' as const, path: '/', maxAge: maxAgeMs }
+}
 
 export class AuthController {
   static async register(req: AuthRequest, res: Response<ApiResponse<any>>) {
@@ -189,7 +196,7 @@ export class AuthController {
         const msg = e?.message || '登录失败'
         const isForbidden = /禁用|停用/.test(msg)
         return (res as any)[isForbidden ? 'forbidden' : 'unauthorized'](
-          isForbidden ? '账号已被禁用' : '用户名或密码错误',
+          isForbidden ? '账号已被禁用' : '邮箱或密码错误',
           { code: CODES.AUTH_BAD_CREDENTIALS, error: { retryable: true } }
         )
       }
@@ -212,7 +219,7 @@ export class AuthController {
       svc.setRefreshCookie(res as any, refresh, { persist, maxAgeMs: remainMs })
       return (res as any).ok({ token }, '刷新成功')
     } catch (e: any) {
-      ;(res as any).clearCookie?.('rt', { path: '/api/auth' })
+      svc.clearRefreshCookie(res as any)
       return (res as any).unauthorized(e?.message || '刷新失败，请重新登录', { code: CODES.AUTH_UNAUTHORIZED })
     }
   }
@@ -222,9 +229,49 @@ export class AuthController {
       const rt = (req as any)?.cookies?.rt || req.body?.refresh_token || req.get('x-refresh-token')
       await svc.logout(rt, { ip: getClientIp(req) || req.ip, ua: req.get('User-Agent') || undefined })
     } finally {
-      ;(res as any).clearCookie?.('rt', { path: '/api/auth' })
+      svc.clearRefreshCookie(res as any)
     }
     return (res as any).ok(null, '已登出')
+  }
+
+  static async oauthProviders(_req: AuthRequest, res: Response<ApiResponse<any>>) {
+    return (res as any).ok({ providers: OAuthService.providers() }, 'OK')
+  }
+
+  static async oauthStart(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    const provider = OAuthService.normalizeProvider(req.params.provider)
+    if (!provider) return (res as any).notFound('不支持的登录方式')
+    try {
+      const auth = await OAuthService.createAuthorization(provider, req)
+      ;(res as any).cookie?.(OAUTH_STATE_COOKIE, auth.state, oauthCookieOptions(auth.ttlSec * 1000))
+      return res.redirect(auth.url)
+    } catch (e: any) {
+      return (res as any).badRequest(e?.message || '第三方登录未配置')
+    }
+  }
+
+  static async oauthCallback(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    const provider = OAuthService.normalizeProvider(req.params.provider)
+    if (!provider) return res.redirect(OAuthService.frontendCallbackUrl(req, { error: 'unsupported_provider' }))
+    try {
+      const { profile, keep7Days, next } = await OAuthService.consumeCallback(provider, req)
+      const { refresh, persist } = await svc.loginWithOAuth(
+        profile,
+        { ip: getClientIp(req) || req.ip, ua: req.get('User-Agent') || undefined },
+        { persist: keep7Days }
+      )
+      svc.setRefreshCookie(res as any, refresh, { persist })
+      ;(res as any).clearCookie?.(OAUTH_STATE_COOKIE, oauthCookieOptions())
+      return res.redirect(
+        OAuthService.frontendCallbackUrl(req, {
+          mode: persist ? '7d' : 'session',
+          next,
+        })
+      )
+    } catch (e: any) {
+      ;(res as any).clearCookie?.(OAUTH_STATE_COOKIE, oauthCookieOptions())
+      return res.redirect(OAuthService.frontendCallbackUrl(req, { error: 'oauth_failed' }))
+    }
   }
 }
 

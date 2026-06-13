@@ -5,10 +5,12 @@ import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_MS, getJwtSecret, getRefresh
 import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
 import { LogService } from '@/modules/logs/services/log.service'
 import bcrypt from 'bcryptjs'
+import { randomBytes } from 'crypto'
 import type { AuthResponseData, IUser } from '../domain/auth.model'
 import { TokenRepository, sha256 } from '../repositories/token.repository'
 import { OrgRepository, UserRepository } from '../repositories/user.repository'
 import { pool } from '@/config/database'
+import type { OAuthProfile } from '@/modules/auth/services/oauth.service'
 
 type JwtLikePayload = {
   id: number
@@ -56,7 +58,7 @@ const signRefreshTokenAbs = async (
 export class AuthService {
   setRefreshCookie(res: import('express').Response, token: string, opts?: { persist?: boolean; maxAgeMs?: number }) {
     const isProd = process?.env?.NODE_ENV === 'production'
-    const base: any = { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/api/auth' }
+    const base: any = { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' }
     const final =
       typeof opts?.maxAgeMs === 'number'
         ? { ...base, maxAge: Math.max(0, Math.floor(opts!.maxAgeMs)) }
@@ -64,6 +66,81 @@ export class AuthService {
         ? { ...base, maxAge: REFRESH_JWT_EXPIRES_MS }
         : base
     ;(res as any).cookie?.('rt', token, final)
+  }
+
+  clearRefreshCookie(res: import('express').Response) {
+    ;(res as any).clearCookie?.('rt', { path: '/' })
+    ;(res as any).clearCookie?.('rt', { path: '/api/auth' })
+    ;(res as any).clearCookie?.('rt', { path: '/exam/api/auth' })
+  }
+
+  private async ensureActiveUser(user: IUser, reqMeta?: { ip?: string; ua?: string }, messagePrefix = '登录') {
+    if ((user.status || 'active').toLowerCase() === 'active') return
+    await LogService.log({
+      type: 'login',
+      status: 'failed',
+      userId: user.id,
+      action: messagePrefix,
+      message: `${messagePrefix}失败：账号被禁用`,
+      details: { reason: '账号已被禁用', email: user.email },
+      ipAddress: reqMeta?.ip,
+      userAgent: reqMeta?.ua,
+    } as any)
+    throw new HttpError('账号已被禁用，请联系管理员')
+  }
+
+  private async issueSession(
+    user: IUser,
+    reqMeta: { ip?: string; ua?: string },
+    options?: { persist?: boolean; logAction?: string; logDetails?: Record<string, any> }
+  ) {
+    const { roles, roleIds } = await UserRepository.rolesOfUser(user.id)
+
+    const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
+    const absExp = computeRefreshAbsExpire()
+    const prst: 0 | 1 = options?.persist ? 1 : 0
+    const refresh = await signRefreshTokenAbs(
+      { id: user.id, email: user.email, role_ids: roleIds, roles, jti, prst },
+      absExp
+    )
+    const access = await signAccessToken({ id: user.id, email: user.email, role_ids: roleIds, roles }, jti)
+
+    await TokenRepository.insertRefresh({
+      userId: user.id,
+      jti,
+      token_hash: await sha256(refresh),
+      userAgent: reqMeta.ua || null,
+      ip: reqMeta.ip || null,
+      expiresAt: absExp,
+    })
+
+    await SessionStore.save({
+      jti,
+      userId: user.id,
+      account: user.email,
+      role: roles?.[0]?.code,
+      ip: reqMeta?.ip || null,
+      ua: reqMeta?.ua || null,
+      loginAt: new Date().toISOString(),
+      expAt: Math.floor(absExp.getTime() / 1000),
+    } as any)
+
+    await LogService.log({
+      type: 'login',
+      status: 'success',
+      userId: user.id,
+      action: options?.logAction || '登录',
+      message: `${options?.logAction || '登录'}成功`,
+      details: { persist: !!options?.persist, email: user.email, ...(options?.logDetails || {}) },
+      ipAddress: reqMeta.ip,
+      userAgent: reqMeta.ua,
+    } as any)
+
+    const { password: _omit, ...userWithoutPwd } = user as any
+    return { token: access, refresh, user: { ...userWithoutPwd }, persist: !!options?.persist } as AuthResponseData & {
+      refresh: string
+      persist: boolean
+    }
   }
 
   async register(
@@ -187,19 +264,7 @@ export class AuthService {
       throw new HttpError('用户不存在')
     }
 
-    if ((user.status || 'active').toLowerCase() !== 'active') {
-      await LogService.log({
-        type: 'login',
-        status: 'failed',
-        userId: user.id,
-        action: '登录',
-        message: '登录失败：账号被禁用',
-        details: { reason: '账号已被禁用', email: user.email },
-        ipAddress: reqMeta.ip,
-        userAgent: reqMeta.ua,
-      } as any)
-      throw new HttpError('账号已被禁用，请联系管理员')
-    }
+    await this.ensureActiveUser(user, reqMeta, '登录')
 
     const ok = bcrypt.compareSync(String(password ?? ''), String((user as any).password ?? ''))
     if (!ok) {
@@ -213,56 +278,69 @@ export class AuthService {
         ipAddress: reqMeta.ip,
         userAgent: reqMeta.ua,
       } as any)
-      throw new HttpError('用户名或密码错误')
+      throw new HttpError('邮箱或密码错误')
     }
 
-    const { roles, roleIds } = await UserRepository.rolesOfUser(user.id)
+    return this.issueSession(user, reqMeta, { persist: !!options?.persist })
+  }
 
-    const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
-    const absExp = computeRefreshAbsExpire()
-    const prst: 0 | 1 = options?.persist ? 1 : 0
-    const refresh = await signRefreshTokenAbs(
-      { id: user.id, email: user.email, role_ids: roleIds, roles, jti, prst },
-      absExp
-    )
-    const access = await signAccessToken({ id: user.id, email: user.email, role_ids: roleIds, roles }, jti)
+  async loginWithOAuth(profile: OAuthProfile, reqMeta: { ip?: string; ua?: string }, options?: { persist?: boolean }) {
+    await ensureJwtReady()
+    if (!profile.emailVerified) throw new HttpError('第三方账号邮箱未验证')
 
-    await TokenRepository.insertRefresh({
+    const attachDefaultOrgAndRoles = async (userId: number) => {
+      const orgId = await OrgRepository.getDefaultOrgId()
+      await OrgRepository.attachUserToOrg(userId, orgId)
+
+      let roleIds = await OrgRepository.defaultRoleIdsOfOrg(orgId)
+      if (roleIds.length === 0) {
+        const studentId = await OrgRepository.findRoleIdByCode('student')
+        if (!studentId) throw new Error('默认角色 student 不存在')
+        roleIds = [studentId]
+      }
+      await OrgRepository.ensureUserRoles(userId, orgId, roleIds)
+    }
+
+    let user = await UserRepository.findByOAuth(profile.provider, profile.providerUserId)
+    if (!user) {
+      user = await UserRepository.findByEmail(profile.email)
+    }
+
+    if (!user) {
+      try {
+        const randomPassword = randomBytes(32).toString('base64url')
+        const hashed = bcrypt.hashSync(randomPassword, 10)
+        const ins = await UserRepository.insertUser({
+          email: profile.email,
+          hashed,
+          nickname: profile.displayName ?? null,
+        })
+        await attachDefaultOrgAndRoles(ins.id)
+        user = (await UserRepository.findById(ins.id)) as IUser
+      } catch (e: any) {
+        const duplicate = e?.code === 'ER_DUP_ENTRY' || e?.errno === 1062 || /duplicate entry/i.test(String(e?.message || ''))
+        if (!duplicate) throw e
+        user = await UserRepository.findByEmail(profile.email)
+        if (!user) throw new HttpError('用户创建失败，请重试')
+        await attachDefaultOrgAndRoles(user.id)
+      }
+    }
+
+    await this.ensureActiveUser(user, reqMeta, '第三方登录')
+    await UserRepository.upsertOAuthAccount({
       userId: user.id,
-      jti,
-      token_hash: await sha256(refresh),
-      userAgent: reqMeta.ua || null,
-      ip: reqMeta.ip || null,
-      expiresAt: absExp,
+      provider: profile.provider,
+      providerUserId: profile.providerUserId,
+      email: profile.email,
+      displayName: profile.displayName ?? null,
+      avatarUrl: profile.avatarUrl ?? null,
     })
 
-    await SessionStore.save({
-      jti,
-      userId: user.id,
-      account: user.email,
-      role: roles?.[0]?.code,
-      ip: reqMeta?.ip || null,
-      ua: reqMeta?.ua || null,
-      loginAt: new Date().toISOString(),
-      expAt: Math.floor(absExp.getTime() / 1000),
-    } as any)
-
-    await LogService.log({
-      type: 'login',
-      status: 'success',
-      userId: user.id,
-      action: '登录',
-      message: '登录成功',
-      details: { persist: !!options?.persist, email: user.email },
-      ipAddress: reqMeta.ip,
-      userAgent: reqMeta.ua,
-    } as any)
-
-    const { password: _omit, ...userWithoutPwd } = user as any
-    return { token: access, refresh, user: { ...userWithoutPwd }, persist: !!options?.persist } as AuthResponseData & {
-      refresh: string
-      persist: boolean
-    }
+    return this.issueSession(user, reqMeta, {
+      persist: !!options?.persist,
+      logAction: '第三方登录',
+      logDetails: { provider: profile.provider },
+    })
   }
 
   async refresh(rt: string) {

@@ -2,7 +2,7 @@
 import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { auth as authApi } from '@/shared/api/endpoints/auth'
 import { useAuth } from '@/shared/contexts/AuthContext'
-import { decryptLocal, encryptLocal, tryEncryptRemote } from '@/shared/utils/cryptoLocal'
+import { resetRemoteCryptoCache, tryEncryptRemote } from '@/shared/utils/cryptoLocal'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
@@ -68,6 +68,7 @@ function parseLoginError(err: any): {
   code?: string
   status?: number
   data?: any
+  reason?: string
   retryAfterSec?: number
 } {
   const res = err?.response
@@ -75,10 +76,11 @@ function parseLoginError(err: any): {
   const status = res?.status
   const backendMsg = res?.data?.message
   const data = res?.data?.data
+  const reason = res?.data?.error?.details?.reason
   const rh = res?.headers || {}
   const retryAfter = rh['retry-after'] ? Number(rh['retry-after']) : undefined
   const msg = backendMsg || err?.message || '错误'
-  return { msg, code, status, data, retryAfterSec: Number.isFinite(retryAfter) ? Number(retryAfter) : undefined }
+  return { msg, code, status, data, reason, retryAfterSec: Number.isFinite(retryAfter) ? Number(retryAfter) : undefined }
 }
 
 function svgToDataUrl(svg: string) {
@@ -176,26 +178,9 @@ export function useLogin() {
       const rememberFlag = localStorage.getItem(REMEMBER_ME_FLAG) === '1'
       setRememberMe(rememberFlag)
       const lastEmail = localStorage.getItem(LAST_EMAIL_KEY) || ''
-      if (rememberFlag) {
-        const pack = localStorage.getItem(REMEMBER_PACK_KEY)
-        const json = await decryptLocal(pack)
-        if (json) {
-          try {
-            const { email: e, password: p } = JSON.parse(json)
-            setEmail(typeof e === 'string' ? e : lastEmail)
-            setPassword(typeof p === 'string' ? p : '')
-          } catch {
-            setEmail(lastEmail)
-            setPassword('')
-          }
-        } else {
-          setEmail(lastEmail)
-          setPassword('')
-        }
-      } else {
-        setEmail(lastEmail)
-        setPassword('')
-      }
+      setEmail(lastEmail)
+      setPassword('')
+      localStorage.removeItem(REMEMBER_PACK_KEY)
       const flag = localStorage.getItem(STORAGE_FLAG_KEY)
       setKeep7Days(flag === '7d')
       setCaptchaByServer(localStorage.getItem(SERVER_CAPTCHA_FLAG) === '1')
@@ -291,12 +276,11 @@ export function useLogin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings?.enableCaptcha, captchaByServer, captchaThreshold, email])
 
-  // 记住我
+  // 记住我只保留邮箱，不持久化密码或可还原凭据。
   const saveRemember = useCallback(
-    async (em: string, pwd: string) => {
+    async (em: string) => {
       if (!rememberMe) return
-      const enc = await encryptLocal(JSON.stringify({ email: em, password: pwd }))
-      localStorage.setItem(REMEMBER_PACK_KEY, enc)
+      localStorage.removeItem(REMEMBER_PACK_KEY)
       try {
         localStorage.setItem(LAST_EMAIL_KEY, em || '')
       } catch {}
@@ -309,7 +293,7 @@ export function useLogin() {
     ;(async () => {
       if (rememberMe) {
         localStorage.setItem(REMEMBER_ME_FLAG, '1')
-        await saveRemember(email, password)
+        await saveRemember(email)
       } else {
         localStorage.setItem(REMEMBER_ME_FLAG, '0')
         localStorage.removeItem(REMEMBER_PACK_KEY)
@@ -324,10 +308,10 @@ export function useLogin() {
   useEffect(() => {
     if (!prefsReady || !rememberMe) return
     const tid = window.setTimeout(() => {
-      saveRemember(email, password)
+      saveRemember(email)
     }, 300)
     return () => window.clearTimeout(tid)
-  }, [email, password, rememberMe, saveRemember, prefsReady])
+  }, [email, rememberMe, saveRemember, prefsReady])
 
   // —— 提交 —— //
   const submit = useCallback(async () => {
@@ -351,22 +335,8 @@ export function useLogin() {
     }
 
     setLoading(true)
-    try {
-      localStorage.setItem(STORAGE_FLAG_KEY, keep7Days ? '7d' : 'session')
-      try {
-        localStorage.setItem(LAST_EMAIL_KEY, email || '')
-      } catch {}
-
-      const remote = await tryEncryptRemote({ email, password, captcha, captchaId: captchaId || undefined })
-      const extra = {
-        captcha: captchaRequired ? captcha : undefined,
-        captchaId: captchaRequired ? captchaId || undefined : undefined,
-        ...(remote ?? {}),
-        keep7Days,
-      }
-      await signIn(email, password, keep7Days, extra)
-
-      // 成功：清理锁定/失败本地状态
+    let usedRemoteCrypto = false
+    const finishSuccess = () => {
       ;[
         failedKey(email),
         lockKey(email),
@@ -387,15 +357,62 @@ export function useLogin() {
       setCaptchaByServer(false)
       setCaptchaByThreshold(false)
       message.success('登录成功')
+    }
+    try {
+      localStorage.setItem(STORAGE_FLAG_KEY, keep7Days ? '7d' : 'session')
+      try {
+        localStorage.setItem(LAST_EMAIL_KEY, email || '')
+      } catch {}
+
+      const remote = await tryEncryptRemote({ email, password, captcha, captchaId: captchaId || undefined })
+      usedRemoteCrypto = !!remote
+      const extra = {
+        captcha: captchaRequired ? captcha : undefined,
+        captchaId: captchaRequired ? captchaId || undefined : undefined,
+        ...(remote ?? {}),
+        keep7Days,
+      }
+      await signIn(email, password, keep7Days, extra)
+
+      finishSuccess()
     } catch (err: any) {
-      const { msg, code, status, data, retryAfterSec } = parseLoginError(err)
-      const serverSaysLocked = code === CODE_LOCKED || code === CODE_LOCKED_LEGACY || status === 423
+      const { msg, code, status, data, reason, retryAfterSec } = parseLoginError(err)
+
+      if (usedRemoteCrypto && reason === 'CRED_DECRYPT_FAILED') {
+        resetRemoteCryptoCache()
+        const freshRemote = await tryEncryptRemote({ email, password, captcha, captchaId: captchaId || undefined })
+        if (freshRemote) {
+          try {
+            await signIn(email, password, keep7Days, {
+              captcha: captchaRequired ? captcha : undefined,
+              captchaId: captchaRequired ? captchaId || undefined : undefined,
+              ...freshRemote,
+              keep7Days,
+            })
+            finishSuccess()
+            return
+          } catch (retryErr: any) {
+            err = retryErr
+          }
+        }
+      }
+
+      const parsedRetry = parseLoginError(err)
+      const finalMsg = parsedRetry.msg
+      const finalCode = parsedRetry.code
+      const finalStatus = parsedRetry.status
+      const finalData = parsedRetry.data
+      const finalRetryAfterSec = parsedRetry.retryAfterSec
+      const serverSaysLocked = finalCode === CODE_LOCKED || finalCode === CODE_LOCKED_LEGACY || finalStatus === 423
 
       if (serverSaysLocked) {
         // ✅ 仅当后端明确锁定时，前端进入锁态
-        const untilMsFromServer: number | undefined = data?.unlockAt
-        const remainSecFromServer: number | undefined = data?.remainingSec
-        const retry = Number.isFinite(retryAfterSec) && (retryAfterSec as number) > 0 ? (retryAfterSec as number) : 0
+        const untilMsFromServer: number | undefined = finalData?.unlockAt
+        const remainSecFromServer: number | undefined = finalData?.remainingSec
+        const retry =
+          Number.isFinite(finalRetryAfterSec) && (finalRetryAfterSec as number) > 0
+            ? (finalRetryAfterSec as number)
+            : 0
 
         let finalUntil = 0
         if (typeof untilMsFromServer === 'number' && untilMsFromServer > Date.now()) {
@@ -435,14 +452,14 @@ export function useLogin() {
         return
       }
 
-      const isNeedCaptcha = code === CODE_NEED_CAPTCHA || looksLikeNeedCaptcha(msg)
-      const isBadCaptcha = code === CODE_BAD_CAPTCHA
-      const isBadCreds = code === CODE_BAD_CREDS || status === HTTP_UNAUTH || looksLikeBadCreds(msg)
+      const isNeedCaptcha = finalCode === CODE_NEED_CAPTCHA || looksLikeNeedCaptcha(finalMsg)
+      const isBadCaptcha = finalCode === CODE_BAD_CAPTCHA
+      const isBadCreds = finalCode === CODE_BAD_CREDS || finalStatus === HTTP_UNAUTH || looksLikeBadCreds(finalMsg)
 
       if (isBadCaptcha) {
         setCaptcha('')
         await loadCaptcha()
-        message.error(msg || '验证码错误，请重试')
+        message.error(finalMsg || '验证码错误，请重试')
         return
       }
       if (isNeedCaptcha) {
@@ -473,7 +490,7 @@ export function useLogin() {
           }
         }
 
-        message.error(msg || '用户名或密码错误')
+        message.error(finalMsg || '邮箱或密码错误')
         return
       }
 
@@ -482,7 +499,7 @@ export function useLogin() {
         setCaptcha('')
         await loadCaptcha()
       }
-      message.error(msg || '登录失败')
+      message.error(finalMsg || '登录失败')
     } finally {
       setLoading(false)
     }

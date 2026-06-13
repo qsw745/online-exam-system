@@ -1,6 +1,7 @@
 // apps/web/src/features/exams/components/QuestionPanel.tsx
 import { Flag } from 'lucide-react'
 import type { Question } from '@/shared/api/http'
+import { sanitizeHtml } from '@/shared/utils/sanitizeHtml'
 
 export function QuestionPanel(props: {
   question: Question
@@ -32,6 +33,7 @@ export function QuestionPanel(props: {
 
   // ✅ 字段兼容：content / options
   const contentHtml: string = (question as any).content ?? (question as any).stem ?? (question as any).title ?? ''
+  const safeContentHtml = sanitizeHtml(contentHtml)
   const optionList: Array<any> = isTf ? tfOptions : (question as any).options ?? (question as any).choices ?? []
 
   const qid = String((question as any).id ?? index)
@@ -54,7 +56,7 @@ export function QuestionPanel(props: {
       </div>
 
       <div className="prose max-w-none mb-6">
-        <div dangerouslySetInnerHTML={{ __html: contentHtml || '' }} />
+        <div dangerouslySetInnerHTML={{ __html: safeContentHtml }} />
       </div>
 
       <div className="space-y-4">

@@ -1,6 +1,7 @@
 import { Drawer, Space, Typography, Divider, List, Tag, Spin } from 'antd'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { mailApi, type MailMessage } from '@/shared/api/endpoints/mail'
+import { sanitizeHtml } from '@/shared/utils/sanitizeHtml'
 
 type Props = {
   open: boolean
@@ -39,6 +40,7 @@ export default function MailViewerDrawer({ open, messageId, mailbox, onClose, on
   }, [open, messageId, mailbox, onRead])
 
   const attachments = data?.attachments || []
+  const contentHtml = useMemo(() => sanitizeHtml(data?.content || '<p>(空正文)</p>'), [data?.content])
 
   return (
     <Drawer title={data ? data.subject || '(无主题)' : '查看邮件'} open={open} width={720} onClose={onClose} destroyOnClose>
@@ -66,7 +68,7 @@ export default function MailViewerDrawer({ open, messageId, mailbox, onClose, on
             <div
               style={{ minHeight: 200 }}
               className="mail-content"
-              dangerouslySetInnerHTML={{ __html: data.content || '<p>(空正文)</p>' }}
+              dangerouslySetInnerHTML={{ __html: contentHtml }}
             />
             {attachments.length > 0 && (
               <>

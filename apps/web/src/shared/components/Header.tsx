@@ -26,6 +26,7 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { useMenuPermissions, type MenuItem } from '@/shared/contexts/MenuPermissionContext'
 import { useTabs } from '@/shared/contexts/TabsContext'
+import { withAppAssetPath, withAppBasePath } from '@/shared/router/basePath'
 import './css/header.css'
 
 const HEADER_HEIGHT = 48
@@ -1159,7 +1160,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             <AppBreadcrumb />
           ) : showBrandInHeader ? (
             <a
-              href="/"
+              href={withAppBasePath('/dashboard')}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -1171,7 +1172,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
               }}
             >
               <img
-                src="/brand-logo.svg"
+                src={withAppAssetPath('/brand-logo.svg')}
                 alt="Logo"
                 width={20}
                 height={20}

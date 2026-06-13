@@ -5,6 +5,7 @@ import DynamicRoutes from '@/app/routing/DynamicRoutes'
 import RouterRoot from '@/app/routing/RouterRoot' // 确保路径指向 src/app/routing/RouterRoot.tsx
 import SettingsPage from '@/features/settings/pages/SettingsPage'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { appBasePath } from '@/shared/router/basePath'
 import NProgress from 'nprogress'
 import { lazy, Suspense, type ReactElement } from 'react'
 import { createBrowserRouter, Navigate } from 'react-router-dom'
@@ -19,6 +20,7 @@ const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))
 const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'))
 const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'))
 const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'))
+const OAuthCallbackPage = lazy(() => import('@/features/auth/pages/OAuthCallbackPage'))
 const SharedFavoritePage = lazy(() => import('@/features/favorites/pages/SharedFavoritePage'))
 
 /**
@@ -37,6 +39,7 @@ export const router = createBrowserRouter([
 
       // Auth pages（静态路径优先级高于 "*"）
       { path: 'login', element: withSuspense(<LoginPage />) },
+      { path: 'oauth/callback', element: withSuspense(<OAuthCallbackPage />) },
       { path: 'register', element: withSuspense(<RegisterPage />) },
       { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
       { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
@@ -54,4 +57,4 @@ export const router = createBrowserRouter([
       { path: '404', element: <NotFound404 /> },
     ],
   },
-])
+], { basename: appBasePath })

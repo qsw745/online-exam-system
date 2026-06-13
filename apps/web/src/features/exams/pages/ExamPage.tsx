@@ -25,6 +25,7 @@ import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import { useAiProctoring, type ProctoringConfig } from '@/features/exams/hooks/useAiProctoring'
+import { sanitizeHtml } from '@/shared/utils/sanitizeHtml'
 
 type Question = {
   id: number
@@ -492,7 +493,7 @@ export default function ExamPage() {
                     }
                   >
                     <Paragraph style={{ marginBottom: 16 }}>
-                      <span dangerouslySetInnerHTML={{ __html: q.content || '' }} />
+                      <span dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.content || '') }} />
                     </Paragraph>
 
                     {/* 渲染不同题型 */}

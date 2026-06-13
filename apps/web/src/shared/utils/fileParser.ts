@@ -1,6 +1,6 @@
 // src/shared/utils/fileParser.ts
-import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
+import { readSheet } from 'read-excel-file/browser'
 import { ensureArrayFromMaybeCsv } from './q-helpers'
 
 // 供 Import/Export 直接复用表头
@@ -208,38 +208,28 @@ export const parseCSVFile = (file: File): Promise<ParseResult> =>
     })
   })
 
-export const parseExcelFile = (file: File): Promise<ParseResult> =>
-  new Promise(resolve => {
-    const reader = new FileReader()
-    reader.onload = e => {
-      try {
-        const data = new Uint8Array(e.target?.result as ArrayBuffer)
-        const workbook = XLSX.read(data, { type: 'array' })
-        const sheetName = workbook.SheetNames[0]
-        const worksheet = workbook.Sheets[sheetName]
-        const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][]
-        if (!jsonData.length) return resolve({ success: true, data: [], errors: [], total: 0 })
+export const parseExcelFile = async (file: File): Promise<ParseResult> => {
+  try {
+    const jsonData = (await readSheet(file)) as any[][]
+    if (!jsonData.length) return { success: true, data: [], errors: [], total: 0 }
 
-        const rawHeaders = (jsonData[0] || []) as string[]
-        const stdHeaders = rawHeaders.map(h => mapHeaderToStd(h))
-        const headerSet = new Set(stdHeaders)
+    const rawHeaders = (jsonData[0] || []) as string[]
+    const stdHeaders = rawHeaders.map(h => mapHeaderToStd(h))
+    const headerSet = new Set(stdHeaders)
 
-        const rows = jsonData.slice(1)
-        const formattedData = rows.map(row => {
-          const obj: Record<string, any> = {}
-          stdHeaders.forEach((hdr, i) => (obj[hdr] = (row as any[])[i] ?? ''))
-          return obj
-        })
+    const rows = jsonData.slice(1)
+    const formattedData = rows.map(row => {
+      const obj: Record<string, any> = {}
+      stdHeaders.forEach((hdr, i) => (obj[hdr] = (row as any[])[i] ?? ''))
+      return obj
+    })
 
-        const { validQuestions, errors } = processRawData(formattedData, headerSet)
-        resolve({ success: true, data: validQuestions, errors, total: formattedData.length })
-      } catch (error) {
-        resolve({ success: false, errors: [`Excel解析错误: ${error instanceof Error ? error.message : '未知错误'}`] })
-      }
-    }
-    reader.onerror = () => resolve({ success: false, errors: ['Excel文件读取失败'] })
-    reader.readAsArrayBuffer(file)
-  })
+    const { validQuestions, errors } = processRawData(formattedData, headerSet)
+    return { success: true, data: validQuestions, errors, total: formattedData.length }
+  } catch (error) {
+    return { success: false, errors: [`Excel解析错误: ${error instanceof Error ? error.message : '未知错误'}`] }
+  }
+}
 
 /* -------------------- 行解析 -------------------- */
 const hasField = (headerSet: Set<string> | undefined, row: Record<string, any>, aliases: string[]) => {
@@ -388,8 +378,8 @@ const parseQuestionRow = (
 export const parseFile = async (file: File): Promise<ParseResult> => {
   const lower = file.name.toLowerCase()
   if (lower.endsWith('.csv')) return parseCSVFile(file)
-  if (lower.endsWith('.xlsx') || lower.endsWith('.xls')) return parseExcelFile(file)
-  return { success: false, errors: ['不支持的文件格式，请使用 .xlsx, .xls 或 .csv 文件'] }
+  if (lower.endsWith('.xlsx')) return parseExcelFile(file)
+  return { success: false, errors: ['不支持的文件格式，请使用 .xlsx 或 .csv 文件'] }
 }
 
 // 也导出一次，方便旧代码从 fileParser 引用

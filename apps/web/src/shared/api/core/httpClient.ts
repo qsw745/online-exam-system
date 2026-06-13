@@ -3,6 +3,7 @@ import axios from 'axios'
 import { normalize } from './normalize'
 import { getAccessToken, setAccessToken, clearTokenAll, getAuthStorageFlag, type AuthStorageMode } from './storage'
 import { attachNProgressToAxios /*, attachToGlobalAxios*/ } from '../nprogress-axios' // ✅ 新增
+import { redirectToLogin } from '@/shared/router/basePath'
 
 // --- 环境变量容错（不依赖类型声明也能工作） ---
 const isDev = typeof import.meta !== 'undefined' && (import.meta as any)?.env && Boolean((import.meta as any).env.DEV)
@@ -27,23 +28,9 @@ export const http = axios.create({
 attachNProgressToAxios(http)
 // attachToGlobalAxios() // 如果你也会用到默认 axios，可打开这一行
 
-// ================= 工具：安全跳转登录 =================
-let _lastRedirectAt = 0
-function redirectToLogin(path = '/login') {
-  try {
-    const now = Date.now()
-    const alreadyOnLogin = typeof window !== 'undefined' && window.location?.pathname === path
-    if (!alreadyOnLogin && now - _lastRedirectAt > 2000) {
-      _lastRedirectAt = now
-      window.location.assign(path)
-    }
-  } catch {
-    // ignore
-  }
-}
 function clearAuthAndRedirect() {
   clearTokenAll()
-  redirectToLogin('/login')
+  redirectToLogin()
 }
 
 // ================= 刷新令牌并发控制 =================

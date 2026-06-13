@@ -179,6 +179,12 @@ export default {
   'auth.keep7days': 'Keep me signed in for 7 days',
   'auth.login_locked': 'Locked {time} · retry {retry}',
   'auth.login_retry_countdown': 'Retry login (remaining {time})',
+  'auth.oauth_divider': 'Or continue with',
+  'auth.login_with_github': 'Continue with GitHub',
+  'auth.login_with_google': 'Continue with Google',
+  'auth.oauth_start_failed': 'Unable to start OAuth login. Please try again.',
+  'auth.oauth_failed': 'OAuth login failed. Please sign in again.',
+  'auth.oauth_finishing': 'Finishing OAuth login…',
   'theme.light': 'Light',
   'theme.dark': 'Dark',
 

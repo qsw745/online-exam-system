@@ -4,6 +4,7 @@ import { Card, Menu } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { User as UserIcon, Settings as SettingsIcon, ShieldCheck, BookUser, ChevronLeft } from 'lucide-react'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { withAppAssetPath } from '@/shared/router/basePath'
 
 // 懒加载四个 Tab（仍然按需加载，首屏更轻）
 const ProfileTab = React.lazy(() => import('./tabs/ProfileTab'))
@@ -78,7 +79,12 @@ export default function SettingsPage() {
         {/* 左侧导航卡片 */}
         <Card style={{ padding: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 16px 8px' }}>
-            <img src="/brand-logo.svg" width={32} height={32} style={{ borderRadius: 8, objectFit: 'cover' }} />
+            <img
+              src={withAppAssetPath('/brand-logo.svg')}
+              width={32}
+              height={32}
+              style={{ borderRadius: 8, objectFit: 'cover' }}
+            />
             <div style={{ lineHeight: 1.2 }}>
               <div style={{ fontWeight: 600 }}>账户设置</div>
               <div style={{ fontSize: 12, color: 'var(--app-colorTextTertiary,#999)' }}>管理个人资料与偏好</div>

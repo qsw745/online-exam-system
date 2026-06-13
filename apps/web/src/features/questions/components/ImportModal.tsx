@@ -58,7 +58,7 @@ export default function ImportModal({
 
   const props: UploadProps = {
     multiple: false,
-    accept: '.xlsx,.xls,.csv',
+    accept: '.xlsx,.csv',
     fileList,
     beforeUpload: f => {
       setFileList([f])
@@ -195,7 +195,7 @@ export default function ImportModal({
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">点击或拖拽文件到此处上传（支持 .xlsx / .xls / .csv）</p>
+          <p className="ant-upload-text">点击或拖拽文件到此处上传（支持 .xlsx / .csv）</p>
           <p className="ant-upload-hint">
             建议使用模板，表头自动识别（题目内容、类型、选项A~F、正确答案、标签、知识点、解析、难度、分值）
           </p>

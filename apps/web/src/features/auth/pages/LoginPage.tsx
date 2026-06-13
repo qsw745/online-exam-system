@@ -7,6 +7,7 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLogin } from '../../auth/hooks/useLogin'
 import { DemoAccountsCard } from '../../auth/components/DemoAccountsCard'
 import { LoginForm } from '../../auth/components/LoginForm'
+import { OAuthLoginButtons } from '../../auth/components/OAuthLoginButtons'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { AuthTopControls } from '../components/AuthTopControls'
@@ -113,6 +114,7 @@ const LoginPage: React.FC = () => {
   }
   const accentColor = isDark ? '#60a5fa' : '#1890ff'
   const secondaryTextColor = isDark ? '#94a3b8' : undefined
+  const showDemoAccounts = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
 
   return (
     <div
@@ -171,7 +173,9 @@ const LoginPage: React.FC = () => {
           />
         )}
 
-        <DemoAccountsCard onQuickLogin={quickLogin} />
+        {showDemoAccounts && <DemoAccountsCard onQuickLogin={quickLogin} />}
+
+        <OAuthLoginButtons keep7Days={keep7Days} disabled={loading || inputsDisabled} />
 
         <LoginForm
           email={email}

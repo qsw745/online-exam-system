@@ -2,6 +2,7 @@ import React from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Typography, List, Spin, Result, Space, Button, Tag, Empty } from 'antd'
 import { favoritesApi, type Favorite, type FavoriteItem } from '@/shared/api/endpoints/favorites'
+import { withAppBasePath } from '@/shared/router/basePath'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -67,7 +68,7 @@ export default function SharedFavoritePage() {
         extra={
           <Space>
             <Button onClick={() => navigate(-1)}>返回</Button>
-            <Button type="primary" href="/login">
+            <Button type="primary" href={withAppBasePath('/login')}>
               登录系统
             </Button>
           </Space>

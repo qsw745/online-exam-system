@@ -17,6 +17,17 @@ const wrap =
 
 // 不需要 token 的公开接口
 router.post('/register', wrap(AuthController.register))
+router.get('/oauth/providers', wrap(AuthController.oauthProviders))
+router.get(
+  '/oauth/:provider/start',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:oauth:start`, limit: 20, windowSec: 60 }),
+  wrap(AuthController.oauthStart)
+)
+router.get(
+  '/oauth/:provider/callback',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:oauth:callback`, limit: 30, windowSec: 60 }),
+  wrap(AuthController.oauthCallback)
+)
 router.post(
   '/login',
   rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:login`, limit: 5, windowSec: 60 }),

@@ -106,6 +106,11 @@ export async function decryptLocal(pack: string | null): Promise<string | null> 
 let _cachedPem: string | null = null
 let _rsaKey: CryptoKey | null = null
 
+export function resetRemoteCryptoCache() {
+  _cachedPem = null
+  _rsaKey = null
+}
+
 async function fetchServerPubKey(): Promise<string | null> {
   try {
     // http 的 baseURL 已是 /api，这里用相对路径

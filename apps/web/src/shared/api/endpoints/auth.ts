@@ -1,19 +1,7 @@
 // apps/web/src/shared/api/endpoints/auth.ts
-import { api } from '../core/httpClient'
+import { API_URL, api } from '../core/httpClient'
 import { clearTokenAll } from '../core/storage'
 import type { ApiResult } from '../core/types' // ✅ 仅使用这里的 ApiResult，去掉本文件重复声明
-
-let _lastRedirectAt = 0
-function redirectToLogin(path = '/login') {
-  try {
-    const now = Date.now()
-    const alreadyOnLogin = typeof window !== 'undefined' && window.location?.pathname === path
-    if (!alreadyOnLogin && now - _lastRedirectAt > 2000) {
-      _lastRedirectAt = now
-      window.location.assign(path)
-    }
-  } catch {}
-}
 
 export const auth = {
   /** 登录：如有 enc/alg（前端已加密）优先发加密字段；否则发明文（兼容旧后端） */
@@ -67,7 +55,6 @@ export const auth = {
       try {
         window.dispatchEvent(new CustomEvent('auth:logout'))
       } catch {}
-      redirectToLogin('/login')
     }
   },
 
@@ -95,6 +82,21 @@ export const auth = {
     return api.get<ApiResult<{ id: string; svg: string }> | { id: string; svg: string }>('/captcha/new.json', {
       params: { t: Date.now() },
     })
+  },
+
+  oauthProviders() {
+    return api.get<ApiResult<{ providers: Array<{ provider: 'github' | 'google'; enabled: boolean }> }>>(
+      '/auth/oauth/providers'
+    )
+  },
+
+  oauthStartUrl(provider: 'github' | 'google', opts?: { keep7Days?: boolean; next?: string }) {
+    const base = String(API_URL || '/api').replace(/\/+$/, '')
+    const params = new URLSearchParams()
+    if (opts?.keep7Days) params.set('keep7Days', '1')
+    if (opts?.next) params.set('next', opts.next)
+    const qs = params.toString()
+    return `${base}/auth/oauth/${provider}/start${qs ? `?${qs}` : ''}`
   },
 }
 

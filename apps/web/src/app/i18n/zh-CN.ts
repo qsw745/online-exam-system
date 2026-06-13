@@ -179,6 +179,12 @@ export default {
   'auth.keep7days': '7 天免登录',
   'auth.login_locked': '已锁定 {time} · 重试 {retry}',
   'auth.login_retry_countdown': '重试登录（剩余 {time}）',
+  'auth.oauth_divider': '或使用第三方登录',
+  'auth.login_with_github': '使用 GitHub 登录',
+  'auth.login_with_google': '使用 Google 登录',
+  'auth.oauth_start_failed': '无法发起第三方登录，请稍后重试',
+  'auth.oauth_failed': '第三方登录失败，请重新登录',
+  'auth.oauth_finishing': '正在完成第三方登录…',
   'theme.light': '浅色',
   'theme.dark': '深色',
 

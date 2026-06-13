@@ -3,6 +3,7 @@ import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
 import { useTabs } from '@/shared/contexts/TabsContext'
+import { withAppAssetPath } from '@/shared/router/basePath'
 import { Drawer, Menu, Tooltip } from 'antd'
 import { ChevronsLeft, ChevronsRight } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
@@ -364,7 +365,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           }}
         >
           <img
-            src="/brand-logo.svg"
+            src={withAppAssetPath('/brand-logo.svg')}
             alt="Logo"
             width={20}
             height={20}

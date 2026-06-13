@@ -1,5 +1,6 @@
 import React from 'react'
 import { Button, Result } from 'antd'
+import { withAppBasePath } from '@/shared/router/basePath'
 
 export default function ServerError500() {
   return (
@@ -10,10 +11,10 @@ export default function ServerError500() {
       extra={
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           <a
-            href="/"
+            href={withAppBasePath('/dashboard')}
             onClick={e => {
               e.preventDefault()
-              window.location.assign('/') // 不依赖 React Router
+              window.location.assign(withAppBasePath('/dashboard')) // 不依赖 React Router
             }}
           >
             <Button type="primary">返回首页</Button>

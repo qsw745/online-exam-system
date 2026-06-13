@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons'
 import { Button, Input, Select, Space, Tooltip } from 'antd'
 import { useEffect, useRef, useState } from 'react'
+import { htmlFromPlainText, sanitizeHtml } from '@/shared/utils/sanitizeHtml'
 
 type Props = {
   value?: string
@@ -39,22 +40,35 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   useEffect(() => {
     if (!editorRef.current) return
-    if (value !== undefined && value !== editorRef.current.innerHTML) {
-      editorRef.current.innerHTML = value || ''
+    const next = sanitizeHtml(value || '')
+    if (value !== undefined && next !== editorRef.current.innerHTML) {
+      editorRef.current.innerHTML = next
     }
   }, [value])
+
+  const emitChange = () => {
+    if (!editorRef.current) return
+    onChange?.(sanitizeHtml(editorRef.current.innerHTML))
+  }
 
   const exec = (command: string, arg?: string) => {
     try {
       document.execCommand(command, false, arg)
-      if (editorRef.current) onChange?.(editorRef.current.innerHTML)
+      emitChange()
     } catch {
       // ignore execCommand failures
     }
   }
 
   const handleInput = () => {
-    if (editorRef.current) onChange?.(editorRef.current.innerHTML)
+    emitChange()
+  }
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    const html = e.clipboardData.getData('text/html')
+    const text = e.clipboardData.getData('text/plain')
+    exec('insertHTML', sanitizeHtml(html || htmlFromPlainText(text)))
   }
 
   const handleFontSizeSelect = (label: string) => {
@@ -234,6 +248,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
           lineHeight: 1.6,
         }}
         onInput={handleInput}
+        onPaste={handlePaste}
       />
       {contextMenu && (
         <div

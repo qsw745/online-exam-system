@@ -1,17 +1,17 @@
-# syntax=docker/dockerfile:1
-
 ########################
 # deps：只解析后端依赖并预取到本地 store
 ########################
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# 1) 核心：让 corepack / pnpm 都走国内镜像，并固定 pnpm 版本
-ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+# 1) 固定 pnpm 版本，并允许部署时选择 registry
+ARG NPM_REG=https://registry.npmjs.org
+ARG PNPM_VER=9.15.9
+ENV COREPACK_NPM_REGISTRY=${NPM_REG}
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
-RUN pnpm config set registry https://registry.npmmirror.com
+RUN corepack enable && corepack prepare pnpm@${PNPM_VER} --activate
+RUN pnpm config set registry ${NPM_REG}
 
 # 2) 只拷贝锁文件与后端 package.json，最大化缓存命中
 COPY pnpm-lock.yaml package.json ./
@@ -25,11 +25,13 @@ RUN pnpm fetch --filter ./apps/backend...
 ########################
 FROM node:20-alpine AS build
 WORKDIR /app
-ENV COREPACK_NPM_REGISTRY=https://registry.npmmirror.com
+ARG NPM_REG=https://registry.npmjs.org
+ARG PNPM_VER=9.15.9
+ENV COREPACK_NPM_REGISTRY=${NPM_REG}
 ENV PNPM_HOME=/pnpm
 ENV PATH=$PNPM_HOME:$PATH
-RUN corepack enable && corepack prepare pnpm@9.12.2 --activate
-RUN pnpm config set registry https://registry.npmmirror.com
+RUN corepack enable && corepack prepare pnpm@${PNPM_VER} --activate
+RUN pnpm config set registry ${NPM_REG}
 
 # 带上 pnpm 本地 store 与必要文件
 COPY --from=deps /pnpm /pnpm
