@@ -1,0 +1,38 @@
+server:
+  port: ${PORT:3000}
+  forward-headers-strategy: framework
+
+spring:
+  application:
+    name: online-exam-backend-java
+  datasource:
+    url: jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:exam_system}?useUnicode=true&characterEncoding=utf8&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+    username: ${DB_USER:root}
+    password: ${DB_PASSWORD:root}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      maximum-pool-size: ${DB_CONN_LIMIT:10}
+      minimum-idle: 1
+  jackson:
+    time-zone: Asia/Shanghai
+    default-property-inclusion: non_null
+
+flowable:
+  database-schema-update: true
+  async-executor-activate: true
+  process:
+    definition-cache-limit: 256
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+online-exam:
+  node-backend-url: ${NODE_BACKEND_URL:http://backend-node:3000}
+  auth:
+    jwt-secret: ${JWT_SECRET:}
+    strict-session: ${AUTH_STRICT_SESSION:false}
+  proxy:
+    enabled: ${NODE_PROXY_ENABLED:true}

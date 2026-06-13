@@ -17,6 +17,11 @@ html, body {
 #root {
   min-height: 100vh;
 }
+/* 禁用整页横向滚动条 */
+html, body, #root {
+  width: 100%;
+  overflow-x: hidden;
+}
 
 /* 暗色主题支持 */
 .dark {
@@ -60,3 +65,78 @@ img {
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #777;
 }
+
+
+body[data-content-fullscreen="1"] header,
+
+body[data-content-fullscreen="1"] .ant-layout-sider { display: none !important; }
+
+body[data-content-fullscreen="1"] .ant-layout { padding-top: 0 !important; }
+
+
+/* 让内容占满：去掉因为布局留下的顶内边距/左侧间距 */
+body[data-content-fullscreen="1"] .ant-layout,
+body[data-content-fullscreen="1"] .ant-layout-content {
+  padding-top: 0 !important;
+  margin-left: 0 !important;
+}
+
+/* 如果你的内容容器还有其它自定义外边距，也一起归零（可选） */
+/* body[data-content-fullscreen="1"] .app-content { margin: 0 !important; } */
+
+/* 只隐藏头部和侧栏；标签栏保留 */
+body[data-content-fullscreen="1"] .app-header,
+body[data-content-fullscreen="1"] .app-sider {
+  display: none !important;
+}
+
+/* 全屏时：让标签栏贴顶贴左，铺满宽度，并抬高一层 */
+body[data-content-fullscreen="1"] .app-tabs-bar {
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1200 !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+}
+
+/* 内容区占满：去掉侧边距，并给内容区预留“标签栏高度” */
+body[data-content-fullscreen="1"] .ant-layout,
+body[data-content-fullscreen="1"] .ant-layout-content {
+  margin-left: 0 !important;
+}
+
+body[data-content-fullscreen="1"] .ant-layout {
+  padding-top: 36px !important;   /* 标签栏高度 */
+}
+
+
+/* ========= 内容区全屏（只隐藏头 + 侧，保留标签栏） ========= */
+
+/* 1) 隐藏：你的 header 用的是 .headerWidth；侧栏请确保有 .app-sider 类（见下文） */
+body[data-content-fullscreen="1"] .headerWidth,
+body[data-content-fullscreen="1"] .app-sider {
+  display: none !important;
+}
+
+/* 2) 保留标签栏并贴顶贴左；强制显示避免被旧规则隐藏 */
+body[data-content-fullscreen="1"] .app-tabs-bar {
+  display: block !important;   /* ← 关键，覆盖旧的 display:none */
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  z-index: 1200 !important;
+  box-shadow: 0 1px 0 rgba(0,0,0,.06);
+}
+
+/* 3) 内容区域占满宽度，并为标签栏预留 36px 高度 */
+body[data-content-fullscreen="1"] .ant-layout,
+body[data-content-fullscreen="1"] .ant-layout-content {
+  margin-left: 0 !important;   /* 去掉侧栏预留 */
+}
+
+body[data-content-fullscreen="1"] .ant-layout {
+  padding-top: 36px !important; /* 标签栏高度 */
+}
+
+/* —— 注意：把你旧的这一条彻底删掉 —— */
+/* body[data-content-fullscreen="1"] .app-tabs-bar { display: none !important; } */

@@ -1,97 +1,171 @@
-// apps/web/src/pages/tasks/TaskDetailPage.tsx
-import { Card, Descriptions, Space, Tag, Typography } from 'antd'
-import dayjs from 'dayjs'
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import * as api from '@shared/api/http'
+// src/features/tasks/pages/TaskDetailPage.tsx
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { App, Card, Space, Button } from 'antd'
+import dayjs from '@/shared/utils/dayjs'
+import { TaskDetail } from '../components/TaskDetail'
+import { TaskForm } from '../components/TaskForm'
+import { useTaskById } from '../hooks/useTaskById'
+import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { isSuccess } from '@/shared/api/http'
 
-const { Title } = Typography
+/** ─── 工具：把可能是 string/number 的值安全转成 number ───────────────────────── */
+const toNum = (v: any): number | undefined => {
+  if (v === null || v === undefined || v === '') return undefined
+  const n = Number(v)
+  return Number.isFinite(n) ? n : undefined
+}
+const toNumArr = (a: any): number[] =>
+  Array.isArray(a)
+    ? a
+        .map(x => toNum(typeof x === 'object' ? x?.value ?? x?.id ?? x : x))
+        .filter((n): n is number => typeof n === 'number')
+    : []
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
-  const [loading, setLoading] = useState(true)
-  const [task, setTask] = useState<any>(null)
+  const [sp, setSp] = useSearchParams()
+  const { message } = App.useApp()
+  const nav = useNavigate()
+
+  const { loading, task, refetch } = useTaskById(id)
+  const [editing, setEditing] = useState(sp.get('edit') === '1')
+  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
-    ;(async () => {
-      if (!id) return
-      setLoading(true)
-      const resp = await api.tasks.getById(id)
-      if (resp.success) {
-        const d = (resp.data as any)?.task ?? resp.data
-        setTask(d)
+    setEditing(sp.get('edit') === '1')
+  }, [sp])
+
+  /** 生成表单初始值（全部用 number 做 value，避免 Select 不回显） */
+  const initial = useMemo(() => {
+    if (!task) return undefined
+
+    // 部门与用户 ID 归一化
+    const deptIdsRaw =
+      (task as any).assigned_department_ids ?? ((task as any).assigned_departments ?? []).map((d: any) => d?.id)
+    const userIdsRaw = (task as any).assigned_user_ids ?? (task as any).assigned_users ?? []
+
+    // 试卷 / 考试 ID（后端可能给的是字符串）
+    const paperId = toNum((task as any).paper_id ?? (task as any).paperId) ?? undefined
+    const examId = toNum((task as any).exam_id ?? (task as any).examId)
+
+    return {
+      title: task.title ?? '',
+      description: task.description ?? '',
+      status: (task.status as any) ?? 'not_started',
+      type: (task.type as any) ?? 'practice',
+
+      // 统一为 number，匹配 antd Select 选项的 value
+      exam_id: examId,
+      paper_id: paperId,
+
+      start_time: task.start_time ? dayjs(task.start_time) : undefined,
+      end_time: task.end_time ? dayjs(task.end_time) : undefined,
+
+      assigned_user_ids: toNumArr(
+        Array.isArray(userIdsRaw) ? userIdsRaw.map((u: any) => (typeof u === 'object' ? u?.id : u)) : userIdsRaw
+      ),
+      assigned_department_ids: toNumArr(deptIdsRaw),
+    }
+  }, [task])
+
+  /** 关键：依赖初始值生成一个 key，数据变化时强制重挂载表单，确保 initialValues 生效 */
+  const formKey = useMemo(() => {
+    if (!task || !initial) return 'task-form-empty'
+    const sig = JSON.stringify({
+      id: task.id,
+      exam_id: initial.exam_id,
+      paper_id: initial.paper_id,
+      dept: initial.assigned_department_ids,
+      users: initial.assigned_user_ids,
+      st: initial.start_time?.valueOf?.(),
+      et: initial.end_time?.valueOf?.(),
+    })
+    return `task-form-${sig}`
+  }, [task, initial])
+
+  const enterEdit = () => {
+    sp.set('edit', '1')
+    setSp(sp, { replace: true })
+  }
+  const cancelEdit = () => {
+    sp.delete('edit')
+    setSp(sp, { replace: true })
+  }
+
+  const onSubmit = async (payload: any) => {
+    if (!id) return
+    try {
+      setSaving(true)
+      // 提交前再做一遍 number 归一化，防止控件返回字符串
+      const normalizeDate = (input: any) => {
+        if (!input) return null
+        if (typeof input === 'string') return input
+        if (typeof input?.format === 'function') return input.format('YYYY-MM-DD HH:mm:ss')
+        if (input instanceof Date && !isNaN(input.getTime())) {
+          return dayjs(input).format('YYYY-MM-DD HH:mm:ss')
+        }
+        return null
       }
-      setLoading(false)
-    })()
-  }, [id])
 
-  if (!task) {
-    return (
-      <Card loading={loading} variant="outlined">
-        加载中...
-      </Card>
-    )
+      const patch = {
+        ...payload,
+        exam_id: toNum(payload?.exam_id),
+        paper_id: toNum(payload?.paper_id),
+        assigned_user_ids: toNumArr(payload?.assigned_user_ids),
+        assigned_department_ids: toNumArr(payload?.assigned_department_ids),
+        start_time: normalizeDate(payload?.start_time),
+        end_time: normalizeDate(payload?.end_time),
+      }
+
+      const res: any = (await (tasksApi as any).update?.(id, patch)) ?? {}
+      if (!isSuccess(res)) throw new Error(res?.error || res?.message || '保存失败')
+      message.success('保存成功')
+      cancelEdit()
+      await refetch()
+    } catch (e: any) {
+      message.error(e?.message || '保存失败')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const labelMap: any = {
-    not_started: '待开始',
-    in_progress: '进行中',
-    completed: '已完成',
-    expired: '已过期',
-    published: '已发布',
-    unpublished: '已下线',
+  const onStart = (t: any) => {
+    if (!t) return
+    if (t.type === 'exam') {
+      const examId = toNum(t.exam_id ?? t.examId)
+      if (examId) nav(`/exam/${examId}`)
+    } else {
+      nav(`/practice/${t.id}`)
+    }
   }
-  const colorMap: any = {
-    not_started: 'default',
-    in_progress: 'processing',
-    completed: 'success',
-    expired: 'error',
-    published: 'processing',
-    unpublished: 'warning',
-  }
-
-  const assigned = task.assigned_users || []
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Title level={3} style={{ margin: 0 }}>
-        任务详情
-      </Title>
-
-      <Card
-        title={task.title}
-        extra={<Tag color={colorMap[task.status]}>{labelMap[task.status] || task.status}</Tag>}
-        variant="outlined"
-      >
-        <Descriptions column={1} bordered size="middle">
-          <Descriptions.Item label="描述">{task.description || '-'}</Descriptions.Item>
-          <Descriptions.Item label="类型">{task.type === 'exam' ? '考试' : '练习'}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">
-            {task.start_time ? dayjs(task.start_time).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="结束时间">
-            {task.end_time ? dayjs(task.end_time).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="关联考试ID">{task.exam_id ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="创建时间">
-            {task.created_at ? dayjs(task.created_at).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="更新时间">
-            {task.updated_at ? dayjs(task.updated_at).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="分配用户">
-            <Space wrap>
-              {assigned.length
-                ? assigned.map((u: any) => (
-                    <Tag key={u.id}>
-                      {u.username}（{u.email}）
-                    </Tag>
-                  ))
-                : '-'}
+      {editing ? (
+        <Card
+          title="编辑任务"
+          extra={
+            <Space>
+              <Button onClick={() => nav(-1)}>返回</Button>
+              <Button onClick={cancelEdit}>取消编辑</Button>
             </Space>
-          </Descriptions.Item>
-        </Descriptions>
-      </Card>
+          }
+          variant="outlined"
+          loading={loading}
+        >
+          {/* 给 key 强制重挂载，确保 initialValues 生效并正确回显 */}
+          <TaskForm key={formKey} readOnly={false} initial={initial as any} submitting={saving} onSubmit={onSubmit} />
+        </Card>
+      ) : (
+        <TaskDetail
+          task={task as any}
+          loading={loading}
+          onStart={onStart as any}
+          onBack={() => nav(-1)}
+          onEdit={() => enterEdit()}
+        />
+      )}
     </Space>
   )
 }

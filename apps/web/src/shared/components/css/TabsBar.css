@@ -1,0 +1,212 @@
+/* 基础参数（默认：不溢出时左右安全区为 0 / 仅更多按钮） */
+.tags-view {
+  --tab-h: 36px;
+  --tab-px: 12px;
+  --tab-gap: 0px;
+  --tab-minw: 96px;
+  --split: var(--sider-border, #e5e7eb);
+  --hover-bar-h: 2px;
+  --hover-bar-pad: 0px;
+  --close-size: 16px;
+  --arrow-w: 28px;
+  --more-w: 36px;
+  --right-safe: var(--more-w);
+  --left-safe: 0;
+  border-bottom: 1px solid var(--sider-border, #f0f0f0);
+  background: var(--surface-1, #fff);
+  position: relative;
+}
+
+/* 溢出时再启用左右安全区与遮挡 cover（防穿透） */
+.tags-view[data-overflow='1'] {
+  --right-safe: calc(var(--arrow-w) + var(--more-w) + 8px);
+  --left-safe: var(--arrow-w);
+}
+.tags-view::before,
+.tags-view::after {
+  display: none;
+}
+.tags-view[data-overflow='1']::before,
+.tags-view[data-overflow='1']::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: var(--surface-1, #fff);
+  z-index: 8;
+  pointer-events: none;
+  display: block;
+}
+.tags-view[data-overflow='1']::before {
+  left: 0;
+  width: var(--left-safe);
+  box-shadow: 5px 0 5px -6px #ccc;
+}
+.tags-view[data-overflow='1']::after {
+  right: var(--more-w);
+  width: calc(var(--right-safe) - var(--more-w));
+  border-right: 0.5px solid #ccc;
+  box-shadow: -5px 0 5px -6px #ccc;
+}
+
+/* 箭头（隐藏=display:none，不占位） */
+.arrow-left,
+.arrow-right {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: var(--arrow-w);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1, #fff);
+  color: var(--text-1, rgba(255, 255, 255, 0.9));
+  z-index: 10;
+ 
+  cursor: e-resize;
+}
+.arrow-left {
+  left: 0;
+}
+.arrow-right {
+  right: var(--more-w);
+}
+
+/* 滚动区与条带 */
+.scroll-container {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+.scroll-container::-webkit-scrollbar {
+  display: none;
+}
+
+.tab {
+  display: inline-flex;
+  gap: var(--tab-gap);
+  width: max-content;
+  margin: 0;
+  padding: 0 var(--right-safe) 0 var(--left-safe);
+  user-select: none;
+}
+
+/* 单个标签 */
+.scroll-item {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--tab-minw);
+  height: var(--tab-h);
+  padding: 0 var(--tab-px);
+  background: var(--surface-1, #fff);
+  cursor: pointer;
+}
+.scroll-item.is-active {
+  box-shadow: inset 1px 0 0 var(--split), inset -1px 0 0 var(--split);
+}
+.tab .scroll-item.is-active:first-child {
+  box-shadow: inset -1px 0 0 var(--split);
+}
+
+.tag-title {
+  display: inline-flex;
+  align-items: center;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1, #303133);
+}
+.tag-close {
+  margin-left: 6px;
+  width: var(--close-size);
+  height: var(--close-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  color: var(--text-2, #9aa0a6);
+  opacity: 0.9;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.scroll-item:hover .tag-close {
+  opacity: 1;
+}
+.tag-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-1, #fff);
+}
+
+/* 下划线：active 与 hover */
+.schedule-active,
+.schedule-out {
+  position: absolute;
+  left: var(--hover-bar-pad);
+  right: var(--hover-bar-pad);
+  bottom: 0;
+  height: var(--hover-bar-h);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.22s ease, background 0.12s ease;
+  background: #91c3ff;
+}
+.scroll-item.is-active .schedule-active {
+  transform: scaleX(1);
+  background: #609fff;
+}
+.scroll-item:hover .schedule-out {
+  transform: scaleX(1);
+}
+
+/* 右上更多 */
+.el-dropdown {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--more-w);
+  display: grid;
+  place-items: center;
+  z-index: 11;
+  background: var(--surface-1, #fff);
+}
+.arrow-down {
+  height: 26px;
+  width: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* 自绘右键菜单 */
+.contextmenu {
+  position: fixed;
+  z-index: 1200;
+  min-width: 135px;
+  padding: 6px 0;
+  margin: 0;
+  list-style: none;
+  background: var(--surface-1, #fff);
+  border: 1px solid var(--sider-border, #eee);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(5, 5, 5, 0.35);
+}
+.contextmenu li {
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #333;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+.contextmenu li:hover {
+  background: #f5f7fa;
+}

@@ -1,0 +1,93 @@
+
+.app-main, .app-content, .app-shell {
+  padding-left: var(--sider-width, 0px); /* ⬅ 左占位只认变量 */
+  padding-top: calc(var(--header-height, 48px) + var(--tabs-height, 0px));
+  box-sizing: border-box;
+}
+
+/* ===== 顶部导航（横向 Menu）强制与 Header 等高 ===== */
+.app-header .app-topnav {
+  height: var(--header-height, 48px);
+  line-height: var(--header-height, 48px);
+  border-bottom: none;    /* 我们自己在 Header 上画分隔线 */
+  padding: 0;            /* 去掉可能导致超高的额外内边距 */
+}
+
+/* antd v5 横向菜单会包一层 overflow 容器，这里也要等高 */
+.app-header .app-topnav .ant-menu-overflow {
+  height: var(--header-height, 48px);
+}
+
+/* 每个 item/submenu 等高，避免溢出遮挡 Header 的下边框 */
+.app-header .app-topnav .ant-menu-item,
+.app-header .app-topnav .ant-menu-submenu {
+  height: var(--header-height, 48px);
+  line-height: var(--header-height, 48px);
+  padding-inline: 12px;   /* 仅保留左右内边距，去掉垂直 padding */
+}
+
+/* 文本与图标垂直居中 */
+.app-header .app-topnav .ant-menu-title-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 选中下划线靠近底部，但不再“压住”Header 的分隔线 */
+.app-header .app-topnav .ant-menu-item::after,
+.app-header .app-topnav .ant-menu-submenu::after {
+  bottom: -1px; /* 与 antd 默认一致，确保在 Header 的边框之上可见 */
+}
+
+
+/* ===== 让 TopNav 严格小于 Header 1px，避免遮住 Header 的下边框 ===== */
+.app-header .app-topnav {
+  /* Header 总高度默认 48；内容高度 = 48 - 1 = 47 */
+  height: calc(var(--header-height, 48px) - 1px);
+  line-height: calc(var(--header-height, 48px) - 1px);
+  border-bottom: none;
+  padding: 0;
+  background: transparent;
+  color: var(--text-1);
+}
+
+/* antd 横向菜单的 overflow 容器也要等高 */
+.app-header .app-topnav .ant-menu-overflow {
+  height: calc(var(--header-height, 48px) - 1px);
+}
+
+/* 每个 item 和 submenu 等高，且去掉垂直 padding，防止撑高 */
+.app-header .app-topnav .ant-menu-item,
+.app-header .app-topnav .ant-menu-submenu {
+  height: calc(var(--header-height, 48px) - 1px);
+  line-height: calc(var(--header-height, 48px) - 1px);
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-inline: 12px;
+}
+
+/* 文本与图标垂直居中 */
+.app-header .app-topnav .ant-menu-title-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* 选中下划线保持在菜单内部，不与 Header 的下边框冲突 */
+.app-header .app-topnav .ant-menu-item::after,
+.app-header .app-topnav .ant-menu-submenu::after {
+  bottom: 0; /* 留在内部 47px 容器的底部 */
+}
+
+.app-header .app-topnav .ant-menu,
+.app-header .app-topnav .ant-menu-submenu,
+.app-header .app-topnav .ant-menu-item {
+  background: transparent !important;
+  color: var(--text-1) !important;
+}
+
+.app-header .app-topnav .ant-menu-item-selected {
+  background: rgba(59, 130, 246, 0.14) !important;
+  color: var(--text-1) !important;
+}
+

@@ -2,9 +2,15 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
-# 用 npm 装 pnpm，并统一换镜像源，避免访问 npmjs
-ARG NPM_REG=https://registry.npmmirror.com
-ARG PNPM_VER=9.9.0
+ARG VITE_BASE_PATH=/
+ARG VITE_API_URL=/api
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
+ENV VITE_API_URL=${VITE_API_URL}
+
+# Install pnpm from the selected registry. The default uses npmjs because some
+# transitive packages are missing from the mirror used by the production host.
+ARG NPM_REG=https://registry.npmjs.org
+ARG PNPM_VER=9.15.9
 RUN npm config set registry ${NPM_REG} \
  && npm config set fetch-timeout 600000 \
  && npm config set fetch-retries 5 \

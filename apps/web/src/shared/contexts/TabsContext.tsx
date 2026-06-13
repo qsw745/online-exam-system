@@ -1,0 +1,302 @@
+// src/shared/contexts/TabsContext.tsx
+import { useLayout } from '@/shared/contexts/LayoutContext'
+import { useMenuPermissions, type MenuItem } from '@/shared/contexts/MenuPermissionContext'
+import { getTitle as getRegisteredTitle } from '@/shared/contexts/tabsTitleRegistry'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
+
+export type TabItem = { key: string; title: string; closable?: boolean }
+
+type Ctx = {
+  tabs: TabItem[]
+  activeKey: string
+  addOrActivate: (tab: TabItem) => void
+  closeTab: (key: string) => void
+  closeOthers: (key: string) => void
+  closeAll: () => void
+  rename: (key: string, title: string) => void
+}
+
+const TabsContext = createContext<Ctx | null>(null)
+
+const LS_LIST = 'tabs:v2:list'
+const LS_ACTIVE = 'tabs:v2:active'
+
+const HOME_PATH = '/dashboard'
+
+/* ---------- 工具 ---------- */
+function normalizePath(p: string) {
+  const raw = (p || '/').trim()
+  if (raw === '/' || raw === '') return HOME_PATH
+  const noTrail = raw.replace(/\/+$/, '')
+  return noTrail || HOME_PATH
+}
+const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p)
+const cleanPath = (p?: string | null) =>
+  ('/' + (p || '')).replace(/\/{2,}/g, '/').replace(/(?:\/index|-index)(?=\/?$)/, '')
+const sameOrChild = (cur: string, base: string) => cur === base || cur.startsWith(base + '/')
+
+/** 从菜单树解析“最合适的中文标题” */
+function resolveTitleFromMenus(menus: MenuItem[], fullPath: string): string | null {
+  const target = normalizePath(fullPath)
+
+  // 用两个标量代替 { title, len } 对象，避免闭包里把对象推断成 never
+  let bestTitle: string | null = null
+  let bestLen = -1
+
+  const walk = (list: MenuItem[]) => {
+    for (const m of list || []) {
+      const raw = (m as any).path
+      if (raw && !hasDynamic(raw)) {
+        const p = cleanPath(raw)
+        if (sameOrChild(target, p)) {
+          const t = (m as any).title || ''
+          if (p.length > bestLen) {
+            bestTitle = t
+            bestLen = p.length
+          }
+        }
+      }
+      const cs = (m as any).children
+      if (cs?.length) walk(cs)
+    }
+  }
+
+  walk(menus)
+  return bestTitle
+}
+
+
+/** 统一的“规范标题”：注册表中文 > 菜单中文 > 首页固定中文 > 路径最后一段 */
+function makeDesiredTitle(path: string, menus: MenuItem[]) {
+  const np = normalizePath(path)
+  const reg = getRegisteredTitle(np)
+  if (reg) return reg
+  const fromMenus = resolveTitleFromMenus(menus, np)
+  if (fromMenus) return fromMenus
+  if (np === HOME_PATH) return '仪表盘'
+  const seg = decodeURIComponent(np.split('/').pop() || '')
+  return seg || np
+}
+
+/* ---------- Provider ---------- */
+export function TabsProvider({ children }: { children: ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { persistTabs } = useLayout()
+  const { menus } = useMenuPermissions() // ← 关键：直接用菜单树给标签取中文
+
+  const [tabs, setTabs] = useState<TabItem[]>([])
+  const [activeKey, setActiveKey] = useState<string>('')
+
+  const programNavRef = useRef(false)
+
+  const load = useCallback(() => {
+    if (!persistTabs) return { list: [] as TabItem[], a: '' }
+    try {
+      const listRaw = localStorage.getItem(LS_LIST)
+      const activeRaw = localStorage.getItem(LS_ACTIVE)
+      const list = listRaw ? (JSON.parse(listRaw) as TabItem[]) : []
+      const a = typeof activeRaw === 'string' ? activeRaw : ''
+      return { list, a }
+    } catch {
+      return { list: [], a: '' }
+    }
+  }, [persistTabs])
+
+  const persist = useCallback(
+    (list: TabItem[], a: string) => {
+      if (!persistTabs) {
+        try {
+          localStorage.removeItem(LS_LIST)
+          localStorage.removeItem(LS_ACTIVE)
+        } catch {}
+        return
+      }
+      try {
+        localStorage.setItem(LS_LIST, JSON.stringify(list))
+        localStorage.setItem(LS_ACTIVE, a || '')
+      } catch {}
+    },
+    [persistTabs]
+  )
+
+  // 初次装载：把本地缓存里的标题也统一成中文
+  useEffect(() => {
+    const { list, a } = load()
+    const cur = normalizePath(location.pathname || '/')
+
+    const mergedMap = new Map<string, TabItem>()
+    for (const t of list as TabItem[]) {
+      const k = normalizePath(t.key)
+      mergedMap.set(k, {
+        key: k,
+        title: makeDesiredTitle(k, menus),
+        closable: k !== HOME_PATH,
+      })
+    }
+    // 初次装载：Map → Array 时显式类型
+    let merged: TabItem[] = Array.from(mergedMap.values())
+    if (!merged.length) {
+      const first: TabItem = { key: cur, title: makeDesiredTitle(cur, menus), closable: cur !== HOME_PATH }
+      merged = [first]
+      setTabs(merged)
+      setActiveKey(cur)
+      persist(merged, cur)
+    } else {
+      const active = normalizePath(a || merged[0]?.key || cur)
+      setTabs(merged)
+      setActiveKey(active)
+      persist(merged, active)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [persistTabs, menus])
+
+  // 路由变化 → 同步标签 & 始终覆写为中文标题
+  // 路由变化 → 同步标签 & 始终覆写为中文标题
+  useEffect(() => {
+    if (programNavRef.current) programNavRef.current = false
+    const cur = normalizePath(location.pathname || '/')
+    const desiredTitle = makeDesiredTitle(cur, menus)
+
+    setActiveKey(prev => (prev === cur ? prev : cur))
+    setTabs(prev => {
+      const prevTabs: TabItem[] = Array.isArray(prev) ? (prev as TabItem[]) : []
+      const withoutParents: TabItem[] = prevTabs.filter(t => !(t.key !== cur && cur.startsWith(t.key + '/')))
+      const exists = withoutParents.some(t => t.key === cur)
+
+      if (exists) {
+        // ★ 这里用显式 push，避免 map 条件分支把类型推成 never
+        const next: TabItem[] = []
+        for (const t of withoutParents) {
+          if (t.key === cur) {
+            next.push({ key: t.key, title: desiredTitle, closable: t.closable })
+          } else {
+            next.push(t)
+          }
+        }
+        persist(next, cur)
+        return next
+      }
+
+      const t: TabItem = { key: cur, title: desiredTitle, closable: cur !== HOME_PATH }
+      const next: TabItem[] = [...withoutParents, t]
+      persist(next, cur)
+      return next
+    })
+  }, [location.pathname, menus, persist])
+
+  // 统一入口：忽略外部传入的 title，强制使用规范中文标题
+  const addOrActivate = useCallback(
+    (tab: TabItem) => {
+      const path = normalizePath(tab.key)
+      const desiredTitle = makeDesiredTitle(path, menus)
+
+      const tabFixed: TabItem = {
+        key: path,
+        title: desiredTitle,
+        closable: path !== HOME_PATH,
+      }
+
+      setTabs(prev => {
+        const exists = prev.some(t => t.key === path)
+        const next = exists ? prev.map(t => (t.key === path ? { ...t, ...tabFixed } : t)) : [...prev, tabFixed]
+        persist(next, path)
+        return next
+      })
+
+      setActiveKey(path)
+      if (normalizePath(location.pathname) !== path) {
+        programNavRef.current = true
+        navigate(path)
+      }
+    },
+    [location.pathname, navigate, persist, menus]
+  )
+
+  const closeTab = useCallback(
+    (key: string) => {
+      const k = normalizePath(key)
+      setTabs(prev => {
+        const idx = prev.findIndex(t => t.key === k)
+        if (idx === -1) return prev
+        const next = prev.filter(t => t.key !== k)
+        let nextActive = activeKey
+
+        if (k === activeKey) {
+          const fallback = next[idx - 1]?.key || next[idx]?.key || HOME_PATH
+          nextActive = fallback
+          if (normalizePath(location.pathname) !== fallback) {
+            programNavRef.current = true
+            navigate(fallback)
+          }
+        }
+        persist(next, nextActive)
+        setActiveKey(nextActive)
+        return next
+      })
+    },
+    [activeKey, location.pathname, navigate, persist]
+  )
+
+  const closeOthers = useCallback(
+    (key: string) => {
+      const target = normalizePath(key)
+      setTabs(prev => {
+        const me = prev.find(t => t.key === target)
+        const next: TabItem[] = me
+          ? [me]
+          : [{ key: HOME_PATH, title: makeDesiredTitle(HOME_PATH, menus), closable: false }]
+        const to = me ? me.key : HOME_PATH
+        if (normalizePath(location.pathname) !== to) {
+          programNavRef.current = true
+          navigate(to)
+        }
+        persist(next, to)
+        setActiveKey(to)
+        return next
+      })
+    },
+    [location.pathname, navigate, persist, menus]
+  )
+
+  // closeAll：★ 兜底 also 显式为 TabItem[]
+  const closeAll = useCallback(() => {
+    const home = HOME_PATH
+    const only: TabItem[] = [{ key: home, title: makeDesiredTitle(home, menus), closable: false }]
+
+    setTabs(only)
+    setActiveKey(home)
+    persist(only, home)
+    if (normalizePath(location.pathname) !== home) {
+      programNavRef.current = true
+      navigate(home)
+    }
+  }, [location.pathname, navigate, persist, menus])
+
+  const rename = useCallback(
+    (key: string, title: string) => {
+      const k = normalizePath(key)
+      setTabs(prev => {
+        const prevTabs: TabItem[] = Array.isArray(prev) ? (prev as TabItem[]) : []
+        const next: TabItem[] = prevTabs.map(t => (t.key === k ? ({ ...t, title } as TabItem) : t))
+        persist(next, activeKey)
+        return next
+      })
+    },
+    [activeKey, persist]
+  )
+
+  const value: Ctx = useMemo(
+    () => ({ tabs, activeKey, addOrActivate, closeTab, closeOthers, closeAll, rename }),
+    [tabs, activeKey, addOrActivate, closeTab, closeOthers, closeAll, rename]
+  )
+
+  return <TabsContext.Provider value={value}>{children}</TabsContext.Provider>
+}
+
+export function useTabs() {
+  const ctx = useContext(TabsContext)
+  if (!ctx) throw new Error('useTabs must be used within TabsProvider')
+  return ctx
+}

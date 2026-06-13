@@ -1,48 +1,68 @@
-# ---------- build ----------
-FROM node:20-alpine AS build
+########################
+# deps：只解析后端依赖并预取到本地 store
+########################
+FROM node:20-alpine AS deps
 WORKDIR /app
 
-# 加速镜像源 & 必要构建工具
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
- && apk add --no-cache python3 make g++
+# 1) 固定 pnpm 版本，并允许部署时选择 registry
+ARG NPM_REG=https://registry.npmjs.org
+ARG PNPM_VER=9.15.9
+ENV COREPACK_NPM_REGISTRY=${NPM_REG}
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@${PNPM_VER} --activate
+RUN pnpm config set registry ${NPM_REG}
 
-# 安装 pnpm（统一国内源）
-ARG PNPM_VER=9.9.0
-ARG NPM_REG=https://registry.npmmirror.com
-RUN npm config set registry ${NPM_REG} \
- && npm i -g pnpm@${PNPM_VER} --registry=${NPM_REG} \
- && pnpm config set registry ${NPM_REG}
-
-# 只拷清单，充分利用缓存
-COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
+# 2) 只拷贝锁文件与后端 package.json，最大化缓存命中
+COPY pnpm-lock.yaml package.json ./
 COPY apps/backend/package.json apps/backend/package.json
 
-# 预取依赖（含 dev 依赖用于编译）
-RUN pnpm fetch --filter ./apps/backend... --prod=false
+# 3) 仅为后端预取依赖（离线缓存）
+RUN pnpm fetch --filter ./apps/backend...
 
-# 拷贝源码并安装、构建（不 prune，保留全部依赖，避免缺包）
+########################
+# build：安装 + 构建 + 打包可运行产物
+########################
+FROM node:20-alpine AS build
+WORKDIR /app
+ARG NPM_REG=https://registry.npmjs.org
+ARG PNPM_VER=9.15.9
+ENV COREPACK_NPM_REGISTRY=${NPM_REG}
+ENV PNPM_HOME=/pnpm
+ENV PATH=$PNPM_HOME:$PATH
+RUN corepack enable && corepack prepare pnpm@${PNPM_VER} --activate
+RUN pnpm config set registry ${NPM_REG}
+
+# 带上 pnpm 本地 store 与必要文件
+COPY --from=deps /pnpm /pnpm
+COPY --from=deps /app/pnpm-lock.yaml /app/package.json ./
+COPY --from=deps /app/apps/backend/package.json /app/apps/backend/package.json
+
+# 拷贝源代码
 COPY . .
-RUN pnpm -C apps/backend install --offline \
- && pnpm -C apps/backend build
 
-# ---------- runtime ----------
-FROM node:20-alpine AS runtime
+# 只安装后端依赖（优先离线，不足再走镜像）
+RUN pnpm -r install --filter ./apps/backend... --frozen-lockfile --prefer-offline
+
+# 构建 TS 到 dist
+RUN pnpm -C apps/backend build
+
+# 用 pnpm deploy 产出仅含生产依赖的自包含目录
+RUN pnpm deploy --filter ./apps/backend... --prod /out
+
+# 确保 dist 存在于 /out（某些配置未包含 dist 时兜底复制）
+RUN mkdir -p /out/dist && cp -r apps/backend/dist/* /out/dist/ || true
+
+########################
+# runner：仅运行，不再使用 pnpm（无需联网）
+########################
+FROM node:20-alpine AS runner
+WORKDIR /app
 ENV NODE_ENV=production
-WORKDIR /app/apps/backend
 
-# 可选：保留原生模块工具（如无原生依赖可删掉）
-RUN sed -i 's/dl-cdn.alpinelinux.org/mirrors.aliyun.com/g' /etc/apk/repositories \
- && apk add --no-cache python3 make g++
-
-# 关键：既要拷贝 backend 的 node_modules，也要拷贝 pnpm 的虚拟仓库 /app/node_modules
-COPY --from=build /app/apps/backend/dist ./dist
-COPY --from=build /app/apps/backend/node_modules ./node_modules
-COPY --from=build /app/node_modules /app/node_modules
-COPY apps/backend/package.json ./
-
-# 保险：让 Node 也能从 /app/node_modules 解析（可选，但推荐）
-ENV NODE_PATH=/app/node_modules:/app/apps/backend/node_modules
-RUN node -e "require('module').Module._initPaths()"
+# 拷贝可运行产物（含 node_modules）
+COPY --from=build /out /app
 
 EXPOSE 3000
+# 如果你的入口不是 dist/app.js，把下面改成实际入口
 CMD ["node", "dist/app.js"]

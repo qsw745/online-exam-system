@@ -1,4 +1,5 @@
-// src/lib/dayjs.ts
+// apps/web/src/shared/utils/dayjs.ts
+// 单点封装，解决 TS2306 与运行时兼容问题；所有代码都从这里引入 dayjs。
 import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import localeData from 'dayjs/plugin/localeData'

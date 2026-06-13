@@ -1,245 +1,208 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Mail, Lock, BookOpen } from 'lucide-react';
-import { useAuth } from '@shared/contexts/AuthContext';
+import React, { useEffect, useRef } from 'react'
+import { Alert, Card, Typography } from 'antd'
+import { Link, useNavigate } from 'react-router-dom'
+import { BookOpen } from 'lucide-react'
 
-import { Button, App, Card, Input, Checkbox, Space, Typography, Divider } from 'antd';
-import { UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons';
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLogin } from '../../auth/hooks/useLogin'
+import { DemoAccountsCard } from '../../auth/components/DemoAccountsCard'
+import { LoginForm } from '../../auth/components/LoginForm'
+import { OAuthLoginButtons } from '../../auth/components/OAuthLoginButtons'
+import { menuApi } from '@/shared/api/endpoints/menu'
+import { useTheme } from '@/app/providers/AntdThemeProvider'
+import { AuthTopControls } from '../components/AuthTopControls'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
-const { Title, Text, Link: AntLink } = Typography;
+const { Title, Text } = Typography
+
+function pickDefaultHome(tree: any[] | null | undefined): string {
+  const isAdminAbs = (abs: string) => abs === '/admin' || abs.startsWith('/admin/')
+  let firstPage: string | null = null
+  function joinAbs(parentAbs: string, childPath: string | null | undefined): string {
+    const raw = (childPath || '').trim()
+    if (!raw) return parentAbs || '/'
+    if (raw.startsWith('/')) return raw.replace(/\/{2,}/g, '/')
+    const base = parentAbs && parentAbs !== '/' ? parentAbs : ''
+    return `${base}/${raw}`.replace(/\/{2,}/g, '/')
+  }
+  const walk = (nodes: any[], parentAbs = ''): string | null => {
+    for (const n of nodes || []) {
+      if (!n || n.is_disabled) continue
+      const abs = joinAbs(parentAbs, n.path)
+      if (isAdminAbs(abs)) continue
+      if (n.component && !n.is_hidden) {
+        if (abs === '/dashboard') return '/dashboard'
+        if (!firstPage) firstPage = abs
+      }
+      if (n.children?.length) {
+        const hit = walk(n.children, abs)
+        if (hit) return hit
+      }
+    }
+    return null
+  }
+  return walk(tree || []) || firstPage || '/dashboard'
+}
 
 const LoginPage: React.FC = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
-  const { signIn } = useAuth();
-  const navigate = useNavigate();
-  const { message } = App.useApp();
-  
-  // 页面加载时，检查是否有保存的登录信息
+  const { mode } = useTheme()
+  const { t } = useLanguage()
+  const {
+    email,
+    setEmail,
+    password,
+    setPassword,
+    rememberMe,
+    setRememberMe,
+    keep7Days,
+    setKeep7Days,
+    loading,
+    submit,
+    submitDisabled,
+    inputsDisabled,
+    isLocked,
+    lockRemainingSec, // ✅ 取出剩余秒
+    lockCountdownText,
+    lockUiHint,
+    lockTryRemainSec,
+    lockRetryCountdownText,
+
+    captchaRequired,
+    captcha,
+    setCaptcha,
+    captchaImgUrl,
+    refreshCaptcha,
+    quickLogin,
+  } = useLogin()
+
+  const { user, loading: authLoading } = useAuth()
+  const navigate = useNavigate()
+  const navigatedRef = useRef(false)
+
   useEffect(() => {
-    const savedEmail = localStorage.getItem('rememberedEmail');
-    if (savedEmail) {
-      setEmail(savedEmail);
-      setRememberMe(true);
-    }
-  }, []);
-  
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!email || !password) {
-      message.error('请填写所有必需字段');
-      return;
-    }
-    
-    setLoading(true);
-    
-    try {
-      await signIn(email, password, rememberMe);
-      
-      // 如果勾选了记住我，保存邮箱到本地存储
-      if (rememberMe) {
-        localStorage.setItem('rememberedEmail', email);
-      } else {
-        localStorage.removeItem('rememberedEmail');
+    if (navigatedRef.current) return
+    if (!authLoading && user) {
+      const cached = menuApi.getRouteTreeCached?.()
+      const go = (to: string) => {
+        navigatedRef.current = true
+        navigate(to, { replace: true, state: { __bump: Date.now() } })
       }
-      
-      message.success('登录成功');
-      navigate('/dashboard');
-    } catch (error: any) {
-      console.error('登录错误:', error);
-      
-      // 处理不同类型的错误
-      let errorMessage = '登录失败';
-      
-      // 首先检查是否是从 api.ts 抛出的具体错误信息
-      if (error.message) {
-        errorMessage = error.message;
-      } else if (error.response) {
-        const { status, data } = error.response;
-        switch (status) {
-          case 401:
-            errorMessage = '邮箱或密码错误，请检查后重试';
-            break;
-          case 403:
-            errorMessage = '账号已被禁用，请联系管理员';
-            break;
-          case 429:
-            errorMessage = '请求过于频繁，请稍后再试';
-            break;
-          default:
-            errorMessage = data.message || '未知错误';
-        }
-      } else if (error.request) {
-        errorMessage = '服务器无响应，请稍后重试';
-      } else {
-        errorMessage = '网络连接错误，请检查网络后重试';
-      }
-      
-      message.error(errorMessage);
-    } finally {
-      setLoading(false);
+      if (cached && Array.isArray(cached)) go(pickDefaultHome(cached))
+      else
+        menuApi
+          .routeTree()
+          .then(tree => go(pickDefaultHome(tree)))
+          .catch(() => go('/dashboard'))
     }
-  };
-  
-  // 演示账号快速登录
-  const quickLogin = (demoEmail: string, demoPassword: string = 'demo123456') => {
-    setEmail(demoEmail);
-    setPassword(demoPassword);
-  };
-  
+  }, [authLoading, user, navigate])
+
+  if (!authLoading && user) return null
+
+  const lockedNow = isLocked && lockRemainingSec > 0 // ✅ 只要还在锁期就显示
+  const isDark = mode === 'dark'
+  const pageBackground = isDark
+    ? 'radial-gradient(circle at 20% -20%, rgba(37,99,235,0.4), transparent 55%), linear-gradient(135deg, #020617 0%, #0b1220 45%, #020617 100%)'
+    : 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
+  const cardStyle: React.CSSProperties = {
+    width: '100%',
+    maxWidth: 520,
+    boxShadow: isDark ? '0 30px 80px rgba(0,0,0,.55)' : '0 12px 40px rgba(15,23,42,.15)',
+    border: `1px solid ${isDark ? 'rgba(148,163,184,0.2)' : 'rgba(148,163,184,0.35)'}`,
+    background: isDark ? 'rgba(15,23,42,0.92)' : '#ffffff',
+    color: isDark ? '#f8fafc' : undefined,
+    backdropFilter: 'blur(6px)',
+  }
+  const accentColor = isDark ? '#60a5fa' : '#1890ff'
+  const secondaryTextColor = isDark ? '#94a3b8' : undefined
+  const showDemoAccounts = import.meta.env.DEV || import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
+
   return (
-    <div style={{ 
-      minHeight: '100vh', 
-      display: 'flex', 
-      alignItems: 'center', 
-      justifyContent: 'center',
-      padding: '24px',
-      background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)'
-    }}>
-      <Card 
-        style={{ 
-          width: '100%', 
-          maxWidth: 500,
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '32px 16px',
+        background: pageBackground,
+        position: 'relative',
+        overflow: 'hidden',
+      }}
+    >
+      <AuthTopControls
+        style={{
+          position: 'absolute',
+          top: 24,
+          right: 24,
         }}
-      >
-        {/* Logo 和标题 */}
+      />
+      <Card style={cardStyle} styles={{ body: { padding: 32 } }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{
-            width: 64,
-            height: 64,
-            background: 'linear-gradient(135deg, #1890ff, #722ed1)',
-            borderRadius: 12,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            margin: '0 auto 16px'
-          }}>
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              background: isDark ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : 'linear-gradient(135deg, #1890ff, #722ed1)',
+              borderRadius: 12,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}
+          >
             <BookOpen style={{ width: 32, height: 32, color: 'white' }} />
           </div>
-          <Title level={2} style={{ marginBottom: 8 }}>登录您的账户</Title>
-          <Text type="secondary">
-            还没有账户？
-            <Link to="/register" style={{ marginLeft: 4 }}>
-              立即注册
+          <Title level={2} style={{ marginBottom: 8, color: isDark ? '#f1f5f9' : undefined }}>
+            {t('auth.login_title')}
+          </Title>
+          <Text type="secondary" style={{ color: secondaryTextColor }}>
+            {t('auth.no_account')}
+            <Link to="/register" style={{ marginLeft: 4, color: accentColor }}>
+              {t('auth.register_now')}
             </Link>
           </Text>
         </div>
-        
-        {/* 演示账号 */}
-        <Card 
-          size="small" 
-          style={{ 
-            backgroundColor: '#f0f8ff', 
-            border: '1px solid #d6e4ff',
-            marginBottom: 24
-          }}
-        >
-          <Title level={5} style={{ marginBottom: 12, color: '#1890ff' }}>演示账号快速登录</Title>
-          <Space direction="vertical" style={{ width: '100%' }} size={8}>
-            <Button
-              block
-              size="small"
-              onClick={() => quickLogin('admin@demo.com')}
-              style={{ textAlign: 'left', height: 'auto', padding: '8px 12px' }}
-            >
-              <div>
-                <Text strong style={{ color: '#1890ff' }}>管理员: </Text>
-                <Text style={{ color: '#1890ff' }}>admin@demo.com</Text>
-              </div>
-            </Button>
-            <Button
-              block
-              size="small"
-              onClick={() => quickLogin('teacher@demo.com')}
-              style={{ textAlign: 'left', height: 'auto', padding: '8px 12px' }}
-            >
-              <div>
-                <Text strong style={{ color: '#1890ff' }}>教师: </Text>
-                <Text style={{ color: '#1890ff' }}>teacher@demo.com</Text>
-              </div>
-            </Button>
-            <Button
-              block
-              size="small"
-              onClick={() => quickLogin('student@demo.com')}
-              style={{ textAlign: 'left', height: 'auto', padding: '8px 12px' }}
-            >
-              <div>
-                <Text strong style={{ color: '#1890ff' }}>学生: </Text>
-                <Text style={{ color: '#1890ff' }}>student@demo.com</Text>
-              </div>
-            </Button>
-          </Space>
-          <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
-            所有演示账号密码都是：demo123456
-          </Text>
-        </Card>
-        
-        {/* 登录表单 */}
-        <form onSubmit={handleSubmit}>
-          <Space direction="vertical" style={{ width: '100%' }} size={16}>
-            {/* 邮箱 */}
-            <div>
-              <Text style={{ display: 'block', marginBottom: 8 }}>邮箱地址</Text>
-              <Input
-                prefix={<UserOutlined />}
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="请输入您的邮箱"
-                size="large"
-                required
-              />
-            </div>
-            
-            {/* 密码 */}
-            <div>
-              <Text style={{ display: 'block', marginBottom: 8 }}>密码</Text>
-              <Input.Password
-                prefix={<LockOutlined />}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入您的密码"
-                size="large"
-                iconRender={(visible) => (visible ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
-                required
-              />
-            </div>
-            
-            {/* 记住我和忘记密码 */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Checkbox
-                checked={rememberMe}
-                onChange={(e) => setRememberMe(e.target.checked)}
-              >
-                记住我
-              </Checkbox>
-              
-              <Link to="/forgot-password">
-                忘记密码？
-              </Link>
-            </div>
-            
-            {/* 登录按钮 */}
-            <Button
-              type="primary"
-              htmlType="submit"
-              loading={loading}
-              size="large"
-              block
-            >
-              登录
-            </Button>
-          </Space>
-        </form>
+
+        {lockedNow && (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={lockUiHint}
+            description={`请等待 ${lockCountdownText} 后重试`}
+          />
+        )}
+
+        {showDemoAccounts && <DemoAccountsCard onQuickLogin={quickLogin} />}
+
+        <OAuthLoginButtons keep7Days={keep7Days} disabled={loading || inputsDisabled} />
+
+        <LoginForm
+          email={email}
+          password={password}
+          rememberMe={rememberMe}
+          keep7Days={keep7Days}
+          loading={loading}
+          onEmailChange={setEmail}
+          onPasswordChange={setPassword}
+          onRememberChange={setRememberMe}
+          onKeep7DaysChange={setKeep7Days}
+          onSubmit={submit}
+          submitDisabled={submitDisabled}
+          inputsDisabled={inputsDisabled}
+          isLocked={isLocked}
+          lockCountdownText={lockCountdownText}
+          lockTryRemainSec={lockTryRemainSec}
+          lockRetryCountdownText={lockRetryCountdownText}
+          captchaRequired={captchaRequired}
+          captcha={captcha}
+          captchaImgUrl={captchaImgUrl}
+          onCaptchaChange={setCaptcha}
+          onRefreshCaptcha={refreshCaptcha}
+        />
       </Card>
     </div>
-  );
-};
+  )
+}
 
-export default LoginPage;
+export default LoginPage

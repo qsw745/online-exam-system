@@ -1,4 +1,9 @@
-# Dependencies
+# =========================
+# Monorepo: online-exam-system
+# apps: backend / web / ...
+# =========================
+
+########## 依赖产物 ##########
 node_modules/
 */node_modules/
 npm-debug.log*
@@ -6,102 +11,85 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.yarn-integrity
 
-# Environment variables
+########## 环境变量（保留示例） ##########
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
-backend/.env
+# monorepo 子包 env（按需保留示例文件）
+apps/backend/.env
+apps/web/.env
+!.env.example
+!apps/**/.env.example
 
-# Build outputs
+########## 构建产物 / 缓存 ##########
+# 统一把所有包的构建产物忽略
 dist/
 build/
-*.tsbuildinfo
-
-# Runtime data
-pids
-*.pid
-*.seed
-*.pid.lock
-
-# Coverage directory used by tools like istanbul
-coverage/
-*.lcov
-
-# nyc test coverage
-.nyc_output
-
-# Dependency directories
-jspm_packages/
-
-# TypeScript cache
-*.tsbuildinfo
-
-# Optional npm cache directory
-.npm
-
-# Optional eslint cache
-.eslintcache
-
-# Microbundle cache
+target/
+*/target/
+apps/backend-java/app.jar
+# 框架/工具缓存
+.cache/
+.playwright-mcp/
+.parcel-cache/
+.next/
+out/
+.nuxt/
+.storybook-out/
 .rpt2_cache/
 .rts2_cache_cjs/
 .rts2_cache_es/
 .rts2_cache_umd/
+.nyc_output
+coverage/
+*.lcov
+# TypeScript
+*.tsbuildinfo
+# ESLint / npm 缓存
+.eslintcache
+.npm
 
-# Optional REPL history
-.node_repl_history
+########## 运行时数据 ##########
+pids
+*.pid
+*.pid.lock
+*.seed
 
-# Output of 'npm pack'
-*.tgz
-
-# Yarn Integrity file
-.yarn-integrity
-
-# parcel-bundler cache (https://parceljs.org/)
-.cache
-.parcel-cache
-
-# Next.js build output
-.next
-out
-
-# Nuxt.js build / generate output
-.nuxt
-dist
-
-# Gatsby files
-.cache/
-public
-
-# Storybook build outputs
-.out
-.storybook-out
-
-# Temporary folders
-tmp/
-temp/
-
-# Logs
-logs
+########## 日志（只忽略根目录或运行时日志目录，避免误伤 src/logs 源码） ##########
+/logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+# 如果后端有固定的运行日志目录，用更精确的路径（按你项目调整）
+apps/backend/logs/
+# 明确：保留任意包里的源码日志 UI（如 src/logs 下的 .tsx）
+!**/src/logs/**
+!**/src/**/logs/**
+# 如果确实需要保留某些调试日志文件，也可单独反选：
+#!apps/backend/logs/keep-me.log
 
-# Database files
+########## 数据库文件（避免把本地 DB 提交上去） ##########
 *.db
 *.sqlite
 *.sqlite3
 database.db
 
-# IDE files
+########## 上传目录（运行时生成） ##########
+uploads/
+apps/backend/uploads/
+apps/web/uploads/
+
+########## IDE / OS ##########
 .vscode/settings.json
 .idea/
 *.swp
 *.swo
 *~
-
-# OS generated files
 .DS_Store
 .DS_Store?
 ._*
@@ -110,25 +98,18 @@ database.db
 ehthumbs.db
 Thumbs.db
 
-# Upload directories
-uploads/
-backend/uploads/
-
-# Token files
-token.txt
-
-# Test and debug files
+########## 测试/调试临时代码（按需保留） ##########
 test-*.js
 debug-*.js
 debug-*.html
 check-*.html
 
-# Documentation files (optional)
-*.docx
-*.pdf
-*.tar
+########## 文档/归档（可选忽略；若仓库需要方案/设计文档，建议删除此段） ##########
+# *.docx
+# *.pdf
+# *.tar
 
-# SQL migration files (keep structure but exclude data)
+########## SQL（保留迁移和结构，忽略其他） ##########
 *.sql
 !**/migrations/*.sql
 !**/database/schema.sql

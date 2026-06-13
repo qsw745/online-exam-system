@@ -1,21 +1,28 @@
-// apps/backend/src/bootstrap/syncMenus.ts
-import type { RowDataPacket, ResultSetHeader } from 'mysql2'
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { type RowDataPacket, type ResultSetHeader, type Pool } from 'mysql2/promise'
+import { pool } from '@/config/database'
+import { MENU_TREE, type MenuSeed } from './menu.config'
 
-import { pool } from '../config/database.js'
-import { MENU_TREE, type MenuSeed } from './menu.config.js'
-
-// 用“普通行类型”，不要继承 RowDataPacket
 type DbMenuRow = {
   id: number
   name: string
+  title?: string | null
   path: string | null
+  component?: string | null
+  icon?: string | null
   parent_id: number | null
   sort_order: number | null
   level: number | null
-  is_system?: number
+  is_hidden?: number | boolean
+  is_disabled?: number | boolean
+  is_system?: number | boolean
+  menu_type?: string | null
+  permission_code?: string | null
+  redirect?: string | null
+  meta?: any
 }
-// 仅用于 query 的返回类型：满足 mysql2 的约束
 type DbMenuRowFromDB = DbMenuRow & RowDataPacket
+
 type SyncMode = 'force' | 'patch' | 'insertOnly'
 
 const ALLOWED_MENU_TYPES = new Set(['menu', 'page', 'button', 'link', 'iframe', 'dir'])
@@ -24,94 +31,199 @@ const normalizeMenuType = (t?: string) => {
   return ALLOWED_MENU_TYPES.has(v) ? v : 'menu'
 }
 
+function markSystem(nodes: MenuSeed[]): MenuSeed[] {
+  return (nodes || []).map(n => ({
+    ...n,
+    is_system: true,
+    children: n.children?.length ? markSystem(n.children) : undefined,
+  }))
+}
+
 export async function syncMenus(options?: { removeOrphans?: boolean; mode?: SyncMode }) {
   const mode: SyncMode = options?.mode ?? 'patch'
-  const conn = await pool.getConnection()
+  const conn = await (pool as Pool).getConnection()
   try {
     await conn.beginTransaction()
 
-    // 用 DbMenuRow 做泛型即可
-  const [rows] = await conn.query<DbMenuRowFromDB[]>(
-    'SELECT id, name, path, parent_id, sort_order, level, is_system FROM menus'
-  )
+    const [allRows] = await conn.query<DbMenuRowFromDB[]>(
+      `SELECT id, name, title, path, component, icon, parent_id, sort_order, level,
+              is_hidden, is_disabled, is_system, menu_type, permission_code, redirect, meta
+         FROM menus`
+    )
+    const systemRows = allRows.filter(r => Number(r.is_system ?? 0) === 1)
 
-    const name2row = new Map<string, DbMenuRow>()
-    const path2row = new Map<string, DbMenuRow>()
-    rows.forEach(r => {
-      name2row.set(r.name, r)
-      if (r.path) path2row.set(r.path, r)
+    const name2Any = new Map<string, DbMenuRow>()
+    const path2Any = new Map<string, DbMenuRow>()
+    allRows.forEach(r => {
+      name2Any.set(r.name, r)
+      if (r.path) path2Any.set(r.path, r)
+    })
+
+    const name2System = new Map<string, DbMenuRow>()
+    const path2System = new Map<string, DbMenuRow>()
+    systemRows.forEach(r => {
+      name2System.set(r.name, r)
+      if (r.path) path2System.set(r.path, r)
     })
 
     const seenNames = new Set<string>()
     let autoSort = 1
+    const seeds = markSystem(MENU_TREE)
+
+    async function clearPathIfOccupied(targetPath: string | null | undefined, keepId?: number) {
+      if (!targetPath) return
+      const occ = path2Any.get(targetPath)
+      if (occ && (!keepId || occ.id !== keepId)) {
+        await conn.query(`UPDATE menus SET path=NULL, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [occ.id])
+        path2Any.delete(targetPath)
+        path2System.delete(targetPath)
+      }
+    }
 
     async function upsertNode(node: MenuSeed, parentId: number | null, level: number) {
       seenNames.add(node.name)
       const metaJson = node.meta ? JSON.stringify(node.meta) : null
       const path = node.path ?? null
 
-      // 先按 name 找，找不到再按 path 找
-      let exists: DbMenuRow | undefined = name2row.get(node.name) ?? (path ? path2row.get(path) : undefined)
+      // 匹配优先级
+      let exists: DbMenuRow | undefined =
+        name2System.get(node.name) ?? (!parentId && path ? path2System.get(path) : undefined)
 
-      // 软字段
+      if (!exists) {
+        const any = name2Any.get(node.name) ?? (!parentId && path ? path2Any.get(path) : undefined)
+        if (any) {
+          if (mode === 'insertOnly') {
+            await conn.query(`UPDATE menus SET is_system=1, updated_at=CURRENT_TIMESTAMP WHERE id=?`, [any.id])
+          } else {
+            let nextParent = parentId
+            let nextSort = node.sort_order ?? autoSort++
+            let nextLevel = level
+            if (mode === 'patch') {
+              nextParent = any.parent_id
+              nextSort = (any.sort_order as any) ?? nextSort
+              nextLevel = (any.level as any) ?? nextLevel
+            }
+            await clearPathIfOccupied(path, any.id)
+
+            await conn.query(
+              `UPDATE menus SET
+                 name=?, title=?, path=?, component=?, icon=?,
+                 parent_id=?, sort_order=?, level=?,
+                 is_hidden=?, is_disabled=?, is_system=1, menu_type=?,
+                 permission_code=?, redirect=?, meta=CAST(? AS JSON),
+                 updated_at=CURRENT_TIMESTAMP
+               WHERE id=?`,
+              [
+                node.name,
+                node.title ?? null,
+                path,
+                node.component ?? null,
+                node.icon ?? null,
+                nextParent,
+                nextSort,
+                nextLevel,
+                !!node.is_hidden,
+                !!node.is_disabled,
+                normalizeMenuType(node.menu_type),
+                node.permission_code ?? null,
+                node.redirect ?? null,
+                metaJson,
+                any.id,
+              ]
+            )
+          }
+
+          const promoted: DbMenuRow = {
+            ...any,
+            name: node.name,
+            path,
+            parent_id: mode === 'patch' ? any.parent_id : parentId,
+            sort_order:
+              mode === 'patch' ? any.sort_order ?? node.sort_order ?? autoSort++ : node.sort_order ?? autoSort++,
+            level: mode === 'patch' ? (any.level as any) ?? level : level,
+            is_system: 1,
+          }
+
+          name2System.set(promoted.name, promoted)
+          name2Any.set(promoted.name, promoted)
+          if (!promoted.parent_id && promoted.path) {
+            path2System.set(promoted.path, promoted)
+            path2Any.set(promoted.path, promoted)
+          }
+          exists = promoted
+        }
+      }
+
       const soft = {
-        title: node.title,
+        title: node.title ?? null,
         path,
         component: node.component ?? null,
         icon: node.icon ?? null,
         is_hidden: !!node.is_hidden,
         is_disabled: !!node.is_disabled,
-        is_system: node.is_system ?? false,
+        is_system: 1,
         menu_type: normalizeMenuType(node.menu_type),
         permission_code: node.permission_code ?? null,
         redirect: node.redirect ?? null,
         meta: metaJson,
       }
 
-      // 结构字段
       let parent_id = parentId
       let sort_order = node.sort_order ?? autoSort++
       let levelVal = level
-
       if (exists && (mode === 'patch' || mode === 'insertOnly')) {
-        // 保留人工结构
-        parent_id = exists.parent_id
-        sort_order = exists.sort_order ?? sort_order
-        levelVal = exists.level ?? levelVal
+        parent_id = (exists as any).parent_id
+        sort_order = (exists as any).sort_order ?? sort_order
+        levelVal = (exists as any).level ?? levelVal
+      }
+
+      if (!exists && soft.path) {
+        const occupied = path2Any.get(soft.path)
+        if (occupied) exists = occupied
       }
 
       if (exists) {
-        if (mode === 'insertOnly') return exists.id
+        if (soft.path) {
+          const oldPath = (exists as any).path as string | null
+          if (oldPath !== soft.path) {
+            await clearPathIfOccupied(soft.path, exists.id)
+          }
+        }
 
-        await conn.query(
-          `UPDATE menus SET
-             name=?, title=?, path=?, component=?, icon=?,
-             parent_id=?, sort_order=?, level=?,
-             is_hidden=?, is_disabled=?, is_system=?, menu_type=?,
-             permission_code=?, redirect=?, meta=CAST(? AS JSON),
-             updated_at=CURRENT_TIMESTAMP
-           WHERE id=?`,
-          [
-            node.name,
-            soft.title,
-            soft.path,
-            soft.component,
-            soft.icon,
-            parent_id,
-            sort_order,
-            levelVal,
-            soft.is_hidden,
-            soft.is_disabled,
-            soft.is_system,
-            soft.menu_type,
-            soft.permission_code,
-            soft.redirect,
-            soft.meta,
-            exists.id,
-          ]
-        )
+        if (mode !== 'insertOnly') {
+          const oldPath = (exists as any).path as string | null
+          await conn.query(
+            `UPDATE menus SET
+               name=?, title=?, path=?, component=?, icon=?,
+               parent_id=?, sort_order=?, level=?,
+               is_hidden=?, is_disabled=?, is_system=1, menu_type=?,
+               permission_code=?, redirect=?, meta=CAST(? AS JSON),
+               updated_at=CURRENT_TIMESTAMP
+             WHERE id=?`,
+            [
+              node.name,
+              soft.title,
+              soft.path,
+              soft.component,
+              soft.icon,
+              parent_id,
+              sort_order,
+              levelVal,
+              soft.is_hidden,
+              soft.is_disabled,
+              soft.menu_type,
+              soft.permission_code,
+              soft.redirect,
+              soft.meta,
+              exists.id,
+            ]
+          )
+          if (oldPath && oldPath !== soft.path) {
+            path2System.delete(oldPath)
+            path2Any.delete(oldPath)
+          }
+        }
 
-        // 用普通对象更新到 map（现在类型是 DbMenuRow，安全）
         const nextRow: DbMenuRow = {
           ...exists,
           name: node.name,
@@ -119,11 +231,18 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
           parent_id,
           sort_order,
           level: levelVal,
+          is_system: 1,
         }
-        name2row.set(node.name, nextRow)
-        if (soft.path) path2row.set(soft.path, nextRow)
+        name2System.set(node.name, nextRow)
+        name2Any.set(node.name, nextRow)
+        if (!parent_id && soft.path) {
+          path2System.set(soft.path, nextRow)
+          path2Any.set(soft.path, nextRow)
+        }
         return exists.id
       } else {
+        if (soft.path) await clearPathIfOccupied(soft.path)
+
         const [res] = await conn.query<ResultSetHeader>(
           `INSERT INTO menus
              (name, title, path, component, icon, parent_id, sort_order, level,
@@ -141,14 +260,14 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
             levelVal,
             soft.is_hidden,
             soft.is_disabled,
-            soft.is_system,
+            1,
             soft.menu_type,
             soft.permission_code,
             soft.redirect,
             soft.meta,
           ]
         )
-        const newId = res.insertId
+        const newId = (res as any).insertId as number
         const newRow: DbMenuRow = {
           id: newId,
           name: node.name,
@@ -156,9 +275,14 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
           parent_id,
           sort_order,
           level: levelVal,
+          is_system: 1,
         }
-        name2row.set(node.name, newRow)
-        if (soft.path) path2row.set(soft.path, newRow)
+        name2System.set(node.name, newRow)
+        name2Any.set(node.name, newRow)
+        if (!parent_id && soft.path) {
+          path2System.set(soft.path, newRow)
+          path2Any.set(soft.path, newRow)
+        }
         return newId
       }
     }
@@ -171,20 +295,23 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
       }
     }
 
-    await walk(MENU_TREE, null, 1)
+    await walk(seeds, null, 1)
 
     if (options?.removeOrphans) {
-      const extra = rows.filter(r => !seenNames.has(r.name))
-      if (extra.length) {
+      const seedNames = new Set(markSystem(MENU_TREE).map(n => n.name))
+      const toDelete = Array.from(name2System.values())
+        .filter(r => !seedNames.has(r.name))
+        .map(r => r.id)
+      if (toDelete.length) {
         await conn.query(
-          `DELETE FROM menus WHERE id IN (${extra.map(() => '?').join(',')})`,
-          extra.map(e => e.id)
+          `DELETE FROM menus WHERE is_system=1 AND id IN (${toDelete.map(() => '?').join(',')})`,
+          toDelete
         )
       }
     }
 
     await conn.commit()
-    console.log(`[menu-sync] 完成：共同步 ${seenNames.size} 个菜单（mode=${options?.mode ?? 'patch'}）`)
+    console.log(`[menu-sync] 完成：系统菜单同步（mode=${mode}）`)
   } catch (e) {
     await conn.rollback()
     console.error('[menu-sync] 失败：', e)
@@ -193,3 +320,5 @@ export async function syncMenus(options?: { removeOrphans?: boolean; mode?: Sync
     conn.release()
   }
 }
+
+export default syncMenus

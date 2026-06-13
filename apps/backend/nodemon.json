@@ -1,0 +1,6 @@
+{
+  "watch": ["src"],
+  "ext": "ts,tsx",
+  "exec": "tsx src/bootstrap.ts",
+  "ignore": ["logs/**", "uploads/**", "dist/**", "tmp/**"]
+}

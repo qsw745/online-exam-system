@@ -1,0 +1,101 @@
+题目内容,题目类型,难度,分值,选项A,选项B,选项C,选项D,选项E,选项F,正确答案,知识点,标签,解析
+HTML 元素 <header> 的主要语义作用是什么？,single_choice,easy,1,用于定义页面或区段的头部内容，通常包含导航、LOGO或标题,用于表示页面或区段的底部内容，常含版权或联系信息,用于包裹文档主体中唯一的主要内容区域,用于包含页面主要的导航链接集合,,,A,HTML语义化,"HTML,语义化",用于定义页面或区段的头部内容，通常包含导航、LOGO或标题
+HTML 元素 <footer> 的主要语义作用是什么？,single_choice,easy,1,用于包裹文档主体中唯一的主要内容区域,用于包含页面主要的导航链接集合,用于划分文档中具有主题的通用区块,用于表示页面或区段的底部内容，常含版权或联系信息,,,D,HTML语义化,"HTML,语义化",用于表示页面或区段的底部内容，常含版权或联系信息
+HTML 元素 <main> 的主要语义作用是什么？,single_choice,easy,1,用于划分文档中具有主题的通用区块,用于表示一段独立、可复用的内容，如文章或博客帖子,用于包裹文档主体中唯一的主要内容区域,用于包含页面主要的导航链接集合,,,C,HTML语义化,"HTML,语义化",用于包裹文档主体中唯一的主要内容区域
+HTML 元素 <nav> 的主要语义作用是什么？,single_choice,easy,1,用于表示与主内容相关的侧边栏内容,用于包含页面主要的导航链接集合,用于划分文档中具有主题的通用区块,用于表示一段独立、可复用的内容，如文章或博客帖子,,,B,HTML语义化,"HTML,语义化",用于包含页面主要的导航链接集合
+HTML 元素 <section> 的主要语义作用是什么？,single_choice,easy,1,用于划分文档中具有主题的通用区块,用于表示一段独立、可复用的内容，如文章或博客帖子,用于表示与主内容相关的侧边栏内容,用于包裹独立的媒介资源，如图片或代码示例,,,A,HTML语义化,"HTML,语义化",用于划分文档中具有主题的通用区块
+HTML 元素 <article> 的主要语义作用是什么？,single_choice,easy,1,用于表示与主内容相关的侧边栏内容,用于包裹独立的媒介资源，如图片或代码示例,用于为 <figure> 中的媒介提供标题或说明文本,用于表示一段独立、可复用的内容，如文章或博客帖子,,,D,HTML语义化,"HTML,语义化",用于表示一段独立、可复用的内容，如文章或博客帖子
+HTML 元素 <aside> 的主要语义作用是什么？,single_choice,easy,1,用于为 <figure> 中的媒介提供标题或说明文本,用于标记具体的日期或时间，便于机器解析,用于表示与主内容相关的侧边栏内容,用于包裹独立的媒介资源，如图片或代码示例,,,C,HTML语义化,"HTML,语义化",用于表示与主内容相关的侧边栏内容
+HTML 元素 <figure> 的主要语义作用是什么？,single_choice,easy,1,用于突出显示需要重点关注的文本内容,用于包裹独立的媒介资源，如图片或代码示例,用于为 <figure> 中的媒介提供标题或说明文本,用于标记具体的日期或时间，便于机器解析,,,B,HTML语义化,"HTML,语义化",用于包裹独立的媒介资源，如图片或代码示例
+HTML 元素 <figcaption> 的主要语义作用是什么？,single_choice,easy,1,用于为 <figure> 中的媒介提供标题或说明文本,用于标记具体的日期或时间，便于机器解析,用于突出显示需要重点关注的文本内容,用于创建可展开或折叠的交互式细节面板,,,A,HTML语义化,"HTML,语义化",用于为 <figure> 中的媒介提供标题或说明文本
+HTML 元素 <time> 的主要语义作用是什么？,single_choice,easy,1,用于突出显示需要重点关注的文本内容,用于创建可展开或折叠的交互式细节面板,与 <details> 搭配使用，定义可折叠面板的标题,用于标记具体的日期或时间，便于机器解析,,,D,HTML语义化,"HTML,语义化",用于标记具体的日期或时间，便于机器解析
+HTML 元素 <mark> 的主要语义作用是什么？,single_choice,easy,1,与 <details> 搭配使用，定义可折叠面板的标题,用于表示联系信息，如作者邮箱或地址,用于突出显示需要重点关注的文本内容,用于创建可展开或折叠的交互式细节面板,,,C,HTML语义化,"HTML,语义化",用于突出显示需要重点关注的文本内容
+HTML 元素 <details> 的主要语义作用是什么？,single_choice,easy,1,用于根据不同屏幕条件提供多套响应式图片资源,用于创建可展开或折叠的交互式细节面板,与 <details> 搭配使用，定义可折叠面板的标题,用于表示联系信息，如作者邮箱或地址,,,B,HTML语义化,"HTML,语义化",用于创建可展开或折叠的交互式细节面板
+HTML 元素 <summary> 的主要语义作用是什么？,single_choice,easy,1,与 <details> 搭配使用，定义可折叠面板的标题,用于表示联系信息，如作者邮箱或地址,用于根据不同屏幕条件提供多套响应式图片资源,用于定义页面或区段的头部内容，通常包含导航、LOGO或标题,,,A,HTML语义化,"HTML,语义化",与 <details> 搭配使用，定义可折叠面板的标题
+HTML 元素 <address> 的主要语义作用是什么？,single_choice,easy,1,用于根据不同屏幕条件提供多套响应式图片资源,用于定义页面或区段的头部内容，通常包含导航、LOGO或标题,用于表示页面或区段的底部内容，常含版权或联系信息,用于表示联系信息，如作者邮箱或地址,,,D,HTML语义化,"HTML,语义化",用于表示联系信息，如作者邮箱或地址
+HTML 元素 <picture> 的主要语义作用是什么？,single_choice,easy,1,用于表示页面或区段的底部内容，常含版权或联系信息,用于包裹文档主体中唯一的主要内容区域,用于根据不同屏幕条件提供多套响应式图片资源,用于定义页面或区段的头部内容，通常包含导航、LOGO或标题,,,C,HTML语义化,"HTML,语义化",用于根据不同屏幕条件提供多套响应式图片资源
+CSS 属性 flex-basis 的主要作用是什么？,single_choice,medium,1,定义弹性项目在分配多余空间前的初始主轴尺寸,定义弹性项目在主轴方向上可分配的剩余空间比例,定义弹性项目在空间不足时的收缩比例,允许单个弹性项目覆盖容器的 align-items 对齐方式,,,A,"CSS布局,CSS基础",CSS,定义弹性项目在分配多余空间前的初始主轴尺寸
+CSS 属性 flex-grow 的主要作用是什么？,single_choice,medium,1,定义弹性项目在空间不足时的收缩比例,允许单个弹性项目覆盖容器的 align-items 对齐方式,同时设置 CSS Grid 的 align-items 和 justify-items,定义弹性项目在主轴方向上可分配的剩余空间比例,,,D,"CSS布局,CSS基础",CSS,定义弹性项目在主轴方向上可分配的剩余空间比例
+CSS 属性 flex-shrink 的主要作用是什么？,single_choice,medium,1,同时设置 CSS Grid 的 align-items 和 justify-items,在网格或弹性布局中创建行列间距而无需额外外边距,定义弹性项目在空间不足时的收缩比例,允许单个弹性项目覆盖容器的 align-items 对齐方式,,,C,"CSS布局,CSS基础",CSS,定义弹性项目在空间不足时的收缩比例
+CSS 属性 align-self 的主要作用是什么？,single_choice,medium,1,在 CSS Grid 中定义轨道的最小和最大尺寸范围,允许单个弹性项目覆盖容器的 align-items 对齐方式,同时设置 CSS Grid 的 align-items 和 justify-items,在网格或弹性布局中创建行列间距而无需额外外边距,,,B,"CSS布局,CSS基础",CSS,允许单个弹性项目覆盖容器的 align-items 对齐方式
+CSS 属性 place-items 的主要作用是什么？,single_choice,medium,1,同时设置 CSS Grid 的 align-items 和 justify-items,在网格或弹性布局中创建行列间距而无需额外外边距,在 CSS Grid 中定义轨道的最小和最大尺寸范围,在 CSS Grid 中按指定次数重复轨道模板,,,A,"CSS布局,CSS基础",CSS,同时设置 CSS Grid 的 align-items 和 justify-items
+CSS 属性 gap 的主要作用是什么？,single_choice,medium,1,在 CSS Grid 中定义轨道的最小和最大尺寸范围,在 CSS Grid 中按指定次数重复轨道模板,将某个 CSS 值限定在最小值与最大值之间随环境响应变化,在网格或弹性布局中创建行列间距而无需额外外边距,,,D,"CSS布局,CSS基础",CSS,在网格或弹性布局中创建行列间距而无需额外外边距
+CSS 属性 minmax() 的主要作用是什么？,single_choice,medium,1,将某个 CSS 值限定在最小值与最大值之间随环境响应变化,控制替换元素内容在容器中的填充方式,在 CSS Grid 中定义轨道的最小和最大尺寸范围,在 CSS Grid 中按指定次数重复轨道模板,,,C,"CSS布局,CSS基础",CSS,在 CSS Grid 中定义轨道的最小和最大尺寸范围
+CSS 属性 repeat() 的主要作用是什么？,single_choice,medium,1,指定替换元素内容在容器内的对齐位置,在 CSS Grid 中按指定次数重复轨道模板,将某个 CSS 值限定在最小值与最大值之间随环境响应变化,控制替换元素内容在容器中的填充方式,,,B,"CSS布局,CSS基础",CSS,在 CSS Grid 中按指定次数重复轨道模板
+CSS 属性 clamp() 的主要作用是什么？,single_choice,medium,1,将某个 CSS 值限定在最小值与最大值之间随环境响应变化,控制替换元素内容在容器中的填充方式,指定替换元素内容在容器内的对齐位置,为元素后面的区域应用模糊、饱和度等图像效果,,,A,"CSS布局,CSS基础",CSS,将某个 CSS 值限定在最小值与最大值之间随环境响应变化
+CSS 属性 object-fit 的主要作用是什么？,single_choice,medium,1,指定替换元素内容在容器内的对齐位置,为元素后面的区域应用模糊、饱和度等图像效果,提示浏览器即将发生的变化以优化渲染性能,控制替换元素内容在容器中的填充方式,,,D,"CSS布局,CSS基础",CSS,控制替换元素内容在容器中的填充方式
+CSS 属性 object-position 的主要作用是什么？,single_choice,medium,1,提示浏览器即将发生的变化以优化渲染性能,启用滚动捕捉行为以在指定位置停留,指定替换元素内容在容器内的对齐位置,为元素后面的区域应用模糊、饱和度等图像效果,,,C,"CSS布局,CSS基础",CSS,指定替换元素内容在容器内的对齐位置
+CSS 属性 backdrop-filter 的主要作用是什么？,single_choice,medium,1,为滚动捕捉元素设置额外的可视区域间距,为元素后面的区域应用模糊、饱和度等图像效果,提示浏览器即将发生的变化以优化渲染性能,启用滚动捕捉行为以在指定位置停留,,,B,"CSS布局,CSS基础",CSS,为元素后面的区域应用模糊、饱和度等图像效果
+CSS 属性 will-change 的主要作用是什么？,single_choice,medium,1,提示浏览器即将发生的变化以优化渲染性能,启用滚动捕捉行为以在指定位置停留,为滚动捕捉元素设置额外的可视区域间距,限制元素的布局与绘制范围以提升渲染性能,,,A,"CSS布局,CSS基础",CSS,提示浏览器即将发生的变化以优化渲染性能
+CSS 属性 scroll-snap-type 的主要作用是什么？,single_choice,medium,1,为滚动捕捉元素设置额外的可视区域间距,限制元素的布局与绘制范围以提升渲染性能,减少复杂选择器重复部分的 CSS 功能伪类,启用滚动捕捉行为以在指定位置停留,,,D,"CSS布局,CSS基础",CSS,启用滚动捕捉行为以在指定位置停留
+CSS 属性 scroll-margin 的主要作用是什么？,single_choice,medium,1,减少复杂选择器重复部分的 CSS 功能伪类,提供零优先级的匹配以便组合复杂选择器,为滚动捕捉元素设置额外的可视区域间距,限制元素的布局与绘制范围以提升渲染性能,,,C,"CSS布局,CSS基础",CSS,为滚动捕捉元素设置额外的可视区域间距
+CSS 属性 contain 的主要作用是什么？,single_choice,medium,1,根据后代或子元素条件选择父元素的关系伪类,限制元素的布局与绘制范围以提升渲染性能,减少复杂选择器重复部分的 CSS 功能伪类,提供零优先级的匹配以便组合复杂选择器,,,B,"CSS布局,CSS基础",CSS,限制元素的布局与绘制范围以提升渲染性能
+CSS 属性 is() 的主要作用是什么？,single_choice,medium,1,减少复杂选择器重复部分的 CSS 功能伪类,提供零优先级的匹配以便组合复杂选择器,根据后代或子元素条件选择父元素的关系伪类,直接在 CSS 中定义元素的宽高比,,,A,"CSS布局,CSS基础",CSS,减少复杂选择器重复部分的 CSS 功能伪类
+CSS 属性 :where() 的主要作用是什么？,single_choice,medium,1,根据后代或子元素条件选择父元素的关系伪类,直接在 CSS 中定义元素的宽高比,对元素应用模糊、灰度等图像效果,提供零优先级的匹配以便组合复杂选择器,,,D,"CSS布局,CSS基础",CSS,提供零优先级的匹配以便组合复杂选择器
+CSS 属性 :has() 的主要作用是什么？,single_choice,medium,1,对元素应用模糊、灰度等图像效果,定义元素与背后内容的混合模式,根据后代或子元素条件选择父元素的关系伪类,直接在 CSS 中定义元素的宽高比,,,C,"CSS布局,CSS基础",CSS,根据后代或子元素条件选择父元素的关系伪类
+CSS 属性 aspect-ratio 的主要作用是什么？,single_choice,medium,1,控制触摸设备上的默认手势行为,直接在 CSS 中定义元素的宽高比,对元素应用模糊、灰度等图像效果,定义元素与背后内容的混合模式,,,B,"CSS布局,CSS基础",CSS,直接在 CSS 中定义元素的宽高比
+CSS 属性 filter 的主要作用是什么？,single_choice,medium,1,对元素应用模糊、灰度等图像效果,定义元素与背后内容的混合模式,控制触摸设备上的默认手势行为,结合 display:-webkit-box 限制多行文本显示的行数,,,A,"CSS布局,CSS基础",CSS,对元素应用模糊、灰度等图像效果
+CSS 属性 mix-blend-mode 的主要作用是什么？,single_choice,medium,1,控制触摸设备上的默认手势行为,结合 display:-webkit-box 限制多行文本显示的行数,控制滚动到边界时的浏览器默认回弹或穿透行为,定义元素与背后内容的混合模式,,,D,"CSS布局,CSS基础",CSS,定义元素与背后内容的混合模式
+CSS 属性 touch-action 的主要作用是什么？,single_choice,medium,1,控制滚动到边界时的浏览器默认回弹或穿透行为,定义弹性项目在分配多余空间前的初始主轴尺寸,控制触摸设备上的默认手势行为,结合 display:-webkit-box 限制多行文本显示的行数,,,C,"CSS布局,CSS基础",CSS,控制触摸设备上的默认手势行为
+CSS 属性 line-clamp 的主要作用是什么？,single_choice,medium,1,定义弹性项目在主轴方向上可分配的剩余空间比例,结合 display:-webkit-box 限制多行文本显示的行数,控制滚动到边界时的浏览器默认回弹或穿透行为,定义弹性项目在分配多余空间前的初始主轴尺寸,,,B,"CSS布局,CSS基础",CSS,结合 display:-webkit-box 限制多行文本显示的行数
+CSS 属性 overscroll-behavior 的主要作用是什么？,single_choice,medium,1,控制滚动到边界时的浏览器默认回弹或穿透行为,定义弹性项目在分配多余空间前的初始主轴尺寸,定义弹性项目在主轴方向上可分配的剩余空间比例,定义弹性项目在空间不足时的收缩比例,,,A,"CSS布局,CSS基础",CSS,控制滚动到边界时的浏览器默认回弹或穿透行为
+在 JavaScript 中，let 声明 的正确描述是？,single_choice,medium,1,声明块级作用域变量并避免变量提升引起的重复定义,创建只读绑定，引用不可被重新赋值,提供唯一且不可枚举的属性键以避免命名冲突,一种按插入顺序保存键值对且键可为任意类型的数据结构,,,A,JavaScript,JavaScript,声明块级作用域变量并避免变量提升引起的重复定义
+在 JavaScript 中，const 声明 的正确描述是？,single_choice,medium,1,提供唯一且不可枚举的属性键以避免命名冲突,一种按插入顺序保存键值对且键可为任意类型的数据结构,只存储唯一值且可高效检查存在性的集合类型,创建只读绑定，引用不可被重新赋值,,,D,JavaScript,JavaScript,创建只读绑定，引用不可被重新赋值
+在 JavaScript 中，Symbol 的正确描述是？,single_choice,medium,1,只存储唯一值且可高效检查存在性的集合类型,键必须是对象且可被垃圾回收的弱引用映射,提供唯一且不可枚举的属性键以避免命名冲突,一种按插入顺序保存键值对且键可为任意类型的数据结构,,,C,JavaScript,JavaScript,提供唯一且不可枚举的属性键以避免命名冲突
+在 JavaScript 中，Map 的正确描述是？,single_choice,medium,1,存储对象弱引用的集合，适合跟踪对象存在而不阻止回收,一种按插入顺序保存键值对且键可为任意类型的数据结构,只存储唯一值且可高效检查存在性的集合类型,键必须是对象且可被垃圾回收的弱引用映射,,,B,JavaScript,JavaScript,一种按插入顺序保存键值对且键可为任意类型的数据结构
+在 JavaScript 中，Set 的正确描述是？,single_choice,medium,1,只存储唯一值且可高效检查存在性的集合类型,键必须是对象且可被垃圾回收的弱引用映射,存储对象弱引用的集合，适合跟踪对象存在而不阻止回收,可自定义对象基本操作行为的拦截器,,,A,JavaScript,JavaScript,只存储唯一值且可高效检查存在性的集合类型
+在 JavaScript 中，WeakMap 的正确描述是？,single_choice,medium,1,存储对象弱引用的集合，适合跟踪对象存在而不阻止回收,可自定义对象基本操作行为的拦截器,提供与 Proxy handler 对应的一组辅助方法,键必须是对象且可被垃圾回收的弱引用映射,,,D,JavaScript,JavaScript,键必须是对象且可被垃圾回收的弱引用映射
+在 JavaScript 中，WeakSet 的正确描述是？,single_choice,medium,1,提供与 Proxy handler 对应的一组辅助方法,等待所有 Promise 完成并返回每个结果状态而不短路,存储对象弱引用的集合，适合跟踪对象存在而不阻止回收,可自定义对象基本操作行为的拦截器,,,C,JavaScript,JavaScript,存储对象弱引用的集合，适合跟踪对象存在而不阻止回收
+在 JavaScript 中，Proxy 的正确描述是？,single_choice,medium,1,返回第一个已成功兑现的 Promise 结果,可自定义对象基本操作行为的拦截器,提供与 Proxy handler 对应的一组辅助方法,等待所有 Promise 完成并返回每个结果状态而不短路,,,B,JavaScript,JavaScript,可自定义对象基本操作行为的拦截器
+在 JavaScript 中，Reflect 的正确描述是？,single_choice,medium,1,提供与 Proxy handler 对应的一组辅助方法,等待所有 Promise 完成并返回每个结果状态而不短路,返回第一个已成功兑现的 Promise 结果,在访问链条中遇到 null/undefined 时短路并返回 undefined,,,A,JavaScript,JavaScript,提供与 Proxy handler 对应的一组辅助方法
+在 JavaScript 中，Promise.allSettled 的正确描述是？,single_choice,medium,1,返回第一个已成功兑现的 Promise 结果,在访问链条中遇到 null/undefined 时短路并返回 undefined,仅在左侧为 null 或 undefined 时提供默认值,等待所有 Promise 完成并返回每个结果状态而不短路,,,D,JavaScript,JavaScript,等待所有 Promise 完成并返回每个结果状态而不短路
+在 JavaScript 中，Promise.any 的正确描述是？,single_choice,medium,1,仅在左侧为 null 或 undefined 时提供默认值,用于本地化格式化日期和时间的 API,返回第一个已成功兑现的 Promise 结果,在访问链条中遇到 null/undefined 时短路并返回 undefined,,,C,JavaScript,JavaScript,返回第一个已成功兑现的 Promise 结果
+在 JavaScript 中，optional chaining 的正确描述是？,single_choice,medium,1,把可迭代或类数组对象转换为真正数组,在访问链条中遇到 null/undefined 时短路并返回 undefined,仅在左侧为 null 或 undefined 时提供默认值,用于本地化格式化日期和时间的 API,,,B,JavaScript,JavaScript,在访问链条中遇到 null/undefined 时短路并返回 undefined
+在 JavaScript 中，nullish coalescing 的正确描述是？,single_choice,medium,1,仅在左侧为 null 或 undefined 时提供默认值,用于本地化格式化日期和时间的 API,把可迭代或类数组对象转换为真正数组,按指定深度展开嵌套数组,,,A,JavaScript,JavaScript,仅在左侧为 null 或 undefined 时提供默认值
+在 JavaScript 中，Intl.DateTimeFormat 的正确描述是？,single_choice,medium,1,把可迭代或类数组对象转换为真正数组,按指定深度展开嵌套数组,在浏览器空闲时调度低优先级任务,用于本地化格式化日期和时间的 API,,,D,JavaScript,JavaScript,用于本地化格式化日期和时间的 API
+在 JavaScript 中，Array.from 的正确描述是？,single_choice,medium,1,在浏览器空闲时调度低优先级任务,监控元素进入或离开视口的 API,把可迭代或类数组对象转换为真正数组,按指定深度展开嵌套数组,,,C,JavaScript,JavaScript,把可迭代或类数组对象转换为真正数组
+在 JavaScript 中，Array.flat 的正确描述是？,single_choice,medium,1,在元素尺寸变化时触发回调的 API,按指定深度展开嵌套数组,在浏览器空闲时调度低优先级任务,监控元素进入或离开视口的 API,,,B,JavaScript,JavaScript,按指定深度展开嵌套数组
+在 JavaScript 中，requestIdleCallback 的正确描述是？,single_choice,medium,1,在浏览器空闲时调度低优先级任务,监控元素进入或离开视口的 API,在元素尺寸变化时触发回调的 API,进行深拷贝且支持 Map、Set 等引用类型的原生方法,,,A,JavaScript,JavaScript,在浏览器空闲时调度低优先级任务
+在 JavaScript 中，IntersectionObserver 的正确描述是？,single_choice,medium,1,在元素尺寸变化时触发回调的 API,进行深拷贝且支持 Map、Set 等引用类型的原生方法,用于取消 fetch 等异步任务的信号控制器,监控元素进入或离开视口的 API,,,D,JavaScript,JavaScript,监控元素进入或离开视口的 API
+在 JavaScript 中，ResizeObserver 的正确描述是？,single_choice,medium,1,用于取消 fetch 等异步任务的信号控制器,确保监听器在首次触发后自动移除,在元素尺寸变化时触发回调的 API,进行深拷贝且支持 Map、Set 等引用类型的原生方法,,,C,JavaScript,JavaScript,在元素尺寸变化时触发回调的 API
+在 JavaScript 中，structuredClone 的正确描述是？,single_choice,medium,1,指示页面当前是否在前台显示的属性,进行深拷贝且支持 Map、Set 等引用类型的原生方法,用于取消 fetch 等异步任务的信号控制器,确保监听器在首次触发后自动移除,,,B,JavaScript,JavaScript,进行深拷贝且支持 Map、Set 等引用类型的原生方法
+在 JavaScript 中，AbortController 的正确描述是？,single_choice,medium,1,用于取消 fetch 等异步任务的信号控制器,确保监听器在首次触发后自动移除,指示页面当前是否在前台显示的属性,在页面卸载阶段可靠发送少量数据的 API,,,A,JavaScript,JavaScript,用于取消 fetch 等异步任务的信号控制器
+在 JavaScript 中，EventTarget.addEventListener options.once 的正确描述是？,single_choice,medium,1,指示页面当前是否在前台显示的属性,在页面卸载阶段可靠发送少量数据的 API,用来订阅关键性能指标（如 LCP、CLS）的观察者,确保监听器在首次触发后自动移除,,,D,JavaScript,JavaScript,确保监听器在首次触发后自动移除
+在 JavaScript 中，document.visibilityState 的正确描述是？,single_choice,medium,1,用来订阅关键性能指标（如 LCP、CLS）的观察者,声明块级作用域变量并避免变量提升引起的重复定义,指示页面当前是否在前台显示的属性,在页面卸载阶段可靠发送少量数据的 API,,,C,JavaScript,JavaScript,指示页面当前是否在前台显示的属性
+在 JavaScript 中，navigator.sendBeacon 的正确描述是？,single_choice,medium,1,创建只读绑定，引用不可被重新赋值,在页面卸载阶段可靠发送少量数据的 API,用来订阅关键性能指标（如 LCP、CLS）的观察者,声明块级作用域变量并避免变量提升引起的重复定义,,,B,JavaScript,JavaScript,在页面卸载阶段可靠发送少量数据的 API
+在 JavaScript 中，PerformanceObserver 的正确描述是？,single_choice,medium,1,用来订阅关键性能指标（如 LCP、CLS）的观察者,声明块级作用域变量并避免变量提升引起的重复定义,创建只读绑定，引用不可被重新赋值,提供唯一且不可枚举的属性键以避免命名冲突,,,A,JavaScript,JavaScript,用来订阅关键性能指标（如 LCP、CLS）的观察者
+在 React 中，useMemo 的作用是什么？,single_choice,medium,1,缓存昂贵计算的结果，只有依赖变更时才重新计算,缓存回调函数引用以避免子组件重复渲染,根据 props 浅比较跳过函数组件不必要的重新渲染,在组件等待数据时显示后备 UI,,,A,React,React,缓存昂贵计算的结果，只有依赖变更时才重新计算
+在 React 中，useCallback 的作用是什么？,single_choice,medium,1,根据 props 浅比较跳过函数组件不必要的重新渲染,在组件等待数据时显示后备 UI,捕获后代渲染阶段的错误并展示降级 UI,缓存回调函数引用以避免子组件重复渲染,,,D,React,React,缓存回调函数引用以避免子组件重复渲染
+在 React 中，React.memo 的作用是什么？,single_choice,medium,1,捕获后代渲染阶段的错误并展示降级 UI,标记状态更新为非紧急从而避免阻塞用户输入,根据 props 浅比较跳过函数组件不必要的重新渲染,在组件等待数据时显示后备 UI,,,C,React,React,根据 props 浅比较跳过函数组件不必要的重新渲染
+在 React 中，Suspense 的作用是什么？,single_choice,medium,1,推迟大量计算结果的更新以保持交互流畅,在组件等待数据时显示后备 UI,捕获后代渲染阶段的错误并展示降级 UI,标记状态更新为非紧急从而避免阻塞用户输入,,,B,React,React,在组件等待数据时显示后备 UI
+在 React 中，ErrorBoundary 的作用是什么？,single_choice,medium,1,捕获后代渲染阶段的错误并展示降级 UI,标记状态更新为非紧急从而避免阻塞用户输入,推迟大量计算结果的更新以保持交互流畅,在 DOM 更新后同步运行以读取布局或执行测量,,,A,React,React,捕获后代渲染阶段的错误并展示降级 UI
+在 React 中，useTransition 的作用是什么？,single_choice,medium,1,推迟大量计算结果的更新以保持交互流畅,在 DOM 更新后同步运行以读取布局或执行测量,自定义暴露给父组件的 ref 实例值,标记状态更新为非紧急从而避免阻塞用户输入,,,D,React,React,标记状态更新为非紧急从而避免阻塞用户输入
+在 React 中，useDeferredValue 的作用是什么？,single_choice,medium,1,自定义暴露给父组件的 ref 实例值,允许函数组件接收 ref 并转发到子元素,推迟大量计算结果的更新以保持交互流畅,在 DOM 更新后同步运行以读取布局或执行测量,,,C,React,React,推迟大量计算结果的更新以保持交互流畅
+在 React 中，useLayoutEffect 的作用是什么？,single_choice,medium,1,在客户端与服务端渲染中生成稳定的唯一 ID,在 DOM 更新后同步运行以读取布局或执行测量,自定义暴露给父组件的 ref 实例值,允许函数组件接收 ref 并转发到子元素,,,B,React,React,在 DOM 更新后同步运行以读取布局或执行测量
+在 React 中，useImperativeHandle 的作用是什么？,single_choice,medium,1,自定义暴露给父组件的 ref 实例值,允许函数组件接收 ref 并转发到子元素,在客户端与服务端渲染中生成稳定的唯一 ID,按需懒加载组件并配合 Suspense 提升性能,,,A,React,React,自定义暴露给父组件的 ref 实例值
+在 React 中，forwardRef 的作用是什么？,single_choice,medium,1,在客户端与服务端渲染中生成稳定的唯一 ID,按需懒加载组件并配合 Suspense 提升性能,为外部状态库提供一致的订阅与快照机制,允许函数组件接收 ref 并转发到子元素,,,D,React,React,允许函数组件接收 ref 并转发到子元素
+在 React 中，useId 的作用是什么？,single_choice,medium,1,为外部状态库提供一致的订阅与快照机制,通过 reducer 函数管理复杂状态更新逻辑,在客户端与服务端渲染中生成稳定的唯一 ID,按需懒加载组件并配合 Suspense 提升性能,,,C,React,React,在客户端与服务端渲染中生成稳定的唯一 ID
+在 React 中，lazy() 的作用是什么？,single_choice,medium,1,在开发环境启用额外检查来发现潜在问题,按需懒加载组件并配合 Suspense 提升性能,为外部状态库提供一致的订阅与快照机制,通过 reducer 函数管理复杂状态更新逻辑,,,B,React,React,按需懒加载组件并配合 Suspense 提升性能
+在 React 中，useSyncExternalStore 的作用是什么？,single_choice,medium,1,为外部状态库提供一致的订阅与快照机制,通过 reducer 函数管理复杂状态更新逻辑,在开发环境启用额外检查来发现潜在问题,帮助 React 正确识别列表项的变动以复用 DOM,,,A,React,React,为外部状态库提供一致的订阅与快照机制
+在 React 中，useReducer 的作用是什么？,single_choice,medium,1,在开发环境启用额外检查来发现潜在问题,帮助 React 正确识别列表项的变动以复用 DOM,在组件树中共享全局数据而无需逐层传递 props,通过 reducer 函数管理复杂状态更新逻辑,,,D,React,React,通过 reducer 函数管理复杂状态更新逻辑
+在 React 中，StrictMode 的作用是什么？,single_choice,medium,1,在组件树中共享全局数据而无需逐层传递 props,测量组件渲染性能并定位瓶颈,在开发环境启用额外检查来发现潜在问题,帮助 React 正确识别列表项的变动以复用 DOM,,,C,React,React,在开发环境启用额外检查来发现潜在问题
+在 React 中，key 属性 的作用是什么？,single_choice,medium,1,在不增加额外 DOM 节点的情况下返回多个子元素,帮助 React 正确识别列表项的变动以复用 DOM,在组件树中共享全局数据而无需逐层传递 props,测量组件渲染性能并定位瓶颈,,,B,React,React,帮助 React 正确识别列表项的变动以复用 DOM
+在 React 中，Context 的作用是什么？,single_choice,medium,1,在组件树中共享全局数据而无需逐层传递 props,测量组件渲染性能并定位瓶颈,在不增加额外 DOM 节点的情况下返回多个子元素,在组件生命周期内保存可变值且更新不会触发重新渲染,,,A,React,React,在组件树中共享全局数据而无需逐层传递 props
+在 React 中，Profiler API 的作用是什么？,single_choice,medium,1,在不增加额外 DOM 节点的情况下返回多个子元素,在组件生命周期内保存可变值且更新不会触发重新渲染,缓存昂贵计算的结果，只有依赖变更时才重新计算,测量组件渲染性能并定位瓶颈,,,D,React,React,测量组件渲染性能并定位瓶颈
+在 React 中，Fragment 的作用是什么？,single_choice,medium,1,缓存昂贵计算的结果，只有依赖变更时才重新计算,缓存回调函数引用以避免子组件重复渲染,在不增加额外 DOM 节点的情况下返回多个子元素,在组件生命周期内保存可变值且更新不会触发重新渲染,,,C,React,React,在不增加额外 DOM 节点的情况下返回多个子元素
+在 React 中，useRef 的作用是什么？,single_choice,medium,1,根据 props 浅比较跳过函数组件不必要的重新渲染,在组件生命周期内保存可变值且更新不会触发重新渲染,缓存昂贵计算的结果，只有依赖变更时才重新计算,缓存回调函数引用以避免子组件重复渲染,,,B,React,React,在组件生命周期内保存可变值且更新不会触发重新渲染
+TypeScript 泛型 的正确理解是？,single_choice,hard,1,允许为函数或类型提供占位符类型以复用逻辑且保持类型推断,把类型 T 的所有属性变为可选,将类型 T 的所有属性设为只读,根据联合类型 K 构造键，所有键的值都为类型 V,,,A,"TypeScript,工程化","TypeScript,工程化",允许为函数或类型提供占位符类型以复用逻辑且保持类型推断
+Partial<T> 的正确理解是？,single_choice,hard,1,将类型 T 的所有属性设为只读,根据联合类型 K 构造键，所有键的值都为类型 V,从类型 T 挑选一组属性组成新类型,把类型 T 的所有属性变为可选,,,D,"TypeScript,工程化","TypeScript,工程化",把类型 T 的所有属性变为可选
+Readonly<T> 的正确理解是？,single_choice,hard,1,从类型 T 挑选一组属性组成新类型,从类型 T 中排除一组属性生成新类型,将类型 T 的所有属性设为只读,根据联合类型 K 构造键，所有键的值都为类型 V,,,C,"TypeScript,工程化","TypeScript,工程化",将类型 T 的所有属性设为只读
+"Record<K,V> 的正确理解是？",single_choice,hard,1,生成某个类型所有键名组成的联合类型,根据联合类型 K 构造键，所有键的值都为类型 V,从类型 T 挑选一组属性组成新类型,从类型 T 中排除一组属性生成新类型,,,B,"TypeScript,工程化","TypeScript,工程化",根据联合类型 K 构造键，所有键的值都为类型 V
+"Pick<T,K> 的正确理解是？",single_choice,hard,1,从类型 T 挑选一组属性组成新类型,从类型 T 中排除一组属性生成新类型,生成某个类型所有键名组成的联合类型,使用 extends 判断在类型层面进行分支选择,,,A,"TypeScript,工程化","TypeScript,工程化",从类型 T 挑选一组属性组成新类型
+"Omit<T,K> 的正确理解是？",single_choice,hard,1,生成某个类型所有键名组成的联合类型,使用 extends 判断在类型层面进行分支选择,根据已有类型的键生成新的属性结构,从类型 T 中排除一组属性生成新类型,,,D,"TypeScript,工程化","TypeScript,工程化",从类型 T 中排除一组属性生成新类型
+keyof 操作符 的正确理解是？,single_choice,hard,1,根据已有类型的键生成新的属性结构,在运行时代码中缩小联合类型的取值范围,生成某个类型所有键名组成的联合类型,使用 extends 判断在类型层面进行分支选择,,,C,"TypeScript,工程化","TypeScript,工程化",生成某个类型所有键名组成的联合类型
+条件类型 的正确理解是？,single_choice,hard,1,通过配置路径别名来精简模块导入语句,使用 extends 判断在类型层面进行分支选择,根据已有类型的键生成新的属性结构,在运行时代码中缩小联合类型的取值范围,,,B,"TypeScript,工程化","TypeScript,工程化",使用 extends 判断在类型层面进行分支选择
+映射类型 的正确理解是？,single_choice,hard,1,根据已有类型的键生成新的属性结构,在运行时代码中缩小联合类型的取值范围,通过配置路径别名来精简模块导入语句,基于 Go 的高速打包器，适合开发阶段快速构建,,,A,"TypeScript,工程化","TypeScript,工程化",根据已有类型的键生成新的属性结构
+类型守卫 的正确理解是？,single_choice,hard,1,通过配置路径别名来精简模块导入语句,基于 Go 的高速打包器，适合开发阶段快速构建,借助原生 ESM 与按需编译实现毫秒级的 dev server 启动,在运行时代码中缩小联合类型的取值范围,,,D,"TypeScript,工程化","TypeScript,工程化",在运行时代码中缩小联合类型的取值范围
+tsconfig paths 的正确理解是？,single_choice,hard,1,借助原生 ESM 与按需编译实现毫秒级的 dev server 启动,在打包阶段移除未被引用的模块导出以减小体积,通过配置路径别名来精简模块导入语句,基于 Go 的高速打包器，适合开发阶段快速构建,,,C,"TypeScript,工程化","TypeScript,工程化",通过配置路径别名来精简模块导入语句
+esbuild 的正确理解是？,single_choice,hard,1,把应用拆分为多个按需加载的包以优化首屏加载,基于 Go 的高速打包器，适合开发阶段快速构建,借助原生 ESM 与按需编译实现毫秒级的 dev server 启动,在打包阶段移除未被引用的模块导出以减小体积,,,B,"TypeScript,工程化","TypeScript,工程化",基于 Go 的高速打包器，适合开发阶段快速构建
+Vite 冷启动 的正确理解是？,single_choice,hard,1,借助原生 ESM 与按需编译实现毫秒级的 dev server 启动,在打包阶段移除未被引用的模块导出以减小体积,把应用拆分为多个按需加载的包以优化首屏加载,允许为函数或类型提供占位符类型以复用逻辑且保持类型推断,,,A,"TypeScript,工程化","TypeScript,工程化",借助原生 ESM 与按需编译实现毫秒级的 dev server 启动
+Tree Shaking 的正确理解是？,single_choice,hard,1,把应用拆分为多个按需加载的包以优化首屏加载,允许为函数或类型提供占位符类型以复用逻辑且保持类型推断,把类型 T 的所有属性变为可选,在打包阶段移除未被引用的模块导出以减小体积,,,D,"TypeScript,工程化","TypeScript,工程化",在打包阶段移除未被引用的模块导出以减小体积
+Code Splitting 的正确理解是？,single_choice,hard,1,把类型 T 的所有属性变为可选,将类型 T 的所有属性设为只读,把应用拆分为多个按需加载的包以优化首屏加载,允许为函数或类型提供占位符类型以复用逻辑且保持类型推断,,,C,"TypeScript,工程化","TypeScript,工程化",把应用拆分为多个按需加载的包以优化首屏加载

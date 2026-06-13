@@ -1,125 +1,60 @@
 // src/app/routes.tsx
-import { lazy, Suspense } from 'react'
-import { createBrowserRouter } from 'react-router-dom'
-import Layout from '@shared/components/Layout'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
-import NotFound404 from '@app/errors/NotFound404'
-import Forbidden403 from '@app/errors/Forbidden403'
-import ServerError500 from '@app/errors/ServerError500'
+import NotFound404 from '@/app/errors/NotFound404'
+import ServerError500 from '@/app/errors/ServerError500'
+import DynamicRoutes from '@/app/routing/DynamicRoutes'
+import RouterRoot from '@/app/routing/RouterRoot' // 确保路径指向 src/app/routing/RouterRoot.tsx
+import SettingsPage from '@/features/settings/pages/SettingsPage'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { appBasePath } from '@/shared/router/basePath'
+import NProgress from 'nprogress'
+import { lazy, Suspense, type ReactElement } from 'react'
+import { createBrowserRouter, Navigate } from 'react-router-dom'
 
-const withSuspense = (el: JSX.Element) => <Suspense fallback={<LoadingSpinner />}>{el}</Suspense>
+NProgress.configure({ showSpinner: false, trickleSpeed: 120 }) // 可调
+const withSuspense = (el: ReactElement) => (
+  <Suspense fallback={<LoadingSpinner center="page" text="页面加载中…" />}>{el}</Suspense>
+)
 
-/** 顶层 */
-const DashboardPage = lazy(() => import('@features/dashboard/pages/DashboardPage'))
-const AnalyticsPage = lazy(() => import('@features/analytics/pages/AnalyticsPage'))
-const DiscussionPage = lazy(() => import('@features/discussions/pages/DiscussionPage'))
-const ExamListPage = lazy(() => import('@features/exams/pages/ExamListPage'))
-const ExamPage = lazy(() => import('@features/exams/pages/ExamPage'))
-const ResultsPage = lazy(() => import('@features/exams/pages/ResultsPage'))
-const QuestionsPage = lazy(() => import('@features/questions/pages/QuestionsPage'))
-const QuestionPracticePage = lazy(() => import('@features/questions/pages/QuestionPracticePage'))
-const FavoritesPage = lazy(() => import('@features/favorites/pages/FavoritesPage'))
-const LeaderboardPage = lazy(() => import('@features/leaderboard/pages/LeaderboardPage'))
-const LearningProgressPage = lazy(() => import('@features/learning-progress/pages/LearningProgressPage'))
-const LogsPage = lazy(() => import('@features/logs/pages/LogsPage'))
-const NotificationsPage = lazy(() => import('@features/notifications/pages/NotificationsPage'))
-const ProfilePage = lazy(() => import('@features/profile/pages/ProfilePage'))
-const SettingsPage = lazy(() => import('@features/settings/pages/SettingsPage'))
-const WrongQuestionsPage = lazy(() => import('@features/wrong-questions/pages/WrongQuestionsPage'))
-const TasksPage = lazy(() => import('@features/tasks/pages/TasksPage'))
-const MyTasksPage = lazy(() => import('@features/tasks/pages/MyTasksPage'))
-const PublishTaskPage = lazy(() => import('@features/tasks/pages/PublishTaskPage'))
-const TaskDetailPage = lazy(() => import('@features/tasks/pages/TaskDetailPage'))
+// ===== Auth =====
+const LoginPage = lazy(() => import('@/features/auth/pages/LoginPage'))
+const RegisterPage = lazy(() => import('@/features/auth/pages/RegisterPage'))
+const ForgotPasswordPage = lazy(() => import('@/features/auth/pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazy(() => import('@/features/auth/pages/ResetPasswordPage'))
+const OAuthCallbackPage = lazy(() => import('@/features/auth/pages/OAuthCallbackPage'))
+const SharedFavoritePage = lazy(() => import('@/features/favorites/pages/SharedFavoritePage'))
 
-/** Auth */
-const LoginPage = lazy(() => import('@features/auth/pages/LoginPage'))
-const RegisterPage = lazy(() => import('@features/auth/pages/RegisterPage'))
-const ForgotPasswordPage = lazy(() => import('@features/auth/pages/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('@features/auth/pages/ResetPasswordPage'))
-
-/** Admin 聚合与各子页 */
-const AdminPage = lazy(() => import('@features/admin/pages/AdminPage'))
-const OrgManage = lazy(() => import('@features/orgs/pages/OrgManage'))
-const RoleManagementPage = lazy(() => import('@features/roles/pages/RoleManagementPage'))
-const MenuManagementPage = lazy(() => import('@features/menu/pages/MenuManagementPage'))
-const UserManagementPage = lazy(() => import('@features/users/pages/UserManagementPage'))
-const UserRoleManagementPage = lazy(() => import('@features/users/pages/UserRoleManagementPage'))
-const TaskManagementPage = lazy(() => import('@features/tasks/pages/TaskManagementPage'))
-const TaskCreatePage = lazy(() => import('@features/tasks/pages/TaskCreatePage'))
-const PaperManagementPage = lazy(() => import('@features/papers/pages/PaperManagementPage'))
-const PaperCreatePage = lazy(() => import('@features/papers/pages/PaperCreatePage'))
-const ManualPaperCreationPage = lazy(() => import('@features/papers/pages/ManualPaperCreationPage'))
-const SmartPaperCreatePage = lazy(() => import('@features/papers/pages/SmartPaperCreatePage'))
-const QuestionManagementPage = lazy(() => import('@features/questions/pages/QuestionManagementPage'))
-const QuestionCreatePage = lazy(() => import('@features/questions/pages/QuestionCreatePage'))
-const DataAnalyticsPage = lazy(() => import('@features/analytics/pages/DataAnalyticsPage'))
-const GradeManagementPage = lazy(() => import('@features/analytics/pages/GradeManagementPage'))
-const AdminSettingsPage = lazy(() => import('@features/settings/pages/AdminSettingsPage'))
-
+/**
+ * 关键点：
+ * 1) 顶层增加 index 路由：访问 "/" 时立即跳到 "/dashboard"（未登录会被守卫重定向到 /login）
+ * 2) 用 path="*" 挂载 <DynamicRoutes/>，因为它内部使用了 useRoutes() —— 所在路由必须以 * 结尾
+ */
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Layout />,
+    element: <RouterRoot />,
     errorElement: <ServerError500 />,
     children: [
-      { index: true, element: withSuspense(<DashboardPage />) },
+      // ✅ "/" 命中这里，先跳到默认页（不依赖菜单加载即可避免空白）
+      { index: true, element: <Navigate to="/dashboard" replace /> },
 
-      // 顶层业务页
-      { path: 'analytics', element: withSuspense(<AnalyticsPage />) },
-      { path: 'discussion', element: withSuspense(<DiscussionPage />) },
-      { path: 'exams', element: withSuspense(<ExamListPage />) },
-      { path: 'exams/:id', element: withSuspense(<ExamPage />) },
-      { path: 'results', element: withSuspense(<ResultsPage />) },
-      { path: 'questions', element: withSuspense(<QuestionsPage />) },
-      { path: 'questions/practice', element: withSuspense(<QuestionPracticePage />) },
-      { path: 'favorites', element: withSuspense(<FavoritesPage />) },
-      { path: 'leaderboard', element: withSuspense(<LeaderboardPage />) },
-      { path: 'learning-progress', element: withSuspense(<LearningProgressPage />) },
-      { path: 'logs', element: withSuspense(<LogsPage />) },
-      { path: 'notifications', element: withSuspense(<NotificationsPage />) },
-      { path: 'profile', element: withSuspense(<ProfilePage />) },
-      { path: 'settings', element: withSuspense(<SettingsPage />) },
-      { path: 'wrong-questions', element: withSuspense(<WrongQuestionsPage />) },
-
-      // 任务（用户端）
-      { path: 'tasks', element: withSuspense(<TasksPage />) },
-      { path: 'tasks/my', element: withSuspense(<MyTasksPage />) },
-      { path: 'tasks/publish', element: withSuspense(<PublishTaskPage />) },
-      { path: 'tasks/:taskId', element: withSuspense(<TaskDetailPage />) },
-
-      // Admin 区域
+      // Auth pages（静态路径优先级高于 "*"）
+      { path: 'login', element: withSuspense(<LoginPage />) },
+      { path: 'oauth/callback', element: withSuspense(<OAuthCallbackPage />) },
+      { path: 'register', element: withSuspense(<RegisterPage />) },
+      { path: 'forgot-password', element: withSuspense(<ForgotPasswordPage />) },
+      { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
+      { path: 'shared/favorites/:code', element: withSuspense(<SharedFavoritePage />) },
+      // ✅ 放在 "*" 之前
       {
-        path: 'admin',
-        element: withSuspense(<AdminPage />),
-        children: [
-          { path: 'orgs', element: withSuspense(<OrgManage />) },
-          { path: 'roles', element: withSuspense(<RoleManagementPage />) },
-          { path: 'menus', element: withSuspense(<MenuManagementPage />) },
-          { path: 'users', element: withSuspense(<UserManagementPage />) },
-          { path: 'users/roles', element: withSuspense(<UserRoleManagementPage />) },
-          { path: 'tasks', element: withSuspense(<TaskManagementPage />) },
-          { path: 'tasks/create', element: withSuspense(<TaskCreatePage />) },
-          { path: 'papers', element: withSuspense(<PaperManagementPage />) },
-          { path: 'papers/create', element: withSuspense(<PaperCreatePage />) },
-          { path: 'papers/create/manual', element: withSuspense(<ManualPaperCreationPage />) },
-          { path: 'papers/create/smart', element: withSuspense(<SmartPaperCreatePage />) },
-          { path: 'questions', element: withSuspense(<QuestionManagementPage />) },
-          { path: 'questions/create', element: withSuspense(<QuestionCreatePage />) },
-          { path: 'analytics', element: withSuspense(<DataAnalyticsPage />) },
-          { path: 'analytics/grades', element: withSuspense(<GradeManagementPage />) },
-          { path: 'settings', element: withSuspense(<AdminSettingsPage />) },
-          { path: '403', element: <Forbidden403 /> },
-        ],
+        path: 'settings',
+        element: <SettingsPage />, // ✅ 仅一个
       },
+
+      // ✅ 动态业务路由（/ 之下所有路径）
+      { path: '*', element: <DynamicRoutes /> },
+
+      // 独立 404（可选）
+      { path: '404', element: <NotFound404 /> },
     ],
   },
-
-  // Auth
-  { path: '/login', element: withSuspense(<LoginPage />) },
-  { path: '/register', element: withSuspense(<RegisterPage />) },
-  { path: '/forgot-password', element: withSuspense(<ForgotPasswordPage />) },
-  { path: '/reset-password', element: withSuspense(<ResetPasswordPage />) },
-
-  // 404
-  { path: '*', element: <NotFound404 /> },
-])
+], { basename: appBasePath })

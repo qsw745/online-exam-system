@@ -1,133 +1,88 @@
-import DynamicSidebar, { MobileSidebar } from '@app/routing/DynamicSidebar'
-import { Layout as AntLayout } from 'antd'
-import React, { useEffect, useState } from 'react'
-import { Outlet, useLocation } from 'react-router-dom'
+import DynamicSidebar, { MobileSidebar } from '@/app/routing/DynamicSidebar'
+import { TabsBar } from '@/shared/components/TabsBar'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLayout } from '@/shared/contexts/LayoutContext'
+import { TabsProvider } from '@/shared/contexts/TabsContext'
+import RefreshableOutlet from '@/shared/router/RefreshableOutlet'
+import { Layout as AntLayout, theme } from 'antd'
+import React, { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import Header from './Header'
-
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '../contexts/LanguageContext'
 import LoadingSpinner from './LoadingSpinner'
+import LayoutOffsetVars from './LayoutOffsetVars'
+import AiAssistantWidget from './AiAssistantWidget'
 
-const { Sider, Content } = AntLayout
+const { Content } = AntLayout
+const HEADER_H = 48
+const TABS_H = 40
 
 const Layout: React.FC = () => {
-  const { t, language } = useLanguage()
   const { user, loading } = useAuth()
   const location = useLocation()
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const { mode, showTabs } = useLayout()
+  const { token } = theme.useToken()
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
-    const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768)
-    }
-
+    const checkMobile = () => setIsMobile(window.innerWidth < 768)
     checkMobile()
     window.addEventListener('resize', checkMobile)
-
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  const isExamPage = location.pathname.match(/^\/exam\/\d+$/)
+  const isExamPage = useMemo(() => /^\/exam\/\d+$/.test(location.pathname), [location.pathname])
 
   if (isExamPage) {
-    // 考试页面使用简洁布局
     return (
       <div style={{ minHeight: '100vh', backgroundColor: '#ffffff' }}>
-        <Outlet />
+        <RefreshableOutlet />
       </div>
     )
   }
 
-  // 如果正在加载或没有用户信息，显示加载状态
   if (loading || !user) {
-    return (
-      <div
-        style={{
-          minHeight: '100vh',
-          background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <LoadingSpinner text="加载用户信息..." />
-      </div>
-    )
+    return <LoadingSpinner center="page" text="加载用户信息…" />
   }
+
+  const headTotal = HEADER_H + (showTabs ? TABS_H : 0)
 
   return (
-    <AntLayout
-      style={{
-        minHeight: '100vh',
-        background: 'linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%)',
-      }}
-    >
-      {/* 桌面端侧边栏 */}
-      {!isMobile && (
-        <Sider
-          collapsed={sidebarCollapsed}
-          onCollapse={setSidebarCollapsed}
-          width={256}
-          collapsedWidth={64}
-          style={{
-            height: '100vh',
-            position: 'fixed',
-            left: 0,
-            top: 0,
-            bottom: 0,
-            zIndex: 100,
-          }}
-          theme="light"
-        >
-          <DynamicSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-        </Sider>
-      )}
+    <TabsProvider>
+      <LayoutOffsetVars />
+      <Header onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
+      {showTabs && <TabsBar />}
 
-      {/* 移动端侧边栏 */}
+      {!isMobile && (mode === 'side' || mode === 'mix') && <DynamicSidebar /* 你的 props 不变 */ />}
       <MobileSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
 
-      {/* 主布局区域 */}
       <AntLayout
         style={{
-          marginLeft: !isMobile ? (sidebarCollapsed ? 64 : 256) : 0,
-          transition: 'margin-left 0.3s',
+          minHeight: '100vh',
+          background: token.colorBgLayout,
+          color: token.colorText,
+          paddingTop: headTotal,
+          marginLeft: 'var(--sider-width, 0px)',
+          transition: 'margin-left .2s ease',
         }}
       >
-        {/* 头部 */}
-        <AntLayout.Header
-          style={{
-            padding: 0,
-            background: '#ffffff',
-            borderBottom: '1px solid #f0f0f0',
-            position: 'sticky',
-            top: 0,
-            zIndex: 10,
-          }}
-        >
-          <Header onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-        </AntLayout.Header>
-
-        {/* 主内容 */}
-        <Content
-          style={{
-            padding: '24px',
-            overflow: 'auto',
-            background: 'transparent',
-          }}
-        >
-          <div
+        <AntLayout>
+          <Content
             style={{
-              margin: '0 auto',
-              width: '100%',
+              padding: '8px 16px',
+              overflow: 'auto',
+              background: 'transparent',
             }}
           >
-            <Outlet />
-          </div>
-        </Content>
+            <div style={{ margin: '0 auto', width: '100%' }}>
+              <RefreshableOutlet />
+            </div>
+          </Content>
+        </AntLayout>
       </AntLayout>
-    </AntLayout>
+      <AiAssistantWidget />
+    </TabsProvider>
   )
 }
 

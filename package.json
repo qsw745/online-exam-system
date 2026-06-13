@@ -2,14 +2,34 @@
   "name": "online-exam-system",
   "private": true,
   "version": "1.0.0",
-  
- "scripts": {
+  "packageManager": "pnpm@9.15.9",
+  "description": "Monorepo for Online Exam System",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
     "dev": "concurrently -k -r -n api,web -c yellow,cyan \"pnpm -C apps/backend dev\" \"pnpm -C apps/web dev\"",
     "dev:api": "pnpm -C apps/backend dev",
     "dev:web": "pnpm -C apps/web dev"
   },
   "devDependencies": {
-    "concurrently": "^9.2.1",
-    "wait-on": "^8.0.4"
+    "@types/express": "4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/node": "^24.3.0",
+    "@types/nodemailer": "^8.0.1",
+    "concurrently": "^10.0.3",
+    "wait-on": "^9.0.10"
+  },
+  "dependencies": {
+    "mysql2": "3.10.0",
+    "tsconfig-paths": "4.2.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "diff": "4.0.4",
+      "path-to-regexp": "0.1.13",
+      "picomatch": "2.3.2"
+    }
   }
 }

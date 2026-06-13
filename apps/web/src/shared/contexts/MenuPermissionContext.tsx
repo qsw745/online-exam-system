@@ -1,7 +1,7 @@
-import { api } from '@shared/api/http'
-import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react'
-
+import React, { createContext, ReactNode, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { menuApi } from '@/shared/api/endpoints/menu'
 import { useAuth } from './AuthContext'
+import { useLanguage } from './LanguageContext'
 
 export interface MenuItem {
   id: number
@@ -10,13 +10,13 @@ export interface MenuItem {
   path?: string
   component?: string
   icon?: string
-  parent_id?: number
+  parent_id?: number | null
   sort_order: number
   level: number
   is_hidden: boolean
   is_disabled: boolean
   is_system: boolean
-  menu_type: 'menu' | 'button' | 'link' | 'page' // 你的表里有 page，补上更稳
+  menu_type: 'menu' | 'button' | 'link' | 'page'
   permission_code?: string
   redirect?: string
   meta?: any
@@ -40,52 +40,19 @@ interface MenuPermissionProviderProps {
   children: ReactNode
 }
 
+function getCurrentOrgId(): number | undefined {
+  const raw = localStorage.getItem('currentOrgId') || localStorage.getItem('orgId')
+  const n = Number(raw)
+  return Number.isFinite(n) ? n : undefined
+}
+
 export function MenuPermissionProvider({ children }: MenuPermissionProviderProps) {
   const { user } = useAuth()
-  const [menus, setMenus] = useState<MenuItem[]>([])
+  const { t } = useLanguage()
+  const [rawMenus, setRawMenus] = useState<MenuItem[]>([])
   const [permissions, setPermissions] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const fetchUserMenus = async () => {
-    if (!user?.id) {
-      setMenus([])
-      setPermissions([])
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      const res = await api.get<MenuItem[]>(`/menu/users/${user.id}/menus`)
-      if (!res.success) {
-        const msg = 'error' in res ? res.error : '获取菜单权限失败'
-        throw new Error(msg)
-      }
-
-      // res.data 可能就是数组，也可能是 { data:[] } / { items:[] } / { list:[] }
-      const payload: any = res.data
-      const menuData: MenuItem[] = Array.isArray(payload)
-        ? payload
-        : payload?.data ?? payload?.items ?? payload?.list ?? []
-
-      setMenus(menuData)
-
-      // 提取权限代码
-      const permissionCodes = extractPermissions(menuData)
-      setPermissions(permissionCodes)
-      // console.log(`成功获取 ${menuData.length} 个菜单，${permissionCodes.length} 个权限`)
-    } catch (err: any) {
-      console.error('获取用户菜单失败:', err)
-      const errorMessage = err?.message || '获取菜单权限失败'
-      setError(errorMessage)
-      setMenus([])
-      setPermissions([])
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const extractPermissions = (menuTree: MenuItem[]): string[] => {
     const list: string[] = []
@@ -98,6 +65,93 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
     walk(menuTree)
     return list
   }
+  const inferMenuKey = (item: MenuItem): string | null => {
+    const metaKey = item?.meta?.i18nKey
+    if (typeof metaKey === 'string' && metaKey.trim()) return metaKey.trim()
+    if (item?.name) return `menus.${item.name}`
+    return null
+  }
+
+  const translateMenuTitle = useCallback(
+    (item: MenuItem): string => {
+      const key = inferMenuKey(item)
+      if (key) return t(key, item.title)
+      return item.title
+    },
+    [t]
+  )
+
+  const translateMenuTree = useCallback(
+    (nodes: MenuItem[] = []): MenuItem[] =>
+      nodes.map(node => {
+        const translatedChildren = node.children?.length ? translateMenuTree(node.children) : undefined
+        return {
+          ...node,
+          title: translateMenuTitle(node),
+          children: translatedChildren,
+        }
+      }),
+    [translateMenuTitle]
+  )
+
+  const menus = useMemo(() => translateMenuTree(rawMenus), [rawMenus, translateMenuTree])
+const fetchUserMenus = async () => {
+  if (!user?.id) {
+    setRawMenus([])
+    setPermissions([])
+    setError(null)
+    return
+  }
+  setLoading(true)
+  setError(null)
+  try {
+    const isAdminName = String( user.email || '').toLowerCase() === 'admin'
+    const roleStr = (user as any)?.role?.toLowerCase?.() || localStorage.getItem('USER_ROLE') || ''
+    const isAdminRole = roleStr === 'admin' || roleStr === 'super_admin'
+
+    let menuTree: MenuItem[] = []
+
+    if (isAdminName || isAdminRole) {
+      // ✅ 管理员：直接走系统功能树（后端已做兜底）
+      const data = await menuApi.functionsTree()
+      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    } else {
+      // 普通用户：走用户-机构权限树
+      const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
+      const data = await menuApi.userMenus(Number(user.id), orgId, {
+        strict: true,
+        nocache: true, // 首次强刷
+        transport: 'header',
+      })
+      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
+    }
+
+    setRawMenus(menuTree)
+    setPermissions(extractPermissions(menuTree))
+  } catch (err: any) {
+    console.error('获取用户菜单失败:', err)
+    setRawMenus([])
+    setPermissions([])
+    setError(err?.message || '获取菜单权限失败')
+  } finally {
+    setLoading(false)
+  }
+}
+
+
+
+
+  useEffect(() => {
+    // 只在 user.id/当前 org 变化时拉一次
+    fetchUserMenus()
+    // 监听本地 orgId 变更（切组织时刷新）
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === 'currentOrgId' || e.key === 'orgId') fetchUserMenus()
+    }
+    window.addEventListener('storage', onStorage)
+    return () => window.removeEventListener('storage', onStorage)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   const hasMenuPermission = (path: string): boolean => {
     if (!path) return true
@@ -108,7 +162,7 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
 
   const hasOperationPermission = (operation: string): boolean => permissions.includes(operation)
 
-  const flattenMenus = (menuTree: MenuItem[]): MenuItem[] => {
+  const flatMenus = useMemo(() => {
     const result: MenuItem[] = []
     const walk = (items: MenuItem[]) => {
       items.forEach(it => {
@@ -116,15 +170,9 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
         if (it.children?.length) walk(it.children)
       })
     }
-    walk(menuTree)
+    walk(menus)
     return result
-  }
-
-  useEffect(() => {
-    fetchUserMenus()
-  }, [user?.id])
-
-  const flatMenus = flattenMenus(menus)
+  }, [menus])
 
   const value: MenuPermissionContextType = {
     menus,
@@ -141,15 +189,7 @@ export function MenuPermissionProvider({ children }: MenuPermissionProviderProps
 }
 
 export function useMenuPermissions(): MenuPermissionContextType {
-  const context = useContext(MenuPermissionContext)
-  if (context === undefined) {
-    throw new Error('useMenuPermissions must be used within a MenuPermissionProvider')
-  }
-  return context
-}
-
-export function withMenuPermission<T extends object>(Component: React.ComponentType<T>, _requiredPath: string) {
-  return function PermissionWrappedComponent(props: T) {
-    return React.createElement(Component, props)
-  }
+  const ctx = useContext(MenuPermissionContext)
+  if (!ctx) throw new Error('useMenuPermissions must be used within a MenuPermissionProvider')
+  return ctx
 }

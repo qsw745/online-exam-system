@@ -61,3 +61,105 @@
 .dark .ant-radio-wrapper {
   color: rgba(255, 255, 255, 0.85);
 }
+
+/* === 加强侧边菜单可点击性 === */
+.sidebar__link,
+.sidebar__label {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 8px 0;           /* 扩大命中区域 */
+  line-height: 1.4;
+}
+
+.sidebar__link {
+  text-decoration: none;
+}
+
+/* 使“整行可点”：避免子元素吞点击（图标/文本都让父 NavLink 接管） */
+.sidebar__link * {
+  pointer-events: none;
+}
+
+/* Hover 反馈更明显 */
+.ant-menu-item .sidebar__link:hover {
+  filter: brightness(0.95);
+}
+
+/* 选中态更清晰（可按主题调整） */
+.ant-menu-item-selected .sidebar__link {
+  font-weight: 600;
+}
+
+/* ===== LogsTable 样式优化 ===== */
+.logs-table .ant-table {
+  /* 避免极端情况下的列抖动 */
+  word-break: normal;
+}
+
+.logs-table .nowrap {
+  white-space: nowrap;
+}
+
+.logs-table .tag-tight {
+  display: inline-block;
+  max-width: 100%;
+  padding-inline: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 单行省略 */
+.logs-table .cell-clip {
+  display: inline-block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 两行省略（详情列用） */
+.logs-table .cell-clip-2 {
+  display: -webkit-box !important;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden !important;
+  white-space: normal !important;
+  margin-bottom: 0 !important;
+}
+
+/* 用户列排版更紧凑 */
+.logs-table .cell-user {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.logs-table .cell-user .cell-sub {
+  font-size: 12px;
+  color: rgba(0,0,0,0.45);
+  line-height: 16px;
+}
+
+/* 客户端列：主标签一行省略，类型 Tag 不换行 */
+.logs-table .cell-client {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.logs-table .cell-client .client-label {
+  display: inline-block;
+  max-width: 100%;
+}
+.logs-table .pre-wrap {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 兼容深色/浅色主题时 tooltip 的代码块可读性 */
+.ant-tooltip .pre-wrap {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}

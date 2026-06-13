@@ -1,28 +1,34 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "NodeNext",
-    "outDir": "./dist",
+    "module": "commonjs",
+    "moduleResolution": "node",
+
     "rootDir": "./src",
-    "strict": true,
+    "outDir": "./dist",
+
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
+    "types": ["node"],
+    "typeRoots": ["./node_modules/@types", "./src/types"],
+
+    "resolveJsonModule": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "NodeNext",
-    "resolveJsonModule": true,
-    "baseUrl": ".",
-    "paths": { "*": ["node_modules/*"] },
-    "typeRoots": ["./node_modules/@types", "./src/types", "./src/@types"],
+
+    "strict": true,
     "strictNullChecks": true,
-    "strictFunctionTypes": true,
     "noImplicitAny": true,
-    "noImplicitThis": true,
-    "noImplicitReturns": true,
-    "noFallthroughCasesInSwitch": true,
-    "allowJs": true,
-    "checkJs": true
+
+    "allowJs": false,
+    "checkJs": false,
+    "sourceMap": true,
+    "inlineSources": true
   },
-  "include": ["src/**/*", "src/types/**/*", "src/@types/**/*"],
-  "exclude": ["node_modules", "dist"],
-  
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist"]
 }

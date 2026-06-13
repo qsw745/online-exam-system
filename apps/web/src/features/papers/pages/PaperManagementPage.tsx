@@ -1,358 +1,152 @@
-import { api } from '@shared/api/http'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
-import { createPaginationConfig } from '@shared/constants/pagination'
-import { useAuth } from '@shared/contexts/AuthContext'
-import { message, Pagination } from 'antd'
-import { BookOpen, Edit, Eye, FileText, Plus, Search, Trash2, X } from 'lucide-react'
-import React, { useEffect, useState } from 'react'
+
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { usePapersList } from '@/shared/hooks/usePapersList'
+import { App, Button, Card, Popconfirm, Space, Typography } from 'antd'
+import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import ConfirmDialog from '../components/ConfirmDialog'
+import PapersTable from '../components/PapersTable'
+import PapersToolbar from '../components/PapersToolbar'
+import GlobalPagination from '@/shared/components/GlobalPagination'
+import PaperWorkflowModal from '../components/PaperWorkflowModal'
+import { papersApi, type Paper } from '@/shared/api/endpoints/papers'
+const { Title, Text } = Typography
 
-// ===== 统一 ApiResult 类型与守卫（兼容你项目其它页面的写法）=====
-type ApiSuccess<T = any> = { success: true; data: T; message?: string }
-type ApiFailure = { success: false; error?: string; message?: string }
-type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
-const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
-const getMsg = (r: any, fallback = '请求失败') =>
-  r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
-// ============================================================
+export default function PaperManagementPage() {
+  const nav = useNavigate()
+  const { message } = App.useApp()
+  const h = usePapersList()
 
-interface Paper {
-  id: string
-  title: string
-  description: string
-  total_score: number
-  difficulty: 'easy' | 'medium' | 'hard'
-  created_at: string
-  updated_at: string
-}
+  const [confirmId, setConfirmId] = useState<string | number | null>(null)
+  const [selectedKeys, setSelectedKeys] = useState<React.Key[]>([])
+  const [workflowPaper, setWorkflowPaper] = useState<Paper | null>(null)
+  const canBatch = selectedKeys.length > 0
 
-const PaperManagementPage: React.FC = () => {
-  const navigate = useNavigate()
-  const { user } = useAuth()
-  const [loading, setLoading] = useState(true)
-  const [papers, setPapers] = useState<Paper[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterDifficulty, setFilterDifficulty] = useState('all')
-  const [showDeleteModal, setShowDeleteModal] = useState(false)
-  const [selectedPaper, setSelectedPaper] = useState<Paper | null>(null)
-  // 分页状态
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalPages, setTotalPages] = useState(1)
-  const [totalPapers, setTotalPapers] = useState(0)
-  const [pageSize, setPageSize] = useState(10)
+  const onBatchDelete = useCallback(async () => {
+    if (!canBatch) return
+    const ids = selectedKeys.map(String)
+    setSelectedKeys([])
+    let ok = 0
+    for (const id of ids) {
+      try {
+        await h.onDelete(id)
+        ok++
+      } catch {}
+    }
+    message.success(`批量删除完成，成功 ${ok}/${ids.length}`)
+  }, [selectedKeys, h, message, canBatch])
 
-  useEffect(() => {
-    loadPapers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchTerm, filterDifficulty, pageSize])
-
-  const loadPapers = async () => {
-    try {
-      setLoading(true)
-      const params = {
-        page: currentPage,
-        limit: pageSize,
-        search: searchTerm || undefined,
-        difficulty: filterDifficulty === 'all' ? undefined : filterDifficulty,
-      }
-
-      // 可能返回 ApiResult，也可能是 axios 风格的 { data: ... }
-      const resp: any = await api.get('/papers', { params })
-
-      // 情形 A：标准 ApiResult
-      if (isSuccess<any>(resp)) {
-        const d = resp.data
-        if (Array.isArray(d)) {
-          setPapers(d)
-          setTotalPapers(d.length)
-          setTotalPages(Math.ceil(d.length / pageSize) || 1)
-        } else if (d?.papers) {
-          setPapers(d.papers as Paper[])
-          const pg = (d as any).pagination
-          setTotalPapers(pg?.total ?? d.total ?? d.papers.length ?? 0)
-          setTotalPages(pg?.totalPages ?? (Math.ceil(((d.total as number) ?? 0) / pageSize) || 1))
-        } else {
-          // 兜底：如果 d 直接就是列表对象
-          setPapers(d ?? [])
-          setTotalPapers((d?.total as number) ?? (d?.length as number) ?? 0)
-          setTotalPages(Math.ceil(((d?.total as number) ?? 0) / pageSize || 1))
-        }
+  const onReviewToggle = useCallback(
+    async (paper: Paper, enabled: boolean) => {
+      if (enabled) {
+        setWorkflowPaper(paper)
         return
       }
-
-      // 情形 B：axios 风格 { data: {...} }
-      const axData = resp?.data
-      if (Array.isArray(axData)) {
-        setPapers(axData)
-        setTotalPapers(axData.length)
-        setTotalPages(Math.ceil(axData.length / pageSize) || 1)
-      } else if (axData?.papers) {
-        setPapers(axData.papers as Paper[])
-        const pg = axData.pagination
-        setTotalPapers(pg?.total ?? axData.total ?? axData.papers.length ?? 0)
-        setTotalPages(pg?.totalPages ?? (Math.ceil(((axData.total as number) ?? 0) / pageSize) || 1))
-      } else if (axData?.data?.papers) {
-        // 情形 C：再包一层 data
-        setPapers(axData.data.papers as Paper[])
-        const pg = axData.data.pagination
-        setTotalPapers(pg?.total ?? axData.data.total ?? axData.data.papers.length ?? 0)
-        setTotalPages(pg?.totalPages ?? (Math.ceil(((axData.data.total as number) ?? 0) / pageSize) || 1))
-      } else {
-        setPapers([])
-        setTotalPapers(0)
-        setTotalPages(1)
+      try {
+        await papersApi.updateWorkflow(paper.id, {
+          requires_review: false,
+          template_id: null,
+          form_values: null,
+        })
+        message.success('已关闭审批')
+        await h.reload()
+      } catch (e: any) {
+        message.error(e?.response?.data?.message || e?.message || '关闭审批失败')
       }
-    } catch (error: any) {
-      console.error('加载试卷错误:', error)
-      message.error(error?.response?.data?.message || error?.message || '加载试卷失败')
-      setPapers([]) // 出错时设置为空数组
-      setTotalPapers(0)
-      setTotalPages(1)
-    } finally {
-      setLoading(false)
-    }
-  }
+    },
+    [h, message]
+  )
 
-  const handleDelete = async (paperId: string) => {
-    try {
-      const resp: ApiResult<any> = await api.delete(`/papers/${paperId}`)
-      if (!isSuccess(resp)) {
-        message.error(getMsg(resp, '删除试卷失败'))
-        return
-      }
-      message.success('试卷删除成功')
-      loadPapers()
-      setShowDeleteModal(false)
-      setSelectedPaper(null)
-    } catch (error: any) {
-      console.error('删除试卷错误:', error)
-      message.error(error.response?.data?.message || '删除试卷失败')
-    }
-  }
-
-  // 分页控制函数
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page)
-  }
-
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1)
-    }
-  }
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1)
-    }
-  }
-
-  // 搜索和筛选
-  const handleSearch = (value: string) => {
-    setSearchTerm(value)
-    setCurrentPage(1) // 重置到第一页
-  }
-
-  const handleFilterChange = (value: string) => {
-    setFilterDifficulty(value)
-    setCurrentPage(1) // 重置到第一页
-  }
-
-  const getDifficultyLabel = (difficulty: string) => {
-    const difficultyMap = {
-      easy: '简单',
-      medium: '中等',
-      hard: '困难',
-    }
-    return difficultyMap[difficulty as keyof typeof difficultyMap] || difficulty
-  }
-
-  const getDifficultyColor = (difficulty: string) => {
-    const colorMap = {
-      easy: 'bg-green-100 text-green-800',
-      medium: 'bg-yellow-100 text-yellow-800',
-      hard: 'bg-red-100 text-red-800',
-    }
-    return colorMap[difficulty as keyof typeof colorMap] || 'bg-gray-100 text-gray-800'
-  }
-
-  if (loading) {
-    return <LoadingSpinner text="加载试卷列表..." />
-  }
+  if (h.loading) return <LoadingSpinner text="加载试卷列表..." center="page" />
 
   return (
-    <div className="space-y-6">
-      {/* 页面标题 */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">试卷管理</h1>
-        <p className="text-gray-600 mt-1">管理所有考试试卷</p>
-      </div>
-
-      {/* 操作栏 */}
-      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-white p-4 rounded-xl shadow-sm border border-gray-200">
-        <div className="flex flex-1 gap-4">
-          {/* 搜索框 */}
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="搜索试卷..."
-              value={searchTerm}
-              onChange={e => handleSearch(e.target.value)}
-              className="pl-10 pr-4 py-2 w-full border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* 筛选器 */}
-          <select
-            value={filterDifficulty}
-            onChange={e => handleFilterChange(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="all">所有难度</option>
-            <option value="easy">简单</option>
-            <option value="medium">中等</option>
-            <option value="hard">困难</option>
-          </select>
-        </div>
-
-        {/* 添加按钮 */}
-        <div className="flex gap-2">
-          <button
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-            onClick={() => navigate('/admin/smart-paper-create')}
-          >
-            <BookOpen className="w-5 h-5" />
-            智能组卷
-          </button>
-          <button
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-            onClick={() => navigate('/admin/paper-create')}
-          >
-            <Plus className="w-5 h-5" />
-            手动组卷
-          </button>
-        </div>
-      </div>
-
-      {/* 试卷列表 */}
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">试卷</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">难度</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">总分</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  创建时间
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  操作
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {papers.map(paper => (
-                <tr key={paper.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-900 font-medium">{paper.title}</div>
-                    <div className="text-sm text-gray-500">{paper.description}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span
-                      className={`px-2 py-1 text-xs font-medium rounded-full ${getDifficultyColor(paper.difficulty)}`}
-                    >
-                      {getDifficultyLabel(paper.difficulty)}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{paper.total_score} 分</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(paper.created_at).toLocaleString('zh-CN')}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    <button
-                      className="text-blue-600 hover:text-blue-900"
-                      onClick={() => navigate(`/admin/paper-detail/${paper.id}`)}
-                    >
-                      <Eye className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="text-green-600 hover:text-green-900"
-                      onClick={() => navigate(`/admin/paper-edit/${paper.id}`)}
-                    >
-                      <Edit className="w-5 h-5" />
-                    </button>
-                    <button
-                      className="text-red-600 hover:text-red-900"
-                      onClick={() => {
-                        setSelectedPaper(paper)
-                        setShowDeleteModal(true)
-                      }}
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-
-              {papers.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                    <FileText className="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                    暂无试卷
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* 增强版分页组件 */}
-        <Pagination
-          {...createPaginationConfig({
-            current: currentPage,
-            total: totalPapers,
-            pageSize: pageSize,
-            onChange: setCurrentPage,
-            onShowSizeChange: (_current: number, newPageSize: number) => {
-              setPageSize(newPageSize)
-              setCurrentPage(1) // 重置到第一页
-            },
-          })}
+    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+   
+      <Card
+        title={
+          <Space direction="vertical" size={4} style={{ width: '100%' }}>
+            <Title level={3} style={{ margin: 0 }}>
+              试卷管理
+            </Title>
+            <Text type="secondary">管理所有考试试卷</Text>
+          </Space>
+        }
+        extra={
+          <Space wrap>
+            <Button type="primary" onClick={() => nav('/admin/papers/create/smart')}>
+              智能组卷
+            </Button>
+            <Button onClick={() => nav('/admin/papers/create/manual')}>手动创建</Button>
+            <Popconfirm
+              title={`确认删除选中的 ${selectedKeys.length} 条试卷？`}
+              okText="删除"
+              okButtonProps={{ danger: true }}
+              disabled={!canBatch}
+              onConfirm={onBatchDelete}
+            >
+              <Button danger disabled={!canBatch}>
+                批量删除
+              </Button>
+            </Popconfirm>
+          </Space>
+        }
+      />
+      <PapersToolbar
+        search={h.searchTerm}
+        onSearchChange={v => {
+          h.pagination.setCurrent(1)
+          h.setSearchTerm(v)
+        }}
+        difficulty={h.difficulty as any}
+        onDifficultyChange={v => {
+          h.pagination.setCurrent(1)
+          h.setDifficulty(v as any)
+        }}
+        onCreateSmart={() => nav('/admin/papers/create/smart')}
+        onCreateManual={() => nav('/admin/papers/create/manual')}
+      />
+      <Card styles={{ body: { padding: 0 } }}>
+        <PapersTable
+          loading={h.loading}
+          items={h.items}
+          selectedRowKeys={selectedKeys}
+          onSelectionChange={setSelectedKeys}
+          onEdit={id => nav(`/admin/paper-detail/${id}`)} // ← 编辑即跳详情
+          onDelete={id => setConfirmId(id)}
+          onReviewToggle={onReviewToggle}
         />
-      </div>
-
-      {/* 删除确认对话框 */}
-      {showDeleteModal && selectedPaper && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">确认删除</h3>
-              <button onClick={() => setShowDeleteModal(false)} className="text-gray-400 hover:text-gray-500">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            <p className="text-gray-600 mb-4">确定要删除试卷 {selectedPaper.title}？此操作无法撤销。</p>
-            <div className="flex justify-end space-x-3">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              >
-                取消
-              </button>
-              <button
-                onClick={() => handleDelete(selectedPaper.id)}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
-              >
-                确认删除
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+      </Card>
+      <Card>
+        <GlobalPagination
+          current={h.pagination.current}
+          total={h.pagination.total}
+          pageSize={h.pagination.pageSize}
+          onChange={(p, size) => {
+            if (size && size !== h.pagination.pageSize) h.pagination.setPageSize(size)
+            h.pagination.setCurrent(p)
+          }}
+          onPageSizeChange={(_, size) => h.pagination.setPageSize(size)}
+        />
+      </Card>
+      <ConfirmDialog
+        open={!!confirmId}
+        title="确认删除"
+        content="删除后将无法恢复，确定要删除该试卷吗？"
+        onCancel={() => setConfirmId(null)}
+        onOk={() => {
+          if (confirmId != null) h.onDelete(String(confirmId))
+          setConfirmId(null)
+        }}
+      />
+      <PaperWorkflowModal
+        paperId={Number(workflowPaper?.id ?? 0)}
+        open={!!workflowPaper}
+        onClose={() => setWorkflowPaper(null)}
+        onSubmitted={() => {
+          setWorkflowPaper(null)
+          h.reload()
+        }}
+      />
+    </Space>
   )
 }
-
-export default PaperManagementPage

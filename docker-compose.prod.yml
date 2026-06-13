@@ -1,0 +1,148 @@
+name: online-exam-system
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: online-exam-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    env_file:
+      - ${OES_ENV_FILE:-./.env.production}
+    environment:
+      TZ: Asia/Shanghai
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: online-exam-redis
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  backend-node:
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+    container_name: online-exam-backend-node
+    env_file:
+      - ${OES_ENV_FILE:-./.env.production}
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+      UPLOADS_DIR: /app/uploads
+      SECRETS_DIR: /app/secrets
+    volumes:
+      - uploads:/app/uploads
+      - backend-logs:/app/logs
+      - backend-secrets:/app/secrets
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: .
+      dockerfile: ./apps/backend-java/Dockerfile
+    container_name: online-exam-backend-java
+    env_file:
+      - ${OES_ENV_FILE:-./.env.production}
+    environment:
+      PORT: 3000
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+      NODE_BACKEND_URL: http://backend-node:3000
+      NODE_PROXY_ENABLED: "true"
+      AUTH_STRICT_SESSION: "false"
+    ports:
+      - "127.0.0.1:3081:3000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend-node:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: ./apps/web/Dockerfile
+      args:
+        VITE_BASE_PATH: ${WEB_BASE_PATH:-/exam/}
+        VITE_API_URL: ${WEB_API_URL:-/exam/api}
+    container_name: online-exam-web
+    ports:
+      - "127.0.0.1:3080:80"
+    depends_on:
+      backend:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  migrate:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: ./apps/backend/Dockerfile
+      target: build
+    env_file:
+      - ${OES_ENV_FILE:-./.env.production}
+    environment:
+      NODE_ENV: production
+      DB_HOST: mysql
+      DB_PORT: 3306
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: ["sh", "-lc", "pnpm -C apps/backend db:latest && pnpm -C apps/backend db:seed"]
+
+volumes:
+  mysql-data:
+  redis-data:
+  uploads:
+  backend-logs:
+  backend-secrets:

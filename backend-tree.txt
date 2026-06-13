@@ -1,76 +1,32 @@
-﻿+-- database
+﻿+-- .idea
+|   |   .gitignore
+|   |   backend.iml
+|   |   modules.xml
+|   |   vcs.xml
+|   |   workspace.xml
++-- database
 |   |   migrate_discussions.js
-+-- src
-|   +-- @types
-|   |   +-- bcryptjs
-|   |   |   |   index.d.ts
-|   +-- bootstrap
-|   |   |   menu.config.ts
-|   |   |   syncMenus.ts
-|   +-- config
-|   |   +-- migrations
-|   |   |   |   0000_alter_users_add_status.sql
-|   |   |   |   0001_base_schema.sql
-|   |   |   |   0002_alter_menus_add_columns.sql
-|   |   |   |   0003_app_core.sql
-|   |   |   |   0004_users_profile_columns.sql
-|   |   |   |   0005_seed_user_settings.sql
-|   |   |   |   0006_seed_menus.sql
-|   |   |   |   0007_alter_missing_columns.sql
-|   |   |   |   0008_alter_exam_results_add_time_status.sql
-|   |   |   |   0009_alter_logs_add_status.sql
-|   |   |   |   0010_optional_modules.sql
-|   |   |   |   0011_create_favorites_dynamic.sql
-|   |   |   |   0011_fix_favorites_fk.sql
-|   |   |   |   0011_fix_fk_user_signed.sql
-|   |   |   |   0012_patch_questions_and_user_roles.sql
-|   |   |   |   0013_rbac_org_seed.sql
-|   |   |   |   0014_meuns_add.sql
-|   |   |   |   0015_user-update.sql
-|   |   |   |   0016_role.sql
-|   |   |   |   add_task_publish_status.sql
-|   |   |   |   org_user.sql
-|   |   |   database.sql
-|   |   |   database.ts
-|   |   |   init.sql
-|   |   |   init-db.ts
-|   |   |   logs.sql
-|   |   |   password-reset.sql
-|   |   |   practice_records.sql
-|   |   |   wrong_questions.sql
-|   +-- constants
-|   |   |   roles.ts
-|   +-- controllers
-|   |   |   analytics.controller.ts
-|   |   |   auth.controller.ts
-|   |   |   dashboard.controller.ts
-|   |   |   discussions.controller.ts
-|   |   |   exam.controller.ts
-|   |   |   favorite.controller.ts
-|   |   |   favorites.controller.ts
-|   |   |   leaderboard.controller.ts
-|   |   |   learning-progress.controller.ts
-|   |   |   log.controller.ts
-|   |   |   menu.controller.ts
-|   |   |   notification.controller.ts
-|   |   |   org.controller.ts
-|   |   |   org-user.controller.ts
-|   |   |   paper.controller.ts
-|   |   |   password-reset.controller.ts
-|   |   |   question.controller.ts
-|   |   |   result.controller.ts
-|   |   |   role.controller.ts
-|   |   |   task.controller.ts
-|   |   |   user.controller.ts
-|   |   |   wrong-question.controller.ts
-|   +-- database
-|   |   |   migrate_leaderboard.js
-|   +-- middleware
-|   |   |   auth.middleware.ts
-|   |   |   roleAuth.ts
-|   |   |   upload.middleware.ts
-|   |   |   validation.ts
++-- db
 |   +-- migrations
+|   |   |   0000_alter_users_add_status.sql
+|   |   |   0001_base_schema.sql
+|   |   |   0002_alter_menus_add_columns.sql
+|   |   |   0003_app_core.sql
+|   |   |   0004_users_profile_columns.sql
+|   |   |   0005_seed_user_settings.sql
+|   |   |   0006_seed_menus.sql
+|   |   |   0007_alter_missing_columns.sql
+|   |   |   0008_alter_exam_results_add_time_status.sql
+|   |   |   0009_alter_logs_add_status.sql
+|   |   |   0010_optional_modules.sql
+|   |   |   0011_create_favorites_dynamic.sql
+|   |   |   0011_fix_favorites_fk.sql
+|   |   |   0011_fix_fk_user_signed.sql
+|   |   |   0012_patch_questions_and_user_roles.sql
+|   |   |   0013_rbac_org_seed.sql
+|   |   |   0014_meuns_add.sql
+|   |   |   0015_user-update.sql
+|   |   |   0016_role.sql
 |   |   |   002_create_papers_and_tasks.sql
 |   |   |   003_create_questions.sql
 |   |   |   004_add_title_to_questions.sql
@@ -79,75 +35,426 @@
 |   |   |   007_create_task_assignments.sql
 |   |   |   008_add_user_status.sql
 |   |   |   009_add_role_code.sql
-|   +-- models
-|   |   |   menu.model.ts
-|   |   |   notification.model.ts
-|   |   |   result.model.ts
-|   |   |   task.model.ts
+|   |   |   17_add.sql
+|   |   |   18_add_favorites.sql
+|   |   |   19_add_disussion.sql
+|   |   |   20_reate.sql
+|   |   |   20240912_create_unit_menus.ts
+|   |   |   20240916_create_auth_login_failures.ts
+|   |   |   20241014_refactor_rbac_and_menus.ts
+|   |   |   20241017_create_messages_and_todos.ts
+|   |   |   20250906_090000_add_tags_to_questions.sql
+|   |   |   20250910_add_logs_defaults.ts
+|   |   |   20250910134113_add_logs_defaults.js
+|   |   |   20250912_add_is_system_and_unit_to_menus.ts
+|   |   |   20250914_create_discussion_view_locks.ts
+|   |   |   20250914_create_system_settings.ts
+|   |   |   20250915_create_system_settings.ts
+|   |   |   20250915_fix_favorite_categories.ts
+|   |   |   20250916_add_login_security_to_users.js.ts
+|   |   |   20250916_create_login_failures.ts
+|   |   |   20250917_add_login_failures.ts
+|   |   |   20250917_ensure_practice_wrong_tables.ts
+|   |   |   20250917_fix_auth_login_failures_table.ts
+|   |   |   20250917_fix_task_assignments_nulls.ts
+|   |   |   20250918_add_difficulty_to_papers.ts
+|   |   |   20250918_add_status_to_exams.ts
+|   |   |   20250918_link_tasks_to_exams.ts
+|   |   |   20250919_add_duration_to_papers.ts
+|   |   |   20250919_add_paper_id_to_exams.ts
+|   |   |   20250921_add_exam_results_fields.ts
+|   |   |   20250921_add_exams_paper_and_duration.ts
+|   |   |   20250921_add_paper_questions_order_and_score.ts
+|   |   |   20250921_add_paper_questions_snapshots.ts
+|   |   |   20250921_add_questions_type_and_options.ts
+|   |   |   20250921_add_task_department_assignments.ts
+|   |   |   20250921_repair_questions_and_exam_results.ts
+|   |   |   202509221030_add_exam_id_to_exam_results.ts
+|   |   |   202509221050_relax_paper_id_and_autofill.ts
+|   |   |   202509221115_add_subject_to_answer_records.ts
+|   |   |   202509221130_add_subject_to_answer_records.ts
+|   |   |   20250925_add_analytics_optional_columns.ts
+|   |   |   20250927_add_org_to_roles.ts
+|   |   |   20251006120000_add_user_profile_fields.ts
+|   |   |   20251008_add_role_orgs.ts
+|   |   |   20251008_roles_scope_unique.ts
+|   |   |   20251011_fix_admin_menus.ts
+|   |   |   20251014_roles_permissions_refactor.ts
+|   |   |   add_task_publish_status.sql
+|   |   |   database.sql
+|   |   |   init.sql
+|   |   |   logs.sql
+|   |   |   org_user.sql
+|   |   |   password-reset.sql
+|   |   |   practice_records.sql
+|   |   |   wrong_questions.sql
+|   |   |   wrong_questions_v2.ts
+|   +-- seeds
++-- logs
+|   |   .1f4993ac24d86d2f88059112e7187013127f1f89-audit.json
+|   |   .77553ab959ad6a3b9ca434caba14dbe90f27c8d1-audit.json
+|   |   .d06c931e74736c0fbc018d06399b3faea82a59dc-audit.json
+|   |   .e35bbd2056d39679c2c2d2cf5818c95a92a5ef0d-audit.json
+|   |   2025-09-08.log
+|   |   2025-09-08-error.log
+|   |   2025-10-09.log
+|   |   2025-10-09-error.log
+|   |   2025-10-10.log
+|   |   2025-10-10-error.log
+|   |   2025-10-11.log
+|   |   2025-10-11-error.log
+|   |   2025-10-13.log
+|   |   2025-10-13-error.log
+|   |   2025-10-14.log
+|   |   2025-10-14-error.log
+|   |   2025-10-15.log
+|   |   2025-10-15-error.log
+|   |   2025-10-16.log
+|   |   2025-10-16-error.log
+|   |   2025-10-17.log
+|   |   2025-10-17-error.log
++-- scripts
+|   |   check-imports.cjs
+|   |   init-db.ts
++-- src
+|   +-- @types
+|   |   +-- bcryptjs
+|   |   |   |   index.d.ts
+|   |   +-- express
+|   |   |   |   index.d.ts
+|   |   |   shims.d.ts
+|   +-- bootstrap
+|   |   |   menu.bootstrap.ts
+|   |   |   menu.config.ts
+|   |   |   syncMenus.ts
+|   +-- common
+|   |   +-- errors
+|   |   |   |   http-error.ts
+|   |   +-- middleware
+|   |   |   |   auth.ts
+|   |   |   |   http-logger.ts
+|   |   |   |   index.ts
+|   |   |   |   jwt-role-hydrator.ts
+|   |   |   |   rate-limit.ts
+|   |   |   |   rbac.ts
+|   |   |   |   requestId.ts
+|   |   |   |   response.ts
+|   |   |   |   role-auth.ts
+|   |   |   |   upload.ts
+|   |   |   |   validation.ts
+|   |   +-- redis
+|   |   |   |   cache.ts
+|   |   |   |   client.ts
+|   |   |   |   lock.ts
+|   |   +-- session
+|   |   |   |   session.store.ts
+|   |   +-- utils
+|   |   |   |   date.ts
+|   |   |   |   geo.ts
+|   |   |   |   request-ip.ts
+|   |   |   |   ua.ts
+|   |   +-- validation
+|   |   |   |   favorites.schema.ts
+|   |   |   async-handler.ts
+|   +-- config
+|   |   |   database.ts
+|   |   |   jwt.ts
+|   |   |   roles.ts
+|   |   |   sql-debug.ts
+|   +-- database
+|   |   |   migrate_leaderboard.js
+|   +-- infrastructure
+|   |   +-- db
+|   |   |   |   index.ts
+|   |   |   |   transaction.ts
+|   |   +-- email
+|   |   |   |   email.service.ts
+|   |   +-- logging
+|   |   |   |   logger.ts
+|   +-- modules
+|   |   +-- admin-settings
+|   |   |   +-- controllers
+|   |   |   |   |   admin-settings.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   admin-settings.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   admin-settings.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   admin-settings.routes.ts
+|   |   |   |   |   public.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   admin-settings.service.ts
+|   |   +-- analytics
+|   |   |   +-- controllers
+|   |   |   |   |   analytics.controller.ts
+|   |   |   |   |   dashboard.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   analytics.model.ts
+|   |   |   |   |   dashboard.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   analytics.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   analytics.routes.ts
+|   |   |   |   |   dashboard.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   analytics.service.ts
+|   |   |   |   |   dashboard.service.ts
+|   |   +-- auth
+|   |   |   +-- controllers
+|   |   |   |   |   auth.controller.ts
+|   |   |   |   |   captcha.controller.ts
+|   |   |   |   |   password-reset.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   auth.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   login-failure.repository.ts
+|   |   |   |   |   password-reset.repository.ts
+|   |   |   |   |   token.repository.ts
+|   |   |   |   |   user.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   auth.routes.ts
+|   |   |   |   |   captcha.routes.ts
+|   |   |   |   |   crypto.routes.ts
+|   |   |   |   |   password-reset.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   auth.service.ts
+|   |   |   |   |   auth-lock.service.ts
+|   |   |   |   |   captcha.service.ts
+|   |   |   |   |   crypto.service.ts
+|   |   |   |   |   password-policy.service.ts
+|   |   |   |   |   password-reset.service.ts
+|   |   +-- discussions
+|   |   |   +-- controllers
+|   |   |   |   |   discussions.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   discussion.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   discussion.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   discussions.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   discussions.service.ts
+|   |   +-- exams
+|   |   |   +-- controllers
+|   |   |   |   |   exam.controller.ts
+|   |   |   |   |   paper.controller.ts
+|   |   |   |   |   result.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   exam.model.ts
+|   |   |   |   |   paper.model.ts
+|   |   |   |   |   result.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   exam.repository.ts
+|   |   |   |   |   paper.repository.ts
+|   |   |   |   |   result.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   exam.routes.ts
+|   |   |   |   |   paper.routes.ts
+|   |   |   |   |   result.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   exam.service.ts
+|   |   |   |   |   paper.service.ts
+|   |   |   |   |   result.service.ts
+|   |   +-- favorites
+|   |   |   +-- controllers
+|   |   |   |   |   favorites.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   favorites.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   favorites.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   favorites.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   favorites.service.ts
+|   |   +-- leaderboard
+|   |   |   +-- controllers
+|   |   |   |   |   leaderboard.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   leaderboard.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   achievement.repository.ts
+|   |   |   |   |   competition.repository.ts
+|   |   |   |   |   leaderboard.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   leaderboard.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   leaderboard.service.ts
+|   |   +-- learning-progress
+|   |   |   +-- controllers
+|   |   |   |   |   learning-progress.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   learning-progress.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   learning-progress.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   learning-progress.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   learning-progress.service.ts
+|   |   +-- logs
+|   |   |   +-- controllers
+|   |   |   |   |   log.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   log.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   log.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   log.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   log.service.ts
+|   |   +-- menus
+|   |   |   +-- controllers
+|   |   |   |   |   menu.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   menu.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   menu.repository.ts
+|   |   |   |   |   unit-menu.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   menus.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   menus.service.ts
+|   |   +-- messages
+|   |   |   +-- controllers
+|   |   |   |   |   message.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   message.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   message.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   message.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   message.service.ts
+|   |   +-- notifications
+|   |   |   +-- controllers
+|   |   |   |   |   notification.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   notification.types.ts
+|   |   |   +-- repositories
+|   |   |   |   |   notification.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   notification.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   notification.service.ts
+|   |   +-- orgs
+|   |   |   +-- controllers
+|   |   |   |   |   org.controller.ts
+|   |   |   |   |   org-user.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   org.model.ts
+|   |   |   |   |   org-user.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   org.repository.ts
+|   |   |   |   |   org-user.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   org.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   org.service.ts
+|   |   |   |   |   org-user.service.ts
+|   |   +-- profile
+|   |   |   +-- controllers
+|   |   |   |   |   profile.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   profile.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   profile.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   profile.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   profile.service.ts
+|   |   +-- questions
+|   |   |   +-- controllers
+|   |   |   |   |   question.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   question.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   question.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   question.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   question.service.ts
+|   |   +-- roles
+|   |   |   +-- controllers
+|   |   |   |   |   role.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   role.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   role.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   role.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   role.service.ts
+|   |   +-- tasks
+|   |   |   +-- controllers
+|   |   |   |   |   task.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   task.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   task.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   task.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   task.service.ts
+|   |   +-- todos
+|   |   |   +-- controllers
+|   |   |   |   |   todo.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   todo.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   todo.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   todo.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   todo.service.ts
+|   |   +-- users
+|   |   |   +-- controllers
+|   |   |   |   |   user.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   user.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   user.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   user.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   user.service.ts
+|   |   +-- wrong-questions
+|   |   |   +-- controllers
+|   |   |   |   |   wrong-question.controller.ts
+|   |   |   +-- domain
+|   |   |   |   |   wq.model.ts
+|   |   |   +-- repositories
+|   |   |   |   |   wq.repository.ts
+|   |   |   +-- routes
+|   |   |   |   |   wrong-question.routes.ts
+|   |   |   +-- services
+|   |   |   |   |   wrong-question.service.ts
 |   +-- routes
-|   |   |   analytics.routes.ts
-|   |   |   auth.routes.ts
-|   |   |   dashboard.routes.ts
-|   |   |   discussions.routes.ts
-|   |   |   exam.routes.ts
-|   |   |   exam_result.routes.ts
-|   |   |   favorite.routes.ts
-|   |   |   favorites.routes.ts
-|   |   |   leaderboard.routes.ts
-|   |   |   learning-progress.routes.ts
-|   |   |   log.routes.ts
-|   |   |   menu.routes.ts
-|   |   |   notification.routes.ts
-|   |   |   org.routes.ts
-|   |   |   org-user.routes.ts
-|   |   |   paper.routes.ts
-|   |   |   password-reset.routes.ts
-|   |   |   question.routes.ts
-|   |   |   result.routes.ts
-|   |   |   role.routes.ts
-|   |   |   task.routes.ts
-|   |   |   user.routes.ts
-|   |   |   wrong-question.routes.ts
-|   +-- services
-|   |   |   discussions.service.ts
-|   |   |   favorites.service.ts
-|   |   |   leaderboard.service.ts
-|   |   |   learning-progress.service.ts
-|   |   |   logger.service.ts
-|   |   |   menu.service.ts
-|   |   |   org-user.service.ts
-|   |   |   role.service.ts
-|   |   |   wrong-question.service.ts
+|   |   |   index.ts
 |   +-- types
 |   |   |   auth.ts
 |   |   |   express.d.ts
+|   |   |   express.response.d.ts
+|   |   |   express-augment.d.ts
+|   |   |   geoip-lite.d.ts
+|   |   |   multer.d.ts
+|   |   |   mysql2-augment.d.ts
 |   |   |   password-reset.ts
 |   |   |   response.ts
-|   +-- utils
-|   |   |   email.service.ts
+|   |   |   shims.d.ts
 |   |   app.ts
+|   |   bootstrap.ts
 +-- uploads
 |   +-- avatars
+|   |   |   avatar-1757898805086-6884710094894473.jpg
 |   .env
 |   add_more_paper_questions.sql
-|   assign_default_permissions.cjs
-|   assign_parent_menu_3_to_admin.cjs
-|   check_menu_hierarchy.cjs
-|   check_role_data.cjs
-|   check_user_2_roles.cjs
+|   backend-refactor.ps1
 |   create_paper_questions.sql
-|   debug_menu_tree_api.cjs
-|   debug_user2_permissions.cjs
 |   Dockerfile
 |   EMAIL_SETUP.md
-|   fix_user_2_admin_role.cjs
 |   insert_paper_questions.sql
+|   knexfile.js
 |   latest_menu_response.json
 |   learning_progress.sql
-|   migrate_favorites.js
-|   migrate_learning_progress.js
-|   migrate_menu_management.cjs
-|   migrate_wrong_questions.js
+|   nodemon.json
 |   package.json
-|   pnpm-lock.yaml
 |   tsconfig.json

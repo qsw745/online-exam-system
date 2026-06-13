@@ -1,0 +1,122 @@
+// src/features/exams/components/ExamCard.tsx
+
+import React, { useState } from 'react'
+import { Button, Card, Space, Tag, Typography } from 'antd'
+import { BookOpen, Clock, Play, Users } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import ExamWorkflowModal from '@/features/exams/components/ExamWorkflowModal'
+const { Title, Paragraph } = Typography
+// ✅ 本地最小化类型（避免从 http 导入不存在的类型）
+type Exam = {
+  id: string | number
+  title: string
+  status: 'draft' | 'reviewing' | 'approved' | 'published' | 'closed' | 'rejected' | 'archived' | (string & {})
+  description?: string
+  duration: number
+  total_score: number
+  question_count?: number
+  participant_count?: number
+  start_time?: string
+  end_time?: string
+}
+function formatDuration(minutes: number) {
+  const h = Math.floor(minutes / 60)
+  const m = minutes % 60
+  return h > 0 ? `${h}小时${m > 0 ? m + '分钟' : ''}` : `${m}分钟`
+}
+function StatusBadge({ status }: { status: Exam['status'] }) {
+  const map = {
+    draft: { label: '草稿', color: 'default' as const },
+    reviewing: { label: '审核中', color: 'warning' as const },
+    approved: { label: '已审核', color: 'processing' as const },
+    published: { label: '已发布', color: 'success' as const },
+    closed: { label: '已关闭', color: 'default' as const },
+    rejected: { label: '已驳回', color: 'error' as const },
+    archived: { label: '已归档', color: 'error' as const },
+  }
+  const cfg = map[status as keyof typeof map] ?? map.draft
+  return <Tag color={cfg.color}>{cfg.label}</Tag>
+}
+export function ExamCard({ exam }: { exam: Exam }) {
+  const [workflowOpen, setWorkflowOpen] = useState(false)
+  return (
+    <>
+      <Card
+        hoverable
+        style={{ marginBottom: 16 }}
+        actions={[
+          exam.status === 'published' ? (
+            <Link to={`/exam/${exam.id}`} key="start">
+              <Button type="primary" icon={<Play className="w-4 h-4" />}>
+                开始考试
+              </Button>
+            </Link>
+          ) : (
+            <Button disabled key="disabled">
+              暂不可用
+            </Button>
+          ),
+          ['draft', 'rejected'].includes(exam.status as string) && (
+            <Button type="link" key="workflow" onClick={() => setWorkflowOpen(true)}>
+              提交审批
+            </Button>
+          ),
+        ].filter(Boolean)}
+      >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <Title level={4} style={{ margin: 0 }}>
+              {exam.title}
+            </Title>
+            <StatusBadge status={exam.status} />
+          </div>
+
+          {exam.description && (
+            <Paragraph ellipsis={{ rows: 2 }} style={{ marginBottom: 16, color: '#666' }}>
+              {exam.description}
+            </Paragraph>
+          )}
+
+          <Space size="large" style={{ color: '#8c8c8c' }}>
+            <Space size="small">
+              <Clock className="w-4 h-4" />
+              <span>{formatDuration(exam.duration)}</span>
+            </Space>
+
+            <Space size="small">
+              <BookOpen className="w-4 h-4" />
+              <span>{exam.total_score}分</span>
+            </Space>
+
+            {typeof exam.question_count === 'number' && (
+              <Space size="small">
+                <span>{exam.question_count}题</span>
+              </Space>
+            )}
+
+            {typeof exam.participant_count === 'number' && (
+              <Space size="small">
+                <Users className="w-4 h-4" />
+                <span>{exam.participant_count}人参加</span>
+              </Space>
+            )}
+          </Space>
+
+          {(exam.start_time || exam.end_time) && (
+            <div style={{ marginTop: 12, fontSize: 14, color: '#8c8c8c' }}>
+              {exam.start_time && <div>开始时间: {new Date(exam.start_time).toLocaleString()}</div>}
+              {exam.end_time && <div>结束时间: {new Date(exam.end_time).toLocaleString()}</div>}
+            </div>
+          )}
+        </div>
+      </div>
+      </Card>
+      <ExamWorkflowModal
+        examId={Number(exam.id)}
+        open={workflowOpen}
+        onClose={() => setWorkflowOpen(false)}
+      />
+    </>
+  )
+}

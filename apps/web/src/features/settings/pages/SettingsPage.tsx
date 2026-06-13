@@ -1,282 +1,110 @@
-import { Bell, Eye, Globe, Mail, Moon, Palette, Save, Smartphone, Sun, Trophy, Volume2 } from 'lucide-react'
-import { useEffect, useState } from 'react'
+// src/features/settings/pages/SettingsPage.tsx
+import React, { useMemo, useState, Suspense } from 'react'
+import { Card, Menu } from 'antd'
+import { useNavigate } from 'react-router-dom'
+import { User as UserIcon, Settings as SettingsIcon, ShieldCheck, BookUser, ChevronLeft } from 'lucide-react'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { withAppAssetPath } from '@/shared/router/basePath'
 
-import { Button, Card, Col, message, Row, Select, Space, Spin, Switch, Typography } from 'antd'
+// 懒加载四个 Tab（仍然按需加载，首屏更轻）
+const ProfileTab = React.lazy(() => import('./tabs/ProfileTab'))
+const PreferencesTab = React.lazy(() => import('./tabs/PreferencesTab'))
+const SecurityTab = React.lazy(() => import('./tabs/SecurityTab'))
+const AccountTab = React.lazy(() => import('./tabs/AccountTab'))
 
-import { settings } from '@shared/api/http'
-import { useAuth } from '@shared/contexts/AuthContext'
-import { useLanguage } from '@shared/contexts/LanguageContext'
-import { useTheme } from '../../../app/providers/AntdThemeProvider' // 或配置 @app 后写成 @app/providers/AntdThemeProvider
+type TabKey = 'profile' | 'preferences' | 'security' | 'account'
 
-const { Title, Text } = Typography
-const { Option } = Select
-
-interface NotificationSettings {
-  email: boolean
-  push: boolean
-  sound: boolean
-}
-
-interface PrivacySettings {
-  profile_visibility: 'public' | 'private'
-  show_activity: boolean
-  show_results: boolean
-}
-function isFailure<T>(r: any): r is { success: false; error: string } {
-  return r && r.success === false && typeof r.error === 'string'
-}
+const menuItems = [
+  { key: 'profile', icon: <UserIcon size={16} />, label: '个人信息' },
+  { key: 'preferences', icon: <SettingsIcon size={16} />, label: '偏好设置' },
+  { key: 'security', icon: <ShieldCheck size={16} />, label: '安全日志' },
+  { key: 'account', icon: <BookUser size={16} />, label: '账户管理' },
+] as const
 
 export default function SettingsPage() {
-  const { language, setLanguage, t } = useLanguage()
-  const { user } = useAuth()
-  const [loading, setLoading] = useState(false)
-  const [initialLoading, setInitialLoading] = useState(true)
-  const [notifications, setNotifications] = useState<NotificationSettings>({
-    email: true,
-    push: true,
-    sound: true,
-  })
-  const { mode, toggle } = useTheme()
+  const nav = useNavigate()
+  const [active, setActive] = useState<TabKey>('profile') // ✅ 本地状态控制
 
-  const [privacy, setPrivacy] = useState<PrivacySettings>({
-    profile_visibility: 'public',
-    show_activity: true,
-    show_results: true,
-  })
+  const goBack = () => {
+    if (window.history.length > 1) nav(-1)
+    else nav('/dashboard')
+  }
 
-  useEffect(() => {
-    loadUserSettings()
-  }, [])
-
-  const loadUserSettings = async () => {
-    try {
-      setInitialLoading(true)
-      // 只有在用户已登录时才尝试获取设置
-      if (user?.id) {
-        const res = await settings.get()
-        if (isFailure(res)) {
-          // 失败就走默认，不抛错也行
-          console.warn('加载设置失败：', res.error)
-        } else {
-          const userSettings = res.data
-          if (userSettings?.notifications) {
-            setNotifications(n => ({ ...n, ...userSettings.notifications }))
-          }
-          if (userSettings?.privacy) {
-            setPrivacy(p => ({ ...p, ...userSettings.privacy }))
-          }
-          if (userSettings?.appearance?.language) {
-            setLanguage(userSettings.appearance.language)
-          }
-        }
-      }
-    } catch (error: any) {
-      console.error('加载设置错误:', error)
-      // 静默失败，使用默认设置
-    } finally {
-      setInitialLoading(false)
+  const Content = useMemo(() => {
+    switch (active) {
+      case 'profile':
+        return <ProfileTab />
+      case 'preferences':
+        return <PreferencesTab />
+      case 'security':
+        return <SecurityTab />
+      case 'account':
+        return <AccountTab />
+      default:
+        return null
     }
-  }
-
-  const handleSaveSettings = async () => {
-    setLoading(true)
-    try {
-      // 只有在用户已登录时才尝试保存设置
-      if (user?.id) {
-        await settings.save({
-          notifications,
-          privacy,
-          appearance: {
-            language,
-          },
-        })
-      } else {
-        // 未登录时，只更新本地存储的语言设置
-        localStorage.setItem('language', language)
-      }
-
-      // 使用翻译函数显示成功消息
-      message.success(t('settings.success'))
-    } catch (error: any) {
-      console.error('保存设置错误:', error)
-      message.error(error.message || t('settings.error'))
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  if (initialLoading) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <Spin size="large" />
-      </div>
-    )
-  }
+  }, [active])
 
   return (
-    <div style={{ padding: '24px' }}>
-      <Title level={2} style={{ marginBottom: '32px' }}>
-        {t('settings.title')}
-      </Title>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+      {/* 返回按钮 */}
+      <button
+        type="button"
+        onClick={goBack}
+        aria-label="返回"
+        style={{
+          alignSelf: 'flex-start',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          padding: '6px 8px',
+          border: 'none',
+          background: 'transparent',
+          color: 'var(--app-colorTextSecondary, #6b7280)',
+          cursor: 'pointer',
+          borderRadius: 8,
+        }}
+        onMouseEnter={e =>
+          ((e.currentTarget.style as any).backgroundColor =
+            'var(--app-colorFillTertiary, rgba(0,0,0,.04))')
+        }
+        onMouseLeave={e => ((e.currentTarget.style as any).backgroundColor = 'transparent')}
+      >
+        <ChevronLeft size={18} />
+        <span style={{ fontSize: 16 }}>返回</span>
+      </button>
 
-      <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        {/* 通知设置 */}
-        <Card title={t('settings.notifications')} size="default">
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Mail style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.email')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Switch
-                  checked={notifications.email}
-                  onChange={checked => setNotifications({ ...notifications, email: checked })}
-                />
-              </Col>
-            </Row>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Smartphone style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.push')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Switch
-                  checked={notifications.push}
-                  onChange={checked => setNotifications({ ...notifications, push: checked })}
-                />
-              </Col>
-            </Row>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Volume2 style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.sound')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Switch
-                  checked={notifications.sound}
-                  onChange={checked => setNotifications({ ...notifications, sound: checked })}
-                />
-              </Col>
-            </Row>
-          </Space>
+      {/* 主体两栏布局 */}
+      <div style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: 16 }}>
+        {/* 左侧导航卡片 */}
+        <Card style={{ padding: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 16px 8px' }}>
+            <img
+              src={withAppAssetPath('/brand-logo.svg')}
+              width={32}
+              height={32}
+              style={{ borderRadius: 8, objectFit: 'cover' }}
+            />
+            <div style={{ lineHeight: 1.2 }}>
+              <div style={{ fontWeight: 600 }}>账户设置</div>
+              <div style={{ fontSize: 12, color: 'var(--app-colorTextTertiary,#999)' }}>管理个人资料与偏好</div>
+            </div>
+          </div>
+          <Menu
+            mode="inline"
+            selectedKeys={[active]}
+            items={menuItems as any}
+            onClick={({ key }) => setActive(key as TabKey)}   
+            style={{ borderInlineEnd: 'none', padding: '8px 8px 16px' }}
+          />
         </Card>
 
-        {/* 隐私设置 */}
-        <Card title={t('settings.privacy')} size="default">
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Eye style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.profile_visibility')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Select
-                  value={privacy.profile_visibility}
-                  onChange={value => setPrivacy({ ...privacy, profile_visibility: value })}
-                  style={{ width: 120 }}
-                >
-                  <Option value="public">{t('settings.public')}</Option>
-                  <Option value="private">{t('settings.private')}</Option>
-                </Select>
-              </Col>
-            </Row>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Bell style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.show_activity')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Switch
-                  checked={privacy.show_activity}
-                  onChange={checked => setPrivacy({ ...privacy, show_activity: checked })}
-                />
-              </Col>
-            </Row>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Trophy style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.show_results')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Switch
-                  checked={privacy.show_results}
-                  onChange={checked => setPrivacy({ ...privacy, show_results: checked })}
-                />
-              </Col>
-            </Row>
-          </Space>
+        {/* 右侧内容区域：组件切换 */}
+        <Card>
+          <Suspense fallback={<LoadingSpinner center="page" text="加载中…" />}>
+            {Content}
+          </Suspense>
         </Card>
-
-        {/* 外观设置 */}
-        <Card title={t('settings.appearance')} size="default">
-          <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Palette style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.theme')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Button
-                  onClick={toggle}
-                  icon={
-                    mode === 'dark' ? (
-                      <Sun style={{ width: 16, height: 16 }} />
-                    ) : (
-                      <Moon style={{ width: 16, height: 16 }} />
-                    )
-                  }
-                  type="default"
-                />
-              </Col>
-            </Row>
-
-            <Row justify="space-between" align="middle">
-              <Col>
-                <Space>
-                  <Globe style={{ width: 16, height: 16 }} />
-                  <Text>{t('settings.language')}</Text>
-                </Space>
-              </Col>
-              <Col>
-                <Select value={language} onChange={value => setLanguage(value)} style={{ width: 120 }}>
-                  <Option value="zh-CN">{t('language.zh-CN')}</Option>
-                  <Option value="en-US">{t('language.en-US')}</Option>
-                </Select>
-              </Col>
-            </Row>
-          </Space>
-        </Card>
-      </Space>
-
-      {/* 保存按钮 */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-        <Button
-          type="primary"
-          onClick={handleSaveSettings}
-          loading={loading}
-          icon={<Save style={{ width: 16, height: 16 }} />}
-        >
-          {loading ? t('settings.saving') : t('settings.save')}
-        </Button>
       </div>
     </div>
   )

@@ -1,1217 +1,921 @@
+import { usersApi } from '@/shared/api/endpoints/users'
+import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
+import { useOrgTree } from '@/shared/hooks'
 import {
-  ApartmentOutlined,
-  DeleteOutlined,
+  ColumnHeightOutlined,
   EditOutlined,
-  ExclamationCircleOutlined,
-  EyeOutlined,
-  FilterOutlined,
-  KeyOutlined,
-  MoreOutlined,
+  EllipsisOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+  HolderOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
   ReloadOutlined,
   SearchOutlined,
-  StarOutlined,
-  StopOutlined,
+  SettingOutlined,
   UserAddOutlined,
-  UserDeleteOutlined,
   UserOutlined,
 } from '@ant-design/icons'
-import { api, users } from '@shared/api/http'
-import { useAuth } from '@shared/contexts/AuthContext'
-import type { InputRef, TreeProps } from 'antd'
 import {
   App,
   Avatar,
   Button,
   Card,
-  Col,
-  Divider,
+  Checkbox,
   Dropdown,
-  Form,
   Input,
+  InputNumber,
   Layout,
   Modal,
-  Pagination,
-  Row,
   Select,
   Space,
-  Statistic,
   Switch,
   Table,
   Tag,
-  Tree,
+  Tooltip,
   Typography,
 } from 'antd'
-import { Users as EmptyIcon } from 'lucide-react'
-import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { OrgAPI } from '@features/orgs/api'
+import type { ColumnsType } from 'antd/es/table'
+import React, { useCallback, useEffect, useMemo, useRef, useState, type Key } from 'react'
+import { createPortal } from 'react-dom'
+import GlobalPagination from '@/shared/components/GlobalPagination'
 
-const { Title, Paragraph, Text } = Typography
-const { Search } = Input
-const { Option } = Select
+// 弹窗
+import AssignRolesModal from '../components/AssignRolesModal'
+import AddUserModal, { type SubmitPayload } from '../components/AddUserModal'
+import { EditUserModal } from '../components/EditUserModal'
+import { ResetPasswordModal } from '../components/ResetPasswordModal'
+import { UploadAvatarModal } from '../components/UploadAvatarModal'
+
+import { useOrgPathMap } from '../hooks/useOrgPathMap'
+import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+
 const { Sider, Content } = Layout
-const confirm = Modal.confirm
+const { Text } = Typography
 
-// ---- API 收窄工具 ----
-type ApiSuccess<T> = { success: true; data: T; message?: string }
-type ApiFailure = { success: false; error?: string; message?: string }
-type ApiResult<T> = ApiSuccess<T> | ApiFailure
-const assertSuccess = <T,>(r: ApiResult<T>): r is ApiSuccess<T> => !!r && (r as any).success === true
+type Status = 'active' | 'disabled'
+type ColKey =
+  | 'id'
+  | 'avatar'
+  | 'email'
+  | 'nickname'
+  | 'gender'
+  | 'department'
+  | 'phone'
+  | 'status'
+  | 'created_at'
+  | 'actions'
 
-// 角色优先级（来自组织绑定）：admin > teacher > student
-const pickDisplayRole = (codes?: string[]): 'admin' | 'teacher' | 'student' => {
-  const arr = (codes || []).map(c => String(c).toLowerCase())
-  if (arr.includes('admin')) return 'admin'
-  if (arr.includes('teacher')) return 'teacher'
-  return 'student'
-}
-
-// —— 规范状态（兼容 status / is_active） —— //
-const normalizeStatus = (x: any): 'active' | 'disabled' => {
-  if (typeof x.status === 'string') return x.status === 'disabled' ? 'disabled' : 'active'
-  if (typeof x.is_active !== 'undefined') return Number(x.is_active) === 1 ? 'active' : 'disabled'
-  return 'active'
-}
-
-interface User {
+type Row = {
   id: number
-  email: string
-  role: 'student' | 'teacher' | 'admin'
   nickname?: string
-  school?: string
-  class_name?: string
-  experience_points: number
-  level: number
-  status: 'active' | 'disabled'
-  created_at: string
-  updated_at: string
-}
-interface UserStatistics {
-  totalSubmissions: number
-  completedSubmissions: number
-  averageScore: number
-}
-interface UserDetail extends User {
-  statistics: UserStatistics
+  real_name?: string
+  gender?: 'male' | 'female' | '男' | '女' | string | null
+  phone?: string | null
+  email?: string | null
+  status?: Status | string
+  avatar?: string | null
+  avatar_url?: string | null
+  orgId?: number | null
   org_id?: number | null
-  org_name?: string | null
+  orgPath?: string | null
+  department?: string | null
+  orgName?: string | null
+  created_at?: string | null
+  createdAt?: string | null
 }
 
-// —— 列表的 UI 类型（来自 /orgs/:id/users）—— //
-type UIUser = {
-  id: number
-  email?: string
-  role: 'admin' | 'teacher' | 'student'
-  nickname?: string
-  school?: string
-  class_name?: string
-  experience_points: number
-  level: number
-  status: 'active' | 'disabled'
-  created_at?: string
-  updated_at?: string
-  org_id?: number | null
-  org_name?: string | null
-  org_path_label?: string | null
+const COLUMN_LABEL_KEYS: Record<ColKey, string> = {
+  id: 'users.columns.id',
+  avatar: 'users.columns.avatar',
+  email: 'users.columns.email',
+  nickname: 'users.columns.nickname',
+  gender: 'users.columns.gender',
+  department: 'users.columns.department',
+  phone: 'users.columns.phone',
+  status: 'users.columns.status',
+  created_at: 'users.columns.created_at',
+  actions: 'users.columns.actions',
+}
+const FIXED: ColKey = 'actions'
+const DEFAULT_ORDER: ColKey[] = [
+  'id',
+  'avatar',
+  'email',
+  'nickname',
+  'gender',
+  'department',
+  'phone',
+  'status',
+  'created_at',
+]
+const DEFAULT_VISIBLE: ColKey[] = [...DEFAULT_ORDER, 'actions']
+
+function pickFirstId(tree: any[]): number | null {
+  if (!Array.isArray(tree) || tree.length === 0) return null
+  const first = tree.find(n => n && typeof n.id === 'number')
+  return first ? first.id : null
+}
+const maskPhone = (p?: string | null) => (p ? p.replace(/^(\d{3})\d*(\d{4})$/, '$1****$2') : '')
+const toEnabled = (s?: string) => (s === 'active' ? true : s === 'disabled' ? false : undefined)
+const created = (r: Row) => r.created_at || r.createdAt || null
+const avatarUrl = (r: Row) => r.avatar_url || r.avatar || null
+
+// 纯函数：去重
+function dedupeRows(rows: Row[] | undefined | null): Row[] {
+  if (!Array.isArray(rows) || rows.length === 0) return []
+  const seen = new Set<number>()
+  const uniq: Row[] = []
+  for (const r of rows) {
+    const idNum = Number((r as any)?.id)
+    if (Number.isFinite(idNum)) {
+      if (seen.has(idNum)) continue
+      seen.add(idNum)
+    }
+    uniq.push(r)
+  }
+  return uniq
 }
 
-type RawOrgNode = { id: number; name: string; children?: RawOrgNode[] }
-type OrgTreeData = {
-  key: number
-  title: React.ReactNode
-  raw: RawOrgNode
-  children?: OrgTreeData[]
+async function safeCreateUser(payload: SubmitPayload) {
+  return usersApi.create(payload as any)
 }
 
-const UserManagementPage: React.FC = () => {
+/** 统一解包批量删除响应：兼容 data 包裹与直返两种形式 */
+function normalizeBatchDeleteResult(ret: any): { deleted: number; skipped: number; rawMsg?: string } {
+  const data = ret && (ret.deleted !== undefined || ret.skipped !== undefined) ? ret : ret?.data || ret?.result || {}
+  const deleted = Number(data?.deleted ?? 0)
+  const skipped = Array.isArray(data?.skipped) ? data.skipped.length : Number((data?.skipped ?? 0) || 0)
+  const rawMsg = typeof ret?.message === 'string' ? ret.message : undefined
+  return { deleted, skipped, rawMsg }
+}
+
+export default function UserManagementPage() {
+  // ✅ 仅在顶层调用一次 Hook
   const { message } = App.useApp()
-  const { user } = useAuth()
-  const [form] = Form.useForm()
-  const [editForm] = Form.useForm()
+  const { t } = useLanguage()
 
-  // 左侧机构树
-  const [treeData, setTreeData] = useState<OrgTreeData[]>([])
-  const [treeLoading, setTreeLoading] = useState(false)
-  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
-  const [includeChildren, setIncludeChildren] = useState(true)
-
-  // 右侧用户列表
-  const [userList, setUserList] = useState<UIUser[]>([])
-  const [loading, setLoading] = useState(true)
-  const [searchTerm, setSearchTerm] = useState('')
-  const [roleFilter, setRoleFilter] = useState('')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalUsers, setTotalUsers] = useState(0)
-  const [limit, setLimit] = useState(20)
-
-  // 详情/编辑
-  const [selectedUser, setSelectedUser] = useState<UserDetail | null>(null)
-  const [showDetailModal, setShowDetailModal] = useState(false)
-  const [showEditModal, setShowEditModal] = useState(false)
-  const [editingUser, setEditingUser] = useState<UIUser | null>(null)
-
-  // 绑定用户到机构
-  const [bindOpen, setBindOpen] = useState(false)
-  const [bindUserIds, setBindUserIds] = useState<number[]>([])
-  const [bindSearching, setBindSearching] = useState(false)
-  const [bindOptions, setBindOptions] = useState<User[]>([])
-
-  const searchInputRef = useRef<InputRef>(null)
-  const isComposing = useRef(false)
-
-  // UI：树的展开
-  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
-  const [orgPickerOpen, setOrgPickerOpen] = useState(false)
-  const [orgPickerSelected, setOrgPickerSelected] = useState<number | null>(null)
-  const [linkOrgOpen, setLinkOrgOpen] = useState(false)
-  const [linkOrgIds, setLinkOrgIds] = useState<number[]>([])
-
-  // ✅ 计算：基于 treeData.raw 构建 “id → 路径文字” 的快速映射
-  const orgPathMap = useMemo(() => {
-    const map = new Map<number, string>()
-    const dfs = (node: RawOrgNode, trail: string[]) => {
-      const nextTrail = [...trail, node.name]
-      map.set(node.id, nextTrail.join(' - '))
-      ;(node.children || []).forEach(ch => dfs(ch, nextTrail))
-    }
-    treeData.forEach(t => dfs(t.raw, []))
-    return map
-  }, [treeData])
-
-  // ✅ 工具：拿路径文字
-  const getOrgPathLabel = (id?: number | null, fallback?: string | null) => {
-    if (!id) return fallback || null
-    return orgPathMap.get(id) || fallback || null
-  }
-
-  // —— 统一映射：仅针对 /orgs/:id/users —— //
-  const mapOrgItemsToUI = (items: any[]): UIUser[] =>
-    (items || []).map((x: any) => {
-      const org_id = x.org_id ?? null
-      const org_name = x.org_name ?? null
-      return {
-        id: x.id,
-        email: x.email ?? '',
-        role: pickDisplayRole(x.role_codes),
-        nickname: x.nickname ?? x.username ?? '',
-        school: x.school ?? '',
-        class_name: x.class_name ?? '',
-        experience_points: x.experience_points ?? 0,
-        level: x.level ?? 1,
-        status: normalizeStatus(x),
-        created_at: x.created_at,
-        updated_at: x.updated_at,
-        org_id,
-        org_name,
-        org_path_label: getOrgPathLabel(org_id, org_name),
-      }
-    })
-
-  // 辅助：一次性展开全部
-  const collectAllKeys = (nodes: any[] = []): React.Key[] =>
-    nodes.flatMap((n: any) => [n.id, ...(n.children ? collectAllKeys(n.children) : [])])
-
-  /** 机构树（首次默认选中根组织） */
-  const fetchOrgTree = async () => {
-    try {
-      setTreeLoading(true)
-      // ✅ 使用 OrgAPI.tree()
-      const res: ApiResult<any[]> = await OrgAPI.tree()
-      if (!assertSuccess(res)) {
-        message.error(res.error || res.message || '加载组织树失败')
-        setTreeData([])
-        return
-      }
-      const toTree = (nodes: any[]): OrgTreeData[] =>
-        (nodes || []).map((n: any) => ({
-          key: n.id,
-          title: n.name,
-          raw: n as RawOrgNode,
-          children: n.children ? toTree(n.children) : undefined,
-        }))
-      const t = toTree(res.data || [])
-      setTreeData(t)
-
-      if (!selectedOrgId && (res.data?.length ?? 0) > 0) setSelectedOrgId(res.data![0].id)
-      setExpandedKeys(prev => (prev.length ? prev : collectAllKeys(res.data || [])))
-    } catch (e: any) {
-      message.error(e?.message || '加载组织树失败')
-    } finally {
-      setTreeLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchOrgTree()
+  const formatMessage = useCallback((template: string, vars: Record<string, string | number> = {}) => {
+    if (!template) return ''
+    return template.replace(/\{(\w+)\}/g, (_, key) => (vars[key] !== undefined ? String(vars[key]) : ''))
   }, [])
 
-  const onTreeSelect: TreeProps['onSelect'] = keys => {
-    const id = Number(keys?.[0])
-    if (!Number.isFinite(id)) return
-    setSelectedOrgId(id)
-    setCurrentPage(1)
+  const labels = useMemo<Record<ColKey, string>>(() => {
+    const entries = {} as Record<ColKey, string>
+    ;(Object.keys(COLUMN_LABEL_KEYS) as ColKey[]).forEach(key => {
+      entries[key] = t(COLUMN_LABEL_KEYS[key])
+    })
+    return entries
+  }, [t])
+
+  const renderGenderTag = useCallback(
+    (g?: Row['gender']) => {
+      if (!g) return ''
+      if (g === '男' || g === 'male') return <Tag>{t('users.gender.male')}</Tag>
+      if (g === '女' || g === 'female') return <Tag>{t('users.gender.female')}</Tag>
+      return <Tag>{t('users.gender.secret')}</Tag>
+    },
+    [t]
+  )
+
+  // 左侧机构树
+  const { tree, loading: treeLoading, refetch: refetchTree } = useOrgTree()
+  const [siderCollapsed, setSiderCollapsed] = useState(false)
+  const [expandedKeys, setExpandedKeys] = useState<React.Key[]>([])
+  const [selectedOrgId, setSelectedOrgId] = useState<number | null>(null)
+
+  useEffect(() => {
+    ;(async () => {
+      const next = await refetchTree()
+      const first = pickFirstId((next as any[]) || [])
+      if (first != null) {
+        setExpandedKeys([first])
+        setSelectedOrgId(first)
+      }
+    })()
+  }, [refetchTree])
+
+  // 右侧查询
+  const orgPathMap = useOrgPathMap(tree)
+  const getOrgPath = (id?: number | null, fb?: string | null) => (id ? orgPathMap.get(id) || fb || null : fb || null)
+  const q = useOrgUsersQuery(selectedOrgId)
+
+  // 筛选
+  const [fUsername, setFUsername] = useState('')
+  const [fNickname, setFNickname] = useState('')
+  const [fPhone, setFPhone] = useState('')
+  const [fStatus, setFStatus] = useState<'' | 'active' | 'disabled'>('')
+  const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
+  const [batchLoading, setBatchLoading] = useState(false)
+
+  const doSearch = () => {
+    q.setFilters({
+      email: fUsername.trim() || undefined,
+      nickname: fNickname.trim() || undefined,
+      phone: fPhone.trim() || undefined,
+    })
+    q.setKeyword('')
+    q.setPage(1)
+    q.setStatus(fStatus || undefined)
+    setSelectedRowKeys([])
+  }
+  const doReset = () => {
+    setFUsername('')
+    setFNickname('')
+    setFPhone('')
+    setFStatus('')
+    q.setFilters({})
+    q.setKeyword('')
+    q.setStatus(undefined)
+    q.setPage(1)
+    setSelectedRowKeys([])
   }
 
-  /** ========== 用户加载：只调用 /orgs/:orgId/users ========== */
-  useEffect(() => {
-    loadUsers()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, roleFilter, limit, selectedOrgId, includeChildren])
+  // 工具条
+  const [tableSize, setTableSize] = useState<'small' | 'middle' | 'large'>('small')
+  const [order, setOrder] = useState<ColKey[]>(DEFAULT_ORDER)
+  const [visible, setVisible] = useState<ColKey[]>(DEFAULT_VISIBLE)
+  const dragKeyRef = useRef<ColKey | null>(null)
+  const onDragStart = (k: ColKey) => (e: React.DragEvent) => {
+    dragKeyRef.current = k
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', k)
+  }
+  const onDragOver = () => (e: React.DragEvent) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+  }
+  const move = (arr: ColKey[], from: number, to: number) => {
+    const a = [...arr]
+    const it = a.splice(from, 1)[0]
+    a.splice(to, 0, it)
+    return a
+  }
+  const onDrop = (target: ColKey) => (e: React.DragEvent) => {
+    e.preventDefault()
+    const fromKey = dragKeyRef.current
+    dragKeyRef.current = null
+    if (!fromKey || fromKey === target) return
+    const from = order.indexOf(fromKey)
+    const to = order.indexOf(target)
+    if (from === -1 || to === -1) return
+    setOrder(move(order, from, to))
+  }
 
-  // 当 treeData 变化时，回填路径
-  useEffect(() => {
-    if (!userList.length) return
-    setUserList(prev =>
-      prev.map(u => ({
-        ...u,
-        org_path_label: getOrgPathLabel(u.org_id, u.org_name),
-      }))
-    )
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgPathMap])
+  const orderedVisibleKeys = useMemo<ColKey[]>(() => {
+    const nonFixed = order.filter(k => visible.includes(k))
+    const res = [...nonFixed]
+    if (visible.includes(FIXED)) res.push(FIXED)
+    return res
+  }, [order, visible])
 
-  const loadUsers = async () => {
-    if (!selectedOrgId) {
-      setUserList([])
-      setTotalUsers(0)
-      return
+  // 全屏
+  const [fs, setFs] = useState(false)
+  useEffect(() => {
+    if (fs) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = prev
+      }
     }
-    try {
-      setLoading(true)
-      // ✅ 使用通用 http：GET /orgs/:id/users
-      const res: ApiResult<{
-        items?: any[]
-        users?: any[] // 兼容某些返回
-        total?: number
-        page?: number
-        limit?: number
-      }> = await api.get(`/orgs/${selectedOrgId}/users`, {
-        params: {
-          page: currentPage,
-          limit,
-          search: searchTerm || undefined,
-          role: roleFilter || undefined,
-          include_children: includeChildren ? 1 : 0,
+  }, [fs])
+
+  // 行操作
+  const [editOpen, setEditOpen] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const [assignOpen, setAssignOpen] = useState(false)
+  const [resetOpen, setResetOpen] = useState(false)
+  const [avatarOpen, setAvatarOpen] = useState(false)
+  const [avatarLoading, setAvatarLoading] = useState(false)
+  const [currentUser, setCurrentUser] = useState<any | null>(null)
+
+  const onEdit = async (u: any) => {
+    const detail = await q.getUserDetail(u.id).catch(() => u)
+    setCurrentUser(detail || u)
+    setEditOpen(true)
+  }
+  const onAssignRoles = (u: any) => (setCurrentUser(u), setAssignOpen(true))
+  const onReset = (u: any) => (setCurrentUser(u), setResetOpen(true))
+  const onUploadAvatar = (u: any) => (setCurrentUser(u), setAvatarOpen(true))
+  const onToggle = async (u: any) => {
+    await q.toggleStatus(u.id, u.status === 'active' ? 'disabled' : 'active')
+    // ❌ 禁止在回调里再次调用 App.useApp()
+    message.success(u.status === 'active' ? t('users.message.status_disabled') : t('users.message.status_enabled'))
+    q.refetch()
+  }
+  const onUnbind = async (u: any) => {
+    if (!selectedOrgId) return
+    await q.unbind(selectedOrgId, u.id)
+    message.success(t('users.message.removed_org'))
+    q.refetch()
+  }
+  const onDelete = async (u: any) => {
+    Modal.confirm({
+      title: t('users.modal.delete_title'),
+      okButtonProps: { danger: true },
+      okText: t('users.action.delete'),
+      onOk: async () => {
+        await q.deleteUser(u.id)
+        message.success(t('users.message.delete_success'))
+        const rest = q.total - 1 - (q.page - 1) * q.limit
+        if (rest <= 0 && q.page > 1) q.setPage(q.page - 1)
+        else q.refetch()
+      },
+    })
+  }
+  const openAddModal = () => {
+    if (!selectedOrgId) return message.warning(t('users.message.select_org'))
+    setAddOpen(true)
+  }
+
+  // 批量删除
+  const onBatchDelete = () => {
+    if (selectedRowKeys.length === 0 || batchLoading) return
+    Modal.confirm({
+      title: formatMessage(t('users.modal.batch_delete_title'), { count: selectedRowKeys.length }),
+      okText: t('users.action.batch_delete'),
+      okButtonProps: { danger: true, loading: batchLoading },
+      onOk: async () => {
+        const ids = selectedRowKeys.map(k => Number(k)).filter(n => Number.isFinite(n)) as number[]
+        if (!ids.length) return
+        setBatchLoading(true)
+        try {
+          const ret = await usersApi.batchDelete(ids)
+          const { deleted, skipped, rawMsg } = normalizeBatchDeleteResult(ret)
+          if (skipped > 0) {
+            message.warning(
+              rawMsg || formatMessage(t('users.message.batch_warning'), { deleted, skipped })
+            )
+          } else {
+            message.success(rawMsg || formatMessage(t('users.message.batch_success'), { deleted }))
+          }
+          const rest = q.total - deleted - (q.page - 1) * q.limit
+          setSelectedRowKeys([])
+          if (rest <= 0 && q.page > 1) {
+            q.setPage(q.page - 1)
+          } else {
+            q.refetch()
+          }
+        } catch (e: any) {
+          message.error(e?.message || t('users.message.batch_failed'))
+        } finally {
+          setBatchLoading(false)
+        }
+      },
+    })
+  }
+
+  // 列
+  const columns = useMemo<ColumnsType<Row>>(() => {
+    const ALL: Record<ColKey, any> = {
+      id: { title: labels.id, dataIndex: 'id', width: 80, align: 'center' },
+      avatar: {
+        title: labels.avatar,
+        key: 'avatar',
+        width: 70,
+        align: 'center',
+        render: (_: any, r: Row) => {
+          const url = avatarUrl(r)
+          const txt = (r.nickname || r.real_name || '').trim().slice(-2) || t('users.tag.user')
+          return url ? (
+            <Avatar src={url} />
+          ) : (
+            <Avatar icon={<UserOutlined />} alt={txt}>
+              {txt}
+            </Avatar>
+          )
         },
-      })
-
-      if (!assertSuccess(res)) {
-        message.error(res.error || res.message || '加载用户失败')
-        setUserList([])
-        setTotalUsers(0)
-        return
-      }
-
-      const rawItems = Array.isArray(res.data?.items)
-        ? res.data.items
-        : Array.isArray(res.data?.users)
-        ? res.data.users
-        : []
-      const mapped = mapOrgItemsToUI(rawItems)
-      setUserList(mapped)
-      setTotalUsers(Number(res.data?.total || mapped.length || 0))
-    } catch (error: any) {
-      console.error('加载用户列表错误:', error)
-      message.error(error?.response?.data?.error || error?.message || '加载用户失败')
-      setUserList([])
-      setTotalUsers(0)
-    } finally {
-      setLoading(false)
-      setTimeout(() => searchInputRef.current?.focus?.(), 0)
-    }
-  }
-
-  /** ========== 详情 & 编辑 ========== */
-  const openDetailFromRow = async (row: UIUser) => {
-    try {
-      const res: ApiResult<UserDetail> = await users.getById(row.id)
-      if (!assertSuccess(res)) {
-        message.error(res.error || res.message || '加载用户详情失败')
-        return
-      }
-      const merged: UserDetail = {
-        ...res.data,
-        role: row.role,
-        org_id: row.org_id ?? res.data.org_id,
-        org_name: row.org_name ?? res.data.org_name,
-      }
-      setSelectedUser(merged)
-      setShowDetailModal(true)
-    } catch (error: any) {
-      message.error(error?.response?.data?.message || '加载用户详情失败')
-    }
-  }
-
-  const openEditModal = (u: UIUser) => {
-    setEditingUser(u)
-    editForm.setFieldsValue({
-      role: u.role,
-      nickname: u.nickname || '',
-      school: u.school || '',
-      class_name: u.class_name || '',
-    })
-    setShowEditModal(true)
-  }
-
-  const handleEditUser = async (values: any) => {
-    if (!editingUser) return
-    try {
-      const res: ApiResult<any> = await api.put(`/users/${editingUser.id}`, values)
-      if (!assertSuccess(res)) throw new Error(res.error || res.message || '更新失败')
-
-      setUserList(prev => prev.map(u => (u.id === editingUser.id ? ({ ...u, ...values } as UIUser) : u)))
-      message.success('用户信息更新成功')
-      setShowEditModal(false)
-      setEditingUser(null)
-      editForm.resetFields()
-      loadUsers()
-    } catch (e: any) {
-      message.error(e?.message || '更新失败')
-    }
-  }
-
-  /** ========== 删除 / 状态 ========== */
-  const handleDeleteUser = (u: UIUser) => {
-    if (u.role === 'admin') {
-      message.warning('管理员账号不允许删除')
-      return
-    }
-    confirm({
-      title: '确认删除用户',
-      icon: <ExclamationCircleOutlined />,
-      content: `确定要删除用户 "${u.nickname || u.email}" 吗？此操作不可撤销。`,
-      okText: '确认删除',
-      okType: 'danger',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const res: ApiResult<any> = await users.delete(u.id.toString())
-          if (!assertSuccess(res)) throw new Error(res.error || '删除失败')
-          message.success('用户删除成功')
-          loadUsers()
-        } catch (e: any) {
-          message.error(e?.message || '删除失败')
-        }
       },
-    })
-  }
-
-  const handleToggleUserStatus = async (u: UIUser) => {
-    if (u.role === 'admin' && u.status === 'active') {
-      message.warning('管理员账号不允许禁用')
-      return
-    }
-    const action = u.status === 'active' ? '禁用' : '启用'
-    const newStatus = u.status === 'active' ? 'disabled' : 'active'
-    confirm({
-      title: `确认${action}用户`,
-      icon: <ExclamationCircleOutlined />,
-      content: `确定要${action}用户 "${u.nickname || u.email}" 吗？`,
-      okText: `确认${action}`,
-      okType: u.status === 'active' ? 'danger' : 'primary',
-      cancelText: '取消',
-      onOk: async () => {
-        try {
-          const res: ApiResult<any> = await users.updateStatus(u.id.toString(), newStatus as any)
-          if (!assertSuccess(res)) throw new Error(res.error || `${action}失败`)
-          message.success(`用户${action}成功`)
-          loadUsers()
-        } catch (e: any) {
-          message.error(e?.message || `${action}失败`)
-        }
+      email: { title: labels.email, dataIndex: 'email', ellipsis: true, width: 180, render: (t: any) => t || '' },
+      nickname: {
+        title: labels.nickname,
+        dataIndex: 'nickname',
+        ellipsis: true,
+        width: 140,
+        render: (t: any, r: Row) => t || r.real_name || '',
       },
-    })
-  }
-
-  const handleResetPassword = (u: UIUser) => {
-    confirm({
-      title: '确认重置密码',
-      icon: <ExclamationCircleOutlined />,
-      content: `确定要重置用户 "${u.nickname || u.email}" 的密码吗？密码将重置为系统默认密码。`,
-      okText: '确认重置',
-      onOk: async () => {
-        try {
-          const res: ApiResult<any> = await users.resetPassword(u.id.toString())
-          if (!assertSuccess(res)) throw new Error(res.error || '重置密码失败')
-          message.success('密码重置成功')
-        } catch (e: any) {
-          message.error(e?.message || '重置密码失败')
-        }
+      gender: {
+        title: labels.gender,
+        key: 'gender',
+        width: 80,
+        align: 'center',
+        render: (_: any, r: Row) => renderGenderTag(r.gender) || '',
       },
-    })
-  }
-
-  /** ========== 机构内绑定/移除用户 ========== */
-  const openBindUsers = () => {
-    if (!selectedOrgId) return message.warning('请先在左侧选择一个机构')
-    setBindOpen(true)
-    setBindOptions([])
-    setBindUserIds([])
-  }
-
-  const searchBindOptions = async (keyword: string) => {
-    setBindSearching(true)
-    try {
-      const res: ApiResult<{ users?: User[]; items?: User[] }> = await users.getAll({
-        page: 1,
-        limit: 30,
-        search: keyword,
-      } as any)
-      if (!assertSuccess(res)) {
-        setBindOptions([])
-        return
-      }
-      setBindOptions((res.data?.users ?? res.data?.items ?? []) as User[])
-    } finally {
-      setBindSearching(false)
-    }
-  }
-
-  const submitBindUsers = async () => {
-    if (!selectedOrgId) return
-    if (bindUserIds.length === 0) return message.warning('请选择要新增到该机构的用户')
-    try {
-      // ✅ 新增到机构：POST /orgs/:id/users
-      const res: ApiResult<any> = await api.post(`/orgs/${selectedOrgId}/users`, { user_ids: bindUserIds })
-      if (!assertSuccess(res)) throw new Error(res.error || res.message || '新增失败')
-      message.success('已新增到该机构')
-      setBindOpen(false)
-      loadUsers()
-    } catch (e: any) {
-      message.error(e?.message || '新增失败')
-    }
-  }
-
-  const unbindFromOrg = async (u: UIUser) => {
-    if (!selectedOrgId) return
-    confirm({
-      title: `从机构移除 ${u.nickname || u.email}`,
-      icon: <ExclamationCircleOutlined />,
-      onOk: async () => {
-        try {
-          // ✅ 从机构移除：DELETE /orgs/:id/users/:userId
-          const res: ApiResult<any> = await api.delete(`/orgs/${selectedOrgId}/users/${u.id}`)
-          if (!assertSuccess(res)) throw new Error(res.error || res.message || '移除失败')
-          message.success('已从机构移除')
-          loadUsers()
-        } catch (e: any) {
-          message.error(e?.message || '移除失败')
-        }
+      department: {
+        title: labels.department,
+        key: 'department',
+        width: 240,
+        ellipsis: true,
+        render: (_: any, r: Row) => {
+          const direct =
+            (r.orgPath && String(r.orgPath)) ||
+            (r.department && String(r.department)) ||
+            (r.orgName && String(r.orgName)) ||
+            null
+          const rawId = (r.orgId ?? r.org_id) as number | null | undefined
+          const id = Number.isFinite(Number(rawId)) ? Number(rawId) : undefined
+          const mapped = getOrgPath(id ?? null, direct)
+          return mapped || <Text type="secondary">{t('users.tag.unassigned')}</Text>
+        },
       },
-    })
-  }
-
-  /** ========== 表格列 ========== */
-  const getRoleTag = (role: string) => {
-    const map: any = { admin: 'red', teacher: 'blue', student: 'green' }
-    const label: any = { admin: '管理员', teacher: '教师', student: '学生' }
-    return <Tag color={map[role] || 'default'}>{label[role] || role}</Tag>
-  }
-
-  const columns: any[] = [
-    {
-      title: '用户信息',
-      dataIndex: 'email',
-      key: 'user',
-      render: (email: string, record: UIUser) => (
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Avatar size={40} style={{ backgroundColor: '#1890ff', marginRight: 12 }} icon={<UserOutlined />}>
-            {(record.nickname || email || '?').charAt(0).toUpperCase()}
-          </Avatar>
-          <div>
-            <div style={{ fontWeight: 500 }}>{record.nickname || '未设置昵称'}</div>
-            <div style={{ color: '#8c8c8c', fontSize: 12 }}>{email}</div>
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: '角色',
-      dataIndex: 'role',
-      key: 'role',
-      render: (role: string) => getRoleTag(role),
-    },
-    {
-      title: '部门',
-      dataIndex: 'org_name',
-      key: 'org_path',
-      render: (_: any, r: UIUser) => {
-        const label = r.org_path_label || getOrgPathLabel(r.org_id, r.org_name)
-        return label ? <Tag>{label}</Tag> : <Text type="secondary">未分配</Text>
+      phone: { title: labels.phone, dataIndex: 'phone', width: 130, align: 'center', render: (p: any) => maskPhone(p) },
+      status: {
+        title: labels.status,
+        dataIndex: 'status',
+        width: 150,
+        align: 'center',
+        render: (_s: any, r: Row) => {
+          const checked = toEnabled(r.status)
+          return (
+            <Switch
+              checkedChildren={t('users.status.switch_enabled')}
+              unCheckedChildren={t('users.status.switch_disabled')}
+              checked={!!checked}
+              onChange={() => onToggle(r)}
+            />
+          )
+        },
       },
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      key: 'status',
-      render: (s: string) => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? '启用' : '禁用'}</Tag>,
-    },
-    {
-      title: '学校/班级',
-      key: 'school',
-      render: (r: UIUser) => (
-        <div>
-          <div>{r.school || '未设置'}</div>
-          <div style={{ color: '#8c8c8c', fontSize: 12 }}>{r.class_name || '未设置'}</div>
-        </div>
-      ),
-    },
-    {
-      title: '等级',
-      key: 'level',
-      render: (r: UIUser) => (
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Tag color="gold" icon={<StarOutlined />}>
-            Lv.{r.level}
-          </Tag>
-          <Text type="secondary" style={{ marginLeft: 8, fontSize: 12 }}>
-            {r.experience_points} XP
-          </Text>
-        </div>
-      ),
-    },
-    {
-      title: '注册时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (d?: string) =>
-        d ? (
-          <Text style={{ fontSize: 12 }}>
-            {new Date(d).toLocaleDateString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
-        ) : (
-          <Text type="secondary">—</Text>
-        ),
-    },
-    {
-      title: '操作',
-      key: 'actions',
-      render: (record: UIUser) => {
-        const menuItems: any[] = [
-          { key: 'view', icon: <EyeOutlined />, label: '查看详情', onClick: () => openDetailFromRow(record) },
-          { key: 'edit', icon: <EditOutlined />, label: '编辑信息', onClick: () => openEditModal(record) },
-          {
-            key: 'reset-password',
-            icon: <KeyOutlined />,
-            label: '重置密码',
-            onClick: () => handleResetPassword(record),
-          },
-          ...(record.role !== 'admin' || record.status === 'disabled'
-            ? [
-                {
-                  key: 'toggle-status',
-                  icon: <StopOutlined />,
-                  label: record.status === 'active' ? '禁用用户' : '启用用户',
-                  onClick: () => handleToggleUserStatus(record),
-                },
-              ]
-            : []),
-          { type: 'divider' },
-          ...(selectedOrgId
-            ? [
-                {
-                  key: 'unbind',
-                  icon: <UserDeleteOutlined />,
-                  label: '从机构移除',
-                  danger: true,
-                  onClick: () => unbindFromOrg(record),
-                },
-              ]
-            : []),
-          ...(record.role !== 'admin'
-            ? [
-                {
-                  key: 'delete',
-                  icon: <DeleteOutlined />,
-                  label: '删除用户',
-                  danger: true,
-                  onClick: () => handleDeleteUser(record),
-                },
-              ]
-            : []),
-        ].filter(Boolean)
-
-        return (
-          <Space>
-            <Button type="primary" ghost size="small" icon={<EyeOutlined />} onClick={() => openDetailFromRow(record)}>
-              查看
-            </Button>
-            <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
-              <Button size="small" icon={<MoreOutlined />}>
-                更多
+      created_at: {
+        title: labels.created_at,
+        key: 'created_at',
+        width: 170,
+        align: 'center',
+        render: (_: any, r: Row) => {
+          const t = created(r)
+          return t ? new Date(t).toLocaleString() : ''
+        },
+      },
+      actions: {
+        title: labels.actions,
+        key: 'actions',
+        width: 160,
+        align: 'center',
+        fixed: 'right',
+        onCell: () => ({ className: 'users-actions-cell', style: { background: '#fff' } }),
+        onHeaderCell: () => ({ className: 'users-actions-cell', style: { background: '#fff' } }),
+        render: (_: any, r: Row) => {
+          const items = [
+            { key: 'assign', label: t('users.action.assign_roles') },
+            { key: 'reset', label: t('users.action.reset_password') },
+            { key: 'uploadAvatar', label: t('users.action.upload_avatar') },
+            { key: 'toggle', label: r.status === 'active' ? t('users.action.disable') : t('users.action.enable') },
+            ...(selectedOrgId ? [{ key: 'unbind', label: t('users.action.remove_from_org') }] : []),
+            { type: 'divider' as const },
+            { key: 'delete', label: t('users.action.delete'), danger: true },
+          ]
+          return (
+            <Space size="small">
+              <Button size="small" icon={<EditOutlined />} onClick={() => onEdit(r)}>
+                {t('users.action.edit')}
               </Button>
-            </Dropdown>
-          </Space>
-        )
+              <Dropdown
+                trigger={['click']}
+                menu={{
+                  items,
+                  onClick: ({ key }) => {
+                    switch (key) {
+                      case 'assign':
+                        onAssignRoles(r)
+                        break
+                      case 'reset':
+                        onReset(r)
+                        break
+                      case 'uploadAvatar':
+                        onUploadAvatar(r)
+                        break
+                      case 'toggle':
+                        onToggle(r)
+                        break
+                      case 'unbind':
+                        onUnbind(r)
+                        break
+                      case 'delete':
+                        onDelete(r)
+                        break
+                    }
+                  },
+                }}
+              >
+                <Button size="small" icon={<EllipsisOutlined />} />
+              </Dropdown>
+            </Space>
+          )
+        },
       },
-    },
-  ]
+    }
+    return orderedVisibleKeys.map(k => ALL[k])
+  }, [orderedVisibleKeys, selectedOrgId, labels, renderGenderTag, getOrgPath, t])
 
-  return (
-    <Layout style={{ padding: 16 }}>
-      {/* 左侧机构树 */}
-      <Sider width={300} style={{ background: '#fff', marginRight: 16, borderRight: '1px solid #f0f0f0' }}>
-        <div
-          style={{
-            padding: 16,
-            borderBottom: '1px solid #f0f0f0',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
+  // 先去重，再做二次映射
+  const baseRows = useMemo<Row[]>(() => dedupeRows((q.rows || []) as Row[]), [q.rows])
+  const dataSource = useMemo<Row[]>(
+    () =>
+      baseRows.map(r => {
+        const orgId = r.orgId ?? r.org_id ?? null
+        return orgId === r.orgId ? r : { ...r, orgId }
+      }),
+    [baseRows]
+  )
+
+  // UI
+  const allChecked = visible.length === DEFAULT_VISIBLE.length
+  const indeterminate = visible.length > 0 && !allChecked
+
+  const Toolbar = (
+    <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ fontWeight: 600, fontSize: 16 }}>{t('users.title')}</div>
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Button type="primary" icon={<UserAddOutlined />} onClick={openAddModal} disabled={!selectedOrgId}>
+          {t('users.button.add')}
+        </Button>
+        <Tooltip title={siderCollapsed ? t('users.tooltip.expand_org') : t('users.tooltip.collapse_org')}>
+          <Button
+            icon={siderCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+            onClick={() => setSiderCollapsed(v => !v)}
+          />
+        </Tooltip>
+        <Tooltip title={t('app.refresh')}>
+          <Button icon={<ReloadOutlined />} onClick={() => q.refetch()} />
+        </Tooltip>
+        <Dropdown
+          trigger={['click']}
+          menu={{
+            selectable: true,
+            selectedKeys: [tableSize],
+            items: [
+              { key: 'large', label: t('users.density.loose') },
+              { key: 'middle', label: t('users.density.default') },
+              { key: 'small', label: t('users.density.compact') },
+            ],
+            onClick: ({ key }) => setTableSize(key as any),
           }}
         >
-          <Space>
-            <ApartmentOutlined />
-            <Text strong>机构</Text>
-          </Space>
-          <Space size="small">
-            <Button size="small" icon={<ReloadOutlined />} onClick={fetchOrgTree} />
-          </Space>
-        </div>
-        <div style={{ padding: 12 }}>
-          {treeLoading ? (
-            <Text type="secondary">加载中...</Text>
-          ) : (
-            <Tree
-              blockNode
-              showIcon
-              icon={<ApartmentOutlined />}
-              selectedKeys={selectedOrgId ? [selectedOrgId] : []}
-              onSelect={onTreeSelect}
-              expandedKeys={expandedKeys}
-              onExpand={keys => setExpandedKeys(keys as React.Key[])}
-              treeData={treeData as any}
-            />
+          <Tooltip title={t('users.tooltip.density')}>
+            <Button icon={<ColumnHeightOutlined />} />
+          </Tooltip>
+        </Dropdown>
+
+        <Dropdown
+          trigger={['click']}
+          menu={{ items: [] }}
+          // ⛳️ antd 新 API：用 popupRender 替代 dropdownRender
+          popupRender={() => (
+            <div className="col-setting-panel">
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px 12px' }}
+              >
+                <Checkbox
+                  checked={allChecked}
+                  indeterminate={indeterminate}
+                  onChange={e => setVisible(e.target.checked ? DEFAULT_VISIBLE : [])}
+                >
+                  {t('users.columns.panel_title')}
+                </Checkbox>
+                <a
+                  onClick={() => {
+                    setOrder(DEFAULT_ORDER)
+                    setVisible(DEFAULT_VISIBLE)
+                  }}
+                >
+                  {t('users.columns.reset')}
+                </a>
+              </div>
+              <div style={{ padding: '6px 12px 0' }}>
+                {order.map(k => (
+                  <div
+                    key={k}
+                    className="col-setting-row"
+                    draggable
+                    onDragStart={onDragStart(k)}
+                    onDragOver={onDragOver()}
+                    onDrop={onDrop(k)}
+                  >
+                    <HolderOutlined className="col-setting-handle" />
+                    <Checkbox
+                      checked={visible.includes(k)}
+                      onChange={e => setVisible(prev => (e.target.checked ? [...prev, k] : prev.filter(x => x !== k)))}
+                    >
+                      {labels[k]}
+                    </Checkbox>
+                  </div>
+                ))}
+                <div className="col-setting-row col-fixed">
+                  <HolderOutlined className="col-setting-handle disabled" />
+                  <Checkbox
+                    checked={visible.includes('actions')}
+                    onChange={e =>
+                      setVisible(prev => (e.target.checked ? [...prev, 'actions'] : prev.filter(x => x !== 'actions')))
+                    }
+                  >
+                    {labels.actions}（{t('users.columns.fixed')}）
+                  </Checkbox>
+                </div>
+              </div>
+            </div>
           )}
+        >
+          <Tooltip title={t('users.tooltip.column_settings')}>
+            <Button icon={<SettingOutlined />} />
+          </Tooltip>
+        </Dropdown>
+
+        <Tooltip title={fs ? t('users.tooltip.exit_fullscreen') : t('users.tooltip.fullscreen')}>
+          <Button icon={fs ? <FullscreenExitOutlined /> : <FullscreenOutlined />} onClick={() => setFs(v => !v)} />
+        </Tooltip>
+      </div>
+    </div>
+  )
+
+  const SelectionBar =
+    selectedRowKeys.length > 0 ? (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '8px 12px',
+          border: '1px solid #f0f0f0',
+          borderRadius: 8,
+          background: '#fafafa',
+          marginBottom: 8,
+        }}
+      >
+        <Space>
+          <Text>{formatMessage(t('users.selection.count'), { count: selectedRowKeys.length })}</Text>
+          <a onClick={() => setSelectedRowKeys([])}>{t('users.selection.clear')}</a>
+        </Space>
+        <Button danger onClick={onBatchDelete} loading={batchLoading}>
+          {t('users.action.batch_delete')}
+        </Button>
+      </div>
+    ) : null
+
+  const Filters = (
+    <Card
+      styles={{ body: { padding: 12, overflowX: 'auto' } }}
+      style={{ borderRadius: 10, boxShadow: '0 2px 12px rgba(0,0,0,0.045)' }}
+    >
+      <Space wrap size={12} style={{ width: '100%' }}>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.email_label')}</span>
+          <Input
+            allowClear
+            placeholder={t('users.filters.email_placeholder')}
+            style={{ width: 200 }}
+            value={fUsername}
+            onChange={e => setFUsername(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.nickname_label')}</span>
+          <Input
+            allowClear
+            placeholder={t('users.filters.nickname_placeholder')}
+            style={{ width: 200 }}
+            value={fNickname}
+            onChange={e => setFNickname(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 72, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.phone_label')}</span>
+          <Input
+            allowClear
+            placeholder={t('users.filters.phone_placeholder')}
+            style={{ width: 200 }}
+            value={fPhone}
+            onChange={e => setFPhone(e.target.value)}
+          />
+        </Space>
+        <Space>
+          <span style={{ width: 56, textAlign: 'right', color: '#6b7280' }}>{t('users.filters.status_label')}</span>
+          <Select
+            allowClear
+            placeholder={t('users.filters.status_placeholder')}
+            style={{ width: 160 }}
+            value={fStatus || undefined}
+            options={[
+              { label: t('users.status.enabled'), value: 'active' },
+              { label: t('users.status.disabled'), value: 'disabled' },
+            ]}
+            onChange={v => setFStatus((v as any) || '')}
+          />
+        </Space>
+        <Space style={{ marginLeft: 'auto' }} align="center">
+          <Button type="primary" icon={<SearchOutlined />} onClick={doSearch}>
+            {t('app.search')}
+          </Button>
+          <Button icon={<ReloadOutlined />} onClick={doReset}>
+            {t('app.reset')}
+          </Button>
+          <Text type="secondary">{t('users.filters.include_children')}</Text>
+          <Switch
+            checked={!!q.includeChildren}
+            onChange={v => {
+              q.setIncludeChildren(v)
+              q.setPage(1)
+              setSelectedRowKeys([])
+            }}
+          />
+        </Space>
+      </Space>
+    </Card>
+  )
+
+  const totalPages = Math.max(1, Math.ceil((q.total || 0) / Math.max(1, q.limit)))
+  const [gotoPage, setGotoPage] = useState<number | null>(null)
+
+  const handleGoto = () => {
+    if (!gotoPage) return
+    const target = Math.min(totalPages, Math.max(1, gotoPage))
+    if (target === q.page) return
+    q.setPage(target)
+  }
+
+  const TableBlock = (
+    <Card className="users-table-card" styles={{ body: { padding: 10, overflowX: 'auto' } }}>
+      {Toolbar}
+      {SelectionBar}
+      <Table<Row>
+        className="users-table"
+        rowKey={r => r.id as Key}
+        dataSource={dataSource}
+        loading={q.loading}
+        columns={columns}
+        pagination={false}
+        size={tableSize}
+        scroll={{ x: 1200 }}
+        rowSelection={{ selectedRowKeys, onChange: keys => setSelectedRowKeys(keys), preserveSelectedRowKeys: true }}
+        bordered
+      />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8, alignItems: 'center', gap: 8 }}>
+        <GlobalPagination
+          fullWidth={false}
+          current={q.page}
+          pageSize={q.limit}
+          total={q.total}
+          onChange={(p, ps) => {
+            if (ps !== q.limit) q.setPage(1)
+            else q.setPage(p)
+            q.setLimit(ps)
+            setSelectedRowKeys([])
+          }}
+          renderTotal={totalNum => formatMessage(t('users.pagination.total'), { count: totalNum })}
+        />
+        <span style={{ color: '#6b7280' }}>{t('roles.pagination.goto_label')}</span>
+        <InputNumber
+          size="middle"
+          min={1}
+          max={totalPages}
+          value={gotoPage ?? q.page}
+          onChange={v => setGotoPage(v ?? null)}
+          onPressEnter={handleGoto}
+          style={{ width: 72, textAlign: 'center' }}
+        />
+        <span style={{ color: '#6b7280' }}>{t('roles.pagination.page_suffix')}</span>
+      </div>
+    </Card>
+  )
+
+  return (
+    <Layout style={{ height: '100%', background: 'transparent', padding: 16 }}>
+      <style>{`
+        .users-table-card { border-radius:10px; box-shadow:0 2px 12px rgba(0,0,0,0.045); }
+        .users-table .ant-table-thead > tr > th { background-color:#f5f7fa !important; text-align:center; }
+        .users-table .ant-table-tbody > tr > td { text-align:left; }
+        .col-setting-panel { width:260px; background:#fff; border:1px solid #f0f0f0; border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,.06); user-select:none; padding-bottom:6px; }
+        .col-setting-row { display:flex; align-items:center; gap:8px; padding:6px 4px; border-radius:8px; }
+        .col-setting-handle { color:#94a3b8; cursor:grab; }
+        .col-setting-handle.disabled { opacity:.35; cursor:not-allowed; }
+        .fs-overlay { position:fixed; inset:0; z-index:4000; background:#fff; overflow:auto; padding:12px; box-sizing:border-box; }
+        /* 固定右侧列白底（防透明） */
+        .users-table td.ant-table-cell-fix-right,
+        .users-table th.ant-table-cell-fix-right,
+        .users-table .ant-table-cell.ant-table-cell-fix-right,
+        .users-table .users-actions-cell { background:#fff !important; }
+        .users-table .ant-table-cell-fix-right-first::after { pointer-events:none; }
+        /* 紧凑内边距 */
+        .users-table .ant-table-tbody > tr > td,
+        .users-table .ant-table-thead > tr > th { padding-top:8px; padding-bottom:8px; }
+      `}</style>
+
+      <Sider
+        width={240}
+        collapsedWidth={0}
+        collapsible
+        collapsed={siderCollapsed}
+        trigger={null}
+        theme="light"
+        style={{ borderRight: '1px solid #f0f0f0', marginRight: 16, background: '#fff' }}
+      >
+        <div style={{ padding: 12 }}>
+          <OrgTreePanel
+            tree={tree as any}
+            loading={treeLoading}
+            expandedKeys={expandedKeys}
+            setExpandedKeys={setExpandedKeys}
+            selectedOrgId={selectedOrgId}
+            onSelect={id => {
+              setSelectedOrgId(id)
+              q.setPage(1)
+              setSelectedRowKeys([])
+            }}
+            onRefresh={async () => {
+              const next = (await refetchTree()) as any[]
+              const first = pickFirstId(next || [])
+              if (first != null) {
+                setExpandedKeys([first])
+                if (selectedOrgId == null) setSelectedOrgId(first)
+              }
+            }}
+            title={t('users.org_tree.title')}
+          />
         </div>
       </Sider>
 
-      {/* 右侧内容 */}
-      <Content>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={3} style={{ margin: 0 }}>
-            用户管理
-          </Title>
-          <Paragraph type="secondary" style={{ margin: '6px 0 0 0' }}>
-            {selectedOrgId ? <>当前机构 ID：{selectedOrgId}</> : '加载机构中…'}
-          </Paragraph>
-        </div>
-
-        {/* 顶部筛选 */}
-        <Card style={{ marginBottom: 16 }}>
-          <Row gutter={[16, 16]} align="middle">
-            <Col xs={24} md={12}>
-              <Search
-                placeholder="搜索用户邮箱或昵称..."
-                value={searchTerm}
-                onChange={e => {
-                  setSearchTerm(e.target.value)
-                  if (!isComposing.current) setTimeout(() => loadUsers(), 80)
-                }}
-                onCompositionStart={() => (isComposing.current = true)}
-                onCompositionEnd={e => {
-                  isComposing.current = false
-                  setSearchTerm(e.currentTarget.value)
-                  setTimeout(() => loadUsers(), 80)
-                }}
-                onKeyDown={e => e.key === 'Enter' && loadUsers()}
-                prefix={<SearchOutlined />}
-                allowClear
-                size="large"
-                ref={searchInputRef}
-                autoFocus
-              />
-            </Col>
-            <Col xs={24} md={12}>
-              <Space wrap>
-                <FilterOutlined style={{ color: '#8c8c8c' }} />
-                <Select
-                  value={roleFilter}
-                  onChange={v => {
-                    setRoleFilter(v)
-                    setCurrentPage(1)
-                  }}
-                  style={{ width: 140 }}
-                  size="large"
-                  placeholder="选择角色"
-                >
-                  <Option value="">所有角色</Option>
-                  <Option value="student">学生</Option>
-                  <Option value="teacher">教师</Option>
-                  <Option value="admin">管理员</Option>
-                </Select>
-
-                {selectedOrgId && (
-                  <Space>
-                    <Text type="secondary">含子部门</Text>
-                    <Switch
-                      checked={includeChildren}
-                      onChange={v => {
-                        setIncludeChildren(v)
-                        setCurrentPage(1)
-                      }}
-                    />
-                  </Space>
-                )}
-
-                <Button type="primary" icon={<UserAddOutlined />} disabled={!selectedOrgId} onClick={openBindUsers}>
-                  新增用户到该机构
-                </Button>
-              </Space>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* 列表 */}
-        <Card>
-          <Table<UIUser>
-            columns={columns as any}
-            dataSource={userList}
-            rowKey="id"
-            loading={loading}
-            pagination={false}
-            locale={{
-              emptyText: (
-                <div style={{ padding: 40, textAlign: 'center' }}>
-                  <EmptyIcon size={48} style={{ color: '#d9d9d9', marginBottom: 16 }} />
-                  <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>暂无用户数据</div>
-                  {(searchTerm || roleFilter) && (
-                    <div style={{ color: '#8c8c8c' }}>
-                      尝试使用其他搜索条件或
-                      <Button
-                        type="link"
-                        size="small"
-                        onClick={() => {
-                          setSearchTerm('')
-                          setRoleFilter('')
-                          setCurrentPage(1)
-                        }}
-                      >
-                        清除筛选
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              ),
-            }}
-          />
-
-          {/* 分页 */}
-          <div style={{ textAlign: 'right', marginTop: 16 }}>
-            <Pagination
-              current={currentPage}
-              total={totalUsers}
-              pageSize={limit}
-              showSizeChanger
-              showQuickJumper
-              showTotal={(total, range) => `${range[0]}-${range[1]} / 共 ${total} 条`}
-              pageSizeOptions={['10', '20', '50', '100']}
-              onChange={page => setCurrentPage(page)}
-              onShowSizeChange={(_cur, size) => {
-                setLimit(size)
-                setCurrentPage(1)
-              }}
-            />
-          </div>
-        </Card>
+      <Content style={{ minWidth: 0 }}>
+        {Filters}
+        {!fs ? TableBlock : createPortal(<div className="fs-overlay">{TableBlock}</div>, document.body)}
       </Content>
 
-      {/* 用户详情 */}
-      <Modal
-        title="用户详情"
-        open={showDetailModal}
-        onCancel={() => setShowDetailModal(false)}
-        footer={[
-          <Button
-            key="edit"
-            onClick={() => {
-              setShowDetailModal(false)
-              if (selectedUser)
-                openEditModal({
-                  id: selectedUser.id,
-                  email: selectedUser.email,
-                  role: selectedUser.role,
-                  nickname: selectedUser.nickname,
-                  school: selectedUser.school,
-                  class_name: selectedUser.class_name,
-                  experience_points: selectedUser.experience_points,
-                  level: selectedUser.level,
-                  status: selectedUser.status,
-                  created_at: selectedUser.created_at,
-                  updated_at: selectedUser.updated_at,
-                  org_id: selectedUser.org_id,
-                  org_name: selectedUser.org_name ?? undefined,
-                  org_path_label: getOrgPathLabel(selectedUser.org_id, selectedUser.org_name ?? undefined) ?? undefined,
-                })
-            }}
-          >
-            编辑用户
-          </Button>,
-          <Button key="close" type="primary" onClick={() => setShowDetailModal(false)}>
-            关闭
-          </Button>,
-        ]}
-        width={800}
-        style={{ top: 20 }}
-        destroyOnHidden
-      >
-        {selectedUser && (
-          <div>
-            <Title level={4}>基本信息</Title>
-            <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">邮箱</Text>
-                  <div>{selectedUser.email}</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">昵称</Text>
-                  <div>{selectedUser.nickname || '未设置'}</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">角色</Text>
-                  <div>{getRoleTag(selectedUser.role)}</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">状态</Text>
-                  <div>
-                    <Tag color={selectedUser.status === 'active' ? 'green' : 'red'}>
-                      {selectedUser.status === 'active' ? '启用' : '禁用'}
-                    </Tag>
-                  </div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">注册时间</Text>
-                  <div>{new Date(selectedUser.created_at).toLocaleString()}</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">所属部门</Text>
-                  <div>
-                    {(() => {
-                      const label = getOrgPathLabel(selectedUser.org_id, selectedUser.org_name ?? undefined)
-                      return label ? <Tag>{label}</Tag> : <Text type="secondary">未分配</Text>
-                    })()}
-                  </div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">学校</Text>
-                  <div>{selectedUser.school || '未设置'}</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small">
-                  <Text type="secondary">班级</Text>
-                  <div>{selectedUser.class_name || '未设置'}</div>
-                </Card>
-              </Col>
-            </Row>
-            <Divider />
-            <Title level={4}>学习统计</Title>
-            <Row gutter={[16, 16]}>
-              <Col span={8}>
-                <Card>
-                  <Statistic title="等级" value={selectedUser.level} />
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <Statistic title="经验值" value={selectedUser.experience_points} suffix="XP" />
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <Statistic title="平均分数" value={selectedUser.statistics.averageScore} precision={1} />
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <Statistic title="总提交次数" value={selectedUser.statistics.totalSubmissions} />
-                </Card>
-              </Col>
-              <Col span={8}>
-                <Card>
-                  <Statistic title="完成次数" value={selectedUser.statistics.completedSubmissions} />
-                </Card>
-              </Col>
-            </Row>
-          </div>
-        )}
-      </Modal>
+      {/* 编辑 */}
+      <EditUserModal
+        open={editOpen}
+        user={currentUser}
+        tree={tree}
+        onCancel={() => setEditOpen(false)}
+        onSubmit={async (v: any) => {
+          if (!currentUser) return
+          await q.update(currentUser.id, v)
+          setEditOpen(false)
+          message.success(t('users.message.update_success'))
+          q.refetch()
+        }}
+      />
 
-      {/* 编辑用户 */}
-      <Modal
-        title={
-          <span>
-            <EditOutlined style={{ marginRight: 8 }} />
-            编辑用户
-          </span>
-        }
-        open={showEditModal}
+      {/* 新增 */}
+      <AddUserModal
+        open={addOpen}
+        defaultOrgId={selectedOrgId ?? undefined}
+        onCancel={() => setAddOpen(false)}
+        onSubmit={async payload => {
+          await safeCreateUser(payload)
+          setAddOpen(false)
+          q.refetch()
+        }}
+      />
+
+      {/* 重置密码 */}
+      <ResetPasswordModal
+        open={resetOpen}
+        username={currentUser?.username}
+        onCancel={() => setResetOpen(false)}
+        onSubmit={async (newPwd: any) => {
+          if (!currentUser) return
+          await q.resetPassword(currentUser.id, newPwd)
+          setResetOpen(false)
+          message.success(t('users.message.reset_success'))
+          q.refetch()
+        }}
+      />
+
+      {/* 上传头像 */}
+      <UploadAvatarModal
+        open={avatarOpen}
+        user={currentUser ?? undefined}
+        loading={avatarLoading}
         onCancel={() => {
-          setShowEditModal(false)
-          setEditingUser(null)
-          editForm.resetFields()
+          if (!avatarLoading) setAvatarOpen(false)
         }}
-        footer={null}
-        width={600}
-        destroyOnHidden
-      >
-        {editingUser && (
-          <Form
-            form={editForm}
-            layout="vertical"
-            onFinish={handleEditUser}
-            initialValues={{
-              role: editingUser.role,
-              nickname: editingUser.nickname,
-              school: editingUser.school,
-              class_name: editingUser.class_name,
-            }}
-          >
-            <Form.Item label="角色" name="role" rules={[{ required: true, message: '请选择用户角色' }]}>
-              <Select placeholder="选择用户的系统角色">
-                <Option value="student">学生</Option>
-                <Option value="teacher">教师</Option>
-                <Option value="admin">管理员</Option>
-              </Select>
-            </Form.Item>
-
-            {/* 显示当前完整路径 */}
-            <Form.Item label="所属机构">
-              <Space>
-                <Input
-                  value={getOrgPathLabel(editingUser.org_id, editingUser.org_name ?? undefined) || '未分配'}
-                  readOnly
-                  style={{ width: 320 }}
-                />
-                <Button
-                  onClick={() => {
-                    setOrgPickerSelected(editingUser?.org_id ?? selectedOrgId ?? null)
-                    setOrgPickerOpen(true)
-                  }}
-                >
-                  修改
-                </Button>
-              </Space>
-            </Form.Item>
-
-            <Form.Item label="更多部门">
-              <Button
-                onClick={() => {
-                  setLinkOrgIds([])
-                  setLinkOrgOpen(true)
-                }}
-              >
-                关联多个部门
-              </Button>
-              <Text type="secondary" style={{ marginLeft: 8 }}>
-                不会移除现有关联，可选主部门。
-              </Text>
-            </Form.Item>
-
-            <Form.Item
-              label="昵称"
-              name="nickname"
-              rules={[
-                { required: true, message: '昵称不能为空' },
-                { max: 20, message: '昵称不能超过20个字符' },
-              ]}
-            >
-              <Input placeholder="用户在系统中显示的名称" />
-            </Form.Item>
-            <Form.Item label="学校" name="school">
-              <Input placeholder="用户所属的学校名称" />
-            </Form.Item>
-            <Form.Item label="班级" name="class_name">
-              <Input placeholder="用户所属的班级名称" />
-            </Form.Item>
-            <Form.Item style={{ marginBottom: 0, textAlign: 'right' }}>
-              <Space>
-                <Button
-                  onClick={() => {
-                    setShowEditModal(false)
-                    setEditingUser(null)
-                    editForm.resetFields()
-                  }}
-                >
-                  取消
-                </Button>
-                <Button type="primary" htmlType="submit" icon={<UserOutlined />}>
-                  保存更改
-                </Button>
-              </Space>
-            </Form.Item>
-          </Form>
-        )}
-      </Modal>
-
-      {/* 新增用户到机构 */}
-      <Modal
-        title="新增用户到当前机构"
-        open={bindOpen}
-        onCancel={() => setBindOpen(false)}
-        onOk={submitBindUsers}
-        okText="确认新增"
-        destroyOnHidden
-      >
-        <Space direction="vertical" style={{ width: '100%' }}>
-          <Select
-            mode="multiple"
-            allowClear
-            placeholder="搜索并选择用户（邮箱/昵称）"
-            value={bindUserIds}
-            onChange={ids => setBindUserIds(ids as number[])}
-            showSearch
-            onSearch={searchBindOptions}
-            filterOption={false}
-            loading={bindSearching}
-            style={{ width: '100%' }}
-          >
-            {bindOptions.map(u => (
-              <Option key={u.id} value={u.id}>
-                {u.nickname || u.email}（{u.email}）
-              </Option>
-            ))}
-          </Select>
-          <Text type="secondary">提示：支持多选。若需创建新账号，请到“用户新增”入口后再关联。</Text>
-        </Space>
-      </Modal>
-
-      {/* 选择所属机构（变更主机构） */}
-      <Modal
-        title="选择所属机构"
-        open={orgPickerOpen}
-        onCancel={() => setOrgPickerOpen(false)}
-        onOk={async () => {
-          if (!editingUser || !orgPickerSelected) {
-            setOrgPickerOpen(false)
-            return
-          }
+        onSubmit={async file => {
+          if (!currentUser) return
+          setAvatarLoading(true)
           try {
-            // ✅ 若已有来源机构：先加入目标，再从来源删除；否则直接加入目标
-            if (editingUser.org_id && editingUser.org_id !== orgPickerSelected) {
-              const addRes: ApiResult<any> = await api.post(`/orgs/${orgPickerSelected}/users`, {
-                user_ids: [editingUser.id],
-              })
-              if (!assertSuccess(addRes)) throw new Error(addRes.error || addRes.message || '加入目标机构失败')
-
-              const delRes: ApiResult<any> = await api.delete(`/orgs/${editingUser.org_id}/users/${editingUser.id}`)
-              if (!assertSuccess(delRes)) throw new Error(delRes.error || delRes.message || '从来源机构移除失败')
-            } else if (!editingUser.org_id) {
-              const addRes: ApiResult<any> = await api.post(`/orgs/${orgPickerSelected}/users`, {
-                user_ids: [editingUser.id],
-              })
-              if (!assertSuccess(addRes)) throw new Error(addRes.error || addRes.message || '加入机构失败')
-            }
-
-            message.success('已更新所属机构')
-            setOrgPickerOpen(false)
-            await loadUsers()
-
-            // 同步编辑状态与详情
-            const newLabel = getOrgPathLabel(orgPickerSelected) || ''
-            editForm.setFieldValue('org_name', newLabel)
-            setEditingUser(prev =>
-              prev
-                ? {
-                    ...prev,
-                    org_id: orgPickerSelected,
-                    org_name: undefined,
-                    org_path_label: newLabel,
-                  }
-                : prev
-            )
-            if (selectedUser?.id === editingUser.id) {
-              setSelectedUser(prev => (prev ? { ...prev, org_id: orgPickerSelected, org_name: undefined } : prev))
-            }
+            await q.uploadAvatar(currentUser.id, file)
+            message.success(t('users.message.avatar_success'))
+            setAvatarOpen(false)
+            q.refetch()
           } catch (e: any) {
-            message.error(e?.message || '更新失败')
+            message.error(e?.message || t('users.message.avatar_failed'))
+          } finally {
+            setAvatarLoading(false)
           }
         }}
-        okText="确定"
-        destroyOnHidden
-      >
-        <div style={{ maxHeight: 480, overflow: 'auto', padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
-          {treeLoading ? (
-            <Text type="secondary">加载中...</Text>
-          ) : (
-            <Tree
-              blockNode
-              showIcon
-              defaultExpandAll
-              icon={<ApartmentOutlined />}
-              selectedKeys={orgPickerSelected ? [orgPickerSelected] : []}
-              onSelect={keys => setOrgPickerSelected(Number(keys?.[0]) || null)}
-              treeData={treeData as any}
-            />
-          )}
-        </div>
-      </Modal>
+      />
 
-      {/* 关联多个部门 */}
-      <Modal
-        title="关联多个部门"
-        open={linkOrgOpen}
-        onCancel={() => setLinkOrgOpen(false)}
-        onOk={async () => {
-          if (!editingUser) {
-            setLinkOrgOpen(false)
-            return
-          }
-          if (linkOrgIds.length === 0) {
-            message.warning('请至少选择一个部门')
-            return
-          }
-          try {
-            // ✅ 关联多个机构：POST /users/:userId/orgs
-            const res: ApiResult<any> = await api.post(`/users/${editingUser.id}/orgs`, { org_ids: linkOrgIds })
-            if (!assertSuccess(res)) throw new Error(res.error || res.message || '关联失败')
-            message.success('关联成功')
-            setLinkOrgOpen(false)
-            await loadUsers()
-            if (selectedUser?.id === editingUser.id) await openDetailFromRow(editingUser)
-          } catch (e: any) {
-            message.error(e?.message || '关联失败')
-          }
+      {/* 分配角色 */}
+      <AssignRolesModal
+        open={assignOpen}
+        user={currentUser}
+        orgId={selectedOrgId ?? undefined}
+        onCancel={() => setAssignOpen(false)}
+        onOk={() => {
+          setAssignOpen(false)
+          q.refetch()
         }}
-        okText="确定"
-        destroyOnHidden
-      >
-        <div style={{ maxHeight: 480, overflow: 'auto', padding: 8, border: '1px solid #f0f0f0', borderRadius: 8 }}>
-          {treeLoading ? (
-            <Text type="secondary">加载中...</Text>
-          ) : (
-            <Tree
-              checkable
-              defaultExpandAll
-              blockNode
-              showIcon
-              icon={<ApartmentOutlined />}
-              onCheck={keys => setLinkOrgIds((keys as React.Key[]).map(k => Number(k)).filter(Boolean))}
-              treeData={treeData as any}
-            />
-          )}
-        </div>
-      </Modal>
+      />
     </Layout>
   )
 }
-
-export default UserManagementPage

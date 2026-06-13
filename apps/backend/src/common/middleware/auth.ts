@@ -1,0 +1,246 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
+// 让没有 @types/node 也能编译
+declare const process: any
+declare const require: any
+
+import { pool } from '@/config/database'
+import type { NextFunction, Request, RequestHandler, Response } from 'express'
+
+// ✅ 运行时 require，避免某些构建环境下的 ESM/CJS 冲突
+const jwt: any = (() => {
+  try {
+    return require('jsonwebtoken')
+  } catch {
+    return null
+  }
+})()
+
+import { ACCESS_JWT_CLOCK_TOLERANCE_SEC, getJwtSecret } from '@/config/jwt'
+import type { RowDataPacket } from 'mysql2/promise'
+import { SessionStore } from '@/common/session/session.store'
+
+// —— 简单解析 Cookie（无需 cookie-parser 依赖）——
+function readCookie(req: Request, name: string): string | null {
+  const raw = req.headers?.cookie
+  if (!raw) return null
+  const parts = raw.split(';')
+  for (const p of parts) {
+    const [k, ...rest] = p.trim().split('=')
+    if (!k) continue
+    if (k === name) return decodeURIComponent(rest.join('=') || '')
+  }
+  return null
+}
+
+async function getPrimaryOrgId(userId: number): Promise<number | null> {
+  const [[row]] = await pool.query<RowDataPacket[]>(
+    `SELECT org_id FROM user_organizations WHERE user_id=? ORDER BY is_primary DESC LIMIT 1`,
+    [userId]
+  )
+  if ((row as any)?.org_id) return Number((row as any).org_id)
+  const [[roleOrg]] = await pool.query<RowDataPacket[]>(
+    `SELECT org_id FROM user_org_roles WHERE user_id=? ORDER BY org_id LIMIT 1`,
+    [userId]
+  )
+  return (roleOrg as any)?.org_id ? Number((roleOrg as any).org_id) : null
+}
+
+export async function resolveOrgId(req: Request, userId: number): Promise<number | null> {
+  const p = (req.params as any)?.orgId
+  if (p != null && String(p).trim() !== '' && !Number.isNaN(Number(p))) return Number(p)
+  const hdr = req.get('x-org-id')
+  if (hdr && hdr.trim() !== '' && !Number.isNaN(Number(hdr))) return Number(hdr)
+  return getPrimaryOrgId(userId)
+}
+
+async function isUserAdminInOrg(userId: number, orgId: number): Promise<boolean> {
+  const [[row]] = await pool.query<RowDataPacket[]>(
+    `SELECT 1
+      FROM user_org_roles uor
+      JOIN roles r ON r.id = uor.role_id
+      WHERE uor.user_id=? AND uor.org_id=? AND LOWER(r.code) IN ('admin','super_admin','superadmin') AND r.is_disabled=0
+      LIMIT 1`,
+    [userId, orgId]
+  )
+  return !!row
+}
+
+declare global {
+  namespace Express {
+    interface Request {
+      user?: {
+        id: number
+        email?: string
+        role?: string | null
+        role_ids?: number[]
+        roles?: Array<{ id: number; code: string }>
+        is_admin?: boolean
+        is_super_admin?: boolean
+        isAdmin?: boolean
+        isSuperAdmin?: boolean
+        sessionId?: string
+      } | null
+      auth?: { userId: number | null; orgId: number | null; isAdminInOrg: boolean }
+    }
+  }
+}
+
+function getTokenFromRequest(req: Request): string | null {
+  const authz = req.get('authorization') || ''
+  if (authz.startsWith('Bearer ')) return authz.slice(7).trim()
+  if (authz) {
+    const maybe = authz.split(' ')[1]
+    if (maybe) return maybe.trim()
+  }
+  // ✅ Cookie 兜底
+  return (
+    readCookie(req, 'access_token') ||
+    readCookie(req, 'token') ||
+    readCookie(req, 'Authorization') || // 有些后端会把 Bearer xxx 整个塞进这个 cookie
+    null
+  )
+}
+
+/** 解析并装填 req.user；若传 required=true 则在失败时抛 401 */
+async function fillUserFromToken(req: Request, required: boolean) {
+  const token = getTokenFromRequest(req)
+  if (!token) {
+    if (required) throw Object.assign(new Error('访问令牌缺失'), { status: 401 })
+    req.user = null
+    req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+    return
+  }
+
+  if (!jwt?.verify) {
+    if (required) throw Object.assign(new Error('JWT 模块不可用'), { status: 401 })
+    req.user = null
+    req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+    return
+  }
+
+  const payload: any = jwt.verify(token, getJwtSecret(), { clockTolerance: ACCESS_JWT_CLOCK_TOLERANCE_SEC } as any)
+
+  const uid = Number(payload?.id || payload?.sub)
+  const sid: string | undefined = payload?.sid || payload?.jti
+  if (!Number.isFinite(uid) || uid <= 0) {
+    if (required) throw Object.assign(new Error('无效的访问令牌'), { status: 401 })
+    req.user = null
+    req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+    return
+  }
+
+  // 会话有效性
+  if (sid) {
+    const active = await SessionStore.isActive(sid)
+    if (!active) {
+      if (required) throw Object.assign(new Error('登录已失效或被强退'), { status: 401 })
+      req.user = null
+      req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+      return
+    }
+  }
+
+  // 确认用户仍存在
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, email, role FROM users WHERE id=? LIMIT 1`, [
+    uid,
+  ])
+  if ((rows as any).length === 0) {
+    if (required) throw Object.assign(new Error('用户不存在'), { status: 401 })
+    req.user = null
+    req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+    return
+  }
+
+  const u = rows[0] as any
+  const tokenRoles = Array.isArray(payload?.roles)
+    ? payload.roles.map((r: any) => ({ id: Number(r?.id), code: String(r?.code || '').toLowerCase() }))
+    : []
+  const tokenRoleIds = Array.isArray(payload?.role_ids)
+    ? payload.role_ids.map((n: any) => Number(n)).filter(Number.isFinite)
+    : []
+
+  const hasAdminCode = tokenRoles.some((r: any) => ['admin', 'super_admin', 'superadmin'].includes(r.code))
+  const hasAdminId = tokenRoleIds.includes(1) || tokenRoleIds.includes(2)
+
+  req.user = {
+    id: u.id,
+    email: u.email,
+    role: (u.role as any) ?? (hasAdminCode || hasAdminId ? 'admin' : null),
+    role_ids: tokenRoleIds.length ? tokenRoleIds : undefined,
+    roles: tokenRoles.length ? tokenRoles : undefined,
+    is_admin: hasAdminCode || hasAdminId || undefined,
+    is_super_admin: tokenRoleIds.includes(1) || undefined,
+    isAdmin: hasAdminCode || hasAdminId || undefined,
+    isSuperAdmin: tokenRoleIds.includes(1) || undefined,
+    sessionId: sid,
+  }
+
+  const orgId = await resolveOrgId(req, u.id)
+  const isAdmin = orgId ? await isUserAdminInOrg(u.id, orgId) : false
+  req.auth = { userId: u.id, orgId, isAdminInOrg: isAdmin }
+}
+
+/** 可选认证：有 token 就验证；无 token 当匿名 */
+export const optionalAuth: RequestHandler = async (req, _res, next) => {
+  try {
+    await fillUserFromToken(req, false)
+    next()
+  } catch {
+    req.user = null
+    req.auth = { userId: null, orgId: null, isAdminInOrg: false }
+    next()
+  }
+}
+
+/** 强制认证（附带会话校验 & 填充 req.user） */
+export const authenticateToken: RequestHandler = async (req, res, next) => {
+  try {
+    await fillUserFromToken(req, true)
+    next()
+  } catch (e: any) {
+    const msg = e?.message || '无效的访问令牌'
+    return res.status(401).json({ success: false, error: msg })
+  }
+}
+
+/** 允许 admin/super_admin 或指定角色 code */
+export function requireRole(allowed: string[] = []): RequestHandler {
+  const allow = new Set(allowed.map(s => String(s || '').toLowerCase()))
+  return (req: Request, res: Response, next: NextFunction) => {
+    const u: any = (req as any).user
+    if (!u?.id) return res.status(401).json({ success: false, message: '请先登录' })
+
+    const isGlobalAdmin = !!(u.is_admin || u.isAdmin || u.is_super_admin || u.isSuperAdmin)
+    const hasAdminCode =
+      Array.isArray(u.roles) &&
+      u.roles.some((r: any) => ['admin', 'super_admin', 'superadmin'].includes(String(r?.code || '').toLowerCase()))
+    if (isGlobalAdmin || hasAdminCode) return next()
+
+    const codes = new Set<string>()
+    if (u.role) codes.add(String(u.role).toLowerCase())
+    if (Array.isArray(u.roles)) u.roles.forEach((r: any) => r?.code && codes.add(String(r.code).toLowerCase()))
+    const hit = Array.from(codes).some(c => allow.has(c))
+    if (hit) return next()
+
+    return res.status(403).json({ success: false, message: '权限不足，需要指定的角色权限' })
+  }
+}
+
+/** 允许 admin/super_admin 或命中任意一个 roleId */
+export function requireRoleByIds(roleIds: number[] = []): RequestHandler {
+  const ids = new Set<number>(roleIds.filter(n => Number.isFinite(n)))
+  return (req: Request, res: Response, next: NextFunction) => {
+    const u: any = (req as any).user
+    if (!u?.id) return res.status(401).json({ success: false, message: '请先登录' })
+
+    const isGlobalAdmin = !!(u.is_admin || u.isAdmin || u.is_super_admin || u.isSuperAdmin)
+    if (isGlobalAdmin) return next()
+
+    const userIds = new Set<number>((u.role_ids as number[] | undefined) || [])
+    const hit = Array.from(ids).some(id => userIds.has(id))
+    if (hit) return next()
+
+    return res.status(403).json({ success: false, message: '权限不足，需要指定的角色 ID' })
+  }
+}

@@ -1,324 +1,548 @@
-import { IconRenderer } from '@shared/components/IconRenderer'
-import LoadingSpinner from '@shared/components/LoadingSpinner'
-import { MenuItem, useMenuPermissions } from '@shared/hooks/useMenuPermissions'
-import { ChevronDown, ChevronRight } from 'lucide-react'
-import React, { useState } from 'react'
-import { Link, useLocation } from 'react-router-dom'
+import { IconRenderer } from '@/shared/components/IconRenderer'
+import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useLayout } from '@/shared/contexts/LayoutContext'
+import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
+import { useTabs } from '@/shared/contexts/TabsContext'
+import { withAppAssetPath } from '@/shared/router/basePath'
+import { Drawer, Menu, Tooltip } from 'antd'
+import { ChevronsLeft, ChevronsRight } from 'lucide-react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
+import '../css/DynamicSidebar.css'
 
-// 图标映射（兼容旧数据里的字符串图标）
-const iconMap: Record<string, React.ReactNode> = {
-  home: '🏠',
-  users: '👥',
-  user: '👤',
-  questions: '❓',
-  'question-circle': '❓',
-  papers: '📄',
-  'file-text': '📄',
-  tasks: '⏰',
-  calendar: '📅',
-  analytics: '📊',
-  'bar-chart': '📊',
-  settings: '⚙️',
-  setting: '⚙️',
-  menus: '📋',
-  menu: '📋',
-  dashboard: '📊',
-  exams: '📝',
-  exam: '📝',
-  results: '🏆',
-  trophy: '🏆',
-  profile: '👤',
-  book: '📚',
-  edit: '✏️',
-  'unordered-list': '📋',
-  bell: '🔔',
-  heart: '❤️',
-  'exclamation-circle': '⚠️',
-  message: '💬',
-  'line-chart': '📈',
+// 宽松菜单类型，避免联合类型在 filter/map 后收敛成 never
+type AnyMenu = {
+  id?: string | number
+  title?: string
+  path?: string
+  redirect?: string
+  icon?: string
+  children?: AnyMenu[]
+  meta?: any
+  is_hidden?: any
+  isHidden?: any
+  hidden?: any
+  menu_type?: 'menu' | 'page' | 'link' | 'iframe' | 'button' | 'dir' | string
 }
 
-interface DynamicSidebarProps {
-  className?: string
-  collapsed?: boolean
-  onToggle?: () => void
+/** 把未知值安全转成菜单数组，彻底避免 never[] 推断 */
+function asMenus(v: unknown): AnyMenu[] {
+  return Array.isArray(v) ? (v as AnyMenu[]) : []
 }
 
-export default function DynamicSidebar({ className = '', collapsed = false, onToggle }: DynamicSidebarProps) {
+/* ---------- 小工具 ---------- */
+const hasDynamic = (p?: string) => !!p && /[:\[\{]/.test(p || '')
+const norm = (p: string) => (p || '').replace(/\/+$/, '') || '/'
+const cleanPath = (p?: string | null) =>
+  ('/' + (p || '')).replace(/\/{2,}/g, '/').replace(/(?:\/index|-index)(?=\/?$)/, '')
+
+function readHiddenRaw(m: any): any {
+  if (!m) return undefined
+  if (m.is_hidden !== undefined) return m.is_hidden
+  if (m.isHidden !== undefined) return m.isHidden
+  if (m.hidden !== undefined) return m.hidden
+  if (m.meta?.hidden !== undefined) return m.meta.hidden
+  if (m.meta?.is_hidden !== undefined) return m.meta.is_hidden
+  if (typeof m.meta?.visible === 'boolean') return !m.meta.visible
+  return undefined
+}
+const isHiddenFlag = (v: any) =>
+  v === true || v === 1 || (typeof v === 'string' && ['1', 'true', 'yes'].includes(v.trim().toLowerCase()))
+const safeNotHidden = (m: any) => !isHiddenFlag(readHiddenRaw(m))
+const shouldShowInMenu = (m: AnyMenu) => {
+  if (!safeNotHidden(m)) return false
+  const p = (m?.path ?? '').trim()
+  if (p && hasDynamic(p)) return false
+  return true
+}
+
+/** 混合模式：按当前地址推断根 */
+function pickMixRoot(menus: AnyMenu[], _activeRootId?: string | null, pathname = '/') {
+  const roots = asMenus(menus).filter(shouldShowInMenu)
+  const pn = norm(cleanPath(pathname))
+  let matched: AnyMenu | null = null
+  const dfs = (list: AnyMenu[], top: AnyMenu) => {
+    const arr = asMenus(list)
+    for (const m of arr) {
+      if (!shouldShowInMenu(m)) continue
+      const raw = m?.path
+      if (raw && !hasDynamic(raw)) {
+        const p = norm(cleanPath(raw))
+        if (pn === p || pn.startsWith(p + '/')) matched = top
+      }
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids, top)
+      if (matched) return
+    }
+  }
+  for (const r of roots) {
+    dfs([r], r)
+    if (matched) break
+  }
+  return matched || roots[0] || null
+}
+
+/* ---------- 构建 items & 映射 ---------- */
+function buildMenuArtifacts(menus: AnyMenu[]) {
+  type AntdItem = any
+  const items: AntdItem[] = []
+  const id2path = new Map<string, string>()
+  const id2title = new Map<string, string>()
+  const id2redirect = new Map<string, string>()
+  const id2node = new Map<string, AnyMenu>() // ✅ 新增
+  const parent = new Map<string, string | null>()
+  const rootOpenableKeys: string[] = []
+
+  const walk = (list: AnyMenu[], parentId: string | null): AntdItem[] => {
+    const arr = asMenus(list).filter(shouldShowInMenu)
+    return arr.map(m => {
+      const id = String(m?.id ?? m?.path ?? Math.random())
+      id2node.set(id, m) // ✅ 保存节点
+      parent.set(id, parentId)
+      id2title.set(id, String(m?.title ?? ''))
+
+      const pathRaw = m?.path
+      if (pathRaw && !hasDynamic(pathRaw)) {
+        const p = cleanPath(pathRaw)
+        if (p) id2path.set(id, p)
+      }
+      const redirectRaw = m?.redirect
+      if (redirectRaw) id2redirect.set(id, cleanPath(redirectRaw))
+
+      const iconName = m?.icon || 'lucide:LayoutDashboard'
+      const icon = <IconRenderer icon={iconName} size={18} />
+      const children = asMenus(m?.children).filter(shouldShowInMenu)
+
+      if (children.length) {
+        if (parentId === null) rootOpenableKeys.push(id)
+        return { key: id, icon, label: m?.title, title: m?.title, children: walk(children, id) }
+      }
+      return { key: id, icon, label: m?.title, title: m?.title }
+    })
+  }
+
+  items.push(...walk(asMenus(menus), null))
+  return { items, id2path, id2title, id2redirect, id2node, parent, rootOpenableKeys }
+}
+
+/** 用原始变量跟踪最优匹配，彻底规避 best?.id 的属性访问 */
+function findActiveIdByPath(menus: AnyMenu[], pathname: string): string | undefined {
+  const pn = norm(cleanPath(pathname))
+
+  let bestId: string | undefined
+  let bestDepth = -1
+  let bestLen = -1
+
+  const dfs = (list: AnyMenu[], depth: number) => {
+    const arr = asMenus(list)
+    for (const m of arr) {
+      if (!safeNotHidden(m)) continue
+      const mp = m?.path
+      if (mp && !hasDynamic(mp)) {
+        const p = norm(cleanPath(mp))
+        if (pn === p || pn.startsWith(p + '/')) {
+          const id = m?.id != null ? String(m.id) : ''
+          if (id) {
+            if (depth > bestDepth || (depth === bestDepth && p.length > bestLen)) {
+              bestId = id
+              bestDepth = depth
+              bestLen = p.length
+            }
+          }
+        }
+      }
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids, depth + 1)
+    }
+  }
+
+  dfs(asMenus(menus), 1)
+  return bestId
+}
+
+function collectAncestorIds(parent: Map<string, string | null>, id?: string): string[] {
+  const out: string[] = []
+  let cur = id
+  while (cur) {
+    const p = parent.get(cur) || null
+    if (!p) break
+    out.unshift(p)
+    cur = p
+  }
+  return out
+}
+
+/* ====== 底部控制 SVG ====== */
+type SvgIconProps = React.SVGProps<SVGSVGElement> & { size?: number; collapsed?: boolean }
+const IconCollapse = ({ size = 16, collapsed, style, ...rest }: SvgIconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    width={size}
+    height={size}
+    aria-hidden="false"
+    style={{ transform: collapsed ? 'rotateY(180deg)' : 'none', outline: 'none', ...style }}
+    {...rest}
+  >
+    <path fill="currentColor" d="M21 18v2H3v-2zM7 3.5v10l-5-5zM21 11v2h-9v-2zm0-7v2h-9V4z" />
+  </svg>
+)
+
+const HEADER_H = 55
+const BOTTOM_CTRL_H = 44
+
+/* ====== 仪表盘路径查找 + 跳转 ====== */
+const DASHBOARD_CANDIDATES = ['/dashboard', '/home', '/']
+function findDashboardPath(menus: AnyMenu[]): string {
+  const list = asMenus(menus)
+  const all: AnyMenu[] = []
+  const dfs = (arr: AnyMenu[]) => {
+    for (const m of asMenus(arr)) {
+      all.push(m)
+      const kids = asMenus(m?.children)
+      if (kids.length) dfs(kids)
+    }
+  }
+  dfs(list)
+  for (const c of DASHBOARD_CANDIDATES) {
+    const pc = cleanPath(c)
+    const hit = all.find(m => cleanPath(m?.path || '') === pc)
+    if (hit) return pc
+  }
+  return '/dashboard'
+}
+
+/* ======================== 桌面侧栏 ======================== */
+export default function DynamicSidebar({ className = '', width = 240 }: { className?: string; width?: number }) {
+  const { mode, collapsed, showBrand, toggleCollapsed } = useLayout()
   const { menus, loading, error } = useMenuPermissions()
   const location = useLocation()
-  const [expandedMenus, setExpandedMenus] = useState<Set<number>>(new Set())
+  const { addOrActivate } = useTabs()
 
-  // 切换菜单展开状态
-  const toggleMenu = (menuId: number) => {
-    const newExpanded = new Set(expandedMenus)
-    if (newExpanded.has(menuId)) newExpanded.delete(menuId)
-    else newExpanded.add(menuId)
-    setExpandedMenus(newExpanded)
+  const [hovered, setHovered] = useState(false)
+  const asideRef = useRef<HTMLDivElement>(null)
+
+  const [inlineCollapsed, setInlineCollapsed] = useState(collapsed)
+  const [hideLabel, setHideLabel] = useState(collapsed)
+
+  useEffect(() => {
+    if (collapsed) {
+      setHideLabel(true)
+      const t = setTimeout(() => setInlineCollapsed(true), 100)
+      return () => clearTimeout(t)
+    } else {
+      setInlineCollapsed(false)
+      setHideLabel(true)
+      const el = asideRef.current
+      const finish = () => setHideLabel(false)
+      if (el) {
+        const onEnd = (e: TransitionEvent) => {
+          if (e.propertyName === 'width') {
+            finish()
+            el.removeEventListener('transitionend', onEnd)
+          }
+        }
+        el.addEventListener('transitionend', onEnd)
+        return () => el.removeEventListener('transitionend', onEnd)
+      } else {
+        const t = setTimeout(finish, 240)
+        return () => clearTimeout(t)
+      }
+    }
+  }, [collapsed])
+
+  // 顶部模式不渲染侧栏
+  if (mode === 'top') return null
+
+  // mix：只展示当前“根菜单”的 children；side：展示整棵
+  const scopedMenus = useMemo(() => {
+    if (mode !== 'mix') return asMenus(menus)
+    const root = pickMixRoot(asMenus(menus), undefined, location.pathname)
+    return asMenus((root as AnyMenu)?.children)
+  }, [menus, mode, location.pathname])
+
+  const { items, id2path, id2title, id2redirect, id2node, parent, rootOpenableKeys } = useMemo(
+    () => buildMenuArtifacts(scopedMenus),
+    [scopedMenus]
+  )
+
+  const selectedId = useMemo(() => findActiveIdByPath(scopedMenus, location.pathname), [scopedMenus, location.pathname])
+  const mustOpenAncestors = useMemo(() => collectAncestorIds(parent, selectedId), [parent, selectedId])
+
+  const [openKeys, setOpenKeys] = useState<string[]>(mustOpenAncestors)
+  useEffect(() => {
+    if (collapsed) return
+    setOpenKeys(mustOpenAncestors)
+  }, [mustOpenAncestors, collapsed])
+
+  const dashboardPath = useMemo(() => findDashboardPath(asMenus(menus)), [menus])
+  const goDashboard = () => {
+    const p = cleanPath(dashboardPath)
+    ;(window as any).scrollTo?.(0, 0)
+    addOrActivate({ key: p, title: '仪表盘', closable: p !== '/' })
   }
 
-  // 检查菜单是否激活
-  const isMenuActive = (menu: MenuItem): boolean => {
-    if (location.pathname === menu.path) return true
-    if (menu.children) return menu.children.some(child => isMenuActive(child))
-    return false
-  }
+  const siderW = collapsed ? 64 : width
+  const brandH = showBrand ? HEADER_H : 0
 
-  const getMenuIcon = (menu: MenuItem) => <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
-
-  // 渲染菜单项
-  const renderMenuItem = (menu: MenuItem, level = 0) => {
-    const hasChildren = !!(menu.children && menu.children.length > 0)
-    const isActive = isMenuActive(menu)
-    const isExpanded = expandedMenus.has(menu.id)
-    const indent = level * 16
-
-    return (
-      <div key={menu.id}>
-        {/* 菜单项 */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            padding: '8px 12px',
-            paddingLeft: `${12 + indent}px`,
-            borderRadius: '8px',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            backgroundColor: isActive ? '#e3f2fd' : 'transparent',
-            color: isActive ? '#1976d2' : '#374151',
-            borderRight: isActive ? '2px solid #1976d2' : 'none',
-          }}
-          onMouseEnter={e => {
-            if (!isActive) e.currentTarget.style.backgroundColor = '#f5f5f5'
-          }}
-          onMouseLeave={e => {
-            if (!isActive) e.currentTarget.style.backgroundColor = 'transparent'
-          }}
-          onClick={() => {
-            if (hasChildren) toggleMenu(menu.id)
-          }}
-        >
-          {/* 图标 */}
-          <span
-            style={{
-              width: 20,
-              height: 20,
-              marginRight: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <IconRenderer icon={menu.icon || 'lucide:LayoutDashboard'} size={18} />
-          </span>
-
-          {/* 菜单名称/链接 */}
-          {!collapsed && (
-            <>
-              {hasChildren ? (
-                <span style={{ flex: 1, fontSize: '14px', fontWeight: 500 }}>{menu.title}</span>
-              ) : (
-                <Link
-                  to={menu.path ?? '/'} // 兜底，避免传入 undefined
-                  style={{
-                    flex: 1,
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    textDecoration: 'none',
-                    color: 'inherit',
-                  }}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {menu.title}
-                </Link>
-              )}
-
-              {/* 展开/收起图标 */}
-              {hasChildren && (
-                <span style={{ flexShrink: 0, marginLeft: 8 }}>
-                  {isExpanded ? (
-                    <ChevronDown style={{ width: 16, height: 16 }} />
-                  ) : (
-                    <ChevronRight style={{ width: 16, height: 16 }} />
-                  )}
-                </span>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* 子菜单 */}
-        {hasChildren && !collapsed && isExpanded && (
-          <div style={{ marginTop: 4 }}>{menu.children!.map(child => renderMenuItem(child, level + 1))}</div>
-        )}
-      </div>
-    )
-  }
-
+  /* ====== 加载 / 错误骨架 ====== */
   if (loading) {
     return (
-      <div
+      <aside
+        className={`app-sider ${className || ''}`}
         style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 16,
-          height: '100%',
+          position: 'fixed',
+          zIndex: 1100,
+          inset: '0 auto 0 0',
+          width: siderW,
+          background: 'var(--sider-bg, #fff)',
+          borderRight: '1px solid var(--sider-border, #f0f0f0)',
         }}
       >
-        <LoadingSpinner size="sm" />
-      </div>
+        <div style={{ height: '100%', display: 'grid', placeItems: 'center' }}>
+          <LoadingSpinner size="sm" center={false} />
+        </div>
+      </aside>
     )
   }
-
   if (error) {
     return (
-      <div style={{ padding: 16 }}>
-        <div style={{ textAlign: 'center', color: '#dc2626' }}>
-          <p style={{ fontSize: 14 }}>菜单加载失败</p>
-          <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>{error}</p>
-        </div>
-      </div>
+      <aside
+        className={`app-sider ${className || ''}`}
+        style={{
+          position: 'fixed',
+          zIndex: 1100,
+          inset: '0 auto 0 0',
+          width: siderW,
+          background: 'var(--sider-bg, #fff)',
+          borderRight: '1px solid var(--sider-border, #f0f0f0)',
+        }}
+      >
+        <div style={{ padding: 16, color: '#dc2626' }}>菜单加载失败：{error}</div>
+      </aside>
     )
   }
 
+  /* ====== 主体 ====== */
   return (
     <aside
-      className={className}
+      ref={asideRef}
+      className={`app-sider ${className || ''}`}
+      data-collapsed={collapsed ? '1' : '0'}
+      data-hide-label={hideLabel ? '1' : '0'}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       style={{
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        backgroundColor: '#ffffff',
-        boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1)',
-        borderRight: '1px solid #e5e7eb',
+        position: 'fixed',
+        zIndex: 1100,
+        left: 0,
+        top: 0,
+        bottom: 0,
+        width: siderW,
+        background: 'var(--sider-bg, #fff)',
+        borderRight: '1px solid var(--sider-border, #f0f0f0)',
+        overflowX: 'hidden',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        cursor: 'default',
       }}
     >
-      {/* 侧边栏头部 */}
-      <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {!collapsed && <h2 style={{ fontSize: 18, fontWeight: 600, color: '#111827', margin: 0 }}>在线考试系统</h2>}
-          {onToggle && (
-            <button
-              onClick={onToggle}
-              style={{
-                padding: 4,
-                borderRadius: 6,
-                border: 'none',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.backgroundColor = '#f3f4f6'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.backgroundColor = 'transparent'
-              }}
-              aria-label={collapsed ? '展开菜单' : '收起菜单'}
-              title={collapsed ? '展开菜单' : '收起菜单'}
-            >
-              <ChevronRight
-                style={{
-                  width: 16,
-                  height: 16,
-                  transition: 'transform 0.2s',
-                  transform: collapsed ? 'rotate(0deg)' : 'rotate(180deg)',
-                }}
-              />
-            </button>
+      {/* 顶部品牌区 */}
+      {showBrand && (
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={goDashboard}
+          onKeyDown={e => (e.key === 'Enter' || e.key === ' ') && goDashboard()}
+          style={{
+            height: HEADER_H,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '0 12px',
+            boxSizing: 'border-box',
+            userSelect: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <img
+            src={withAppAssetPath('/brand-logo.svg')}
+            alt="Logo"
+            width={20}
+            height={20}
+            style={{ display: 'block' }}
+            onError={e => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+          />
+          {!collapsed && (
+            <strong className="brand-title" style={{ fontSize: 14 }}>
+              在线考试系统
+            </strong>
           )}
         </div>
+      )}
+
+      {/* 菜单滚动区（预留底部固定区域高度） */}
+      <div className="menu-wrap" style={{ height: `calc(100% - ${brandH + BOTTOM_CTRL_H}px)`, overflowY: 'auto' }}>
+        <Menu
+          mode="inline"
+          selectable
+          inlineCollapsed={inlineCollapsed}
+          triggerSubMenuAction="hover"
+          items={items}
+          selectedKeys={selectedId ? [selectedId] : []}
+          openKeys={collapsed ? undefined : openKeys}
+          style={{ borderRight: 0, width: '100%' }}
+          motion={{ motionAppear: false, motionEnter: true, motionLeave: true, motionDeadline: 300 }}
+          onOpenChange={nextKeys => {
+            if (collapsed) return
+            const next = nextKeys as string[]
+            const newlyOpened = next.find(k => !openKeys.includes(k))
+            if (newlyOpened && rootOpenableKeys.includes(newlyOpened)) {
+              const filtered = next.filter(k => !rootOpenableKeys.includes(k))
+              filtered.push(newlyOpened)
+              setOpenKeys(filtered)
+            } else setOpenKeys(next)
+          }}
+          onClick={({ key, keyPath }) => {
+            const id = String(key)
+            const path = id2path.get(id)
+            const title = id2title.get(id) || ''
+            const node = id2node.get(id)
+            // ✅ 外链直接打开
+            if (node?.menu_type === 'link' && node?.meta?.externalUrl) {
+              const t = (node.meta.linkTarget || '_blank') as string
+              window.open(node.meta.externalUrl, t)
+              return
+            }
+            if (path) {
+              const p = cleanPath(path)
+              ;(window as any).scrollTo?.(0, 0)
+              addOrActivate({ key: p, title, closable: p !== '/' })
+              return
+            }
+            const redirect = id2redirect.get(id)
+            if (redirect) {
+              const p = cleanPath(redirect)
+              ;(window as any).scrollTo?.(0, 0)
+              addOrActivate({ key: p, title: title || '菜单', closable: p !== '/' })
+              return
+            }
+
+            if (!collapsed) {
+              const parentId = (keyPath?.[1] as string) || null
+              if (parentId) setOpenKeys(prev => Array.from(new Set([...prev, parentId])))
+            }
+          }}
+        />
       </div>
 
-      {/* 菜单列表 */}
-      <nav style={{ padding: 16, flex: 1, overflowY: 'auto', maxHeight: 'calc(100vh - 80px)' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-          {menus.map(menu => renderMenuItem(menu))}
-        </div>
-      </nav>
+      {/* 右侧悬浮折叠按钮（可选） */}
+      <div
+        className="hover-toggle"
+        style={{
+          position: 'absolute',
+          top: '50%',
+          right: 2,
+          transform: 'translateY(-50%)',
+          zIndex: 1200,
+          pointerEvents: hovered ? 'auto' : 'none',
+        }}
+      >
+        <Tooltip title={collapsed ? '点击展开' : '点击折叠'} placement="right">
+          <button
+            onClick={toggleCollapsed}
+            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            style={{
+              width: 24,
+              height: 34,
+              display: 'grid',
+              placeItems: 'center',
+              borderRadius: 4,
+              border: '1px solid var(--sider-border, rgba(0,0,0,.12))',
+              background: 'var(--surface-1, #fff)',
+              boxShadow: '0 4px 14px rgba(15,23,42,.18)',
+              cursor: 'pointer',
+            }}
+          >
+            {collapsed ? <ChevronsRight size={16} /> : <ChevronsLeft size={16} />}
+          </button>
+        </Tooltip>
+      </div>
+
+      {/* 底部固定控制 */}
+      <div
+        className="bottom-collapse"
+        style={{
+          position: 'absolute',
+          left: 0,
+          bottom: 0,
+          width: '100%',
+          height: BOTTOM_CTRL_H,
+          borderTop: '1px solid var(--sider-border, #f0f0f0)',
+          background: 'var(--sider-bg, #fff)',
+          display: 'flex',
+          alignItems: 'center',
+          paddingLeft: 16,
+        }}
+      >
+        <IconCollapse
+          collapsed={collapsed}
+          size={16}
+          style={{ cursor: 'pointer' }}
+          onClick={toggleCollapsed}
+          onMouseDown={e => e.preventDefault()}
+          tabIndex={-1}
+          aria-hidden="true"
+        />
+      </div>
     </aside>
   )
 }
 
-// 移动端菜单抽屉组件
-interface MobileSidebarProps {
-  isOpen: boolean
-  onClose: () => void
-}
-
-export function MobileSidebar({ isOpen, onClose }: MobileSidebarProps) {
+/* ======================== 移动端抽屉侧栏 ======================== */
+export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { menus, loading } = useMenuPermissions()
   const location = useLocation()
+  const { addOrActivate } = useTabs()
 
-  // 检查菜单是否激活
-  const isMenuActive = (menu: MenuItem): boolean => location.pathname === menu.path
+  const { items, id2path, id2title } = useMemo(() => {
+    const built = buildMenuArtifacts(asMenus(menus))
+    return { items: built.items, id2path: built.id2path, id2title: built.id2title }
+  }, [menus])
 
-  // 获取菜单图标（兼容旧字符串图标）
-  const getMenuIcon = (menu: MenuItem): React.ReactNode => {
-    if (menu.icon) return iconMap[menu.icon] || menu.icon
-    return iconMap['dashboard']
-  }
-
-  // 渲染移动端菜单项
-  const renderMobileMenuItem = (menu: MenuItem) => {
-    const isActive = isMenuActive(menu)
-
-    return (
-      <Link
-        key={menu.id}
-        to={menu.path ?? '/'} // 兜底，避免 undefined 传入 To
-        onClick={onClose}
-        className={`
-          flex items-center px-4 py-3 border-b border-gray-100 transition-colors
-          ${isActive ? 'bg-blue-50 text-blue-700' : 'text-gray-700 hover:bg-gray-50'}
-        `}
-      >
-        <span className="w-6 h-6 mr-3 text-lg">{getMenuIcon(menu)}</span>
-        <span className="text-sm font-medium">{menu.title}</span>
-      </Link>
-    )
-  }
-
-  if (!isOpen) return null
+  const selectedId = useMemo(() => findActiveIdByPath(asMenus(menus), location.pathname), [menus, location.pathname])
 
   return (
-    <>
-      {/* 遮罩层 */}
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden" onClick={onClose} />
-
-      {/* 侧边栏 */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-white shadow-lg z-50 md:hidden">
-        {/* 头部 */}
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-gray-900">菜单</h2>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-md hover:bg-gray-100 transition-colors"
-              aria-label="关闭菜单"
-            >
-              ✕
-            </button>
-          </div>
+    <Drawer
+      title="菜单"
+      placement="left"
+      width={260}
+      open={isOpen}
+      onClose={onClose}
+      styles={{ body: { padding: 0, height: '100%', overflow: 'auto' } }}
+    >
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <LoadingSpinner size="sm" center={false} />
         </div>
-
-        {/* 菜单列表 */}
-        <nav className="overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center p-4">
-              <LoadingSpinner size="sm" />
-            </div>
-          ) : (
-            menus.map(menu => {
-              // 只渲染顶级菜单
-              if (!menu.parent_id) return renderMobileMenuItem(menu)
-              return null
-            })
-          )}
-        </nav>
-      </div>
-    </>
+      ) : (
+        <Menu
+          mode="inline"
+          selectable
+          items={items}
+          selectedKeys={selectedId ? [selectedId] : []}
+          onClick={({ key }) => {
+            const id = String(key)
+            const path = id2path.get(id)
+            if (path) {
+              const title = id2title.get(id) || ''
+              const p = cleanPath(path)
+              addOrActivate({ key: p, title, closable: p !== '/' })
+              onClose()
+            }
+          }}
+          style={{ borderRight: 0, padding: 8 }}
+        />
+      )}
+    </Drawer>
   )
 }
