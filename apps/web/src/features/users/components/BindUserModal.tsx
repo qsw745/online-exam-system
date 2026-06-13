@@ -289,8 +289,7 @@ export const BindUserModal: React.FC<{
                     pageSize={bLimit}
                     total={bTotal}
                     onChange={(p, ps) => {
-                      if (ps !== bLimit) setBPage(1)
-                      else setBPage(p)
+                      setBPage(p)
                       setBLimit(ps)
                     }}
                   />

@@ -28,8 +28,7 @@ type Props = {
   total: number
   page: number
   pageSize: number
-  onChange: (page: number, pageSize?: number) => void
-  onPageSizeChange: (current: number, size: number) => void
+  onChange: (page: number, pageSize: number) => void
   rowGradient?: string // 不同 tab 用不同渐变色
 }
 
@@ -40,7 +39,6 @@ export default function LeaderboardTable({
   page,
   pageSize,
   onChange,
-  onPageSizeChange,
   rowGradient = 'from-yellow-50 to-orange-50',
 }: Props) {
   const columns = [
@@ -130,7 +128,6 @@ export default function LeaderboardTable({
         total={total}
         pageSize={pageSize}
         onChange={onChange}
-        onPageSizeChange={onPageSizeChange}
       />
     </Spin>
   )

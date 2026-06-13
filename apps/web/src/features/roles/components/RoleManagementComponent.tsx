@@ -23,7 +23,6 @@ import {
   Empty,
   Grid,
   Input,
-  InputNumber,
   Modal,
   Select,
   Space,
@@ -486,17 +485,6 @@ export default function RoleManagementComponent() {
     }
   }, [localFullscreen])
 
-  // —— 页码跳转 —— //
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-  const [goto, setGoto] = useState<number | null>(null)
-  const handleGoto = () => {
-    const val = Number(goto)
-    if (!Number.isFinite(val)) return
-    const target = Math.min(Math.max(1, val), totalPages)
-    setPage(target)
-    void load(target, pageSize)
-  }
-
   // —— 主体（复用：普通视图 & 全屏视图） —— //
   const permissionHeading = perms.role?.name
     ? formatMessage(t('roles.permissions.title'), { name: perms.role.name })
@@ -634,7 +622,7 @@ export default function RoleManagementComponent() {
           scroll={{ x: 980 }}
         />
 
-        {/* 分页 + 前往X页 */}
+        {/* 分页 */}
         <div
           style={{
             marginTop: 10,
@@ -651,34 +639,12 @@ export default function RoleManagementComponent() {
             total={total}
             pageSize={pageSize}
             onChange={(p, s) => {
-              setPage(Number(p) || 1)
-              setPageSize(Number(s) || pageSize)
-              void load(Number(p) || 1, Number(s) || pageSize)
+              setPage(p)
+              setPageSize(s)
+              void load(p, s)
             }}
-            onPageSizeChange={(_p, s) => {
-              setPage(1)
-              setPageSize(Number(s) || pageSize)
-              void load(1, Number(s) || pageSize)
-            }}
-            pageSizeOptions={['5', '10', '15', '20', '50', '100']}
-            showQuickJumper
             renderTotal={totalNum => formatMessage(t('roles.pagination.total'), { count: totalNum })}
           />
-          {!isXs && (
-            <>
-              <span style={{ marginLeft: 8, color: '#6b7280' }}>{t('roles.pagination.goto_label')}</span>
-              <InputNumber
-                size="middle"
-                min={1}
-                max={totalPages}
-                value={goto ?? page}
-                onChange={v => setGoto(Number(v) || null)}
-                onPressEnter={handleGoto}
-                style={{ width: 72, textAlign: 'center' }}
-              />
-              <span style={{ color: '#6b7280' }}>{t('roles.pagination.page_suffix')}</span>
-            </>
-          )}
         </div>
 
         {/* 新建 / 编辑 */}

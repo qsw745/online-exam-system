@@ -5,6 +5,7 @@
   gap: 12px;
   margin-top: 16px;
   width: 100%;
+  min-height: 32px;
 }
 
 .global-pagination--inline {
@@ -17,6 +18,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .global-pagination .ant-pagination-total-text {
@@ -27,7 +30,7 @@
 .global-pagination .ant-pagination-item,
 .global-pagination .ant-pagination-prev .ant-pagination-item-link,
 .global-pagination .ant-pagination-next .ant-pagination-item-link {
-  border-radius: 10px;
+  border-radius: 8px;
   min-width: 32px;
   height: 32px;
   line-height: 32px;
@@ -58,23 +61,17 @@
 
 .global-pagination .ant-pagination-options .ant-select-selector,
 .global-pagination .ant-pagination-options-quick-jumper input {
-  border-radius: 12px;
+  border-radius: 8px;
   height: 32px;
 }
 
+.global-pagination .ant-pagination-options,
 .global-pagination .ant-pagination-options-quick-jumper {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
 
-.global-pagination .gp-quick-jump {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-}
-
-.global-pagination .gp-quick-jump .ant-input-number {
-  width: 88px;
+.global-pagination .ant-pagination-options-quick-jumper input {
+  width: 72px;
 }

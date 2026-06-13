@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { workflowsApi, type WorkflowTask } from '@/shared/api/endpoints/workflows'
 import { workflowStatusLabel } from '@/shared/utils/workflow'
+import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import WorkflowInstanceModal from '@/features/workflows/components/WorkflowInstanceModal'
 import WorkflowTaskDecisionModal from '@/features/workflows/components/WorkflowTaskDecisionModal'
 
@@ -69,6 +70,12 @@ export default function WorkflowTasksPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  const handlePaginationChange = (nextPage: number, nextLimit?: number) => {
+    const next = resolvePaginationChange(nextPage, nextLimit, limit)
+    setPage(next.page)
+    setLimit(next.pageSize)
+  }
 
   const getEntityPath = (row: WorkflowTask) => {
     if (row.entity_type === 'paper') return { label: '试卷', path: `/admin/paper-detail/${row.entity_id}` }
@@ -166,15 +173,12 @@ export default function WorkflowTasksPage() {
           loading={loading}
           columns={columns as any}
           dataSource={items}
-          pagination={{
+          pagination={createTablePaginationConfig({
             current: page,
             pageSize: limit,
             total,
-            onChange: (p, ps) => {
-              setPage(p)
-              if (ps && ps !== limit) setLimit(ps)
-            },
-          }}
+            onChange: handlePaginationChange,
+          })}
         />
       </Card>
       <WorkflowInstanceModal open={Boolean(instanceId)} instanceId={instanceId} onClose={() => setInstanceId(null)} />

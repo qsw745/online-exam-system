@@ -104,6 +104,25 @@ const extractAfter = (text: string, markers: string[]) => {
   return ''
 }
 
+const extractTopic = (text: string) => {
+  for (const marker of ['主要范围是', '范围是', '主题是', '主题为', '内容是', '方向是', '关于', '围绕', '包括']) {
+    const idx = text.indexOf(marker)
+    if (idx < 0) continue
+    const raw = text
+      .slice(idx + marker.length)
+      .split(/[。；;]/)[0]
+      .replace(/[“”"']/g, '')
+      .trim()
+    if (raw) return raw.slice(0, 120)
+  }
+  return ''
+}
+
+const assistantInfoIntent = (text: string) => {
+  if (/你是谁|你是啥|你是什么|你能做什么|你可以做什么|怎么用|如何使用|使用方法|功能介绍/.test(text)) return true
+  return /((当前|默认|正在|调用|接入).{0,10}(模型|大模型).{0,10}(是什么|哪一个|哪款|名称|名字))|模型.{0,10}(是什么|哪一个|哪款|列表|支持|切换)/.test(text)
+}
+
 const questionIntent = (text: string) => /生成|出题|题目|试题/.test(text) && !/试卷|组卷/.test(text)
 
 const paperIntent = (text: string) => /组卷|试卷|套卷/.test(text) && /生成|创建|推荐|建议|智能|自动/.test(text)
@@ -115,8 +134,8 @@ const workflowIntent = (text: string) => /审批|流程|待处理/.test(text)
 const runTestIntent = (text: string) => /系统测速|测速|健康检查|自检|回归测试|测试系统/.test(text)
 
 const buildQuestionAction = (text: string) => {
-  const count = Math.min(firstNumber(text, '(?:道|题|个)', 5), 50)
-  const subject = extractAfter(text, ['主题是', '主题为', '关于', '围绕']) || '课程重点'
+  const count = Math.min(firstNumber(text, '(?:道|题|个)', 5), 500)
+  const subject = extractTopic(text) || extractAfter(text, ['主题是', '主题为', '关于', '围绕']) || '课程重点'
   const persist = /入库|保存|写入题库|创建到题库/.test(text) && !/不入库|不要入库|先给预览|预览/.test(text)
   return {
     reply: persist
@@ -130,6 +149,7 @@ const buildQuestionAction = (text: string) => {
         question_type: pickQuestionType(text),
         count,
         persist,
+        background: count > 20,
       },
     },
   }
@@ -218,7 +238,7 @@ export async function routeAgent(input: {
     }
   }
 
-  if (/你是谁|你是啥|你是什么|模型|大模型|能做什么|功能|怎么用/.test(text)) {
+  if (assistantInfoIntent(text)) {
     return {
       reply:
         '我是在线考试系统内置的 AI 助手，可帮你生成题目、智能组卷、发起审批、总结考试、制定学习计划和执行系统测速。你可以直接描述目标，我会优先给出可执行操作。',

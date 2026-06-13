@@ -369,8 +369,6 @@ export default {
   'roles.columns.fixed_tip': 'Fixed column cannot be dragged',
   'roles.columns.drag_tip': 'Drag to reorder',
   'roles.pagination.total': 'Total {count}',
-  'roles.pagination.goto_label': 'Go to',
-  'roles.pagination.page_suffix': 'page',
   'roles.permissions.title': 'Menu Permissions ({name})',
   'roles.permissions.placeholder': 'Menu Permissions (Not selected)',
   'roles.permissions.search_placeholder': 'Search menu',

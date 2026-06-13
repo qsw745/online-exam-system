@@ -1,5 +1,6 @@
 import { api } from '@/shared/api/core/httpClient'
 import { papersApi } from '@/shared/api/endpoints/papers'
+import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 
 import dayjs from '@/shared/utils/dayjs'
 import { PlusOutlined } from '@ant-design/icons'
@@ -193,6 +194,12 @@ export default function PaperManualCreatePage() {
     return a + b
   }, [selected, customList])
 
+  const handleBankPaginationChange = (nextPage: number, nextPageSize?: number) => {
+    const next = resolvePaginationChange(nextPage, nextPageSize, pageSize)
+    setPage(next.page)
+    setPageSize(next.pageSize)
+  }
+
   // 提交创建试卷（并可选创建任务）
   const onCreatePaper = async () => {
     try {
@@ -333,17 +340,13 @@ export default function PaperManualCreatePage() {
               loading={loading}
               columns={columns}
               dataSource={bank}
-              pagination={{
+              pagination={createTablePaginationConfig({
                 current: page,
                 pageSize,
                 total,
-                showSizeChanger: true,
-                showQuickJumper: true,
-                onChange: (p, ps) => {
-                  setPage(p)
-                  if (ps && ps !== pageSize) setPageSize(ps)
-                },
-              }}
+                unit: '题',
+                onChange: handleBankPaginationChange,
+              })}
             />
           </Card>
         </Col>

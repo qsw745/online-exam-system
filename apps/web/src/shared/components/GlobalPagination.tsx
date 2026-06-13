@@ -1,12 +1,18 @@
-import React from 'react'
-import { Button, InputNumber, Pagination } from 'antd'
+import { Pagination } from 'antd'
 import type { PaginationProps } from 'antd'
 import type { ReactNode } from 'react'
+import {
+  formatPaginationTotal,
+  normalizeQuickJumper,
+  resolvePaginationChange,
+  STANDARD_PAGE_SIZE_OPTIONS,
+  STANDARD_QUICK_JUMPER,
+} from '@/shared/constants/pagination'
 import './GlobalPagination.css'
 
 const cx = (...classes: Array<string | undefined | false>) => classes.filter(Boolean).join(' ')
 
-type GlobalPaginationProps = {
+export type GlobalPaginationProps = {
   total: number
   current: number
   pageSize: number
@@ -18,6 +24,8 @@ type GlobalPaginationProps = {
   className?: string
   fullWidth?: boolean
   renderTotal?: (total: number, range: [number, number]) => ReactNode
+  unit?: string
+  resetPageOnSizeChange?: boolean
 }
 
 export default function GlobalPagination({
@@ -26,38 +34,24 @@ export default function GlobalPagination({
   pageSize,
   onChange,
   onPageSizeChange,
-  pageSizeOptions = ['10', '20', '30', '40', '50', '100'],
+  pageSizeOptions = STANDARD_PAGE_SIZE_OPTIONS,
   showSizeChanger = true,
-  showQuickJumper = true,
+  showQuickJumper = STANDARD_QUICK_JUMPER,
   className,
   fullWidth = true,
   renderTotal,
+  unit = '条',
+  resetPageOnSizeChange = true,
 }: GlobalPaginationProps) {
-  const totalPages = Math.max(1, Math.ceil(total / pageSize))
-  const [jumpPage, setJumpPage] = React.useState<number | null>(current)
-
-  React.useEffect(() => {
-    setJumpPage(current)
-  }, [current])
-
   const handleChange = (page: number, size: number) => {
-    onChange(page, size)
-  }
-
-  const handleShowSizeChange = (page: number, size: number) => {
-    onPageSizeChange?.(page, size)
-    onChange(page, size)
+    const next = resolvePaginationChange(page, size, pageSize, { resetPageOnSizeChange })
+    if (next.pageSize !== pageSize) onPageSizeChange?.(next.page, next.pageSize)
+    onChange(next.page, next.pageSize)
   }
 
   const showTotal = renderTotal
     ? (totalNum: number, range: [number, number]) => renderTotal(totalNum, range)
-    : (totalNum: number) => `共 ${totalNum} 条`
-
-  const handleJump = () => {
-    if (jumpPage == null) return
-    const target = Math.min(Math.max(1, Math.round(jumpPage)), totalPages)
-    onChange(target, pageSize)
-  }
+    : (totalNum: number, range: [number, number]) => formatPaginationTotal(totalNum, range, unit)
 
   return (
     <div className={cx('global-pagination', fullWidth ? 'global-pagination--full' : 'global-pagination--inline', className)}>
@@ -66,10 +60,9 @@ export default function GlobalPagination({
         current={current}
         pageSize={pageSize}
         showSizeChanger={showSizeChanger}
-        showQuickJumper={showQuickJumper === true ? { goButton: '前往' } : showQuickJumper}
+        showQuickJumper={normalizeQuickJumper(showQuickJumper)}
         pageSizeOptions={pageSizeOptions}
         onChange={handleChange}
-        onShowSizeChange={handleShowSizeChange}
         itemRender={(page, type, originalElement) => {
           if (type === 'prev') return <span className="gp-nav">{'<'}</span>
           if (type === 'next') return <span className="gp-nav">{'>'}</span>
@@ -77,23 +70,6 @@ export default function GlobalPagination({
         }}
         showTotal={showTotal}
       />
-      {showQuickJumper && totalPages > 1 && (
-        <div className="gp-quick-jump">
-          <span className="gp-quick-label">前往</span>
-          <InputNumber
-            size="small"
-            min={1}
-            max={totalPages}
-            value={jumpPage ?? undefined}
-            onChange={v => setJumpPage(v)}
-            onPressEnter={handleJump}
-          />
-          <span className="gp-quick-label">页</span>
-          <Button size="small" type="primary" ghost onClick={handleJump}>
-            确定
-          </Button>
-        </div>
-      )}
     </div>
   )
 }

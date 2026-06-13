@@ -178,9 +178,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
             total={pager.total}
             current={pager.page}
             pageSize={pager.limit}
-            onChange={(p, size) => handlePageChange(p, size)}
-            onPageSizeChange={(_, size) => handlePageChange(1, size)}
-            pageSizeOptions={['10', '20', '50']}
+            onChange={handlePageChange}
           />
         </div>
       </Space>

@@ -72,10 +72,9 @@ export default function AnalyticsPage() {
               total={totalStudents}
               current={currentPage}
               pageSize={pageSize}
-              onPageChange={setCurrentPage}
-              onPageSizeChange={(_c, size) => {
+              onPageChange={(nextPage, size) => {
+                setCurrentPage(nextPage)
                 setPageSize(size)
-                setCurrentPage(1)
               }}
             />
           </div>

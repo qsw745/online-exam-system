@@ -1,8 +1,8 @@
 import React, { ReactNode, useMemo } from 'react'
-import { Table, Space, Typography } from 'antd'
+import { Table, Space } from 'antd'
 import type { ColumnsType, TableProps, TablePaginationConfig, ColumnType } from 'antd/es/table'
-
-const { Text } = Typography
+import { createTablePaginationConfig } from '@/shared/constants/pagination'
+import type { PaginationTotalRenderer } from '@/shared/constants/pagination'
 
 export type ServerPagination = {
   /** 当前页（1 开始） */
@@ -15,6 +15,14 @@ export type ServerPagination = {
   onChange?: (page: number, pageSize: number) => void
   /** 是否允许修改 pageSize，默认 true */
   showSizeChanger?: boolean
+  /** 是否显示快速跳转，默认 true */
+  showQuickJumper?: boolean
+  /** pageSize 选项 */
+  pageSizeOptions?: TablePaginationConfig['pageSizeOptions']
+  /** 总数单位，默认“条” */
+  unit?: string
+  /** 自定义总数展示 */
+  renderTotal?: PaginationTotalRenderer
 }
 
 export interface DataTableProps<T extends object> {
@@ -61,19 +69,17 @@ function usePagination(pagination: DataTableProps<any>['pagination']): TablePagi
   const total = pagination?.total ?? 0
   const showSizeChanger = pagination?.showSizeChanger ?? true
 
-  return {
+  return createTablePaginationConfig({
     current,
     pageSize,
     total,
     showSizeChanger,
-    showQuickJumper: true,
-    showTotal: (t, range) => (
-      <Text type="secondary">
-        {range[0]}-{range[1]} / {t}
-      </Text>
-    ),
+    showQuickJumper: pagination?.showQuickJumper,
+    pageSizeOptions: pagination?.pageSizeOptions,
+    unit: pagination?.unit,
+    renderTotal: pagination?.renderTotal,
     onChange: (p, ps) => pagination?.onChange?.(p, ps),
-  }
+  })
 }
 
 function addIndexColumn<T extends object>(

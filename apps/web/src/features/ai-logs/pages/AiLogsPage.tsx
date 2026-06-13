@@ -200,11 +200,7 @@ export default function AiLogsPage() {
             pageSize={pageSize}
             onChange={(next, size) => {
               setPage(next)
-              if (size !== pageSize) setPageSize(size)
-            }}
-            onPageSizeChange={(_, size) => {
               setPageSize(size)
-              setPage(1)
             }}
           />
         )}

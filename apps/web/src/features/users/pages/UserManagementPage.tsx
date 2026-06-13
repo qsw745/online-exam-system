@@ -24,7 +24,6 @@ import {
   Checkbox,
   Dropdown,
   Input,
-  InputNumber,
   Layout,
   Modal,
   Select,
@@ -724,16 +723,6 @@ export default function UserManagementPage() {
     </Card>
   )
 
-  const totalPages = Math.max(1, Math.ceil((q.total || 0) / Math.max(1, q.limit)))
-  const [gotoPage, setGotoPage] = useState<number | null>(null)
-
-  const handleGoto = () => {
-    if (!gotoPage) return
-    const target = Math.min(totalPages, Math.max(1, gotoPage))
-    if (target === q.page) return
-    q.setPage(target)
-  }
-
   const TableBlock = (
     <Card className="users-table-card" styles={{ body: { padding: 10, overflowX: 'auto' } }}>
       {Toolbar}
@@ -757,24 +746,12 @@ export default function UserManagementPage() {
           pageSize={q.limit}
           total={q.total}
           onChange={(p, ps) => {
-            if (ps !== q.limit) q.setPage(1)
-            else q.setPage(p)
+            q.setPage(p)
             q.setLimit(ps)
             setSelectedRowKeys([])
           }}
           renderTotal={totalNum => formatMessage(t('users.pagination.total'), { count: totalNum })}
         />
-        <span style={{ color: '#6b7280' }}>{t('roles.pagination.goto_label')}</span>
-        <InputNumber
-          size="middle"
-          min={1}
-          max={totalPages}
-          value={gotoPage ?? q.page}
-          onChange={v => setGotoPage(v ?? null)}
-          onPressEnter={handleGoto}
-          style={{ width: 72, textAlign: 'center' }}
-        />
-        <span style={{ color: '#6b7280' }}>{t('roles.pagination.page_suffix')}</span>
       </div>
     </Card>
   )

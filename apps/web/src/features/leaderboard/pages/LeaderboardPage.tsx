@@ -31,6 +31,11 @@ export default function LeaderboardPage() {
     setPageSize,
   } = useLeaderboard()
 
+  const handlePaginationChange = (nextPage: number, nextPageSize: number) => {
+    setPage(nextPage)
+    setPageSize(nextPageSize)
+  }
+
   return (
     <div className="p-6">
     
@@ -75,17 +80,7 @@ export default function LeaderboardPage() {
                   total={totalItems}
                   page={page}
                   pageSize={pageSize}
-                  onChange={(p, ps) => {
-                    setPage(p)
-                    if (ps && ps !== pageSize) {
-                      setPageSize(ps)
-                      setPage(1)
-                    }
-                  }}
-                  onPageSizeChange={(_, s) => {
-                    setPageSize(s)
-                    setPage(1)
-                  }}
+                  onChange={handlePaginationChange}
                   rowGradient="from-yellow-50 to-orange-50"
                 />
               ),
@@ -100,17 +95,7 @@ export default function LeaderboardPage() {
                   total={totalItems}
                   page={page}
                   pageSize={pageSize}
-                  onChange={(p, ps) => {
-                    setPage(p)
-                    if (ps && ps !== pageSize) {
-                      setPageSize(ps)
-                      setPage(1)
-                    }
-                  }}
-                  onPageSizeChange={(_, s) => {
-                    setPageSize(s)
-                    setPage(1)
-                  }}
+                  onChange={handlePaginationChange}
                   rowGradient="from-blue-50 to-indigo-50"
                 />
               ),
@@ -125,17 +110,7 @@ export default function LeaderboardPage() {
                   total={totalItems}
                   page={page}
                   pageSize={pageSize}
-                  onChange={(p, ps) => {
-                    setPage(p)
-                    if (ps && ps !== pageSize) {
-                      setPageSize(ps)
-                      setPage(1)
-                    }
-                  }}
-                  onPageSizeChange={(_, s) => {
-                    setPageSize(s)
-                    setPage(1)
-                  }}
+                  onChange={handlePaginationChange}
                   rowGradient="from-green-50 to-emerald-50"
                 />
               ),

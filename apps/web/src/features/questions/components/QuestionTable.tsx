@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react'
 import { Button, Space, Table, Tag, Tooltip } from 'antd'
+import type { TablePaginationConfig } from 'antd/es/table'
 import { Edit, Eye, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -24,7 +25,7 @@ export default function QuestionTable({
   data: Question[]
   selectedRowKeys: React.Key[]
   onSelectChange: (keys: React.Key[]) => void
-  pagination: any
+  pagination: false | TablePaginationConfig
   onDeleteClick: (q: Question) => void
 }) {
   const navigate = useNavigate()

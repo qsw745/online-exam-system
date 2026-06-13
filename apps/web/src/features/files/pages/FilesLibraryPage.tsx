@@ -25,6 +25,7 @@ import {
 } from '@ant-design/icons'
 import dayjs from '@/shared/utils/dayjs'
 import { filesApi } from '@/shared/api/endpoints/files'
+import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import type { FileRecord, FileBreadcrumb } from '../types'
 import { CreateFolderModal } from '../components/CreateFolderModal'
 import { UploadFileModal } from '../components/UploadFileModal'
@@ -144,6 +145,12 @@ export default function FilesLibraryPage() {
     } catch (e: any) {
       message.error(e?.message || '删除失败')
     }
+  }
+
+  const handlePaginationChange = (nextPage: number, nextLimit?: number) => {
+    const next = resolvePaginationChange(nextPage, nextLimit, limit)
+    setPage(next.page)
+    setLimit(next.pageSize)
   }
 
   const breadcrumbItems = useMemo(() => {
@@ -319,16 +326,13 @@ export default function FilesLibraryPage() {
           rowKey="id"
           dataSource={rows}
           columns={columns}
-          pagination={{
+          pagination={createTablePaginationConfig({
             current: page,
             pageSize: limit,
             total: paginationTotal,
-            showSizeChanger: true,
-            onChange: (p, l) => {
-              setPage(p)
-              setLimit(l)
-            },
-          }}
+            unit: '项',
+            onChange: handlePaginationChange,
+          })}
           loading={loading}
         />
       </Card>

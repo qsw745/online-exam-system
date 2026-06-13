@@ -65,13 +65,7 @@ export default function LoginLogsPage() {
             pageSize={pageSize}
             onChange={(p, size) => {
               setPage(p)
-              if (size && size !== pageSize) {
-                setPageSize(size)
-              }
-            }}
-            onPageSizeChange={(_, size) => {
               setPageSize(size)
-              setPage(1)
             }}
           />
         )}

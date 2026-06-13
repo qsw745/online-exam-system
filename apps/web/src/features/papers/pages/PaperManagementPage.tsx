@@ -122,10 +122,9 @@ export default function PaperManagementPage() {
           total={h.pagination.total}
           pageSize={h.pagination.pageSize}
           onChange={(p, size) => {
-            if (size && size !== h.pagination.pageSize) h.pagination.setPageSize(size)
             h.pagination.setCurrent(p)
+            if (size !== h.pagination.pageSize) h.pagination.setPageSize(size)
           }}
-          onPageSizeChange={(_, size) => h.pagination.setPageSize(size)}
         />
       </Card>
       <ConfirmDialog

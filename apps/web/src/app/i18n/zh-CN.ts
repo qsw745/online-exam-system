@@ -369,8 +369,6 @@ export default {
   'roles.columns.fixed_tip': '固定末列，不能拖拽',
   'roles.columns.drag_tip': '拖拽调整顺序',
   'roles.pagination.total': '共 {count} 条',
-  'roles.pagination.goto_label': '前往',
-  'roles.pagination.page_suffix': '页',
   'roles.permissions.title': '菜单权限（{name}）',
   'roles.permissions.placeholder': '菜单权限（未选择）',
   'roles.permissions.search_placeholder': '请输入菜单进行搜索',

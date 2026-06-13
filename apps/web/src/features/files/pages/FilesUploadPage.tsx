@@ -3,6 +3,7 @@ import { App, Button, Card, Input, Space, Table, Tag, Tooltip, Popconfirm, Typog
 import { ReloadOutlined, DeleteOutlined, DownloadOutlined, FileOutlined } from '@ant-design/icons'
 import dayjs from '@/shared/utils/dayjs'
 import { filesApi } from '@/shared/api/endpoints/files'
+import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import type { FileRecord } from '../types'
 
 const { Title, Text } = Typography
@@ -56,6 +57,12 @@ export default function FilesUploadPage() {
     } catch (e: any) {
       message.error(e?.message || '删除失败')
     }
+  }
+
+  const handlePaginationChange = (nextPage: number, nextLimit?: number) => {
+    const next = resolvePaginationChange(nextPage, nextLimit, limit)
+    setPage(next.page)
+    setLimit(next.pageSize)
   }
 
   const columns = [
@@ -167,16 +174,13 @@ export default function FilesUploadPage() {
           dataSource={rows}
           columns={columns}
           loading={loading}
-          pagination={{
+          pagination={createTablePaginationConfig({
             current: page,
             pageSize: limit,
             total,
-            showSizeChanger: true,
-            onChange: (p, l) => {
-              setPage(p)
-              setLimit(l)
-            },
-          }}
+            unit: '个文件',
+            onChange: handlePaginationChange,
+          })}
         />
       </Card>
     </Space>

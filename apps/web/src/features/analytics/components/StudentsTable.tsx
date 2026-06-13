@@ -35,11 +35,10 @@ type Props = {
   total: number
   current: number
   pageSize: number
-  onPageChange: (p: number) => void
-  onPageSizeChange: (current: number, size: number) => void
+  onPageChange: (p: number, pageSize: number) => void
 }
 
-export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize, onPageChange, onPageSizeChange }) => {
+export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize, onPageChange }) => {
   const columns = useMemo(
     () => [
       {
@@ -117,7 +116,6 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         total={total}
         pageSize={pageSize}
         onChange={onPageChange}
-        onPageSizeChange={onPageSizeChange}
       />
     </Card>
   )

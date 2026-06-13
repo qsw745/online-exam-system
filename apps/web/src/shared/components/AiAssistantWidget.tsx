@@ -1,5 +1,6 @@
 import { App, Badge, Button, Drawer, FloatButton, Input, List, Modal, Select, Space, Tag, Tooltip, Typography } from 'antd'
 import {
+  AudioOutlined,
   CheckCircleOutlined,
   ClearOutlined,
   CopyOutlined,
@@ -7,6 +8,7 @@ import {
   EditOutlined,
   HistoryOutlined,
   MessageOutlined,
+  PaperClipOutlined,
   PlusOutlined,
   RobotOutlined,
   SendOutlined,
@@ -36,6 +38,28 @@ type ChatRole = 'user' | 'assistant' | 'system'
 type AgentAction = { type: string; payload?: any }
 type ChatItem = { id: string; role: ChatRole; content: string; action?: AgentAction }
 type ChatSession = { id: string; title: string; items: ChatItem[]; createdAt: number; updatedAt: number }
+type ExecutionMode = 'request' | 'review' | 'auto'
+type ExecuteOptions = { confirmation?: 'ask' | 'skip'; automated?: boolean }
+type AttachmentStatus = 'processing' | 'ready' | 'error'
+type AssistantAttachment = {
+  id: string
+  name: string
+  mime: string
+  status: AttachmentStatus
+  text?: string
+  error?: string
+}
+type BrowserSpeechRecognition = {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  start: () => void
+  stop: () => void
+  abort: () => void
+  onresult: ((event: any) => void) | null
+  onerror: ((event: any) => void) | null
+  onend: (() => void) | null
+}
 
 const HELLO_ITEM: ChatItem = {
   id: 'hello',
@@ -167,6 +191,70 @@ const QUESTION_BATCH_SIZE =
 const QUESTION_BATCH_MAX =
   Number((typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_AI_QUESTION_BATCH_MAX) || 20) || 20
 
+const EXECUTION_MODE_STORAGE_KEY = 'ai-assistant:execution-mode'
+
+const EXECUTION_MODE_META: Record<
+  ExecutionMode,
+  { label: string; shortLabel: string; description: string; color: string }
+> = {
+  request: {
+    label: '请求执行',
+    shortLabel: '请求',
+    description: '助手只生成动作卡片，由你点击执行；高风险动作仍会二次确认。',
+    color: 'default',
+  },
+  review: {
+    label: '审核执行',
+    shortLabel: '审核',
+    description: '低风险动作自动执行；高风险动作自动弹出审核确认后再执行。',
+    color: 'processing',
+  },
+  auto: {
+    label: '完全执行',
+    shortLabel: '自动',
+    description: '动作返回后直接执行；权限、登录、必填参数和密码强度校验仍然保留。',
+    color: 'success',
+  },
+}
+
+const EXECUTION_MODE_OPTIONS = (Object.entries(EXECUTION_MODE_META) as Array<[ExecutionMode, typeof EXECUTION_MODE_META[ExecutionMode]]>).map(
+  ([value, meta]) => ({
+    label: meta.label,
+    value,
+  })
+)
+
+const normalizeExecutionMode = (value: unknown): ExecutionMode =>
+  value === 'review' || value === 'auto' || value === 'request' ? value : 'request'
+
+const readExecutionMode = (): ExecutionMode => {
+  if (typeof window === 'undefined') return 'request'
+  return normalizeExecutionMode(window.localStorage.getItem(EXECUTION_MODE_STORAGE_KEY))
+}
+
+const TEXT_FILE_EXTENSIONS = new Set(['txt', 'md', 'markdown', 'csv', 'json', 'log', 'xml', 'html', 'htm', 'yaml', 'yml'])
+const MAX_ATTACHMENT_CHARS = 12000
+const MAX_ATTACHMENT_SIZE = 10 * 1024 * 1024
+
+const getFileExtension = (name: string) => String(name || '').split('.').pop()?.toLowerCase() || ''
+
+const isTextFile = (file: File) =>
+  file.type.startsWith('text/') ||
+  file.type === 'application/json' ||
+  file.type === 'application/xml' ||
+  TEXT_FILE_EXTENSIONS.has(getFileExtension(file.name))
+
+const truncateAttachmentText = (text: string) => {
+  const clean = String(text || '').replace(/\r\n/g, '\n').trim()
+  if (clean.length <= MAX_ATTACHMENT_CHARS) return clean
+  return `${clean.slice(0, MAX_ATTACHMENT_CHARS)}\n\n[内容过长，已截取前 ${MAX_ATTACHMENT_CHARS} 字]`
+}
+
+const getSpeechRecognitionCtor = () => {
+  if (typeof window === 'undefined') return null
+  return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
+}
+
 function actionSummary(action: AgentAction): string {
   const p = action.payload || {}
   switch (action.type) {
@@ -224,13 +312,30 @@ export default function AiAssistantWidget() {
   const [loading, setLoading] = useState(false)
   const [model, setModel] = useState<string>('')
   const [customModel, setCustomModel] = useState<string>('')
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>(() => readExecutionMode())
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeId, setActiveId] = useState<string>('')
   const [hydrating, setHydrating] = useState(false)
   const [lastTouchedId, setLastTouchedId] = useState<string | null>(null)
   const [executingActionKey, setExecutingActionKey] = useState<string | null>(null)
+  const [attachments, setAttachments] = useState<AssistantAttachment[]>([])
+  const [listening, setListening] = useState(false)
   const listRef = useRef<HTMLDivElement | null>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
   const saveTimer = useRef<number | null>(null)
+  const speechRef = useRef<BrowserSpeechRecognition | null>(null)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    window.localStorage.setItem(EXECUTION_MODE_STORAGE_KEY, executionMode)
+  }, [executionMode])
+
+  useEffect(
+    () => () => {
+      speechRef.current?.abort?.()
+    },
+    []
+  )
 
   const scrollToBottom = (smooth = false) => {
     const el = listRef.current
@@ -322,6 +427,9 @@ export default function AiAssistantWidget() {
   const actionCount = useMemo(() => items.filter(i => !!i.action).length, [items])
   const lastAction = useMemo(() => [...items].reverse().find(i => !!i.action)?.action, [items])
   const currentModelLabel = customModel.trim() || model || '默认模型'
+  const executionModeMeta = EXECUTION_MODE_META[executionMode]
+  const attachmentBusy = attachments.some(item => item.status === 'processing')
+  const readyAttachments = attachments.filter(item => item.status === 'ready' && item.text)
 
   const append = (item: ChatItem) => {
     setSessions(prev =>
@@ -703,16 +811,143 @@ export default function AiAssistantWidget() {
     setTimeout(poll, 1200)
   }
 
+  const appendTextToInput = (text: string) => {
+    const clean = String(text || '').trim()
+    if (!clean) return
+    setInput(prev => {
+      const base = prev.trimEnd()
+      return base ? `${base} ${clean}` : clean
+    })
+  }
+
+  const extractAttachmentText = async (file: File) => {
+    if (file.size > MAX_ATTACHMENT_SIZE) {
+      throw new Error('文件超过 10MB，暂不处理')
+    }
+    if (file.type.startsWith('image/')) {
+      const tesseract = await import('tesseract.js')
+      const result = await (tesseract as any).recognize(file, 'chi_sim+eng')
+      return truncateAttachmentText(String(result?.data?.text || ''))
+    }
+    if (isTextFile(file)) {
+      return truncateAttachmentText(await file.text())
+    }
+    throw new Error('暂只支持图片 OCR 和文本类文件')
+  }
+
+  const processAttachment = async (file: File) => {
+    const id = `${Date.now()}-${file.name}-${Math.random().toString(16).slice(2)}`
+    const base: AssistantAttachment = {
+      id,
+      name: file.name || '未命名文件',
+      mime: file.type || 'application/octet-stream',
+      status: 'processing',
+    }
+    setAttachments(prev => [...prev, base])
+    try {
+      const text = await extractAttachmentText(file)
+      if (!text.trim()) throw new Error(file.type.startsWith('image/') ? 'OCR 未识别到文字' : '文件没有可读取文本')
+      setAttachments(prev => prev.map(item => (item.id === id ? { ...item, status: 'ready', text } : item)))
+      message.success(file.type.startsWith('image/') ? `已识别图片：${file.name}` : `已读取文件：${file.name}`)
+    } catch (e: any) {
+      setAttachments(prev =>
+        prev.map(item => (item.id === id ? { ...item, status: 'error', error: e?.message || '处理失败' } : item))
+      )
+      message.error(`${file.name}：${e?.message || '处理失败'}`)
+    }
+  }
+
+  const handleAttachmentFiles = (files: FileList | File[] | null) => {
+    const list = Array.from(files || [])
+    if (!list.length) return
+    list.slice(0, 5).forEach(file => {
+      void processAttachment(file)
+    })
+    if (list.length > 5) message.warning('一次最多处理 5 个附件')
+  }
+
+  const removeAttachment = (id: string) => {
+    setAttachments(prev => prev.filter(item => item.id !== id))
+  }
+
+  const buildAttachmentContext = (files: AssistantAttachment[]) => {
+    if (!files.length) return ''
+    return [
+      '以下是用户上传附件中提取出的文字内容。请把它当作用户提供的上下文；如果 OCR 可能有误，请在回答中提示需要核对。',
+      ...files.map(file => `\n[附件：${file.name}]\n${file.text || ''}`),
+    ].join('\n')
+  }
+
+  const toggleVoiceInput = () => {
+    if (listening) {
+      speechRef.current?.stop?.()
+      setListening(false)
+      return
+    }
+    const SpeechRecognition = getSpeechRecognitionCtor()
+    if (!SpeechRecognition) {
+      message.warning('当前浏览器不支持语音输入，请使用 Chrome 或 Edge。')
+      return
+    }
+    const recognition = new SpeechRecognition() as BrowserSpeechRecognition
+    speechRef.current = recognition
+    recognition.lang = 'zh-CN'
+    recognition.continuous = false
+    recognition.interimResults = true
+    recognition.onresult = (event: any) => {
+      let finalText = ''
+      for (let i = event.resultIndex || 0; i < event.results.length; i += 1) {
+        const text = event.results[i]?.[0]?.transcript || ''
+        if (event.results[i]?.isFinal) finalText += text
+      }
+      appendTextToInput(finalText)
+    }
+    recognition.onerror = (event: any) => {
+      setListening(false)
+      message.error(event?.error === 'not-allowed' ? '浏览器未授权麦克风' : '语音识别失败')
+    }
+    recognition.onend = () => setListening(false)
+    try {
+      recognition.start()
+      setListening(true)
+    } catch (e: any) {
+      setListening(false)
+      message.error(e?.message || '启动语音输入失败')
+    }
+  }
+
+  const scheduleActionByMode = (action?: AgentAction) => {
+    if (!action || executionMode === 'request') return
+    const run = () => {
+      void executeAction(action, {
+        automated: true,
+        confirmation: executionMode === 'auto' ? 'skip' : 'ask',
+      })
+    }
+    window.setTimeout(run, 0)
+  }
+
   const send = async () => {
-    const text = input.trim()
+    const text = input.trim() || (readyAttachments.length ? '请分析我上传的附件内容。' : '')
     if (!text || loading) return
+    if (attachmentBusy) {
+      message.warning('附件仍在识别中，请稍后再发送。')
+      return
+    }
+    const filesForThisTurn = readyAttachments
+    const attachmentContext = buildAttachmentContext(filesForThisTurn)
+    const modelText = attachmentContext ? `${text}\n\n${attachmentContext}` : text
+    const displayText = filesForThisTurn.length
+      ? `${text}\n\n已附加：${filesForThisTurn.map(file => file.name).join('、')}`
+      : text
     setInput('')
-    append({ id: String(Date.now()), role: 'user', content: text })
+    setAttachments(prev => prev.filter(item => item.status === 'error'))
+    append({ id: String(Date.now()), role: 'user', content: displayText })
     setLoading(true)
     try {
       const modelToUse = customModel.trim() || model || undefined
       const res: any = await aiApi.agent({
-        messages: [...trimmedItems, { role: 'user', content: text }],
+        messages: [...trimmedItems, { role: 'user', content: modelText }],
         model: modelToUse,
         sessionId: activeSession?.id,
       })
@@ -727,6 +962,7 @@ export default function AiAssistantWidget() {
         content: reply || '（已处理）',
         action,
       })
+      scheduleActionByMode(action)
     } catch (e: any) {
       if (isAuthExpired(e)) {
         append({ id: String(Date.now() + 2), role: 'assistant', content: '登录已过期，请重新登录后再试。' })
@@ -772,7 +1008,7 @@ export default function AiAssistantWidget() {
     setTimeout(() => inputRef.current?.focus?.(), 0)
   }
 
-  const executeAction = async (action: AgentAction) => {
+  const executeAction = async (action: AgentAction, options: ExecuteOptions = {}) => {
     const run = async () => {
       const actionKey = `${action.type}:${actionSummary(action)}`
       setExecutingActionKey(actionKey)
@@ -1663,11 +1899,12 @@ export default function AiAssistantWidget() {
       }
     }
 
-    if (needsConfirm(action)) {
+    const shouldConfirm = options.confirmation === 'skip' ? false : needsConfirm(action)
+    if (shouldConfirm) {
       Modal.confirm({
-        title: '确认执行操作',
+        title: options.automated ? '审核后执行操作' : '确认执行操作',
         content: actionSummary(action),
-        okText: '执行',
+        okText: options.automated ? '审核通过并执行' : '执行',
         cancelText: '取消',
         onOk: run,
       })
@@ -1767,6 +2004,9 @@ export default function AiAssistantWidget() {
                   <Tag icon={<CheckCircleOutlined />} color={lastAction ? 'green' : 'default'}>
                     {lastAction ? ACTION_LABELS[lastAction.type] || lastAction.type : '无待办动作'}
                   </Tag>
+                  <Tooltip title={executionModeMeta.description}>
+                    <Tag color={executionModeMeta.color}>执行：{executionModeMeta.shortLabel}</Tag>
+                  </Tooltip>
                 </Space>
                 <Space wrap size={8}>
                   {QUICK_COMMANDS.map(item => (
@@ -1795,6 +2035,14 @@ export default function AiAssistantWidget() {
                   placeholder="选择模型"
                   showSearch
                   allowClear
+                />
+                <Select
+                  size="middle"
+                  style={{ width: '100%' }}
+                  value={executionMode}
+                  onChange={val => setExecutionMode(normalizeExecutionMode(val))}
+                  options={EXECUTION_MODE_OPTIONS}
+                  placeholder="执行等级"
                 />
                 <Input
                   size="middle"
@@ -1873,6 +2121,21 @@ export default function AiAssistantWidget() {
                           <Space direction="vertical" size={8} style={{ width: '100%' }}>
                             <Space wrap>
                               <Tag color="blue">{ACTION_LABELS[item.action.type] || item.action.type}</Tag>
+                              {executionMode !== 'request' && (
+                                <Tooltip
+                                  title={
+                                    executionMode === 'auto'
+                                      ? '完全执行模式会直接运行该动作'
+                                      : needsConfirm(item.action)
+                                        ? '审核执行模式会先弹出确认'
+                                        : '审核执行模式会自动运行该动作'
+                                  }
+                                >
+                                  <Tag color={executionMode === 'auto' ? 'green' : needsConfirm(item.action) ? 'orange' : 'green'}>
+                                    {executionMode === 'auto' ? '自动执行' : needsConfirm(item.action) ? '待审核' : '自动执行'}
+                                  </Tag>
+                                </Tooltip>
+                              )}
                               <Text type="secondary">{actionSummary(item.action)}</Text>
                             </Space>
                             <Button
@@ -1883,7 +2146,7 @@ export default function AiAssistantWidget() {
                               disabled={!!executingActionKey && executingActionKey !== actionKey}
                               onClick={() => executeAction(item.action!)}
                             >
-                              执行
+                              {executionMode === 'request' ? '执行' : '手动执行'}
                             </Button>
                           </Space>
                         </div>
@@ -1897,12 +2160,30 @@ export default function AiAssistantWidget() {
 
           <div style={{ padding: 16, borderTop: '1px solid #e5e7eb', background: '#ffffff' }}>
             <Space direction="vertical" size={10} style={{ width: '100%' }}>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/*,.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.htm,.yaml,.yml"
+                style={{ display: 'none' }}
+                onChange={e => {
+                  handleAttachmentFiles(e.target.files)
+                  e.currentTarget.value = ''
+                }}
+              />
               <TextArea
                 rows={4}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                placeholder="输入任务或问题"
+                placeholder="输入任务或问题，也可以上传图片让助手先 OCR 识别"
                 ref={inputRef}
+                onPaste={e => {
+                  const files = Array.from(e.clipboardData?.files || [])
+                  if (files.length) {
+                    e.preventDefault()
+                    handleAttachmentFiles(files)
+                  }
+                }}
                 onPressEnter={e => {
                   if (!e.shiftKey) {
                     e.preventDefault()
@@ -1910,13 +2191,54 @@ export default function AiAssistantWidget() {
                   }
                 }}
               />
+              {attachments.length > 0 && (
+                <Space wrap size={6}>
+                  {attachments.map(file => (
+                    <Tooltip key={file.id} title={file.error || (file.text ? `${file.text.length} 字` : '处理中')}>
+                      <Tag
+                        color={file.status === 'ready' ? 'green' : file.status === 'error' ? 'red' : 'processing'}
+                        closable
+                        onClose={() => removeAttachment(file.id)}
+                      >
+                        {file.status === 'processing' ? '识别中：' : file.status === 'error' ? '失败：' : '已识别：'}
+                        {file.name}
+                      </Tag>
+                    </Tooltip>
+                  ))}
+                </Space>
+              )}
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  {hydrating ? '加载历史中' : activeSession?.title || '新对话'}
+                  {attachmentBusy
+                    ? '附件识别中'
+                    : listening
+                      ? '语音输入中'
+                      : hydrating
+                        ? '加载历史中'
+                        : activeSession?.title || '新对话'}
                 </Text>
-                <Button type="primary" icon={<SendOutlined />} loading={loading} onClick={send}>
-                  发送
-                </Button>
+                <Space size={8}>
+                  <Tooltip title="上传图片或文本文件">
+                    <Button icon={<PaperClipOutlined />} onClick={() => fileInputRef.current?.click()} />
+                  </Tooltip>
+                  <Tooltip title={listening ? '停止语音输入' : '语音输入'}>
+                    <Button
+                      icon={<AudioOutlined />}
+                      type={listening ? 'primary' : 'default'}
+                      danger={listening}
+                      onClick={toggleVoiceInput}
+                    />
+                  </Tooltip>
+                  <Button
+                    type="primary"
+                    icon={<SendOutlined />}
+                    loading={loading}
+                    disabled={attachmentBusy}
+                    onClick={send}
+                  >
+                    发送
+                  </Button>
+                </Space>
               </div>
             </Space>
           </div>

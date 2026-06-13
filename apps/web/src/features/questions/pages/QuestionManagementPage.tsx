@@ -3,6 +3,7 @@ import { Card, Typography, message } from 'antd'
 import React from 'react'
 
 import { useQuestionSelection } from '@/features/questions/hooks/useQuestionSelection'
+import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import { useQuestionsQuery } from '../hooks/useQuestionsQuery'
 
 import AddQuestionModal from '../components/AddQuestionModal'
@@ -24,6 +25,12 @@ export default function QuestionManagementPage() {
   const [addOpen, setAddOpen] = React.useState(false)
   const [importOpen, setImportOpen] = React.useState(false)
   const [exportOpen, setExportOpen] = React.useState(false)
+
+  const handlePaginationChange = (nextPage: number, nextPageSize: number) => {
+    const next = resolvePaginationChange(nextPage, nextPageSize, q.pageSize)
+    q.setPage(next.page)
+    if (next.pageSize !== q.pageSize) q.setPageSize(next.pageSize)
+  }
 
   return (
     <div>
@@ -80,23 +87,13 @@ export default function QuestionManagementPage() {
           selectedRowKeys={sel.selected}
           onSelectChange={ks => sel.setSelected(ks as string[])}
           onDeleteClick={row => setSingle({ id: row.id, content: (row as any).content })}
-          pagination={{
+          pagination={createTablePaginationConfig({
             current: q.page,
             total: q.total, // 分组模式：这里是“组总数”
             pageSize: q.pageSize,
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total: number, range: number[]) =>
-              q.isGrouped
-                ? `第 ${range[0]}-${range[1]} 组，共 ${total} 组`
-                : `第 ${range[0]}-${range[1]} 条，共 ${total} 条`,
-            onChange: q.setPage,
-            onShowSizeChange: (_cur: number, ps: number) => {
-              q.setPageSize(ps)
-              q.setPage(1)
-              q.reload()
-            },
-          }}
+            unit: q.isGrouped ? '组' : '条',
+            onChange: handlePaginationChange,
+          })}
         />
       </Card>
 
