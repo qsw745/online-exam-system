@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Select, Tooltip } from 'antd'
 import { Plus, Flame, Clock3, MessageSquareMore } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
 
 export type SortBy = 'latest' | 'hot' | 'replies'
 export type DiscussionCategory = { id: number; name?: string }
@@ -25,8 +26,7 @@ const SortButtons: React.FC<{
       label: (
         <div className="flex items-center gap-1">
           <Clock3 className="w-4 h-4" />
-          最新
-        </div>
+          {translate('auto.7e805a1230')}</div>
       ),
     },
     {
@@ -34,8 +34,7 @@ const SortButtons: React.FC<{
       label: (
         <div className="flex items-center gap-1">
           <Flame className="w-4 h-4" />
-          最热
-        </div>
+          {translate('auto.86d011b489')}</div>
       ),
     },
     {
@@ -43,8 +42,7 @@ const SortButtons: React.FC<{
       label: (
         <div className="flex items-center gap-1">
           <MessageSquareMore className="w-4 h-4" />
-          回复最多
-        </div>
+          {translate('auto.909888e4fc')}</div>
       ),
     },
   ]
@@ -81,7 +79,7 @@ export const DiscussionFilters: React.FC<Props> = ({
     <div className="mb-4">
       <div className="rounded-2xl border bg-white shadow-sm px-4 py-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="text-sm text-gray-500">排序</div>
+          <div className="text-sm text-gray-500">{translate('app.sort')}</div>
 
           {/* ✅ 改用自定义按钮组 */}
           <SortButtons value={sortBy} onChange={onSortChange} />
@@ -93,10 +91,10 @@ export const DiscussionFilters: React.FC<Props> = ({
             value={selectedCategory}
             onChange={onCategoryChange}
             style={{ width: 200 }}
-            placeholder="选择分类"
+            placeholder={translate('auto.3759bf861f')}
             popupMatchSelectWidth={260}
             options={[
-              { value: 'all', label: '全部分类' },
+              { value: 'all', label: translate('auto.a8e369c4b6') },
               ...categories.map(c => ({
                 value: String(c.id),
                 label: c.name || `分类 #${c.id}`,
@@ -106,10 +104,9 @@ export const DiscussionFilters: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-3">
-          <Tooltip title="发起一个新话题">
+          <Tooltip title={translate('auto.14478a55e8')}>
             <Button type="primary" icon={<Plus className="w-4 h-4" />} onClick={onCreate}>
-              发起讨论
-            </Button>
+              {translate('auto.85f5cb8f6e')}</Button>
           </Tooltip>
         </div>
       </div>

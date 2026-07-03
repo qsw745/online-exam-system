@@ -1,5 +1,6 @@
 import { Button, List, Modal, Popconfirm, Space, Tag, Typography, Spin, Divider, message } from 'antd'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export type Role = { id: number; name: string }
 export type User = { id: number; username: string; email?: string; status?: string }
@@ -37,18 +38,18 @@ export default function RoleMembersModal({
       if (onOpenOrgSelect) await onOpenOrgSelect()
       else {
         Modal.info({
-          title: '选择机构',
-          content: '父组件未实现 onOpenOrgSelect，请在父组件里挂载机构选择弹窗并传入该回调。',
+          title: translate('auto.a9f4eaad27'),
+          content: translate('auto.113277b02f'),
         })
       }
     } catch (err: any) {
-      message.error(err?.message || '打开机构选择弹窗失败')
+      message.error(err?.message || translate('auto.7d8050dbe0'))
     }
   }
 
   return (
     <Modal
-      title={role ? `角色成员 - ${role.name}` : '角色成员'}
+      title={role ? `角色成员 - ${role.name}` : translate('visible.cc91bf7426')}
       open={open}
       maskClosable={false}
       onCancel={onClose}
@@ -58,15 +59,14 @@ export default function RoleMembersModal({
     >
       <Space style={{ marginBottom: 12 }} wrap>
         <Button type="primary" onClick={onOpenUserSelect}>
-          添加用户
-        </Button>
-        <Button onClick={handleOpenOrgSelect}>按机构添加</Button>
-        <Button onClick={onRefresh}>{'刷新'}</Button>
+          {translate('auto.4f965d4969')}</Button>
+        <Button onClick={handleOpenOrgSelect}>{translate('auto.83e5165f14')}</Button>
+        <Button onClick={onRefresh}>{translate('app.refresh')}</Button>
       </Space>
 
       {/* 已关联机构 */}
       <div style={{ padding: '8px 0' }}>
-        <Typography.Text strong>已关联机构：</Typography.Text>
+        <Typography.Text strong>{translate('auto.1b1d4ecc1a')}</Typography.Text>
         <div style={{ marginTop: 8 }}>
           {orgsLoading ? (
             <Spin />
@@ -87,7 +87,7 @@ export default function RoleMembersModal({
               ))}
             </Space>
           ) : (
-            <Typography.Text type="secondary">暂无关联机构</Typography.Text>
+            <Typography.Text type="secondary">{translate('auto.f8916c374c')}</Typography.Text>
           )}
         </div>
       </div>
@@ -96,17 +96,16 @@ export default function RoleMembersModal({
 
       {/* 成员列表 */}
       <List
-        header={<Typography.Text strong>成员列表</Typography.Text>}
+        header={<Typography.Text strong>{translate('auto.5eb3dcf3b9')}</Typography.Text>}
         loading={loading}
         dataSource={members}
         rowKey="id"
         renderItem={u => (
           <List.Item
             actions={[
-              <Popconfirm key="rm" title="确定移除该用户？" onConfirm={() => onRemove(u.id)}>
+              <Popconfirm key="rm" title={translate('auto.989c3955eb')} onConfirm={() => onRemove(u.id)}>
                 <Button type="link" danger>
-                  移除
-                </Button>
+                  {translate('papers.op_remove')}</Button>
               </Popconfirm>,
             ]}
           >
@@ -114,7 +113,7 @@ export default function RoleMembersModal({
               title={
                 <Space>
                   <Typography.Text>{u.username}</Typography.Text>
-                  {(u.status ?? 'active') !== 'active' && <Tag color="red">禁用</Tag>}
+                  {(u.status ?? 'active') !== 'active' && <Tag color="red">{translate('users.status.disable')}</Tag>}
                 </Space>
               }
               description={u.email}

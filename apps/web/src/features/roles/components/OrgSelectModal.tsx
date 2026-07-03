@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Modal, Spin, Tree, Typography } from 'antd'
 import type { TreeProps } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -38,17 +39,16 @@ export default function OrgSelectModal({
 
   return (
     <Modal
-      title="选择机构"
+      title={translate('auto.a9f4eaad27')}
       open={open}
       maskClosable={false}
       onCancel={onCancel}
       destroyOnHidden // ✅ antd v5 正确属性
       footer={[
         <Button key="cancel" onClick={onCancel}>
-          取 消
-        </Button>,
+          {translate('auto.d54aeadcbe')}</Button>,
         <Button key="ok" type="primary" disabled={!checked.length} onClick={onOk}>
-          确定（{checked.length}）
+          {translate('auto.bee22f3c9e')}{checked.length}）
         </Button>,
       ]}
       width={720}
@@ -68,7 +68,7 @@ export default function OrgSelectModal({
             checkedKeys={checked}
             onCheck={handleCheck}
             defaultExpandAll
-            titleRender={(node: any) => <Text>{node.name ?? node.title ?? node.code ?? '（未命名）'}</Text>}
+            titleRender={(node: any) => <Text>{node.name ?? node.title ?? node.code ?? translate('visible.3670405e6d')}</Text>}
           />
         )}
       </div>

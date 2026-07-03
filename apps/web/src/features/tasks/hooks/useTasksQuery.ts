@@ -4,6 +4,7 @@ import dayjs from '@/shared/utils/dayjs'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 export type Task = {
   id: string
@@ -73,7 +74,7 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
 
       const res: any = await apiCaller?.(params)
       if (!isSuccess(res)) {
-        message.error(res?.error || res?.message || '加载任务失败')
+        message.error(res?.error || res?.message || translate('tasks.load_error'))
         setRows([])
         setTotal(0)
         return
@@ -93,7 +94,7 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
       }
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载任务失败')
+      message.error(e?.message || translate('tasks.load_error'))
       setRows([])
       setTotal(0)
     } finally {

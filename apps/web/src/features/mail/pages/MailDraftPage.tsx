@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import MailTable from '@/features/mail/components/MailTable'
 import { useMailList } from '@/features/mail/hooks/useMailList'
 import { mailApi } from '@/shared/api/endpoints/mail'
+import { translate } from '@/shared/utils/i18n'
 
 export default function MailDraftPage() {
   const { message } = App.useApp()
@@ -10,7 +11,7 @@ export default function MailDraftPage() {
   const navigate = useNavigate()
 
   return (
-    <Card title="草稿箱">
+    <Card title={translate('menus.mail-draft')}>
       <MailTable
         mailbox="drafts"
         data={data}
@@ -19,15 +20,15 @@ export default function MailDraftPage() {
         onEditDraft={record => navigate(`/mail/compose?draftId=${record.id}`)}
         onDelete={record => {
           Modal.confirm({
-            title: '删除草稿',
-            content: '删除后不可恢复，确认删除该草稿吗？',
+            title: translate('auto.59358b12cb'),
+            content: translate('auto.c5010747c9'),
             onOk: async () => {
               try {
                 await mailApi.deleteDraft(record.id)
                 setData(prev => prev.filter(item => item.id !== record.id))
-                message.success('草稿已删除')
+                message.success(translate('auto.f8c3238dd9'))
               } catch (error: any) {
-                message.error(error?.message || '删除失败')
+                message.error(error?.message || translate('orgs.message.delete_failed'))
               }
             },
           })

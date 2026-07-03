@@ -5,11 +5,12 @@ import { Button, Card, Form } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import PaperMetaForm from '../components/PaperMetaForm'
 import PaperQuestionList from '../components/PaperQuestionList'
+import { translate } from '@/shared/utils/i18n'
 export default function PaperCreatePage() {
   const nav = useNavigate()
   const h = usePaperEditor()
 
-  if (h.loading) return <LoadingSpinner text="加载试卷信息..." center="page" />
+  if (h.loading) return <LoadingSpinner text={translate('visible.7bb7104223')} center="page" />
 
   return (
     <div className="space-y-6">
@@ -20,7 +21,7 @@ export default function PaperCreatePage() {
       </div>
 
       <Form layout="vertical" onFinish={h.submit}>
-        <Card title="基本信息" style={{ marginBottom: 24 }}>
+        <Card title={translate('auto.b122f813d5')} style={{ marginBottom: 24 }}>
           <PaperMetaForm
             disabled={h.isView}
             title={h.title}
@@ -41,10 +42,10 @@ export default function PaperCreatePage() {
         <PaperQuestionList questions={h.questions} />
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 16 }}>
-          <Button onClick={() => nav('/admin/papers')}>{h.isView ? '返回列表' : '取消'}</Button>
+          <Button onClick={() => nav('/admin/papers')}>{h.isView ? translate('papers.back_to_list') : translate('app.cancel')}</Button>
           {!h.isView && (
             <Button type="primary" htmlType="submit" loading={h.submitting}>
-              {h.isEdit ? '更新试卷' : '创建试卷'}
+              {h.isEdit ? translate('visible.1e43728e91') : translate('papers.create_paper')}
             </Button>
           )}
         </div>

@@ -13,6 +13,8 @@ import {
 import { LogOut } from 'lucide-react'
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type OnlineUser = {
   id: number | string
@@ -76,7 +78,7 @@ export default function OnlineUsersPage() {
       setRows(list)
     } catch (e) {
       console.error(e)
-      message.error('获取在线用户失败')
+      message.error(translate('auto.fa0fcb050e'))
       setRows([])
     } finally {
       setLoading(false)
@@ -86,7 +88,7 @@ export default function OnlineUsersPage() {
   const kick = useCallback(
     async (row: OnlineUser) => {
       const id = pickKickId(row)
-      if (id == null) return message.error('无法识别会话ID')
+      if (id == null) return message.error(translate('auto.b9872e2319'))
       try {
         await api.post('/logs/online/kick', { id })
       } catch {
@@ -94,11 +96,11 @@ export default function OnlineUsersPage() {
           await api.delete(`/logs/online/${id}`)
         } catch (e) {
           console.error(e)
-          message.error('强退失败')
+          message.error(translate('auto.030a53ce03'))
           return
         }
       }
-      message.success('已强退')
+      message.success(translate('auto.9c7b989fdb'))
       load()
     },
     [load, message]
@@ -167,7 +169,7 @@ export default function OnlineUsersPage() {
         title: LABELS.login_time,
         dataIndex: 'login_time',
         width: 200,
-        render: (t?: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
+        render: (t?: string) => (t ? formatDateTime(t) : '-'),
       },
       actions: {
         title: LABELS.actions,
@@ -176,10 +178,9 @@ export default function OnlineUsersPage() {
         onHeaderCell: () => ({ className: 'online-ops-fixed-white' }),
         onCell: () => ({ className: 'online-ops-fixed-white' }),
         render: (_: any, r: OnlineUser) => (
-          <Popconfirm title="确认强退该用户？" onConfirm={() => kick(r)} okText="强退" cancelText="取消">
+          <Popconfirm title={translate('auto.00ef0a25d0')} onConfirm={() => kick(r)} okText={translate('auto.11e95fb130')} cancelText={translate('app.cancel')}>
             <Button type="link" icon={<LogOut style={{ width: 16, height: 16 }} />}>
-              强退
-            </Button>
+              {translate('auto.11e95fb130')}</Button>
           </Popconfirm>
         ),
       },
@@ -191,7 +192,7 @@ export default function OnlineUsersPage() {
   // ===== 工具条 =====
   const Toolbar = (
     <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-      <div style={{ fontWeight: 600, fontSize: 16 }}>在线用户</div>
+      <div style={{ fontWeight: 600, fontSize: 16 }}>{translate('menus.system-logs-online')}</div>
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Button icon={<ReloadOutlined />} onClick={load} />
         <Dropdown
@@ -200,9 +201,9 @@ export default function OnlineUsersPage() {
             selectable: true,
             selectedKeys: [tableSize],
             items: [
-              { key: 'large', label: '宽松' },
-              { key: 'middle', label: '默认' },
-              { key: 'small', label: '紧凑' },
+              { key: 'large', label: translate('table.density.loose') },
+              { key: 'middle', label: translate('table.density.default') },
+              { key: 'small', label: translate('table.density.compact') },
             ],
             onClick: ({ key }) => setTableSize(key as any),
           }}
@@ -226,16 +227,14 @@ export default function OnlineUsersPage() {
                   indeterminate={visible.length > 0 && visible.length < DEFAULT_VISIBLE.length}
                   onChange={e => setVisible(e.target.checked ? DEFAULT_VISIBLE : [])}
                 >
-                  列展示
-                </Checkbox>
+                  {translate('table.columns.title')}</Checkbox>
                 <a
                   onClick={() => {
                     setOrder(DEFAULT_ORDER)
                     setVisible(DEFAULT_VISIBLE)
                   }}
                 >
-                  重置
-                </a>
+                  {translate('app.reset')}</a>
               </div>
               <div style={{ padding: '6px 12px 0' }}>
                 {order.map(k => (
@@ -264,8 +263,7 @@ export default function OnlineUsersPage() {
                       setVisible(prev => (e.target.checked ? [...prev, 'actions'] : prev.filter(x => x !== 'actions')))
                     }
                   >
-                    {LABELS.actions}（固定）
-                  </Checkbox>
+                    {LABELS.actions}{translate('table.columns.fixed_suffix')}</Checkbox>
                 </div>
               </div>
             </div>

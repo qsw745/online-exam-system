@@ -11,6 +11,7 @@ import {
 import { menuApi } from '@/shared/api/endpoints/menu'
 import { auth, users } from '@/shared/api/http'
 import React, { createContext, useContext, useEffect, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 interface User {
   id: string
@@ -34,7 +35,12 @@ interface AuthContextType {
     keep7Days?: boolean,
     extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean }
   ) => Promise<void>
-  signUp: (email: string, password: string, opts?: {  nickname?: string; keep7Days?: boolean }) => Promise<void>
+  signInWithSession: (token: string, user: User, keep7Days?: boolean) => Promise<void>
+  signUp: (
+    email: string,
+    password: string,
+    opts?: { nickname?: string; keep7Days?: boolean }
+  ) => Promise<{ needVerification?: boolean; email?: string }>
   signOut: () => Promise<void>
   refreshUser: () => Promise<void>
   reload: () => Promise<void>
@@ -185,7 +191,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const payload = (result as any)?.data ?? (result as any) ?? {}
     const token: string | undefined = payload.token ?? payload.access_token ?? payload.accessToken ?? payload.jwt
     const userData: User | undefined = payload.user
-    if (!token || !userData) throw new Error('登录响应缺少 token 或用户信息')
+    if (!token || !userData) throw new Error(translate('auto.0c4f9b3eb4'))
 
     // 兼容 avatar 命名
     ;(userData as any).avatar_url = (userData as any).avatar_url || (userData as any).avatar
@@ -203,6 +209,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  // 用已签发的 token + user 直接建立会话（人脸登录 / 扫码登录等无密码场景复用）
+  const signInWithSession = async (token: string, userData: User, keep7Days = false) => {
+    const mode: AuthStorageMode = keep7Days ? '7d' : 'session'
+    setAuthStorageFlag(mode)
+    ;(userData as any).avatar_url = (userData as any).avatar_url || (userData as any).avatar
+    storageSetAccessToken(token, mode)
+    if ((userData as any)?.role) {
+      localStorage.setItem(USER_ROLE_KEY, (userData as any).role)
+      sessionStorage.setItem(USER_ROLE_KEY, (userData as any).role)
+    }
+    try {
+      await refreshUser()
+    } catch (err) {
+      console.error('人脸登录后刷新用户信息失败:', err)
+      setUser(userData)
+    }
+  }
+
   const signUp = async (email: string, password: string, opts?: {  nickname?: string; keep7Days?: boolean }) => {
     const payload = {
       email,
@@ -214,7 +238,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const result = await auth.register(payload)
     if ((result as any)?.success === false) throw new Error((result as any).error || '注册失败')
     // 注册后保持原有“跳转到登录页”的流程，不在此处直接写入登录态。
-    return
+    // 返回数据供调用方判断是否需要邮箱验证。
+    return ((result as any)?.data ?? {}) as { needVerification?: boolean; email?: string }
   }
 
   const signOut = async () => {
@@ -235,6 +260,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     loading,
     signIn,
+    signInWithSession,
     signUp,
     signOut,
     refreshUser,

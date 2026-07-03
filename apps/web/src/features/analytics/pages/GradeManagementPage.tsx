@@ -9,6 +9,7 @@ import { api, isSuccess } from '@/shared/api/http'
 
 import { App, Card, Divider, Drawer, Skeleton, Space, Typography } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 const GradeManagementPage: React.FC = () => {
@@ -52,7 +53,7 @@ const GradeManagementPage: React.FC = () => {
       if (isSuccess(res)) setDetail(res.data as any)
       else throw new Error((res as any).error || '加载详情失败')
     } catch (e: any) {
-      message.error(e?.message || '加载详情失败')
+      message.error(e?.message || translate('auto.02c28cd84c'))
     } finally {
       setDetailLoading(false)
     }
@@ -62,9 +63,9 @@ const GradeManagementPage: React.FC = () => {
     try {
       setExporting(true)
       await exportResults()
-      message.success('成绩报告导出成功')
+      message.success(translate('auto.106030ff68'))
     } catch (e: any) {
-      message.error(e?.message || '导出成绩报告失败')
+      message.error(e?.message || translate('auto.4109877c41'))
     } finally {
       setExporting(false)
     }
@@ -115,9 +116,8 @@ const GradeManagementPage: React.FC = () => {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <div>
         <Title level={2} style={{ marginBottom: 4 }}>
-          成绩管理
-        </Title>
-        <Text type="secondary">查看和管理学生考试成绩</Text>
+          {translate('menus.admin-grades')}</Title>
+        <Text type="secondary">{translate('auto.06c4e0d6f1')}</Text>
       </div>
 
       {stats ? <GradeStatsCards stats={stats} /> : <Skeleton active paragraph={{ rows: 2 }} />}
@@ -148,7 +148,7 @@ const GradeManagementPage: React.FC = () => {
         }}
       />
 
-      <Drawer title="成绩详情" width={720} open={detailOpen} onClose={() => setDetailOpen(false)} destroyOnHidden>
+      <Drawer title={translate('auto.5cfcc42e70')} width={720} open={detailOpen} onClose={() => setDetailOpen(false)} destroyOnHidden>
         <ResultDetailContent loading={detailLoading} data={detail} />
       </Drawer>
     </Space>

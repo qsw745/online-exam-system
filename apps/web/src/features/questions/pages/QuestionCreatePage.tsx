@@ -20,6 +20,8 @@ import {
 import { ArrowLeft, Plus, Trash2 } from 'lucide-react'
 import React from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Paragraph, Text } = Typography
 const { TextArea } = Input
 const { Option } = Select
@@ -29,7 +31,7 @@ type ApiSuccess<T = any> = { success: true; data: T; message?: string }
 type ApiFailure = { success: false; error?: string; message?: string }
 type ApiResult<T = any> = ApiSuccess<T> | ApiFailure
 const isSuccess = <T,>(r: any): r is ApiSuccess<T> => r && typeof r === 'object' && r.success === true
-const getMsg = (r: any, fallback = '请求失败') =>
+const getMsg = (r: any, fallback = translate('questions.req_failed')) =>
   r && typeof r === 'object' ? r.message ?? r.error ?? fallback : fallback
 // ===================================
 
@@ -71,6 +73,7 @@ const parseTags = (raw: unknown): string[] => {
 }
 
 const QuestionCreatePage: React.FC = () => {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const location = useLocation()
   const { id } = useParams<{ id: string }>()
@@ -183,7 +186,7 @@ const QuestionCreatePage: React.FC = () => {
       setInitialLoading(true)
       const res: ApiResult<any> = await questionsApi.getById(questionId)
       if (!isSuccess(res)) {
-        message.error(getMsg(res, '获取题目详情失败'))
+        message.error(getMsg(res, t('questions.load_detail_failed')))
         return
       }
       const d = res.data
@@ -224,7 +227,7 @@ const QuestionCreatePage: React.FC = () => {
       }
     } catch (error: any) {
       console.error('获取题目详情错误:', error)
-      message.error(error?.message || '获取题目详情失败')
+      message.error(error?.message || t('questions.load_detail_failed'))
     } finally {
       setInitialLoading(false)
     }
@@ -248,7 +251,7 @@ const QuestionCreatePage: React.FC = () => {
 
   const addOption = () => setOptions([...options, { content: '', is_correct: false }])
   const removeOption = (index: number) => {
-    if (options.length <= 2) return message.error('至少需要两个选项')
+    if (options.length <= 2) return message.error(t('questions.min_two_options'))
     const newOptions = [...options]
     newOptions.splice(index, 1)
     setOptions(newOptions)
@@ -257,7 +260,7 @@ const QuestionCreatePage: React.FC = () => {
   const addKnowledgePoint = () => {
     const v = knowledgePointInput.trim()
     if (!v) return
-    if (knowledgePoints.includes(v)) return message.error('知识点已存在')
+    if (knowledgePoints.includes(v)) return message.error(t('questions.kp_exists'))
     setKnowledgePoints([...knowledgePoints, v])
     setKnowledgePointInput('')
   }
@@ -269,16 +272,16 @@ const QuestionCreatePage: React.FC = () => {
 
   // 表单提交
   const handleSubmit = async () => {
-    if (!content.trim()) return message.error('请输入题目内容')
+    if (!content.trim()) return message.error(t('questions.content_required'))
 
     if (type === 'single_choice' || type === 'multiple_choice') {
       const hasEmptyOption = options.some(option => !option.content.trim())
-      if (hasEmptyOption) return message.error('选项内容不能为空')
+      if (hasEmptyOption) return message.error(t('questions.option_empty'))
       const hasCorrectOption = options.some(option => option.is_correct)
-      if (!hasCorrectOption) return message.error('请至少选择一个正确选项')
+      if (!hasCorrectOption) return message.error(t('questions.need_correct_option'))
     }
-    if (type === 'true_false' && !answer) return message.error('请选择正确答案')
-    if (type === 'short_answer' && !answer.trim()) return message.error('请输入参考答案')
+    if (type === 'true_false' && !answer) return message.error(t('questions.select_correct_answer'))
+    if (type === 'short_answer' && !answer.trim()) return message.error(t('questions.need_ref_answer'))
 
     try {
       setLoading(true)
@@ -298,7 +301,7 @@ const QuestionCreatePage: React.FC = () => {
           .map((opt, idx) => (opt.is_correct ? idx : null))
           .filter((v): v is number => v !== null)
       } else if (type === 'true_false') {
-        payload.options = [{ content: '正确' }, { content: '错误' }]
+        payload.options = [{ content: t('questions.tf_true') }, { content: t('questions.tf_false') }]
         payload.correct_answer = [answer === 'true' ? 0 : 1]
       } else if (type === 'short_answer') {
         payload.options = []
@@ -308,25 +311,25 @@ const QuestionCreatePage: React.FC = () => {
 
       if (isEditMode && id) {
         const res: ApiResult<any> = await questionsApi.update(id, payload)
-        if (!isSuccess(res)) return message.error(getMsg(res, '题目更新失败'))
-        message.success('题目更新成功')
+        if (!isSuccess(res)) return message.error(getMsg(res, t('questions.update_failed')))
+        message.success(t('questions.update_success'))
       } else {
         const res: ApiResult<any> = await questionsApi.create(payload)
-        if (!isSuccess(res)) return message.error(getMsg(res, '题目创建失败'))
-        message.success('题目创建成功')
+        if (!isSuccess(res)) return message.error(getMsg(res, t('questions.create_failed')))
+        message.success(t('questions.create_success'))
       }
 
       navigate('/admin/questions')
     } catch (error: any) {
       console.error(isEditMode ? '更新题目错误:' : '创建题目错误:', error)
-      message.error(error?.message || (isEditMode ? '更新题目失败' : '创建题目失败'))
+      message.error(error?.message || (isEditMode ? t('questions.update_failed') : t('questions.create_failed')))
     } finally {
       setLoading(false)
     }
   }
 
-  const pageTitle = isViewMode ? '查看题目' : isEditMode ? '编辑题目' : '创建新题目'
-  const pageDesc = isViewMode ? '查看题目详细信息' : isEditMode ? '修改现有题目信息' : '添加新的考试题目到题库'
+  const pageTitle = isViewMode ? t('questions.page_view') : isEditMode ? t('questions.page_edit') : t('questions.page_create')
+  const pageDesc = isViewMode ? t('questions.desc_view') : isEditMode ? t('questions.desc_edit') : t('questions.desc_create')
 
   if (initialLoading) {
     return (
@@ -354,7 +357,7 @@ const QuestionCreatePage: React.FC = () => {
           </Col>
           <Col>
             <Button onClick={() => navigate('/admin/questions')} icon={<ArrowLeft style={{ width: 16, height: 16 }} />}>
-              返回题目列表
+              {t('questions.back_to_list')}
             </Button>
           </Col>
         </Row>
@@ -366,23 +369,23 @@ const QuestionCreatePage: React.FC = () => {
           {/* 基本信息 */}
           <Row gutter={[24, 16]}>
             <Col xs={24} md={12}>
-              <Form.Item label="题目类型" required>
+              <Form.Item label={t('questions.col_type')} required>
                 <Select value={type} onChange={value => setType(value as any)} disabled={isViewMode}>
-                  <Option value="single_choice">单选题</Option>
-                  <Option value="multiple_choice">多选题</Option>
-                  <Option value="true_false">判断题</Option>
-                  <Option value="short_answer">简答题</Option>
+                  <Option value="single_choice">{t('questions.type_single')}</Option>
+                  <Option value="multiple_choice">{t('questions.type_multiple')}</Option>
+                  <Option value="true_false">{t('questions.type_true_false')}</Option>
+                  <Option value="short_answer">{t('questions.type_short')}</Option>
                 </Select>
               </Form.Item>
             </Col>
           </Row>
 
           {/* 题目内容 */}
-          <Form.Item label="题目内容" required>
+          <Form.Item label={t('questions.col_content')} required>
             <TextArea
               value={content}
               onChange={e => setContent(e.target.value)}
-              placeholder="输入题目内容"
+              placeholder={t('questions.content_ph')}
               rows={4}
               disabled={isViewMode}
             />
@@ -394,7 +397,7 @@ const QuestionCreatePage: React.FC = () => {
               label={
                 <Row justify="space-between" align="middle" style={{ width: '100%' }}>
                   <Col>
-                    <Text strong>选项 *</Text>
+                    <Text strong>{t('questions.options_label')} *</Text>
                   </Col>
                   <Col>
                     <Button
@@ -404,7 +407,7 @@ const QuestionCreatePage: React.FC = () => {
                       icon={<Plus style={{ width: 14, height: 14 }} />}
                       disabled={isViewMode}
                     >
-                      添加选项
+                      {t('questions.add_option')}
                     </Button>
                   </Col>
                 </Row>
@@ -424,7 +427,7 @@ const QuestionCreatePage: React.FC = () => {
                       <Input
                         value={option.content}
                         onChange={e => handleOptionChange(index, 'content', e.target.value)}
-                        placeholder={`选项 ${index + 1}`}
+                        placeholder={t('questions.option_n_ph').replace('{n}', String(index + 1))}
                         disabled={isViewMode}
                       />
                     </Col>
@@ -446,21 +449,21 @@ const QuestionCreatePage: React.FC = () => {
 
           {/* 判断题答案 */}
           {type === 'true_false' && (
-            <Form.Item label="正确答案" required>
+            <Form.Item label={t('questions.correct_answer')} required>
               <Radio.Group value={answer} onChange={e => setAnswer(e.target.value)} disabled={isViewMode}>
-                <Radio value="true">正确</Radio>
-                <Radio value="false">错误</Radio>
+                <Radio value="true">{t('questions.tf_true')}</Radio>
+                <Radio value="false">{t('questions.tf_false')}</Radio>
               </Radio.Group>
             </Form.Item>
           )}
 
           {/* 简答题答案 */}
           {type === 'short_answer' && (
-            <Form.Item label="参考答案" required>
+            <Form.Item label={t('questions.ref_answer')} required>
               <TextArea
                 value={answer}
                 onChange={e => setAnswer(e.target.value)}
-                placeholder="输入参考答案"
+                placeholder={t('questions.ref_answer_ph')}
                 rows={4}
                 disabled={isViewMode}
               />
@@ -468,23 +471,23 @@ const QuestionCreatePage: React.FC = () => {
           )}
 
           {/* 解析 */}
-          <Form.Item label="题目解析">
+          <Form.Item label={t('questions.explanation')}>
             <TextArea
               value={explanation}
               onChange={e => setExplanation(e.target.value)}
-              placeholder="输入题目解析（可选）"
+              placeholder={t('questions.explanation_ph')}
               rows={4}
               disabled={isViewMode}
             />
           </Form.Item>
 
           {/* 知识点 */}
-          <Form.Item label="知识点">
+          <Form.Item label={t('questions.col_knowledge')}>
             <Space.Compact style={{ width: '100%', marginBottom: 16 }}>
               <Input
                 value={knowledgePointInput}
                 onChange={e => setKnowledgePointInput(e.target.value)}
-                placeholder="输入知识点"
+                placeholder={t('questions.kp_ph')}
                 onPressEnter={e => {
                   e.preventDefault()
                   addKnowledgePoint()
@@ -492,7 +495,7 @@ const QuestionCreatePage: React.FC = () => {
                 disabled={isViewMode}
               />
               <Button type="primary" onClick={addKnowledgePoint} disabled={isViewMode}>
-                添加
+                {t('app.add')}
               </Button>
             </Space.Compact>
 
@@ -508,7 +511,7 @@ const QuestionCreatePage: React.FC = () => {
           </Form.Item>
 
           {/* ===== 新增：标签 ===== */}
-          <Form.Item label="标签（可多选/自定义）">
+          <Form.Item label={t('questions.tags_label')}>
             {isViewMode ? (
               tags.length ? (
                 <Space wrap>
@@ -524,7 +527,7 @@ const QuestionCreatePage: React.FC = () => {
             ) : (
               <Select
                 mode="tags"
-                placeholder="选择或输入标签后回车"
+                placeholder={t('questions.tags_ph')}
                 value={tags}
                 onChange={vals => setTags(vals as string[])}
                 options={allTags.map(t => ({ label: t, value: t }))}
@@ -536,10 +539,10 @@ const QuestionCreatePage: React.FC = () => {
           <Divider />
           <Row justify="end">
             <Space>
-              <Button onClick={() => navigate('/admin/questions')}>返回</Button>
+              <Button onClick={() => navigate('/admin/questions')}>{t('app.back')}</Button>
               {!isViewMode && (
                 <Button type="primary" htmlType="submit" loading={loading}>
-                  {isEditMode ? '更新题目' : '创建题目'}
+                  {isEditMode ? t('questions.update_btn') : t('questions.create_btn')}
                 </Button>
               )}
             </Space>

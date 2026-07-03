@@ -1,6 +1,7 @@
 import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { App } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 const safe = (v?: string | null) => (v ?? '').toString()
 
@@ -40,7 +41,7 @@ export function useOrgTree() {
       setTree(next)
       return next
     } catch (e: any) {
-      message.error(e?.message || '加载组织树失败')
+      message.error(e?.message || translate('auto.006dc1aa80'))
       setTree([])
       return []
     } finally {

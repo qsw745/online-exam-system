@@ -10,6 +10,7 @@ import React, { Suspense, useEffect, useMemo, useState } from 'react'
 import { Navigate, useRoutes, type RouteObject } from 'react-router-dom'
 import { resolveComponent } from './pageRegistry'
 import type { MenuSeed } from './menuSchema'
+import { translate } from '@/shared/utils/i18n'
 
 type RouteNode = Pick<
   MenuSeed,
@@ -175,26 +176,22 @@ export default function DynamicRoutes() {
   useEffect(() => {
     let alive = true
     if (!authLoading && user) {
-      const cached = (menuApi as any).getRouteTreeCached?.()
-      if (cached) {
-        setTree(cached as RouteNode[])
-        setErr(null)
-      } else {
-        ;(async () => {
-          try {
-            const data = await menuApi.functionsTree()
-            if (alive) {
-              setTree(Array.isArray(data) ? (data as RouteNode[]) : [])
-              setErr(null)
-            }
-          } catch (e: any) {
-            if (alive) {
-              setErr(e?.message || '加载动态路由失败')
-              setTree([])
-            }
+      // 按当前用户角色加载菜单/路由（userMenus 内部已做 per-user 缓存）。
+      // 不能用 functionsTree()/全局缓存——那是全量系统菜单，会让所有人看到所有模块。
+      ;(async () => {
+        try {
+          const data = await menuApi.userMenus(Number((user as any).id))
+          if (alive) {
+            setTree(Array.isArray(data) ? (data as RouteNode[]) : [])
+            setErr(null)
           }
-        })()
-      }
+        } catch (e: any) {
+          if (alive) {
+            setErr(e?.message || '加载动态路由失败')
+            setTree([])
+          }
+        }
+      })()
     } else {
       setTree(null)
       setErr(null)
@@ -207,8 +204,8 @@ export default function DynamicRoutes() {
   const routes: RouteObject[] = useMemo(() => {
     if (authLoading) {
       return [
-        { index: true, element: <LoadingSpinner center="page" text="加载中…" /> },
-        { path: '*', element: <LoadingSpinner center="page" text="加载中…" /> },
+        { index: true, element: <LoadingSpinner center="page" text={translate('auto.300ee3dee4')} /> },
+        { path: '*', element: <LoadingSpinner center="page" text={translate('auto.300ee3dee4')} /> },
       ]
     }
 
@@ -233,8 +230,8 @@ export default function DynamicRoutes() {
 
     if (tree === null) {
       return [
-        { index: true, element: <LoadingSpinner center="page" text="加载中…" /> },
-        { path: '*', element: <LoadingSpinner center="page" text="加载中…" /> },
+        { index: true, element: <LoadingSpinner center="page" text={translate('auto.300ee3dee4')} /> },
+        { path: '*', element: <LoadingSpinner center="page" text={translate('auto.300ee3dee4')} /> },
       ]
     }
 

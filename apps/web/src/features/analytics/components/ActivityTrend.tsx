@@ -1,5 +1,6 @@
 import React from 'react'
 import type { ActivityDatum } from '@/shared/hooks/useDataAnalytics'
+import { translate } from '@/shared/utils/i18n'
 // ✅ 兼容多种字段命名
 type ActivityItem = ActivityDatum & {
   activeUsers?: number
@@ -12,7 +13,7 @@ export const ActivityTrend: React.FC<{ list: ActivityDatum[]; totalUsers: number
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">活跃度趋势</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">{translate('auto.7975252cfa')}</h2>
       <div className="space-y-4">
         {data.map(item => {
           const activeUsers = item.activeUsers ?? item.active_users ?? 0
@@ -29,12 +30,12 @@ export const ActivityTrend: React.FC<{ list: ActivityDatum[]; totalUsers: number
                   />
                 </div>
               </div>
-              <div className="w-32 text-sm text-gray-500">{activeUsers} 活跃用户</div>
-              <div className="w-32 text-sm text-gray-500">{submissions} 提交</div>
+              <div className="w-32 text-sm text-gray-500">{activeUsers} {translate('auto.ef0369a594')}</div>
+              <div className="w-32 text-sm text-gray-500">{submissions} {translate('app.submit')}</div>
             </div>
           )
         })}
-        {data.length === 0 && <div className="text-sm text-gray-500">暂无数据</div>}
+        {data.length === 0 && <div className="text-sm text-gray-500">{translate('common.no_data')}</div>}
       </div>
     </div>
   )

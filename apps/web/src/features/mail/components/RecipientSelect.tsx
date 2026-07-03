@@ -3,6 +3,7 @@ import type { SelectProps } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { mailApi, type RecipientOption } from '@/shared/api/endpoints/mail'
 import OrgUserPickerDrawer from '@/features/mail/components/OrgUserPickerDrawer'
+import { translate } from '@/shared/utils/i18n'
 
 type Props = {
   value?: number[]
@@ -73,7 +74,7 @@ export default function RecipientSelect({ value, onChange, placeholder }: Props)
           onSearch={fetch}
           onChange={ids => onChange?.(ids as number[])}
         />
-        <Button onClick={() => setOrgPickerOpen(true)}>按组织选择</Button>
+        <Button onClick={() => setOrgPickerOpen(true)}>{translate('auto.cee6af3089')}</Button>
       </Space>
       <OrgUserPickerDrawer
         open={orgPickerOpen}

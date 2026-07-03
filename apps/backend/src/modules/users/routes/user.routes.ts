@@ -1,6 +1,7 @@
 import { Router, type RequestHandler } from 'express'
 import { authenticateToken, requireRole } from '@/common/middleware/auth.js'
 import { UserController } from '@/modules/users/controllers/user.controller.js'
+import { UserFaceController } from '@/modules/users/controllers/user-face.controller.js'
 import { upload } from '@/common/middleware/upload.js'
 
 type AsyncCtrl = (req: any, res: any) => any | Promise<any>
@@ -38,6 +39,11 @@ router.put('/:id', requireRole(['admin']), wrap(UserController.update))
 router.put('/:id/status', requireRole(['admin']), wrap(UserController.updateStatus))
 router.put('/:id/reset-password', requireRole(['admin']), wrap(UserController.resetPassword))
 router.delete('/:id', requireRole(['admin']), wrap(UserController.delete))
+
+// 管理员代录/管理用户人脸凭据
+router.get('/:id/face', requireRole(['admin']), wrap(UserFaceController.status))
+router.post('/:id/face/enroll', requireRole(['admin']), wrap(UserFaceController.enroll))
+router.delete('/:id/face', requireRole(['admin']), wrap(UserFaceController.unenroll))
 
 export { router as userRoutes }
 export default router

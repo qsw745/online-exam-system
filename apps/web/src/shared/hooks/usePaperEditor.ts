@@ -2,6 +2,7 @@ import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useMatch, useNavigate, useParams } from 'react-router-dom'
 import { papersApi, type PaperDifficulty } from '../api/endpoints/papers'
+import { translate } from '@/shared/utils/i18n'
 
 type Mode = 'create' | 'view' | 'edit'
 
@@ -35,7 +36,7 @@ export function usePaperEditor() {
       setLoading(true)
       const p = await papersApi.getById(id)
       if (!p) {
-        message.error('获取试卷详情失败')
+        message.error(translate('papers.load_detail_failed'))
         navigate('/admin/papers')
         return
       }
@@ -49,7 +50,7 @@ export function usePaperEditor() {
       setQuestions(Array.isArray(qs) ? qs : [])
     } catch (e) {
       console.error(e)
-      message.error('获取试卷详情失败')
+      message.error(translate('papers.load_detail_failed'))
       navigate('/admin/papers')
     } finally {
       setLoading(false)
@@ -68,7 +69,7 @@ export function usePaperEditor() {
 
   const submit = async () => {
     if (isView) return
-    if (!title.trim()) return message.error('请输入试卷标题')
+    if (!title.trim()) return message.error(translate('papers.title_required'))
 
     const payload = {
       title: title.trim(),
@@ -82,21 +83,21 @@ export function usePaperEditor() {
       setSubmitting(true)
       if (isEdit && id) {
         await papersApi.update(id, payload as any)
-        message.success('试卷更新成功')
+        message.success(translate('auto.e14be9c4b3'))
       } else {
         const anyApi = papersApi as any
         const createFn =
           anyApi.create ??
           anyApi.createWithQuestions ??
           anyApi.smartGenerate ??
-          ((_body: any) => Promise.reject(new Error('缺少创建试卷 API')))
+          ((_body: any) => Promise.reject(new Error(translate('auto.c956c0c2d7'))))
         await createFn(payload)
-        message.success('试卷创建成功')
+        message.success(translate('auto.d61aa5c104'))
       }
       navigate('/admin/papers')
     } catch (e) {
       console.error(e)
-      message.error('保存试卷失败，请重试')
+      message.error(translate('auto.146698f0e8'))
     } finally {
       setSubmitting(false)
     }

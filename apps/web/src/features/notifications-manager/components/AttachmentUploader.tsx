@@ -3,6 +3,7 @@ import { Upload, UploadFile, message, Space, Button } from 'antd'
 import type { UploadProps } from 'antd'
 import type { RcFile } from 'antd/es/upload/interface'
 import { notificationUploadsApi } from '@/shared/api/endpoints/notificationUploads'
+import { translate } from '@/shared/utils/i18n'
 
 type RcCustomRequestOptions = Parameters<NonNullable<UploadProps['customRequest']>>[0]
 
@@ -93,7 +94,7 @@ export default function AttachmentUploader({
       message.success(`${fileName} 上传成功`)
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '上传失败')
+      message.error(e?.message || translate('files.messages.upload_failed'))
       onError?.(e as Error)
     }
   }
@@ -116,8 +117,8 @@ export default function AttachmentUploader({
       itemRender={(origin, _, fileList) => origin}
     >
       <Space direction="vertical">
-        <p>点击或拖拽上传通知附件，支持断点续传 / 秒传</p>
-        <Button type="primary">选择文件</Button>
+        <p>{translate('auto.dc8f3b9860')}</p>
+        <Button type="primary">{translate('auto.21a6f5a8d9')}</Button>
       </Space>
     </Upload.Dragger>
   )

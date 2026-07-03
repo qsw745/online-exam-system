@@ -1,5 +1,6 @@
 // src/features/questions/practice/utils/practiceApi.ts
 import { api, favoritesApi } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 export async function getQuestionById(id: string) {
   const r = await api.get(`/questions/${id}`)
@@ -15,7 +16,7 @@ async function getFirstFavoriteList(): Promise<any | null> {
     const arr = ((lists as any)?.data ?? lists) as any
     if (Array.isArray(arr) && arr.length) return arr[0]
     if (!(favoritesApi as any).create) return null
-    const created = await (favoritesApi as any).create?.({ name: '默认收藏' })
+    const created = await (favoritesApi as any).create?.({ name: translate('auto.441c933645') })
     return (created as any)?.data ?? created ?? null
   } catch {
     return null
@@ -40,17 +41,17 @@ export async function isQuestionFavorited(questionId: string): Promise<boolean> 
 
 export async function addQuestionToFavorites(questionId: string, title?: string) {
   const fav = await getFirstFavoriteList()
-  if (!fav) throw new Error('没有可用的收藏夹')
+  if (!fav) throw new Error(translate('auto.4b9bce8109'))
   const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
-  if (!(favoritesApi as any).addItem) throw new Error('当前收藏接口不支持新增项目')
+  if (!(favoritesApi as any).addItem) throw new Error(translate('auto.e3d7e261f6'))
   await (favoritesApi as any).addItem(fid, { question_id: Number(questionId), title })
 }
 
 export async function removeQuestionFromFavorites(questionId: string) {
   const fav = await getFirstFavoriteList()
-  if (!fav) throw new Error('没有可用的收藏夹')
+  if (!fav) throw new Error(translate('auto.4b9bce8109'))
   const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
-  if (!(favoritesApi as any).removeItem) throw new Error('当前收藏接口不支持删除项目')
+  if (!(favoritesApi as any).removeItem) throw new Error(translate('auto.4503eede33'))
   const items = await (favoritesApi as any).items?.(fid)
   const list = (((items as any)?.data ?? items) as any[]) || []
   const qidNum = Number(questionId)

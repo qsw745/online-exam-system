@@ -3,6 +3,7 @@ import { Button, Form, Input, Space, Tooltip } from 'antd'
 import { ReloadOutlined, SearchOutlined, InfoCircleOutlined } from '@ant-design/icons'
 import type { FormInstance, FormProps } from 'antd'
 import { useDebounce } from '@/shared/hooks'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export interface FiltersBarProps<FieldType extends object = any> {
   /** 组合式：可直接写 Form.Item 作为 children */
@@ -42,6 +43,7 @@ function FiltersBar<FieldType extends object = any>({
   hint,
   form: externalForm,
 }: FiltersBarProps<FieldType>) {
+  const { t } = useLanguage()
   const [form] = Form.useForm<FieldType>()
   const formInst = externalForm ?? form
   const [inner, setInner] = useState<Partial<FieldType>>(initialValues ?? {})
@@ -103,7 +105,7 @@ function FiltersBar<FieldType extends object = any>({
           {children}
           <Space.Compact>
             <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-              搜索
+              {t('app.search')}
             </Button>
             {showReset && <Button onClick={handleReset} icon={<ReloadOutlined />} />}
             {hintNode}
@@ -122,11 +124,12 @@ function FiltersBar<FieldType extends object = any>({
 
 /** 便捷：搜索框 */
 export function FiltersSearchInput(props: { name?: string; placeholder?: string; allowClear?: boolean }) {
+  const { t } = useLanguage()
   return (
     <Form.Item name={props.name ?? 'q'} noStyle>
       <Input
         allowClear={props.allowClear ?? true}
-        placeholder={props.placeholder ?? '输入关键词'}
+        placeholder={props.placeholder ?? t('filters.keyword_placeholder')}
         onPressEnter={e => {
           // Antd Form 在 Item + Input + submit 按回车会自动触发 onFinish，这里不用额外处理
         }}

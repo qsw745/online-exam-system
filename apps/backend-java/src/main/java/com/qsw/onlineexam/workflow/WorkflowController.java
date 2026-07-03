@@ -131,6 +131,51 @@ public class WorkflowController {
     ));
   }
 
+  @PostMapping("/tasks/{id}/transfer")
+  public ResponseEntity<Map<String, Object>> transfer(
+      HttpServletRequest request,
+      @PathVariable long id,
+      @RequestBody(required = false) Map<String, Object> payload
+  ) {
+    AuthUser user = authService.requireUser(request);
+    Map<String, Object> body = safe(payload);
+    long toUserId = Jsons.longValue(firstKey(body, "to_user_id", "toUserId", "user_id"), 0);
+    return ResponseEntity.ok(ApiEnvelope.ok(
+        workflowService.transferTask(user, id, toUserId, Jsons.string(body.get("comment"))),
+        "转办成功"
+    ));
+  }
+
+  @PostMapping("/tasks/{id}/add-sign")
+  public ResponseEntity<Map<String, Object>> addSign(
+      HttpServletRequest request,
+      @PathVariable long id,
+      @RequestBody(required = false) Map<String, Object> payload
+  ) {
+    AuthUser user = authService.requireUser(request);
+    Map<String, Object> body = safe(payload);
+    long addUserId = Jsons.longValue(firstKey(body, "user_id", "userId", "add_user_id"), 0);
+    return ResponseEntity.ok(ApiEnvelope.ok(
+        workflowService.addSignTask(user, id, addUserId, Jsons.string(body.get("comment"))),
+        "加签成功"
+    ));
+  }
+
+  @GetMapping("/instances/mine")
+  public ResponseEntity<Map<String, Object>> listMyInstances(
+      HttpServletRequest request,
+      @RequestParam Map<String, String> query
+  ) {
+    AuthUser user = authService.requireUser(request);
+    return ResponseEntity.ok(ApiEnvelope.ok(workflowService.listMyInstances(user, query), "获取我发起的流程成功"));
+  }
+
+  @PostMapping("/instances/{id}/withdraw")
+  public ResponseEntity<Map<String, Object>> withdraw(HttpServletRequest request, @PathVariable long id) {
+    AuthUser user = authService.requireUser(request);
+    return ResponseEntity.ok(ApiEnvelope.ok(workflowService.withdrawInstance(user, id), "撤回成功"));
+  }
+
   @PostMapping("/exams/{id}/review")
   public ResponseEntity<Map<String, Object>> submitExamReview(
       HttpServletRequest request,
@@ -143,5 +188,12 @@ public class WorkflowController {
 
   private static Map<String, Object> safe(Map<String, Object> payload) {
     return payload == null ? new LinkedHashMap<>() : payload;
+  }
+
+  private static Object firstKey(Map<String, Object> body, String... keys) {
+    for (String key : keys) {
+      if (body.containsKey(key) && body.get(key) != null) return body.get(key);
+    }
+    return null;
   }
 }

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Typography, List, Spin, Result, Space, Button, Tag, Empty } from 'antd'
 import { favoritesApi, type Favorite, type FavoriteItem } from '@/shared/api/endpoints/favorites'
 import { withAppBasePath } from '@/shared/router/basePath'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Paragraph, Text } = Typography
 
@@ -54,7 +55,7 @@ export default function SharedFavoritePage() {
   if (loading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spin tip="加载分享内容..." size="large" />
+        <Spin tip={translate('visible.a826e787c0')} size="large" />
       </div>
     )
   }
@@ -63,14 +64,13 @@ export default function SharedFavoritePage() {
     return (
       <Result
         status="404"
-        title="链接不可用"
-        subTitle={error || '分享内容不存在或已过期'}
+        title={translate('auto.08224d52f1')}
+        subTitle={error || translate('visible.bf2e94aad7')}
         extra={
           <Space>
-            <Button onClick={() => navigate(-1)}>返回</Button>
+            <Button onClick={() => navigate(-1)}>{translate('app.back')}</Button>
             <Button type="primary" href={withAppBasePath('/login')}>
-              登录系统
-            </Button>
+              {translate('auto.6da511835b')}</Button>
           </Space>
         }
       />
@@ -86,9 +86,9 @@ export default function SharedFavoritePage() {
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <div>
             <Title level={3} style={{ marginBottom: 8 }}>
-              {favorite.name || '共享收藏夹'}
+              {favorite.name || translate('visible.4bd0d35948')}
             </Title>
-            <Text type="secondary">由 {ownerName} 分享</Text>
+            <Text type="secondary">{translate('auto.2b86dd4507')}{ownerName} {translate('auto.7a92434114')}</Text>
           </div>
           {favorite.description && <Paragraph>{favorite.description}</Paragraph>}
           {favorite.category_name && (
@@ -97,9 +97,9 @@ export default function SharedFavoritePage() {
         </Space>
       </Card>
 
-      <Card title="收藏内容">
+      <Card title={translate('auto.00f82aeb03')}>
         {items.length === 0 ? (
-          <Empty description="暂无收藏内容" />
+          <Empty description={translate('auto.ea5f648da5')} />
         ) : (
           <List
             itemLayout="vertical"

@@ -1,6 +1,7 @@
 import React from 'react'
 import { Button, Input, Select } from 'antd'
 import { Download, Plus, Trash2, Upload, CopyCheck } from 'lucide-react'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Search } = Input
 
@@ -39,6 +40,7 @@ export default function QuestionToolbar({
   dupOnly,
   onToggleDup,
 }: Props) {
+  const { t } = useLanguage()
   // 本地关键字，只在点击“查询”时提交
   const [keyword, setKeyword] = React.useState(search)
   React.useEffect(() => setKeyword(search ?? ''), [search])
@@ -78,11 +80,11 @@ export default function QuestionToolbar({
         }}
       >
         <Search
-          placeholder="按标题搜索…"
+          placeholder={t('questions.mgmt_search')}
           value={keyword}
           onChange={e => setKeyword(e.target.value)}
           onSearch={v => submitQuery(v)}
-          enterButton="查询"
+          enterButton={t('app.search')}
           allowClear
           // ★ 占据剩余空间，可收缩
           style={{ flex: '1 1 420px', minWidth: 220 }}
@@ -94,11 +96,11 @@ export default function QuestionToolbar({
           // ★ 固定宽度，不会把行撑高
           style={{ flex: '0 0 160px' }}
           options={[
-            { value: 'all', label: '所有类型' },
-            { value: 'single_choice', label: '单选题' },
-            { value: 'multiple_choice', label: '多选题' },
-            { value: 'true_false', label: '判断题' },
-            { value: 'short_answer', label: '简答题' },
+            { value: 'all', label: t('questions.type_all') },
+            { value: 'single_choice', label: t('questions.type_single') },
+            { value: 'multiple_choice', label: t('questions.type_multiple') },
+            { value: 'true_false', label: t('questions.type_true_false') },
+            { value: 'short_answer', label: t('questions.type_short') },
           ]}
         />
 
@@ -107,10 +109,10 @@ export default function QuestionToolbar({
           allowClear
           showSearch
           optionFilterProp="label"
-          placeholder="按标签筛选（可多选）"
+          placeholder={t('questions.filter_by_tag')}
           value={selectedTags}
           onChange={onTagsChange}
-          notFoundContent="暂无数据"
+          notFoundContent={t('common.no_data')}
           maxTagCount="responsive"
           popupMatchSelectWidth={false}
           // ★ 可收缩的固定基准宽度
@@ -137,22 +139,22 @@ export default function QuestionToolbar({
           icon={<CopyCheck size={16} />}
           onClick={() => onToggleDup(!dupOnly)}
         >
-          {dupOnly ? '仅看重复(开)' : '仅看重复'}
+          {dupOnly ? t('questions.dup_only_on') : t('questions.dup_only')}
         </Button>
 
         {selectedCount > 0 && (
           <Button danger icon={<Trash2 size={16} />} onClick={onBatchDelete}>
-            批量删除 ({selectedCount})
+            {t('questions.batch_delete')} ({selectedCount})
           </Button>
         )}
         <Button icon={<Upload size={16} />} onClick={onOpenImport}>
-          批量导入
+          {t('questions.batch_import')}
         </Button>
         <Button icon={<Download size={16} />} onClick={onOpenExport}>
-          批量导出
+          {t('questions.batch_export')}
         </Button>
         <Button type="primary" icon={<Plus size={16} />} onClick={onOpenAdd}>
-          新增题目
+          {t('questions.add')}
         </Button>
       </div>
     </div>

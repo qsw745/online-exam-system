@@ -6,6 +6,7 @@ import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { useUserSettings } from '@/features/settings/hooks/useUserSettings'
 import { AppearanceCard } from '@/features/settings/components/AppearanceCard'
 import { NotificationsCard } from '@/features/settings/components/NotificationsCard'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title } = Typography
 
@@ -24,7 +25,7 @@ export default function PreferencesTab() {
   return (
     <div style={{ maxWidth: 820, margin: '0 auto', display: 'grid', gap: 16 }}>
       <Title level={3} style={{ marginBottom: 0 }}>
-        {t('settings.preferences') || '偏好设置'}
+        {t('settings.preferences') || translate('settings.preferences')}
       </Title>
 
       <AppearanceCard

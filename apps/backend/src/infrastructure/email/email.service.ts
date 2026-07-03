@@ -61,6 +61,35 @@ class EmailService {
     return this.sendEmail(to, template)
   }
 
+  async sendVerificationEmail(to: string, verifyToken: string, username: string): Promise<boolean> {
+    const base = process?.env?.FRONTEND_URL || 'http://localhost:5173'
+    const verifyUrl = `${String(base).replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(verifyToken)}`
+    const subject = '邮箱验证 - 在线考试系统'
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+      .container{max-width:600px;margin:0 auto;font-family:Arial}
+      .header{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;padding:20px;text-align:center}
+      .content{padding:30px;background:#f9f9f9}
+      .button{display:inline-block;background:#667eea;color:#fff;padding:12px 30px;text-decoration:none;border-radius:5px;margin:20px 0}
+      .footer{padding:20px;text-align:center;color:#666;font-size:12px}
+      .warning{background:#fff3cd;border:1px solid #ffeaa7;padding:15px;border-radius:5px;margin:20px 0}
+    </style></head><body><div class="container">
+      <div class="header"><h1>验证你的邮箱</h1></div>
+      <div class="content">
+        <p>亲爱的 ${username}，</p>
+        <p>感谢注册在线考试系统。请点击下面的按钮完成邮箱验证后再登录：</p>
+        <div style="text-align:center;"><a href="${verifyUrl}" class="button">验证邮箱</a></div>
+        <div class="warning"><strong>重要提醒：</strong>
+          <ul><li>此链接将在 24 小时后过期</li><li>如果这不是你本人注册，请忽略此邮件</li></ul>
+        </div>
+        <p>如果按钮无法点击，请复制以下链接到浏览器地址栏：</p>
+        <p style="word-break:break-all;background:#f0f0f0;padding:10px;border-radius:3px;">${verifyUrl}</p>
+      </div>
+      <div class="footer"><p>此邮件由系统自动发送，请勿回复。</p><p>© 2024 在线考试系统.</p></div>
+    </div></body></html>`
+    const text = `邮箱验证\n\n亲爱的 ${username}，\n\n请访问以下链接完成邮箱验证后再登录：\n${verifyUrl}\n\n链接 24 小时后过期。若非本人注册请忽略。\n\n此邮件由系统自动发送，请勿回复。© 2024 在线考试系统。`
+    return this.sendEmail(to, { subject, html, text })
+  }
+
   async sendPlainEmail(to: string, subject: string, content: string): Promise<boolean> {
     const safeSubject = String(subject || '').trim() || '通知'
     const safeContent = String(content || '').trim() || '请查看系统消息。'

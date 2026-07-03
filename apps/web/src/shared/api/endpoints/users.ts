@@ -127,6 +127,19 @@ export const usersApi = {
       })
     )
   },
+
+  // —— 管理员代录/管理用户人脸凭据 —— //
+  faceStatus: (id: string | number) =>
+    api.get<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
+      `/users/${id}/face`
+    ),
+  faceEnroll: (id: string | number, payload: { images: string[]; consent: boolean }) =>
+    api.post<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
+      `/users/${id}/face/enroll`,
+      payload,
+      { timeout: 60000 }
+    ),
+  faceUnenroll: (id: string | number) => api.delete<{ removed: number }>(`/users/${id}/face`),
 }
 
 export const users = usersApi

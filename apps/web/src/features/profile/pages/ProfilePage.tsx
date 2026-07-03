@@ -4,6 +4,7 @@ import { Save } from 'lucide-react'
 import AvatarUploader from '../components/AvatarUploader'
 import ProfileForm from '../components/ProfileForm'
 import ProfileStats from '../components/ProfileStats'
+import FaceLoginCard from '../components/FaceLoginCard'
 import { useProfilePage } from '../hooks/useProfilePage'
 const { Title } = Typography
 
@@ -42,6 +43,8 @@ export default function ProfilePage() {
             </Button>
           </div>
         </Card>
+
+        <FaceLoginCard />
       </Space>
     </App>
   )

@@ -1,14 +1,43 @@
 // app/providers/AntdThemeProvider.tsx
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { App as AntdApp, ConfigProvider, theme as antdTheme, type ThemeConfig } from 'antd'
+import { App as AntdApp, ConfigProvider, Modal, theme as antdTheme, type ThemeConfig } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import enUS from 'antd/locale/en_US'
+import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
+import { setDateTimeFormat } from '@/shared/utils/datetime'
+import { setWatermarkConfig } from '@/shared/utils/watermark'
 
 type Mode = 'light' | 'dark'
 type ThemeCtx = { mode: Mode; toggle: () => void; setMode: (m: Mode) => void }
 
 const ThemeContext = createContext<ThemeCtx | null>(null)
 const STORAGE_KEY = 'app-theme-mode'
+const STATIC_MODAL_METHODS = ['confirm', 'info', 'success', 'error', 'warning', 'warn'] as const
+const originalStaticModalMethods = new Map<string, any>()
+
+function resolveAntdLocale<T extends Record<string, any>>(locale: T): T {
+  return ((locale as any).default || locale) as T
+}
+
+function patchStaticModalLocale(locale: typeof zhCN) {
+  const resolvedLocale = resolveAntdLocale(locale as any)
+  const modalLocale = resolvedLocale.Modal || {}
+  const isZh = String(resolvedLocale.locale || '').toLowerCase().startsWith('zh')
+  const okText = modalLocale.okText || (isZh ? '确定' : 'OK')
+  const cancelText = modalLocale.cancelText || (isZh ? '取消' : 'Cancel')
+  STATIC_MODAL_METHODS.forEach(method => {
+    if (!originalStaticModalMethods.has(method)) {
+      originalStaticModalMethods.set(method, (Modal as any)[method])
+    }
+    const original = originalStaticModalMethods.get(method)
+    ;(Modal as any)[method] = (config: any = {}) =>
+      original({
+        okText,
+        cancelText,
+        ...config,
+      })
+  })
+}
 
 function detectInitialMode(): Mode {
   try {
@@ -52,6 +81,17 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
     } catch {}
     if (typeof document !== 'undefined') document.documentElement.setAttribute('data-theme', mode)
   }, [mode])
+
+  // 启动时注入全局日期时间格式与水印配置（公开设置，无需登录）
+  useEffect(() => {
+    adminSettingsApi
+      .getPublic()
+      .then(s => {
+        setDateTimeFormat((s as any)?.dateTimeFormat)
+        setWatermarkConfig(s as any)
+      })
+      .catch(() => {})
+  }, [])
 
   const toggle = () => setMode(p => (p === 'dark' ? 'light' : 'dark'))
 
@@ -136,7 +176,21 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
     [mode]
   )
 
-  const antdLocale = lang === 'en-US' ? enUS : zhCN
+  const antdLocale = resolveAntdLocale(lang === 'en-US' ? enUS : zhCN)
+
+  useEffect(() => {
+    patchStaticModalLocale(antdLocale)
+  }, [antdLocale])
+
+  useEffect(() => {
+    ConfigProvider.config({
+      holderRender: node => (
+        <ConfigProvider locale={antdLocale} theme={themeConfig}>
+          {node}
+        </ConfigProvider>
+      ),
+    })
+  }, [antdLocale, themeConfig])
 
   return (
     <ThemeContext.Provider value={{ mode, toggle, setMode }}>

@@ -1,5 +1,6 @@
 import React from 'react'
 import { Modal, Form, Input } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 const { TextArea } = Input
 
@@ -16,18 +17,18 @@ export const ReplyModal: React.FC<Props> = ({ open, onClose, form, onSubmit }) =
   return (
     <Modal
       maskClosable={false}
-      title="回复讨论"
+      title={translate('auto.3e5d854d61')}
       open={open}
       onCancel={onClose}
       onOk={() => form.submit()}
-      okText="回复"
-      cancelText="取消"
+      okText={translate('auto.ffc7850925')}
+      cancelText={translate('app.cancel')}
       // ↓↓↓ 修复：用 destroyOnHidden 取代 destroyOnClose
       destroyOnHidden
     >
       <Form form={form} layout="vertical" onFinish={onSubmit}>
-        <Form.Item name="content" label="回复内容" rules={[{ required: true, message: '请输入回复内容' }]}>
-          <TextArea rows={5} placeholder="请输入你的回复…" maxLength={2000} showCount allowClear />
+        <Form.Item name="content" label={translate('auto.a36c787d35')} rules={[{ required: true, message: translate('auto.9eb4b675e6') }]}>
+          <TextArea rows={5} placeholder={translate('auto.5f76f4a3f3')} maxLength={2000} showCount allowClear />
         </Form.Item>
       </Form>
     </Modal>

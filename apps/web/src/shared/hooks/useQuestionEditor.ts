@@ -6,6 +6,7 @@ import { questionsApi } from '@/shared/api/http'
 import type { OptionDTO, QuestionType } from '../types/question'
 import { buildPayload, normalizeFromServer } from '../api/normalizers/question-normalize'
 import type { ApiResult } from '@/shared/api/core/types'
+import { translate } from '@/shared/utils/i18n'
 
 // 统一抽取后端错误文案
 function pickErrMsg<T = unknown>(r?: ApiResult<T>): string {
@@ -60,7 +61,7 @@ export function useQuestionEditor() {
     setInitialLoading(true)
     try {
       const res = await questionsApi.getById(id)
-      if (!res?.success) return message.error(pickErrMsg(res) || '获取题目详情失败')
+      if (!res?.success) return message.error(pickErrMsg(res) || translate('questions.load_detail_failed'))
       const q = normalizeFromServer(res.data)
       setContent(q.content)
       setType(q.question_type)
@@ -74,7 +75,7 @@ export function useQuestionEditor() {
       else if (q.question_type === 'short_answer') setAnswer((q as any).answer || '')
       else setAnswer('')
     } catch (e: any) {
-      message.error(e?.message || '获取题目详情失败')
+      message.error(e?.message || translate('questions.load_detail_failed'))
     } finally {
       setInitialLoading(false)
     }
@@ -102,14 +103,14 @@ export function useQuestionEditor() {
     })
 
   const submit = async () => {
-    if (!content.trim()) return message.error('请输入题目内容')
+    if (!content.trim()) return message.error(translate('questions.content_required'))
 
     if (type === 'single_choice' || type === 'multiple_choice') {
-      if (options.some(o => !o.content.trim())) return message.error('选项内容不能为空')
-      if (!options.some(o => o.is_correct)) return message.error('请至少选择一个正确选项')
+      if (options.some(o => !o.content.trim())) return message.error(translate('questions.option_empty'))
+      if (!options.some(o => o.is_correct)) return message.error(translate('questions.need_correct_option'))
     }
-    if (type === 'true_false' && !answer) return message.error('请选择正确答案')
-    if (type === 'short_answer' && !answer.trim()) return message.error('请输入参考答案')
+    if (type === 'true_false' && !answer) return message.error(translate('questions.select_correct_answer'))
+    if (type === 'short_answer' && !answer.trim()) return message.error(translate('questions.need_ref_answer'))
 
     try {
       setLoading(true)
@@ -125,12 +126,12 @@ export function useQuestionEditor() {
       })
       const res = isEdit && id ? await questionsApi.update(id, payload) : await questionsApi.create(payload)
       if (!res?.success) {
-        return message.error(pickErrMsg(res) || (isEdit ? '题目更新失败' : '题目创建失败'))
+        return message.error(pickErrMsg(res) || (isEdit ? translate('questions.update_failed') : translate('questions.create_failed')))
       }
-      message.success(isEdit ? '题目更新成功' : '题目创建成功')
+      message.success(isEdit ? translate('questions.update_success') : translate('questions.create_success'))
       navigate('/admin/questions')
     } catch (e: any) {
-      message.error(e?.message || (isEdit ? '更新题目失败' : '创建题目失败'))
+      message.error(e?.message || (isEdit ? translate('auto.91a7ea0988') : translate('auto.d7c09709f4')))
     } finally {
       setLoading(false)
     }

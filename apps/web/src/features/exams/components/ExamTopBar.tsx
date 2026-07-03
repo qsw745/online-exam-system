@@ -1,5 +1,6 @@
 // src/features/exams/components/ExamTopBar.tsx
 import { Clock, Send } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
 
 export function ExamTopBar(props: {
   title: string
@@ -27,7 +28,7 @@ export function ExamTopBar(props: {
           className="flex items-center space-x-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Send className="w-5 h-5" />
-          <span>{submitting ? '提交中...' : submitText}</span>
+          <span>{submitting ? translate('exam.submitting') : submitText}</span>
         </button>
       </div>
     </div>

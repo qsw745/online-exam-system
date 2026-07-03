@@ -4,6 +4,7 @@ import { Button, Popconfirm, Space, Spin, Tag, Tree } from 'antd' // <-- 引入 
 
 import { buildTreeData } from '@/shared/utils/tree'
 import type { DataNode, TreeProps } from 'antd/es/tree'
+import { translate } from '@/shared/utils/i18n'
 
 export default function MenuTree({
   menus,
@@ -30,17 +31,17 @@ export default function MenuTree({
         <span style={{ fontWeight: 500 }}>{m.title}</span>
         <span style={{ color: '#9ca3af', fontSize: 12 }}>({m.name})</span>
         <Tag color={m.menu_type === 'menu' ? 'blue' : m.menu_type === 'button' ? 'green' : 'orange'}>
-          {m.menu_type === 'menu' ? '菜单' : m.menu_type === 'button' ? '按钮' : '页面'}
+          {m.menu_type === 'menu' ? translate('menuList.type.menu') : m.menu_type === 'button' ? translate('menuList.type.button') : translate('menuForm.type_page')}
         </Tag>
-        {m.is_hidden && <Tag color="red">隐藏</Tag>}
-        {m.is_disabled && <Tag color="gray">禁用</Tag>}
+        {m.is_hidden && <Tag color="red">{translate('menuList.hidden')}</Tag>}
+        {m.is_disabled && <Tag color="gray">{translate('users.status.disable')}</Tag>}
       </div>
 
       {!readOnly && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           <div style={{ color: '#6b7280', fontSize: 12, display: 'flex', gap: 8 }}>
-            {m.path && <span>路径: {m.path}</span>}
-            <span>排序: {m.sort_order}</span>
+            {m.path && <span>{translate('auto.abfc67c0ec')}{m.path}</span>}
+            <span>{translate('auto.d797283645')}{m.sort_order}</span>
           </div>
           <Space>
             {onEdit && (
@@ -67,7 +68,7 @@ export default function MenuTree({
             )}
             {onDelete && !m.is_system && (
               <Popconfirm
-                title="确定删除此菜单吗？"
+                title={translate('auto.386a6a665e')}
                 onConfirm={e => {
                   e?.stopPropagation?.()
                   onDelete(m.id)

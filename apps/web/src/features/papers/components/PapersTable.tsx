@@ -2,10 +2,12 @@ import { Button, Empty, Space, Switch, Table, Tag, Tooltip, Typography } from 'a
 import type { ColumnsType } from 'antd/es/table'
 import { EditOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
 import type { Paper } from '@/shared/api/endpoints/papers'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
-const diffText: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
+const diffKey: Record<string, string> = { easy: 'papers.diff_easy', medium: 'papers.diff_medium', hard: 'papers.diff_hard' }
 const diffColor: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
   easy: 'success',
   medium: 'warning',
@@ -14,14 +16,7 @@ const diffColor: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
 }
 
 function formatDate(input?: string | number | Date): string {
-  if (!input) return '-'
-  try {
-    const d = new Date(input)
-    if (Number.isNaN(d.getTime())) return '-'
-    return d.toLocaleString('zh-CN')
-  } catch {
-    return '-'
-  }
+  return formatDateTime(input) || '-'
 }
 
 export default function PapersTable({
@@ -41,9 +36,10 @@ export default function PapersTable({
   onDelete: (id: string | number) => void
   onReviewToggle: (paper: Paper, enabled: boolean) => void
 }) {
+  const { t } = useLanguage()
   const columns: ColumnsType<Paper> = [
     {
-      title: '试卷',
+      title: t('papers.col_paper'),
       dataIndex: 'title',
       key: 'title',
       width: 420,
@@ -61,37 +57,37 @@ export default function PapersTable({
       ),
     },
     {
-      title: '难度',
+      title: t('papers.col_difficulty'),
       dataIndex: 'difficulty',
       key: 'difficulty',
       width: 110,
-      render: (d?: string) => <Tag color={diffColor[d || 'default']}>{diffText[d || ''] || d || '—'}</Tag>,
+      render: (d?: string) => <Tag color={diffColor[d || 'default']}>{diffKey[d || ''] ? t(diffKey[d || '']) : d || '—'}</Tag>,
     },
     {
-      title: '总分',
+      title: t('papers.col_total_score'),
       dataIndex: 'total_score',
       key: 'total_score',
       width: 100,
       align: 'right',
-      render: (v?: number) => (typeof v === 'number' ? `${v} 分` : '—'),
+      render: (v?: number) => (typeof v === 'number' ? t('papers.score_unit').replace('{v}', String(v)) : '—'),
     },
     {
-      title: '时长',
+      title: t('papers.col_duration'),
       dataIndex: 'duration',
       key: 'duration',
       width: 100,
       align: 'right',
-      render: (v?: number) => (typeof v === 'number' ? `${v} 分钟` : '—'),
+      render: (v?: number) => (typeof v === 'number' ? t('papers.duration_unit').replace('{v}', String(v)) : '—'),
     },
     {
-      title: '创建时间',
+      title: t('papers.col_created_at'),
       dataIndex: 'created_at' as any,
       key: 'created_at',
       width: 200,
       render: (_: any, r) => formatDate((r as any).created_at ?? (r as any).createdAt),
     },
     {
-      title: '审批',
+      title: t('papers.col_approval'),
       key: 'workflow',
       width: 180,
       render: (_: any, r) => {
@@ -99,12 +95,12 @@ export default function PapersTable({
         const enabled = raw === true || raw === 1 || raw === '1'
         return (
           <Space size={8}>
-            <Tag color={enabled ? 'processing' : 'default'}>{enabled ? '需审批' : '无需审批'}</Tag>
+            <Tag color={enabled ? 'processing' : 'default'}>{enabled ? t('papers.need_approval') : t('papers.no_approval')}</Tag>
             <Switch
               size="small"
               checked={enabled}
-              checkedChildren="是"
-              unCheckedChildren="否"
+              checkedChildren={t('common.yes')}
+              unCheckedChildren={t('common.no')}
               onChange={checked => onReviewToggle(r, checked)}
             />
           </Space>
@@ -112,7 +108,7 @@ export default function PapersTable({
       },
     },
     {
-      title: '操作',
+      title: t('papers.col_actions'),
       key: 'actions',
       width: 200,
       fixed: 'right',
@@ -121,11 +117,11 @@ export default function PapersTable({
       render: (_: any, r) => (
         <Space size={4} wrap>
           <Button size="small" type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>
-            编辑
+            {t('app.edit')}
           </Button>
-          <Tooltip title="删除后不可恢复">
+          <Tooltip title={t('papers.delete_tooltip')}>
             <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => onDelete(r.id)}>
-              删除
+              {t('app.delete')}
             </Button>
           </Tooltip>
         </Space>
@@ -150,7 +146,7 @@ export default function PapersTable({
       }}
       locale={{
         emptyText: (
-          <Empty image={<FileTextOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />} description="暂无试卷" />
+          <Empty image={<FileTextOutlined style={{ fontSize: 48, color: '#d9d9d9' }} />} description={t('papers.empty')} />
         ),
       }}
     />

@@ -59,7 +59,12 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
     )
     if (!resp.ok) {
       const text = await resp.text().catch(() => '')
-      throw new Error(`AI request failed: ${resp.status} ${resp.statusText} ${text}`)
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error(
+          `AI 服务认证失败（${resp.status}）：API Key 无效或所选模型无权限，请在后台「系统设置 → AI」检查密钥/接口地址/模型`
+        )
+      }
+      throw new Error(`AI 服务调用失败（${resp.status} ${resp.statusText}）：${String(text).slice(0, 200)}`)
     }
     const json = await resp.json()
     const content = json?.message?.content ?? ''
@@ -99,7 +104,12 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
 
   if (!resp.ok) {
     const text = await resp.text().catch(() => '')
-    throw new Error(`AI request failed: ${resp.status} ${resp.statusText} ${text}`)
+    if (resp.status === 401 || resp.status === 403) {
+      throw new Error(
+        `AI 服务认证失败（${resp.status}）：API Key 无效或所选模型无权限，请在后台「系统设置 → AI」检查密钥/接口地址/模型`
+      )
+    }
+    throw new Error(`AI 服务调用失败（${resp.status} ${resp.statusText}）：${String(text).slice(0, 200)}`)
   }
 
   const json = await resp.json()

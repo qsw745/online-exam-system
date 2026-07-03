@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react'
 import type { ResultDetail } from '@/shared/api/endpoints/results'
 import { aiApi } from '@/shared/api/endpoints/ai'
 import { proctoringApi, type ProctoringList } from '@/shared/api/endpoints/proctoring'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -45,11 +47,11 @@ function formatOptionLettersToText(letters: string[], options: string[] | null):
 }
 
 function renderAnswerByType(type: string, value: string | null, options: string[] | null) {
-  if (value == null || value === '') return <Text type="secondary">未作答</Text>
+  if (value == null || value === '') return <Text type="secondary">{translate('auto.1516d7b39e')}</Text>
 
   if (type === 'true_false') {
     const b = asBool(value)
-    return <Text>{b === null ? String(value) : b ? '正确' : '错误'}</Text>
+    return <Text>{b === null ? String(value) : b ? translate('questions.tf_true') : translate('questions.tf_false')}</Text>
   }
 
   if (type === 'multiple_choice') {
@@ -126,7 +128,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
       const parsed = root?.data ?? root
       setAiSummary(parsed)
     } catch (e: any) {
-      message.error(e?.message || 'AI 总结失败')
+      message.error(e?.message || translate('auto.7d6733f5b9'))
     } finally {
       setAiLoading(false)
     }
@@ -161,39 +163,38 @@ export default function ResultDetailView({ data, onBack }: Props) {
     <Space direction="vertical" style={{ width: '100%' }} size="large">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0 }}>
-          {data.paper_title || '考试成绩详情'}
+          {data.paper_title || translate('visible.701efbdcb5')}
         </Title>
         <Space>
           <Tag color={tagColor}>
-            {uiStatus === 'completed' ? '已完成' : uiStatus === 'in_progress' ? '进行中' : '未开始'}
+            {uiStatus === 'completed' ? translate('dashboard.status_completed') : uiStatus === 'in_progress' ? translate('dashboard.status_in_progress') : translate('dashboard.status_not_started')}
           </Tag>
           <Button onClick={requestAiSummary} loading={aiLoading}>
-            AI总结
-          </Button>
-          {onBack && <Button onClick={onBack}>返回列表</Button>}
+            {translate('auto.3c756fd702')}</Button>
+          {onBack && <Button onClick={onBack}>{translate('papers.back_to_list')}</Button>}
         </Space>
       </div>
 
       <Card>
         <Descriptions column={3} bordered size="middle">
-          <Descriptions.Item label="成绩">{scoreLine}</Descriptions.Item>
-          <Descriptions.Item label="正确率">{data.percentage != null ? `${data.percentage}%` : '-'}</Descriptions.Item>
-          <Descriptions.Item label="用时（秒）">{data.duration ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="开始时间">{data.start_time || '-'}</Descriptions.Item>
-          <Descriptions.Item label="提交时间">{data.end_time || '-'}</Descriptions.Item>
-          <Descriptions.Item label="考试ID">{data.exam_id ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label="试卷ID" span={2}>
+          <Descriptions.Item label={translate('nav.results')}>{scoreLine}</Descriptions.Item>
+          <Descriptions.Item label={translate('auto.8dc159502e')}>{data.percentage != null ? `${data.percentage}%` : '-'}</Descriptions.Item>
+          <Descriptions.Item label={translate('auto.c581cec042')}>{data.duration ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={translate('dashboard.start_time')}>{formatDateTime(data.start_time) || '-'}</Descriptions.Item>
+          <Descriptions.Item label={translate('dashboard.submit_time')}>{formatDateTime(data.end_time) || '-'}</Descriptions.Item>
+          <Descriptions.Item label={translate('auto.2514f93ebe')}>{data.exam_id ?? '-'}</Descriptions.Item>
+          <Descriptions.Item label={translate('auto.5cfe3f239d')} span={2}>
             {data.paper_id ?? '-'}
           </Descriptions.Item>
         </Descriptions>
       </Card>
 
       {aiSummary && (
-        <Card title="AI总结">
+        <Card title={translate('auto.3c756fd702')}>
           {'summary' in aiSummary && <Paragraph>{aiSummary.summary}</Paragraph>}
           {strengths.length > 0 && (
             <>
-              <Text strong>优势：</Text>
+              <Text strong>{translate('auto.16f102ba76')}</Text>
               <List<string>
                 size="small"
                 dataSource={strengths}
@@ -204,7 +205,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
           {weaknesses.length > 0 && (
             <>
               <Divider style={{ margin: '12px 0' }} />
-              <Text strong>薄弱点：</Text>
+              <Text strong>{translate('auto.965ee9c852')}</Text>
               <List<string>
                 size="small"
                 dataSource={weaknesses}
@@ -215,7 +216,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
           {nextSteps.length > 0 && (
             <>
               <Divider style={{ margin: '12px 0' }} />
-              <Text strong>建议：</Text>
+              <Text strong>{translate('auto.025837508a')}</Text>
               <List<string>
                 size="small"
                 dataSource={nextSteps}
@@ -227,16 +228,16 @@ export default function ResultDetailView({ data, onBack }: Props) {
         </Card>
       )}
 
-      <Card title="AI监管">
+      <Card title={translate('auto.a5311752db')}>
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
           <Space wrap>
-            <Tag>总计 {proctorSummary.total}</Tag>
-            <Tag color="warning">警告 {proctorSummary.warn}</Tag>
-            <Tag color="error">严重 {proctorSummary.critical}</Tag>
-            <Tag color="default">提示 {proctorSummary.info}</Tag>
+            <Tag>{translate('auto.3af1ac5b4e')}{proctorSummary.total}</Tag>
+            <Tag color="warning">{translate('auto.5521e368d8')}{proctorSummary.warn}</Tag>
+            <Tag color="error">{translate('auto.81ffc6f5a4')}{proctorSummary.critical}</Tag>
+            <Tag color="default">{translate('auto.ab3656a956')}{proctorSummary.info}</Tag>
           </Space>
           {proctorLoading ? (
-            <Text type="secondary">加载中...</Text>
+            <Text type="secondary">{translate('app.loading')}</Text>
           ) : proctorItems.length > 0 ? (
             <List
               size="small"
@@ -246,18 +247,18 @@ export default function ResultDetailView({ data, onBack }: Props) {
                   <Space>
                     <Tag color={sevColor(item.severity)}>{sevLabel(item.severity)}</Tag>
                     <Text>{item.message || item.type}</Text>
-                    <Text type="secondary">{item.created_at}</Text>
+                    <Text type="secondary">{formatDateTime(item.created_at)}</Text>
                   </Space>
                 </List.Item>
               )}
             />
           ) : (
-            <Text type="secondary">暂无监管记录</Text>
+            <Text type="secondary">{translate('auto.378c7e490d')}</Text>
           )}
         </Space>
       </Card>
 
-      <Card title="题目明细">
+      <Card title={translate('auto.76884ec560')}>
         <List
           itemLayout="vertical"
           dataSource={[...(data.questions || [])].sort((a, b) => a.order - b.order)}
@@ -268,7 +269,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
               <List.Item key={q.id}>
                 <Space direction="vertical" style={{ width: '100%' }}>
                   <Space align="start">
-                    <Tag color={color}>{ok ? '正确' : q.is_correct == null ? '未判定' : '错误'}</Tag>
+                    <Tag color={color}>{ok ? translate('questions.tf_true') : q.is_correct == null ? translate('visible.565b60c565') : translate('questions.tf_false')}</Tag>
                     <Text strong>{`Q${idx + 1}. (${q.score}分) [${q.type}]`}</Text>
                   </Space>
 
@@ -285,10 +286,10 @@ export default function ResultDetailView({ data, onBack }: Props) {
                   )}
 
                   <div style={{ marginTop: 8 }}>
-                    <Text type="secondary">你的答案：</Text> {renderAnswerByType(q.type, q.user_answer, q.options)}
+                    <Text type="secondary">{translate('auto.758722bee9')}</Text> {renderAnswerByType(q.type, q.user_answer, q.options)}
                   </div>
                   <div>
-                    <Text type="secondary">正确答案：</Text> {renderAnswerByType(q.type, q.correct_answer, q.options)}
+                    <Text type="secondary">{translate('auto.b767475397')}</Text> {renderAnswerByType(q.type, q.correct_answer, q.options)}
                   </div>
 
                   <Divider style={{ margin: '12px 0' }} />

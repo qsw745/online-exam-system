@@ -1,7 +1,8 @@
 // src/features/questions/practice/components/QuestionCardGrid.tsx
 import React from 'react'
 import { Card, Col, Row, Space, Spin, Tag, Typography } from 'antd'
-import { diffLabel as diffLbl, typeLabel as typeLbl } from '@/features/questions/browse/utils/labelMaps'
+import { diffLabelKey, typeLabelKey } from '@/features/questions/browse/utils/labelMaps'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -20,7 +21,7 @@ type Props = {
 
 export default function QuestionCardGrid({ loading, list, onCardClick }: Props) {
   return (
-    <Spin spinning={!!loading} tip="加载题目中...">
+    <Spin spinning={!!loading} tip={translate('questions.loading')}>
       <Row gutter={[12, 12]}>
         {list.map((q, idx) => (
           <Col key={q.id} xs={24} sm={12} md={8} lg={6}>
@@ -31,10 +32,10 @@ export default function QuestionCardGrid({ loading, list, onCardClick }: Props) 
             >
               <Space direction="vertical" style={{ flex: 1 }}>
                 <Space>
-                  {q.question_type && <Tag color="blue">{(typeLbl as any)[q.question_type] || q.question_type}</Tag>}
+                  {q.question_type && <Tag color="blue">{typeLabelKey[q.question_type] ? translate(typeLabelKey[q.question_type]) : q.question_type}</Tag>}
                   {q.difficulty && (
                     <Tag color={q.difficulty === 'easy' ? 'green' : q.difficulty === 'medium' ? 'orange' : 'red'}>
-                      {(diffLbl as any)[q.difficulty] || q.difficulty}
+                      {diffLabelKey[q.difficulty] ? translate(diffLabelKey[q.difficulty]) : q.difficulty}
                     </Tag>
                   )}
                 </Space>
@@ -48,7 +49,7 @@ export default function QuestionCardGrid({ loading, list, onCardClick }: Props) 
                     WebkitBoxOrient: 'vertical',
                   }}
                 >
-                  {q.content || `题目 #${q.id}`}
+                  {q.content || `${translate('questions.item_fallback')} #${q.id}`}
                 </div>
               </Space>
             </Card>

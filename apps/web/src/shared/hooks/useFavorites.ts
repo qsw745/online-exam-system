@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
 import { favoritesApi, type Favorite, type FavoriteItem } from '@/shared/api/endpoints/favorites'
+import { translate } from '@/shared/utils/i18n'
 
 /** 将后端返回的字段做统一规范化（尤其 is_public 可能是 0/1） */
 function normalizeFavorite(f: any): Favorite {
@@ -39,7 +40,7 @@ export function useFavorites() {
       if (!selectedId && normalized.length > 0) setSelectedId(normalized[0].id)
     } catch (e: any) {
       console.error(e)
-      message.error('获取收藏夹失败')
+      message.error(translate('auto.f32af26ff3'))
     } finally {
       setLoading(false)
     }
@@ -53,7 +54,7 @@ export function useFavorites() {
         setItems(list ?? [])
       } catch (e: any) {
         console.error(e)
-        message.error('获取收藏夹内容失败')
+        message.error(translate('auto.559f885b42'))
       } finally {
         setItemsLoading(false)
       }
@@ -65,11 +66,11 @@ export function useFavorites() {
     async (payload: Partial<Favorite>) => {
       // 未选择分类显式传 null
       const created = await favoritesApi.create({ ...payload, category_id: payload.category_id ?? null })
-      if (!created) throw new Error('创建失败')
+      if (!created) throw new Error(translate('roles.message.create_failed'))
       const normalized = normalizeFavorite(created)
       setFavorites(prev => [normalized, ...prev])
       setSelectedId(normalized.id)
-      message.success('创建收藏夹成功')
+      message.success(translate('auto.802f4b37f6'))
     },
     [message]
   )
@@ -78,10 +79,10 @@ export function useFavorites() {
     async (payload: Partial<Favorite>) => {
       if (!selected) return
       const updated = await favoritesApi.update(selected.id, payload)
-      if (!updated) throw new Error('更新失败')
+      if (!updated) throw new Error(translate('roles.message.update_failed'))
       const normalized = normalizeFavorite(updated)
       setFavorites(prev => prev.map(f => (f.id === selected.id ? normalized : f)))
-      message.success('更新收藏夹成功')
+      message.success(translate('auto.2d1ff04d3c'))
     },
     [message, selected]
   )
@@ -94,7 +95,7 @@ export function useFavorites() {
         setSelectedId(null)
         setItems([])
       }
-      message.success('删除收藏夹成功')
+      message.success(translate('auto.c3c1119821'))
     },
     [message, selectedId]
   )
@@ -107,7 +108,7 @@ export function useFavorites() {
       setFavorites(prev =>
         prev.map(f => (f.id === selected.id ? { ...f, items_count: Math.max(0, Number(f.items_count ?? 0) - 1) } : f))
       )
-      message.success('移除成功')
+      message.success(translate('auto.46c52b46d4'))
     },
     [message, selected]
   )
@@ -115,10 +116,10 @@ export function useFavorites() {
   const shareFavorite = useCallback(
     async (fid: number) => {
       const link = await favoritesApi.share(fid)
-      if (!link) throw new Error('无分享链接')
+      if (!link) throw new Error(translate('auto.406bf2ab41'))
       if (navigator?.clipboard?.writeText) {
         await navigator.clipboard.writeText(link)
-        message.success('分享链接已复制到剪贴板')
+        message.success(translate('auto.df304eb663'))
       } else {
         window.open(link, '_blank')
       }

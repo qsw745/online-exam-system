@@ -3,6 +3,7 @@ import { Button, DatePicker, Input, Select, Space, Typography } from 'antd'
 import { Clock } from 'lucide-react'
 import type { Dayjs } from 'dayjs'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
 
 const { RangePicker } = DatePicker
 const { Text } = Typography
@@ -40,11 +41,10 @@ export default function LoginFiltersBar({
       {/* 用户名 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 64, textAlign: 'right' }}>
-          用户名
-        </Text>
+          {translate('auth.username')}</Text>
         <Input
           allowClear
-          placeholder="请输入用户名"
+          placeholder={translate('auto.ad5f05f1cf')}
           value={filters.username}
           onChange={e => onChange({ username: e.target.value })}
         />
@@ -53,16 +53,15 @@ export default function LoginFiltersBar({
       {/* 登录状态 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 64, textAlign: 'right' }}>
-          登录状态
-        </Text>
+          {translate('auto.854597d2b1')}</Text>
         <Select
           value={filters.status ?? ''}
           onChange={v => onChange({ status: v })}
-          placeholder="请选择"
+          placeholder={translate('users.filters.status_placeholder')}
           options={[
-            { value: '', label: '全部' },
-            { value: 'success', label: '成功' },
-            { value: 'fail', label: '失败' },
+            { value: '', label: translate('auto.778fc8f994') },
+            { value: 'success', label: translate('auto.51991a5d11') },
+            { value: 'fail', label: translate('auto.3e3c8068bb') },
           ]}
         />
       </div>
@@ -70,25 +69,24 @@ export default function LoginFiltersBar({
       {/* 登录时间：开始 至 结束 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 68, textAlign: 'right' }}>
-          登录时间
-        </Text>
+          {translate('auto.570df2c0f9')}</Text>
 
         <Space.Compact style={{ width: '100%' }}>
           <DatePicker
             value={start || undefined}
             onChange={v => onChange({ dateRange: (v && end ? [v, end] : v ? [v, null] : null) as any })}
-            placeholder="开始日期时间"
+            placeholder={translate('auto.88ab31c323')}
             showTime={false}
             format="YYYY-MM-DD"
             style={{ width: '48%' }}
             allowClear
             suffixIcon={<Clock size={16} />}
           />
-          <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', color: '#999' }}>至</div>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', color: '#999' }}>{translate('auto.43401e739e')}</div>
           <DatePicker
             value={end || undefined}
             onChange={v => onChange({ dateRange: (start && v ? [start, v] : v ? [null, v] : null) as any })}
-            placeholder="结束日期时间"
+            placeholder={translate('auto.e1a17a6d26')}
             showTime={false}
             format="YYYY-MM-DD"
             style={{ width: '48%' }}
@@ -101,13 +99,11 @@ export default function LoginFiltersBar({
 
       {/* 搜索 */}
       <Button type="primary" onClick={onSearch} loading={loading}>
-        搜索
-      </Button>
+        {translate('app.search')}</Button>
 
       {/* 重置 */}
       <Button onClick={onReset} disabled={loading}>
-        重置
-      </Button>
+        {translate('app.reset')}</Button>
     </div>
   )
 }

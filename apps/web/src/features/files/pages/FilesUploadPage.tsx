@@ -5,6 +5,8 @@ import dayjs from '@/shared/utils/dayjs'
 import { filesApi } from '@/shared/api/endpoints/files'
 import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import type { FileRecord } from '../types'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text } = Typography
 
@@ -37,7 +39,7 @@ export default function FilesUploadPage() {
       setRows(Array.isArray(data.items) ? data.items : [])
       setTotal(data.pagination?.total || 0)
     } catch (e: any) {
-      message.error(e?.message || '加载上传记录失败')
+      message.error(e?.message || translate('auto.fd4fcd39d1'))
       setRows([])
       setTotal(0)
     } finally {
@@ -52,10 +54,10 @@ export default function FilesUploadPage() {
   const handleDelete = async (record: FileRecord) => {
     try {
       await filesApi.remove(record.id)
-      message.success('删除成功')
+      message.success(translate('users.message.delete_success'))
       fetchRows()
     } catch (e: any) {
-      message.error(e?.message || '删除失败')
+      message.error(e?.message || translate('orgs.message.delete_failed'))
     }
   }
 
@@ -67,7 +69,7 @@ export default function FilesUploadPage() {
 
   const columns = [
     {
-      title: '文件名',
+      title: translate('auto.1275f6feb7'),
       dataIndex: 'name',
       key: 'name',
       render: (_: string, record: FileRecord) => (
@@ -78,7 +80,7 @@ export default function FilesUploadPage() {
       ),
     },
     {
-      title: '标签',
+      title: translate('questions.col_tags'),
       dataIndex: 'tags',
       key: 'tags',
       render: (tags: string[]) =>
@@ -93,28 +95,28 @@ export default function FilesUploadPage() {
         ),
     },
     {
-      title: '大小',
+      title: translate('files.columns.size'),
       dataIndex: 'size',
       key: 'size',
       width: 140,
       render: (size: number) => formatSize(size),
     },
     {
-      title: '类型',
+      title: translate('systemConfig.col_type'),
       dataIndex: 'mime_type',
       key: 'mime_type',
       width: 160,
       render: (type: string) => type || '-',
     },
     {
-      title: '上传时间',
+      title: translate('auto.109db23827'),
       dataIndex: 'created_at',
       key: 'created_at',
       width: 200,
-      render: (value: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (value: string) => (value ? formatDateTime(value) : '-'),
     },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       key: 'actions',
       width: 160,
       render: (_: any, record: FileRecord) => {
@@ -122,11 +124,11 @@ export default function FilesUploadPage() {
         return (
           <Space>
             {url && (
-              <Tooltip title="下载">
+              <Tooltip title={translate('files.download')}>
                 <Button size="small" icon={<DownloadOutlined />} onClick={() => window.open(url, '_blank')} />
               </Tooltip>
             )}
-            <Popconfirm title="确定删除该文件？" onConfirm={() => handleDelete(record)}>
+            <Popconfirm title={translate('auto.0a75f446d1')} onConfirm={() => handleDelete(record)}>
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           </Space>
@@ -141,13 +143,12 @@ export default function FilesUploadPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 8 }}>
-              上传管理
-            </Title>
-            <Text type="secondary">查看最近的上传记录并执行删除或下载等操作</Text>
+              {translate('menus.files-upload')}</Title>
+            <Text type="secondary">{translate('auto.ab5ffabb75')}</Text>
           </div>
           <Space>
             <Input.Search
-              placeholder="搜索文件名"
+              placeholder={translate('auto.f278077d2e')}
               value={keyword}
               allowClear
               onChange={e => {
@@ -178,7 +179,7 @@ export default function FilesUploadPage() {
             current: page,
             pageSize: limit,
             total,
-            unit: '个文件',
+            unit: translate('visible.6218629ae2'),
             onChange: handlePaginationChange,
           })}
         />

@@ -4,6 +4,8 @@ import { Descriptions, Modal, Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from '@/shared/utils/dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 // ✅ 允许出现各式各样的后端别名字段
 type Row = LogEntry & {
@@ -101,28 +103,28 @@ export default function SystemLogsTable({ data, loading }: { data: Row[]; loadin
 
   const columns: ColumnsType<Row> = [
     { title: 'ID', dataIndex: 'id', width: 80, fixed: 'left' },
-    { title: '所属模块', width: 160, ellipsis: true, render: (_: any, r) => pickModule(r) },
-    { title: '请求接口', width: 260, ellipsis: true, render: (_: any, r) => pickPath(r) },
-    { title: '请求方法', width: 110, ellipsis: true, render: (_: any, r) => pickMethod(r) },
-    { title: 'IP 地址', width: 150, ellipsis: true, render: (_: any, r) => pickIP(r) },
-    { title: '地点', width: 220, ellipsis: true, render: (_: any, r) => pickLocation(r) },
-    { title: '操作系统', width: 140, ellipsis: true, render: (_: any, r) => pickOS(r) },
-    { title: '浏览器类型', width: 140, ellipsis: true, render: (_: any, r) => pickBrowser(r) },
-    { title: '请求耗时', width: 120, align: 'center', render: (_: any, r) => durTag(pickDuration(r)) },
+    { title: translate('auto.27713f242f'), width: 160, ellipsis: true, render: (_: any, r) => pickModule(r) },
+    { title: translate('auto.4a30b04730'), width: 260, ellipsis: true, render: (_: any, r) => pickPath(r) },
+    { title: translate('auto.4d150364fe'), width: 110, ellipsis: true, render: (_: any, r) => pickMethod(r) },
+    { title: translate('auto.010efa2cbc'), width: 150, ellipsis: true, render: (_: any, r) => pickIP(r) },
+    { title: translate('auto.e9e0a3f4e5'), width: 220, ellipsis: true, render: (_: any, r) => pickLocation(r) },
+    { title: translate('auto.7c30099b89'), width: 140, ellipsis: true, render: (_: any, r) => pickOS(r) },
+    { title: translate('auto.d9dcf7d362'), width: 140, ellipsis: true, render: (_: any, r) => pickBrowser(r) },
+    { title: translate('auto.94b035f8ef'), width: 120, align: 'center', render: (_: any, r) => durTag(pickDuration(r)) },
     {
-      title: '请求时间',
+      title: translate('auto.e8b5eda03a'),
       dataIndex: 'created_at',
       width: 180,
-      render: (t?: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      render: (t?: string) => (t ? formatDateTime(t) : '-'),
     },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       width: 100,
       fixed: 'right',
       onCell: () => ({ style: { background: '#fff' } }),
       render: (_: any, r) => (
         <div style={{ textAlign: 'center' }}>
-          <a onClick={() => setDetail(r)}>详情</a>
+          <a onClick={() => setDetail(r)}>{translate('auto.4f55ee1e68')}</a>
         </div>
       ),
     },
@@ -141,7 +143,7 @@ export default function SystemLogsTable({ data, loading }: { data: Row[]; loadin
         scroll={{ x: 1600 }}
       />
       <Modal
-        title="日志详情"
+        title={translate('auto.88b864bdf6')}
         open={!!detail}
         width={760}
         onCancel={() => setDetail(null)}
@@ -152,14 +154,14 @@ export default function SystemLogsTable({ data, loading }: { data: Row[]; loadin
           <>
             <Descriptions column={1} size="small" bordered style={{ marginBottom: 16 }}>
               <Descriptions.Item label="ID">{detail.id}</Descriptions.Item>
-              <Descriptions.Item label="模块">{pickModule(detail)}</Descriptions.Item>
-              <Descriptions.Item label="请求接口">{pickPath(detail)}</Descriptions.Item>
-              <Descriptions.Item label="方法">{pickMethod(detail)}</Descriptions.Item>
-              <Descriptions.Item label="IP 地址">{pickIP(detail)}</Descriptions.Item>
-              <Descriptions.Item label="地点">{pickLocation(detail)}</Descriptions.Item>
-              <Descriptions.Item label="耗时">{`${pickDuration(detail)} ms`}</Descriptions.Item>
-              <Descriptions.Item label="时间">
-                {detail.created_at ? dayjs(detail.created_at).format('YYYY-MM-DD HH:mm:ss') : '-'}
+              <Descriptions.Item label={translate('workflowTemplates.columns.module')}>{pickModule(detail)}</Descriptions.Item>
+              <Descriptions.Item label={translate('auto.4a30b04730')}>{pickPath(detail)}</Descriptions.Item>
+              <Descriptions.Item label={translate('auto.b77e2ac8f4')}>{pickMethod(detail)}</Descriptions.Item>
+              <Descriptions.Item label={translate('auto.010efa2cbc')}>{pickIP(detail)}</Descriptions.Item>
+              <Descriptions.Item label={translate('auto.e9e0a3f4e5')}>{pickLocation(detail)}</Descriptions.Item>
+              <Descriptions.Item label={translate('auto.a9704e1997')}>{`${pickDuration(detail)} ms`}</Descriptions.Item>
+              <Descriptions.Item label={translate('workflow.col_time')}>
+                {detail.created_at ? formatDateTime(detail.created_at) : '-'}
               </Descriptions.Item>
             </Descriptions>
             <div

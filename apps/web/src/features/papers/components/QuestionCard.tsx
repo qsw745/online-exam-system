@@ -1,5 +1,6 @@
 // src/features/papers/components/QuestionCard.tsx
 import { Button } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 // 最小问题类型，避免依赖不存在的 ../endpoints/questions
 export interface Question {
@@ -34,9 +35,9 @@ export default function QuestionCard({
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, marginBottom: 8, fontWeight: 500 }}>{q.content}</h3>
           <div style={{ display: 'flex', gap: 16, color: '#666' }}>
-            <span>类型: {q.type}</span>
-            <span>难度: {q.difficulty}</span>
-            <span>分值: {q.score}分</span>
+            <span>{translate('auto.fe5230eabe')}{q.type}</span>
+            <span>{translate('auto.26c8931f6f')}{q.difficulty}</span>
+            <span>{translate('auto.494e3c003c')}{q.score}{translate('papers.addon_score')}</span>
           </div>
           {Array.isArray(q.knowledge_points) && q.knowledge_points.length > 0 && (
             <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -49,7 +50,7 @@ export default function QuestionCard({
           )}
         </div>
         <Button type={selected ? 'primary' : 'default'} danger={selected} size="small" onClick={onToggle}>
-          {selected ? '移除' : '添加'}
+          {selected ? translate('papers.op_remove') : translate('app.add')}
         </Button>
       </div>
     </div>

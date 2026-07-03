@@ -9,9 +9,11 @@ import { OverviewStats } from '../components/OverviewStats'
 import type { StudentRow } from '../components/StudentsTable'
 import { StudentsTable } from '../components/StudentsTable'
 import { SubjectsTable } from '../components/SubjectsTable'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export default function AnalyticsPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
 
   // 筛选状态
   const [timeRange, setTimeRange] = useState<DateRange>([dayjs().subtract(30, 'day'), dayjs()])
@@ -25,7 +27,7 @@ export default function AnalyticsPage() {
 
   // 错误提示（只在有错误且非 loading 时提示一次）
   if (!isLoading && isError && error) {
-    message.error((error as any)?.message || '获取统计数据失败')
+    message.error((error as any)?.message || t('analytics.load_failed'))
   }
 
   // 分页切片
@@ -43,7 +45,7 @@ export default function AnalyticsPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <BarChart3 className="w-6 h-6 text-blue-600" />
-          <h1 className="text-2xl font-bold">数据统计</h1>
+          <h1 className="text-2xl font-bold">{t('analytics.title')}</h1>
         </div>
         {/* 显式刷新按钮 */}
         <RefreshButton />

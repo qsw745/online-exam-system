@@ -1,0 +1,16 @@
+# Web 框架
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.29
+pydantic>=2.6
+pydantic-settings>=2.2
+
+# 图像 / 数值
+numpy>=1.26
+opencv-python-headless>=4.9
+
+# 人脸检测 + 特征提取（ArcFace）
+insightface>=0.7.3
+onnxruntime>=1.17
+
+# 静默活体（Silent-Face / MiniFASNet 需要 torch）
+torch>=2.2

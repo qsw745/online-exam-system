@@ -1,6 +1,7 @@
 // features/smart-paper/components/ConfigForm/QuestionTypesCard.tsx
 import { Card, Form, Input } from 'antd'
 import type { SmartPaperConfig } from '../../../../shared/api/endpoints/smartPaper'
+import { translate } from '@/shared/utils/i18n'
 
 export default function QuestionTypesCard({
   config,
@@ -11,9 +12,9 @@ export default function QuestionTypesCard({
 }) {
   const q = config.questionTypes
   return (
-    <Card title="题目配置" className="mb-6">
+    <Card title={translate('auto.cae3f38772')} className="mb-6">
       <Form layout="vertical">
-        <Form.Item label="题目总数">
+        <Form.Item label={translate('auto.b824183d87')}>
           <Input
             type="number"
             min={1}
@@ -27,11 +28,11 @@ export default function QuestionTypesCard({
         <div className="grid grid-cols-2 gap-3">
           {(
             [
-              ['single_choice', '单选题'],
-              ['multiple_choice', '多选题'],
-              ['true_false', '判断题'],
-              ['fill_blank', '填空题'],
-              ['essay', '主观题'],
+              ['single_choice', translate('questions.single_choice')],
+              ['multiple_choice', translate('questions.multiple_choice')],
+              ['true_false', translate('questions.judge')],
+              ['fill_blank', translate('questions.fill_blank')],
+              ['essay', translate('visible.1fb3fc6849')],
             ] as const
           ).map(([k, label]) => (
             <div key={k}>

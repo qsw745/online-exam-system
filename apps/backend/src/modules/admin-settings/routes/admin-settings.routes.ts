@@ -8,6 +8,31 @@ import { AdminSettingsController } from '../controllers/admin-settings.controlle
 
 const router = Router()
 const ALLOWED_ROLES = new Set(['admin', 'teacher'])
+// 需与前端 apps/web/src/shared/utils/datetime.ts 的 DATETIME_FORMAT_GROUPS 保持一致
+const DATETIME_FORMATS = [
+  // 精确到秒
+  'YYYY-MM-DD HH:mm:ss',
+  'YYYY/MM/DD HH:mm:ss',
+  'YYYY.MM.DD HH:mm:ss',
+  'YYYY年MM月DD日 HH:mm:ss',
+  // 精确到分钟
+  'YYYY-MM-DD HH:mm',
+  'YYYY/MM/DD HH:mm',
+  'YYYY.MM.DD HH:mm',
+  'YYYY年MM月DD日 HH:mm',
+  'MM/DD/YYYY HH:mm',
+  'DD/MM/YYYY HH:mm',
+  // 12 小时制
+  'YYYY-MM-DD hh:mm:ss A',
+  'YYYY-MM-DD hh:mm A',
+  // 仅日期
+  'YYYY-MM-DD',
+  'YYYY/MM/DD',
+  'YYYY.MM.DD',
+  'YYYY年MM月DD日',
+  'MM/DD/YYYY',
+  'DD/MM/YYYY',
+]
 
 function requireRole(_roles = ALLOWED_ROLES): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -37,6 +62,7 @@ router.put(
   [
     body('systemName').optional().isString().isLength({ min: 1, max: 100 }),
     body('allowUserRegistration').optional().isBoolean(),
+    body('dateTimeFormat').optional().isIn(DATETIME_FORMATS),
     body('maxLoginAttempts').optional().isInt({ min: 1, max: 20 }),
     body('defaultPassword').optional().isString().isLength({ min: 0, max: 100 }),
 
@@ -53,6 +79,16 @@ router.put(
     body('strongPasswordRules.requireSymbol').optional().isBoolean(),
     body('strongPasswordRules.forbidRepeated').optional().isBoolean(),
     body('strongPasswordRules.forbidCommon').optional().isBoolean(),
+
+    body('watermarkEnabled').optional().isBoolean(),
+    body('watermarkServerEnabled').optional().isBoolean(),
+    body('watermarkScope').optional().isIn(['all', 'exam']),
+    body('watermarkContent').optional().isString().isLength({ min: 0, max: 200 }),
+    body('watermarkOpacity').optional().isFloat({ min: 0.02, max: 1 }),
+    body('watermarkFontSize').optional().isInt({ min: 10, max: 48 }),
+    body('watermarkRotate').optional().isInt({ min: -90, max: 90 }),
+    body('watermarkGap').optional().isInt({ min: 20, max: 400 }),
+    body('watermarkColor').optional().matches(/^#[0-9a-fA-F]{6}$/),
 
     body('aiEnabled').optional().isBoolean(),
     body('aiProvider').optional().isIn(['deepseek', 'openai', 'custom', 'local']),

@@ -4,11 +4,13 @@ import { Calendar } from 'lucide-react'
 import StatusTag from './StatusTag'
 import type { Task } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text } = Typography
 
 function fmt(t?: string | number | Date | null) {
-  return t ? dayjs(t).format('YYYY-MM-DD HH:mm') : '-'
+  return t ? formatDateTime(t) : '-'
 }
 
 function canStart(task: Task) {
@@ -45,7 +47,7 @@ export const TaskCard: React.FC<{
             <Title level={4} style={{ margin: 0 }}>
               {task.title}
             </Title>
-            <Tag color={task.type === 'exam' ? 'red' : 'blue'}>{task.type === 'exam' ? '考试' : '练习'}</Tag>
+            <Tag color={task.type === 'exam' ? 'red' : 'blue'}>{task.type === 'exam' ? translate('nav.exams') : translate('menus.exam-practice')}</Tag>
             <StatusTag status={task.status} />
           </Space>
 
@@ -59,13 +61,13 @@ export const TaskCard: React.FC<{
             {task.start_time && (
               <Space>
                 <Calendar size={16} />
-                <Text type="secondary">开始：{fmt(task.start_time)}</Text>
+                <Text type="secondary">{translate('auto.76a0ba5c77')}{fmt(task.start_time)}</Text>
               </Space>
             )}
             {task.end_time && (
               <Space>
                 <Calendar size={16} />
-                <Text type="secondary">结束：{fmt(task.end_time)}</Text>
+                <Text type="secondary">{translate('auto.75090948a1')}{fmt(task.end_time)}</Text>
               </Space>
             )}
           </Space>

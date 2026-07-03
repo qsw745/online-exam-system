@@ -5,6 +5,7 @@ import MailViewerDrawer from '@/features/mail/components/MailViewerDrawer'
 import { useMailList } from '@/features/mail/hooks/useMailList'
 import type { MailMessage } from '@/shared/api/endpoints/mail'
 import { mailApi } from '@/shared/api/endpoints/mail'
+import { translate } from '@/shared/utils/i18n'
 
 export default function MailSentPage() {
   const { message } = App.useApp()
@@ -28,7 +29,7 @@ export default function MailSentPage() {
 
   return (
     <>
-      <Card title="发件箱">
+      <Card title={translate('auto.8ed6c6957d')}>
         <MailTable
           mailbox="sent"
           data={data}
@@ -36,15 +37,15 @@ export default function MailSentPage() {
           onView={record => setCurrent(record)}
           onDelete={record => {
             Modal.confirm({
-              title: '删除邮件',
-              content: '删除后不可恢复，确认删除该邮件吗？',
+              title: translate('auto.4c862066b3'),
+              content: translate('auto.5dc9ae51c3'),
               onOk: async () => {
                 try {
                   await mailApi.deleteSent(record.id)
                   setData(prev => prev.filter(item => item.id !== record.id))
-                  message.success('已删除')
+                  message.success(translate('auto.fb5fe1e266'))
                 } catch (error: any) {
-                  message.error(error?.message || '删除失败')
+                  message.error(error?.message || translate('orgs.message.delete_failed'))
                 }
               },
             })
@@ -52,7 +53,7 @@ export default function MailSentPage() {
           onRecall={record => {
             const available = (record.recipients || []).filter(rec => rec.status !== 'recalled')
             if (!available.length) {
-              message.warning('没有可撤回的收件人')
+              message.warning(translate('auto.66cb06f8bd'))
               return
             }
             setRecallModal({ open: true, record })
@@ -67,13 +68,13 @@ export default function MailSentPage() {
         onClose={() => setCurrent(null)}
       />
       <Modal
-        title="撤回邮件"
+        title={translate('auto.3ae29a45f6')}
         open={recallModal.open}
-        okText="确认撤回"
+        okText={translate('auto.71d7a28f03')}
         onCancel={() => setRecallModal({ open: false, record: null })}
         onOk={async () => {
           if (!recallModal.record || !selectedRecipientIds.length) {
-            message.warning('请选择需要撤回的收件人')
+            message.warning(translate('auto.6808ceea7b'))
             return
           }
           try {
@@ -94,14 +95,14 @@ export default function MailSentPage() {
                 }
               })
             )
-            message.success('已撤回')
+            message.success(translate('workflow.msg_withdrawn'))
             setRecallModal({ open: false, record: null })
           } catch (error: any) {
-            message.error(error?.message || '撤回失败')
+            message.error(error?.message || translate('workflow.msg_withdraw_failed'))
           }
         }}
       >
-        <p>请选择要撤回通知的收件人：</p>
+        <p>{translate('auto.870adc02fc')}</p>
         {recallOptions.length ? (
           <Checkbox.Group
             options={recallOptions}
@@ -110,7 +111,7 @@ export default function MailSentPage() {
             style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
           />
         ) : (
-          <p style={{ color: '#999' }}>所有收件人均已撤回，无可选项。</p>
+          <p style={{ color: '#999' }}>{translate('auto.d1338d156d')}</p>
         )}
       </Modal>
     </>

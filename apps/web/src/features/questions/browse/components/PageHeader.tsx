@@ -3,6 +3,7 @@ import { Button, Space, Typography } from 'antd'
 import { Play } from 'lucide-react'
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 export function PageHeader({
@@ -28,8 +29,7 @@ export function PageHeader({
         {viewType === 'all' && practiceHref && (
           <Link to={practiceHref}>
             <Button type="primary" icon={<Play size={16} />}>
-              开始连续练习
-            </Button>
+              {translate('auto.5cfb05d513')}</Button>
           </Link>
         )}
       </Space>

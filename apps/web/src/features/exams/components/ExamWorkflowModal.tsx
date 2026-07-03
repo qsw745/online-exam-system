@@ -4,6 +4,7 @@ import { examsApi } from '@/shared/api/endpoints'
 import { workflowsApi, type WorkflowTemplate } from '@/shared/api/endpoints/workflows'
 import { pickLatestTemplates } from '@/shared/utils/workflow'
 import { usersApi } from '@/shared/api/endpoints/users'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text, Title } = Typography
 const { TextArea } = Input
@@ -76,7 +77,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
       const res = await workflowsApi.listTemplates({ entity_type: 'exam', status: 'published' })
       setTemplates(pickLatestTemplates(res.items || []))
     } catch (err: any) {
-      message.error(err?.message || '加载流程模板失败')
+      message.error(err?.message || translate('papers.wf_load_tpl_failed'))
     } finally {
       setLoadingTemplates(false)
     }
@@ -103,7 +104,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
         setReviewerIds([])
       })
       .catch(err => {
-        message.error(err?.message || '加载流程详情失败')
+        message.error(err?.message || translate('papers.wf_load_detail_failed'))
         setSelectedTemplate(null)
       })
       .finally(() => setLoadingTemplate(false))
@@ -179,11 +180,11 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
 
   const handleSubmit = async () => {
     if (!selectedTemplateId) {
-      message.warning('请选择流程模板')
+      message.warning(translate('papers.wf_select_tpl_warn'))
       return
     }
     if (needsReviewerIds && !reviewerIds.length) {
-      message.warning('该模板需要指定审批人')
+      message.warning(translate('papers.wf_need_approver'))
       return
     }
     setSubmitting(true)
@@ -206,11 +207,11 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
         },
         required_approvals: requiredApprovals ? Number(requiredApprovals) : undefined,
       })
-      message.success('审批已发起')
+      message.success(translate('papers.wf_started'))
       onSubmitted?.()
       onClose()
     } catch (e: any) {
-      message.error(e?.message || '发起审批失败')
+      message.error(e?.message || translate('papers.wf_start_failed'))
     } finally {
       setSubmitting(false)
     }
@@ -261,8 +262,8 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
             value={value ?? undefined}
             placeholder={field.placeholder}
             options={[
-              { label: '是', value: true },
-              { label: '否', value: false },
+              { label: translate('common.yes'), value: true },
+              { label: translate('common.no'), value: false },
             ]}
             onChange={val => handleFieldChange(field.key, val)}
           />
@@ -281,7 +282,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
   return (
     <Modal
       open={open}
-      title="发起审批流程"
+      title={translate('papers.wf_title')}
       width={640}
       onCancel={onClose}
       onOk={handleSubmit}
@@ -290,11 +291,11 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
     >
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <div>
-          <Text strong>流程模板</Text>
+          <Text strong>{translate('menus.workflow-templates')}</Text>
           <div style={{ marginTop: 8 }}>
             <Select
               style={{ width: '100%' }}
-              placeholder="选择已经发布的流程模板"
+              placeholder={translate('papers.wf_select_tpl_ph')}
               value={selectedTemplateId ?? undefined}
               onChange={id => setSelectedTemplateId(id)}
               loading={loadingTemplates}
@@ -314,7 +315,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
           {selectedTemplate && (
             <div style={{ marginTop: 12 }}>
               <Text type="secondary">
-                {selectedTemplate.definition?.summary ?? selectedTemplate.definition?.description ?? '该模板会在后台发起审批流程'}
+                {selectedTemplate.definition?.summary ?? selectedTemplate.definition?.description ?? translate('papers.wf_default_summary')}
               </Text>
             </div>
           )}
@@ -323,8 +324,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
         {selectedTemplate && customSource ? (
           <div>
             <Title level={5} style={{ marginBottom: 12 }}>
-              审批表单
-            </Title>
+              {translate('papers.wf_form')}</Title>
             <iframe
               ref={iframeRef}
               title="custom-form"
@@ -338,8 +338,7 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
           formSchema.length > 0 && (
             <div>
               <Title level={5} style={{ marginBottom: 12 }}>
-                审批表单
-              </Title>
+                {translate('papers.wf_form')}</Title>
               <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                 {formSchema.map(field => (
                   <div key={field.key}>
@@ -353,13 +352,13 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
         )}
 
         <div>
-          <Text strong>审批参数</Text>
+          <Text strong>{translate('papers.wf_params')}</Text>
           <Space direction="vertical" size="small" style={{ width: '100%', marginTop: 8 }}>
             {needsReviewerIds && (
               <Select
                 mode="multiple"
                 allowClear
-                placeholder="选择审批人"
+                placeholder={translate('papers.wf_approver_ph')}
                 value={reviewerIds}
                 onChange={vals => setReviewerIds(vals as number[])}
                 options={reviewerOptions}
@@ -373,12 +372,12 @@ export default function ExamWorkflowModal({ examId, open, onClose, onSubmitted }
               />
             )}
             <Input
-              placeholder="需要的提交审批人数（可选）"
+              placeholder={translate('papers.wf_required_count_ph')}
               value={requiredApprovals}
               onChange={e => setRequiredApprovals(e.target.value)}
             />
             <TextArea
-              placeholder="填写审批说明或补充信息"
+              placeholder={translate('papers.wf_comment_ph')}
               rows={3}
               value={notes}
               onChange={e => setNotes(e.target.value)}

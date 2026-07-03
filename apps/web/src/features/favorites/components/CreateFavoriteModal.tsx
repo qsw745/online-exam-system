@@ -2,6 +2,7 @@ import { Modal, Form, Input, Select, Spin } from 'antd'
 import { useEffect } from 'react'
 import type { Favorite } from '@/shared/api/endpoints/favorites'
 import { useFavoriteCategories } from '@/features/favorites/hooks/useFavoriteCategories'
+import { translate } from '@/shared/utils/i18n'
 
 const { TextArea } = Input
 
@@ -43,44 +44,44 @@ export default function CreateFavoriteModal({ open, onCancel, onSubmit }: Props)
   return (
     <Modal
      
-      title="新建收藏夹"
+      title={translate('auto.be459bcd93')}
       open={open}
       onCancel={() => {
         form.resetFields()
         onCancel()
       }}
       onOk={() => form.submit()}
-      okText="创建"
-      cancelText="取消"
+      okText={translate('orgs.form.submit.create')}
+      cancelText={translate('app.cancel')}
       destroyOnHidden
       maskClosable={false}
     >
       <Form form={form} layout="vertical" onFinish={handleFinish}>
-        <Form.Item name="name" label="收藏夹名称" rules={[{ required: true, message: '请输入收藏夹名称' }]}>
-          <Input placeholder="请输入收藏夹名称" />
+        <Form.Item name="name" label={translate('auto.638376b72c')} rules={[{ required: true, message: translate('auto.935ce4af18') }]}>
+          <Input placeholder={translate('auto.935ce4af18')} />
         </Form.Item>
 
-        <Form.Item name="description" label="描述">
-          <TextArea rows={3} placeholder="请输入收藏夹描述" />
+        <Form.Item name="description" label={translate('papers.desc2')}>
+          <TextArea rows={3} placeholder={translate('auto.5d0589458d')} />
         </Form.Item>
 
-        <Form.Item name="category_id" label="分类">
+        <Form.Item name="category_id" label={translate('auto.435c5259e4')}>
           <Select
-            placeholder={loading ? '加载分类中…' : categories.length ? '请选择分类（可不选）' : '暂无可用分类'}
+            placeholder={loading ? translate('visible.1530bce68f') : categories.length ? translate('visible.d435be9394') : translate('visible.16e1299b06')}
             allowClear
             showSearch
             optionFilterProp="label"
             loading={loading}
             options={categories.map(c => ({ label: c.name, value: c.id }))}
-            notFoundContent={loading ? <Spin size="small" /> : '无数据'}
+            notFoundContent={loading ? <Spin size="small" /> : translate('visible.6ffa7e6d35')}
           />
         </Form.Item>
 
-        <Form.Item name="is_public" label="是否公开">
+        <Form.Item name="is_public" label={translate('auto.5857cbafde')}>
           <Select
             options={[
-              { label: '私有', value: false },
-              { label: '公开', value: true },
+              { label: translate('auto.6858674b88'), value: false },
+              { label: translate('settings.public'), value: true },
             ]}
           />
         </Form.Item>

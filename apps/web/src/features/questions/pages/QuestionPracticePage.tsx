@@ -9,6 +9,7 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { App, Card, Space, Typography } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 type View = 'list' | 'single' | 'bulk'
 
@@ -149,7 +150,7 @@ export default function QuestionPracticePage() {
     if (!advanceRef.current || view !== 'single') return
     if (!ids.length) {
       advanceRef.current = false
-      message.info('下一页没有题目')
+      message.info(translate('auto.89e9e4736e'))
       exitPractice()
       return
     }
@@ -172,8 +173,7 @@ export default function QuestionPracticePage() {
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Card>
               <Title level={3} style={{ margin: 0 }}>
-                题目练习
-              </Title>
+                {translate('menus.learning-practice')}</Title>
               <Text type="secondary">{t('questions.search_placeholder')}</Text>
             </Card>
 

@@ -2,6 +2,8 @@ import { Descriptions, Modal, Typography } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
 import React, { useMemo } from 'react'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text, Paragraph } = Typography
 
@@ -33,7 +35,7 @@ export default function LogDetailModal({
   const rawText = useMemo(() => {
     if (!log) return ''
     try {
-      return JSON.stringify({ ...log, created_at: dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss') }, null, 2)
+      return JSON.stringify({ ...log, created_at: formatDateTime(log.created_at) }, null, 2)
     } catch {
       // 兜底：details 如果是字符串就直接用，否则尽量 stringify
       const d: any = (log as any)?.details
@@ -49,50 +51,50 @@ export default function LogDetailModal({
   return (
     <Modal
       maskClosable={false}
-      title="日志详情"
+      title={translate('auto.88b864bdf6')}
       open={open}
       onOk={onClose}
       onCancel={onClose}
       width={800}
-      okText="关闭"
+      okText={translate('app.close')}
       cancelButtonProps={{ style: { display: 'none' } }}
       destroyOnHidden
     >
       {log ? (
         <>
           <Descriptions column={2} size="small" bordered style={{ marginBottom: 12 }}>
-            <Descriptions.Item label="时间" span={2}>
-              {log.created_at ? dayjs(log.created_at).format('YYYY-MM-DD HH:mm:ss') : '-'}
+            <Descriptions.Item label={translate('workflow.col_time')} span={2}>
+              {log.created_at ? formatDateTime(log.created_at) : '-'}
             </Descriptions.Item>
 
-            <Descriptions.Item label="级别">
+            <Descriptions.Item label={translate('auto.2548499200')}>
               <span style={{ color: levelColor(String(log.level)) }}>{levelText(String(log.level))}</span>
             </Descriptions.Item>
 
-            <Descriptions.Item label="用户">
+            <Descriptions.Item label={translate('users.tag.user')}>
               {log.username ? (
                 <>
                   {renderValueSafe(log.username)} <Text type="secondary">（ID: {renderValueSafe(log.user_id)}）</Text>
                 </>
               ) : (
-                '系统'
+                translate('auto.1a1f6dff78')
               )}
             </Descriptions.Item>
 
-            <Descriptions.Item label="操作">{renderValueSafe((log as any)?.action)}</Descriptions.Item>
-            <Descriptions.Item label="资源">{renderValueSafe((log as any)?.resource)}</Descriptions.Item>
+            <Descriptions.Item label={translate('users.columns.actions')}>{renderValueSafe((log as any)?.action)}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.c5ca3950cb')}>{renderValueSafe((log as any)?.resource)}</Descriptions.Item>
 
             <Descriptions.Item label="IP">{renderValueSafe((log as any)?.ip_address)}</Descriptions.Item>
-            <Descriptions.Item label="类型">{renderValueSafe((log as any)?.log_type)}</Descriptions.Item>
-            <Descriptions.Item label="状态">{renderValueSafe((log as any)?.status)}</Descriptions.Item>
+            <Descriptions.Item label={translate('systemConfig.col_type')}>{renderValueSafe((log as any)?.log_type)}</Descriptions.Item>
+            <Descriptions.Item label={translate('users.columns.status')}>{renderValueSafe((log as any)?.status)}</Descriptions.Item>
 
             {/* 客户端解析（对象字段安全渲染） */}
-            <Descriptions.Item label="客户端" span={2}>
+            <Descriptions.Item label={translate('auto.09afbbcc9b')} span={2}>
               {renderValueSafe((log as any)?.client?.label ?? (log as any)?.client)}
             </Descriptions.Item>
-            <Descriptions.Item label="系统">{renderValueSafe((log as any)?.client?.os)}</Descriptions.Item>
-            <Descriptions.Item label="浏览器">{renderValueSafe((log as any)?.client?.browser)}</Descriptions.Item>
-            <Descriptions.Item label="设备">{renderValueSafe((log as any)?.client?.device)}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.1a1f6dff78')}>{renderValueSafe((log as any)?.client?.os)}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.88d650dd4f')}>{renderValueSafe((log as any)?.client?.browser)}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.01f2c16cda')}>{renderValueSafe((log as any)?.client?.device)}</Descriptions.Item>
             <Descriptions.Item label="User-Agent" span={2}>
               <Text type="secondary" copyable={{ text: String((log as any)?.user_agent ?? '') }}>
                 {renderValueSafe((log as any)?.user_agent)}
@@ -100,7 +102,7 @@ export default function LogDetailModal({
             </Descriptions.Item>
           </Descriptions>
 
-          <Text strong>原始数据</Text>
+          <Text strong>{translate('auto.77a6fb9fac')}</Text>
           {/* 关键：copyable 指定 text，复制出来就是 JSON，不会是 [object Object] */}
           <Paragraph copyable={{ text: rawText }} style={{ marginTop: 8 }}>
             <pre
@@ -118,7 +120,7 @@ export default function LogDetailModal({
           </Paragraph>
         </>
       ) : (
-        <Text type="secondary">暂无数据</Text>
+        <Text type="secondary">{translate('common.no_data')}</Text>
       )}
     </Modal>
   )

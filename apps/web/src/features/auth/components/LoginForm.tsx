@@ -7,6 +7,7 @@ import {
   EyeTwoTone,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  CameraOutlined,
 } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
@@ -19,6 +20,7 @@ type Props = {
   rememberMe: boolean
   keep7Days: boolean
   loading: boolean
+  faceLoginLoading: boolean
 
   submitDisabled: boolean
   inputsDisabled: boolean
@@ -38,6 +40,7 @@ type Props = {
   onRememberChange: (v: boolean) => void
   onKeep7DaysChange: (v: boolean) => void
   onSubmit: () => void
+  onFaceLogin: () => void
 }
 
 export const LoginForm: React.FC<Props> = p => {
@@ -181,6 +184,18 @@ export const LoginForm: React.FC<Props> = p => {
           aria-disabled={p.loading || (p.isLocked && p.lockTryRemainSec > 0)}
         >
           {btnText}
+        </Button>
+
+        <Button
+          icon={<CameraOutlined />}
+          onClick={p.onFaceLogin}
+          loading={p.faceLoginLoading}
+          size="large"
+          block
+          disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
+          aria-disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
+        >
+          {t('auth.face_login')}
         </Button>
       </Space>
     </form>

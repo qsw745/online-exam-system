@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import HttpError from '@/common/errors/http-error'
 import { getClientIp } from '@/common/utils/request-ip'
+import { getRequestContext } from '@/common/middleware/request-context'
 import { CODES } from '@/types/response'
 import type { Request } from 'express'
 import type { LogInput, LogQueryParams } from '../domain/log.model'
@@ -158,6 +159,13 @@ export class LogService {
     const details =
       input.details && typeof input.details === 'object' && !Array.isArray(input.details) ? { ...input.details } : {}
     if (durationMs != null) details.duration_ms = durationMs
+
+    // 自动补当前请求的接口信息（前端"请求接口/请求方式"列读取 details.path / details.method）
+    const rc = getRequestContext()
+    const reqPath = ((req as any)?.originalUrl || (req as any)?.url || rc?.path || '').split('?')[0]
+    const reqMethod = (req as any)?.method || rc?.method
+    if (reqPath && details.path == null && details.url == null) details.path = reqPath
+    if (reqMethod && details.method == null) details.method = reqMethod
 
     await LogRepository.insert({
       type: input.type || 'system',

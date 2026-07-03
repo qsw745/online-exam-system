@@ -1,6 +1,7 @@
 import { ApartmentOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { Button, Empty, Space, Tree, Typography } from 'antd'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -35,13 +36,12 @@ export const OrgTreePanel: React.FC<{
       <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between' }}>
         <Space>
           <ApartmentOutlined />
-          <Text strong>{title ?? '机构'}</Text>
+          <Text strong>{title ?? translate('users.org_tree.title')}</Text>
         </Space>
         <Space size={8}>
           {onAdd ? (
             <Button size="small" icon={<PlusOutlined />} onClick={onAdd}>
-              新增
-            </Button>
+              {translate('orgs.action.add_child')}</Button>
           ) : null}
           <Button size="small" icon={<ReloadOutlined />} onClick={onRefresh} />
         </Space>
@@ -49,9 +49,9 @@ export const OrgTreePanel: React.FC<{
 
       <div style={{ padding: 12 }}>
         {loading ? (
-          <Text type="secondary">加载中...</Text>
+          <Text type="secondary">{translate('app.loading')}</Text>
         ) : !antTreeData.length ? (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无机构" />
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={translate('auto.28f1d3e4d9')} />
         ) : (
           <Tree
             blockNode

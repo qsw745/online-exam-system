@@ -6,6 +6,7 @@ import QuestionHeader from '../components/QuestionHeader'
 import { ShortAnswerEditor } from '../components/TrueFalseEditor'
 import TagsField from '../components/TagsField'
 import { TrueFalseEditor } from '../components/TrueFalseEditor'
+import { translate } from '@/shared/utils/i18n'
 const { TextArea } = Input
 const { Title, Text } = Typography
 const { Option } = Select
@@ -44,7 +45,7 @@ export default function QuestionEditorPage() {
     return (
       <div className="container mx-auto py-8 px-4 max-w-4xl">
         <div className="flex justify-center items-center min-h-[300px]">
-          <span>加载中…</span>
+          <span>{translate('auto.300ee3dee4')}</span>
         </div>
       </div>
     )
@@ -60,23 +61,23 @@ export default function QuestionEditorPage() {
         <Form layout="vertical" onFinish={isView ? undefined : submit} disabled={isView}>
           <Row gutter={[24, 16]}>
             <Col xs={24} md={12}>
-              <Form.Item label="题目类型" required>
+              <Form.Item label={translate('questions.col_type')} required>
                 <Select value={type} onChange={v => setType(v as any)} disabled={isView}>
-                  <Option value="single_choice">单选题</Option>
-                  <Option value="multiple_choice">多选题</Option>
-                  <Option value="true_false">判断题</Option>
-                  <Option value="short_answer">简答题</Option>
+                  <Option value="single_choice">{translate('questions.single_choice')}</Option>
+                  <Option value="multiple_choice">{translate('questions.multiple_choice')}</Option>
+                  <Option value="true_false">{translate('questions.judge')}</Option>
+                  <Option value="short_answer">{translate('questions.type_short')}</Option>
                 </Select>
               </Form.Item>
             </Col>
           </Row>
 
-          <Form.Item label="题目内容" required>
+          <Form.Item label={translate('questions.col_content')} required>
             <TextArea rows={4} value={content} onChange={e => setContent(e.target.value)} disabled={isView} />
           </Form.Item>
 
           {(type === 'single_choice' || type === 'multiple_choice') && (
-            <Form.Item label={<Text strong>选项 *</Text>}>
+            <Form.Item label={<Text strong>{translate('auto.45012422d4')}</Text>}>
               <Space direction="vertical" style={{ width: '100%' }}>
                 {options.map((opt, idx) => (
                   <div key={idx} style={{ display: 'flex', gap: 8 }}>
@@ -94,52 +95,49 @@ export default function QuestionEditorPage() {
                     />
                     {!isView && (
                       <Button danger onClick={() => removeOption(idx)}>
-                        删除
-                      </Button>
+                        {translate('app.delete')}</Button>
                     )}
                   </div>
                 ))}
                 {!isView && (
                   <Button type="dashed" onClick={addOption} style={{ width: 160 }}>
-                    新增选项
-                  </Button>
+                    {translate('auto.1a74b6f38d')}</Button>
                 )}
               </Space>
             </Form.Item>
           )}
 
           {type === 'true_false' && (
-            <Form.Item label="正确答案" required>
+            <Form.Item label={translate('questions.correct_answer')} required>
               <TrueFalseEditor value={answer} onChange={setAnswer} disabled={isView} />
             </Form.Item>
           )}
 
           {type === 'short_answer' && (
-            <Form.Item label="参考答案" required>
+            <Form.Item label={translate('questions.ref_answer')} required>
               <ShortAnswerEditor value={answer} onChange={setAnswer} disabled={isView} />
             </Form.Item>
           )}
 
-          <Form.Item label="题目解析">
+          <Form.Item label={translate('aiAssistant.action.explain_question')}>
             <TextArea rows={4} value={explanation} onChange={e => setExplanation(e.target.value)} disabled={isView} />
           </Form.Item>
 
-          <Form.Item label="知识点">
+          <Form.Item label={translate('profile.knowledge_points')}>
             <KnowledgePointsField points={knowledgePoints} onChange={setKnowledgePoints} disabled={isView} />
           </Form.Item>
 
-          <Form.Item label="标签（可多选/自定义）">
+          <Form.Item label={translate('questions.tags_label')}>
             <TagsField value={tags} all={allTags} onChange={setTags} readonly={isView} />
           </Form.Item>
 
           <Divider />
           <Row justify="end">
             <Button onClick={() => history.back()} style={{ marginRight: 8 }}>
-              返回
-            </Button>
+              {translate('app.back')}</Button>
             {!isView && (
               <Button type="primary" htmlType="submit" loading={loading}>
-                {isEdit ? '更新题目' : '创建题目'}
+                {isEdit ? translate('questions.update_btn') : translate('questions.create_btn')}
               </Button>
             )}
           </Row>

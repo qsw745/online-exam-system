@@ -6,6 +6,7 @@ const DEFAULTS: SystemSettings = {
     systemName: '在线考试系统',
     allowUserRegistration: true,
     maxLoginAttempts: 5,
+    dateTimeFormat: 'YYYY-MM-DD HH:mm:ss',
 
     // 新增默认
     enableCaptcha: true,
@@ -17,6 +18,16 @@ const DEFAULTS: SystemSettings = {
     strongPasswordRequireLower: true,
     strongPasswordRequireDigit: true,
     strongPasswordRequireSpecial: false,
+
+    watermarkEnabled: false,
+    watermarkServerEnabled: false,
+    watermarkScope: 'all',
+    watermarkContent: '{name} {time}',
+    watermarkOpacity: 0.12,
+    watermarkFontSize: 14,
+    watermarkRotate: -22,
+    watermarkGap: 100,
+    watermarkColor: '#000000',
 
     aiEnabled: false,
     aiProvider: 'deepseek',

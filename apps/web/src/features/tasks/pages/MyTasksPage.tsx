@@ -8,6 +8,7 @@ import dayjs from '@/shared/utils/dayjs'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { RangePicker } = DatePicker
 
@@ -43,16 +44,16 @@ const MyTasksPage: React.FC = () => {
       const payload = res.data
       nav(`/exam/${payload.examId}`, { state: { ...payload, taskId: r.id } })
     } catch (e: any) {
-      message.error(e?.message || '开始考试失败')
+      message.error(e?.message || translate('auto.3ff424111a'))
     }
   }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card title="我的任务" variant="outlined">
+      <Card title={translate('menus.tasks-my')} variant="outlined">
         <Space wrap>
           <Input
-            placeholder="关键词"
+            placeholder={translate('aiLogs.keyword')}
             allowClear
             value={kw}
             onChange={e => setKw(e.target.value)}
@@ -64,12 +65,12 @@ const MyTasksPage: React.FC = () => {
             value={st}
             onChange={setSt}
             options={[
-              { value: 'all', label: '全部状态' },
-              { value: 'not_started', label: '待开始' },
-              { value: 'published', label: '已发布' },
-              { value: 'in_progress', label: '进行中' },
-              { value: 'completed', label: '已完成' },
-              { value: 'expired', label: '已过期' },
+              { value: 'all', label: translate('auto.1a4c26d92d') },
+              { value: 'not_started', label: translate('auto.5349eb3e57') },
+              { value: 'published', label: translate('auto.176a2eb4eb') },
+              { value: 'in_progress', label: translate('dashboard.status_in_progress') },
+              { value: 'completed', label: translate('dashboard.status_completed') },
+              { value: 'expired', label: translate('dashboard.status_expired') },
             ]}
           />
           <RangePicker
@@ -78,8 +79,7 @@ const MyTasksPage: React.FC = () => {
             showTime
           />
           <Button type="primary" onClick={applySearch}>
-            查询
-          </Button>
+            {translate('auto.711363c424')}</Button>
           <Button
             onClick={() => {
               setKw('')
@@ -88,8 +88,7 @@ const MyTasksPage: React.FC = () => {
               reset()
             }}
           >
-            重置
-          </Button>
+            {translate('app.reset')}</Button>
         </Space>
       </Card>
 

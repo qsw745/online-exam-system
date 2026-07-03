@@ -1,7 +1,9 @@
 import React from 'react'
 import { Button, Card, Tag, Avatar, Space, Tooltip } from 'antd'
 import { MessageCircle, ThumbsUp, Eye } from 'lucide-react'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Props = {
   discussion: Record<string, any>
@@ -15,7 +17,7 @@ const safe = (v: any, fb = '') => (v === null || v === undefined ? fb : v)
 export const DiscussionDetail: React.FC<Props> = ({ discussion, onLike, onReply }) => {
   const authorName = safe(discussion.author_name ?? discussion.username, '用户')
   const authorAvatar = discussion.author_avatar ?? discussion.avatar
-  const createdAt = discussion.created_at ? dayjs(discussion.created_at).format('YYYY-MM-DD HH:mm') : ''
+  const createdAt = discussion.created_at ? formatDateTime(discussion.created_at) : ''
 
   // 名称/颜色兜底：后端可能只给了 category_id
   const catId = String(discussion.category_id ?? discussion.category ?? '')
@@ -30,10 +32,10 @@ export const DiscussionDetail: React.FC<Props> = ({ discussion, onLike, onReply 
       <div className="flex items-center justify-between mb-3">
         <Space size="small" wrap>
           {category_name && <Tag color={getCategoryColor(category_color)}>{category_name}</Tag>}
-          {discussion.is_pinned ? <Tag color="red">置顶</Tag> : null}
+          {discussion.is_pinned ? <Tag color="red">{translate('auto.7bcf18641f')}</Tag> : null}
         </Space>
         <Space>
-          <Tooltip title={discussion.is_liked ? '取消点赞' : '点赞'}>
+          <Tooltip title={discussion.is_liked ? translate('visible.5907f05aa4') : translate('auto.e07f300d0c')}>
             <Button
               shape="round"
               type={discussion.is_liked ? 'primary' : 'default'}
@@ -44,16 +46,15 @@ export const DiscussionDetail: React.FC<Props> = ({ discussion, onLike, onReply 
             </Button>
           </Tooltip>
           <Button shape="round" type="primary" icon={<MessageCircle className="w-4 h-4" />} onClick={onReply}>
-            回复
-          </Button>
+            {translate('auto.ffc7850925')}</Button>
         </Space>
       </div>
 
-      <h2 className="text-2xl font-bold leading-snug mb-3">{safe(discussion.title, '(无标题)')}</h2>
+      <h2 className="text-2xl font-bold leading-snug mb-3">{safe(discussion.title, translate('header.untitled'))}</h2>
 
       {discussion.question_title && (
         <div className="bg-blue-50 border border-blue-100 text-blue-700 px-3 py-2 rounded-lg mb-3">
-          <strong>关联题目：</strong>
+          <strong>{translate('auto.e79035ba92')}</strong>
           {discussion.question_title}
         </div>
       )}
@@ -65,7 +66,7 @@ export const DiscussionDetail: React.FC<Props> = ({ discussion, onLike, onReply 
       <div className="flex items-center justify-between pt-3 border-t">
         <div className="flex items-center gap-2">
           <Avatar src={authorAvatar} size={36} className="bg-blue-500">
-            {(authorName || '用').charAt(0)}
+            {(authorName || translate('visible.61410653c6')).charAt(0)}
           </Avatar>
           <div>
             <div className="font-medium">{authorName}</div>
@@ -76,11 +77,11 @@ export const DiscussionDetail: React.FC<Props> = ({ discussion, onLike, onReply 
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span className="flex items-center gap-1">
             <Eye className="w-4 h-4" />
-            <span>{discussion.views_count ?? discussion.view_count ?? 0} 浏览</span>
+            <span>{discussion.views_count ?? discussion.view_count ?? 0} {translate('auto.ef23ea67b0')}</span>
           </span>
           <span className="flex items-center gap-1">
             <MessageCircle className="w-4 h-4" />
-            <span>{discussion.replies_count ?? discussion.reply_count ?? 0} 回复</span>
+            <span>{discussion.replies_count ?? discussion.reply_count ?? 0} {translate('auto.ffc7850925')}</span>
           </span>
         </div>
       </div>

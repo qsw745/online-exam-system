@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 import { ResetStatusCard } from '../../auth/components/ResetStatusCard'
 import { ResetPasswordForm } from '../../auth/components/ResetPasswordForm'
 import { useResetPassword } from '../../auth/hooks/useResetPassword'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -38,9 +39,8 @@ const ResetPasswordPage: React.FC = () => {
           <>
             <div style={{ textAlign: 'center', marginBottom: 32 }}>
               <Title level={2} style={{ marginBottom: 8 }}>
-                重置密码
-              </Title>
-              <Text type="secondary">请输入您的新密码</Text>
+                {translate('users.action.reset_password')}</Title>
+              <Text type="secondary">{translate('auto.82abeffeba')}</Text>
             </div>
 
             {error && (
@@ -51,8 +51,8 @@ const ResetPasswordPage: React.FC = () => {
 
             <div style={{ textAlign: 'center' }}>
               <Space size={4}>
-                <Text type="secondary">记起密码了？</Text>
-                <Link to="/login">立即登录</Link>
+                <Text type="secondary">{translate('auto.3528487b49')}</Text>
+                <Link to="/login">{translate('auth.login_now')}</Link>
               </Space>
             </div>
           </>

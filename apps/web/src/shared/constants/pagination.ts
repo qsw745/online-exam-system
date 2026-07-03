@@ -1,6 +1,7 @@
 import type { PaginationProps } from 'antd'
 import type { TablePaginationConfig } from 'antd/es/table'
 import type { ReactNode } from 'react'
+import { getLang } from '@/shared/utils/i18n'
 
 export const DEFAULT_PAGE_SIZE = 10
 export const STANDARD_PAGE_SIZE_OPTIONS: NonNullable<PaginationProps['pageSizeOptions']> = ['10', '20', '50', '100']
@@ -14,6 +15,10 @@ export type PaginationChange = {
 }
 
 export function formatPaginationTotal(total: number, range: [number, number], unit = '条') {
+  if (getLang() === 'en-US') {
+    if (!total) return 'Total 0'
+    return `${range[0]}-${range[1]} of ${total}`
+  }
   if (!total) return `共 0 ${unit}`
   return `第 ${range[0]}-${range[1]} ${unit}，共 ${total} ${unit}`
 }

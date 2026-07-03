@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { App, Button, Card, Descriptions, Result, Space, Typography } from 'antd'
 import { ReloadOutlined } from '@ant-design/icons'
 import { cacheApi } from '@/shared/api/endpoints/cache'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -18,7 +19,7 @@ export default function CacheManagementPage() {
       const data = await cacheApi.stats()
       setStats(data)
     } catch (e: any) {
-      message.error(e?.message || '加载缓存信息失败')
+      message.error(e?.message || translate('auto.ca402ea687'))
     } finally {
       setLoading(false)
     }
@@ -31,10 +32,10 @@ export default function CacheManagementPage() {
   const handleFlush = async () => {
     try {
       await cacheApi.flush()
-      message.success('缓存已清空')
+      message.success(translate('auto.c30877fb42'))
       fetchStats()
     } catch (e: any) {
-      message.error(e?.message || '清空失败')
+      message.error(e?.message || translate('auto.640f1248bc'))
     }
   }
 
@@ -44,15 +45,13 @@ export default function CacheManagementPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              缓存管理
-            </Title>
-            <Text type="secondary">查看 Redis 运行情况并执行清理</Text>
+              {translate('menus.system-cache')}</Title>
+            <Text type="secondary">{translate('auto.0213c52356')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchStats} />
             <Button danger onClick={handleFlush}>
-              清空缓存
-            </Button>
+              {translate('auto.615609e144')}</Button>
           </Space>
         </Space>
       </Card>
@@ -60,17 +59,17 @@ export default function CacheManagementPage() {
       <Card loading={loading}>
         {stats?.connected ? (
           <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="版本">{stats.version || '-'}</Descriptions.Item>
-            <Descriptions.Item label="运行时间">
+            <Descriptions.Item label={translate('workflowTemplates.columns.version')}>{stats.version || '-'}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.8b16a1fc0b')}>
               {stats.uptimeHuman || (stats.uptimeSeconds ? `${stats.uptimeSeconds}s` : stats.uptime || '-')}
             </Descriptions.Item>
-            <Descriptions.Item label="占用内存">{stats.memoryUsed || '-'}</Descriptions.Item>
-            <Descriptions.Item label="键空间">
+            <Descriptions.Item label={translate('auto.2f2760567e')}>{stats.memoryUsed || '-'}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.3568205fa0')}>
               {stats.keysHuman || (typeof stats.keys === 'number' ? `${stats.keys.toLocaleString()} keys` : stats.keys || '-')}
             </Descriptions.Item>
           </Descriptions>
         ) : (
-          <Result status="warning" title="未连接缓存" subTitle="请检查 Redis 配置" />
+          <Result status="warning" title={translate('auto.1e928b082e')} subTitle={translate('visible.45fc7676b7')} />
         )}
       </Card>
     </Space>

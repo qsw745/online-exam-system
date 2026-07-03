@@ -3,7 +3,11 @@ package com.qsw.onlineexam.workflow;
 import com.qsw.onlineexam.auth.AuthUser;
 import com.qsw.onlineexam.common.ApiException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -148,7 +152,7 @@ public class WorkflowService {
     Map<String, Object> ctx = Map.of("payload", processPayload);
     List<String> next = nextNodes(definition, String.valueOf(startNode.get("id")), ctx);
     if (next.isEmpty()) throw ApiException.badRequest("流程缺少后续节点");
-    Split split = splitNextNodes(definition, next);
+    Split split = splitNextNodes(definition, next, ctx);
 
     FlowableStart flowable = deployAndStart(template, processPayload);
     Map<String, Object> instanceInput = new LinkedHashMap<>();
@@ -232,7 +236,7 @@ public class WorkflowService {
       syncEntityStatus(String.valueOf(instance.get("entity_type")), Jsons.longValue(instance.get("entity_id"), 0), "approved");
       return Map.of("status", "approved");
     }
-    Split split = splitNextNodes(definition, outgoing);
+    Split split = splitNextNodes(definition, outgoing, ctx);
     Set<String> nextSet = new LinkedHashSet<>(Jsons.stringList(instance.get("current_nodes")));
     nextSet.remove(nodeId);
     nextSet.addAll(split.activeNodes());
@@ -254,6 +258,73 @@ public class WorkflowService {
         .orElseThrow(() -> ApiException.notFound("流程模板不存在"));
     List<Map<String, Object>> tasks = repo.listTasksByInstance(id);
     return Map.of("instance", instance, "template", template, "tasks", tasks);
+  }
+
+  public Map<String, Object> listMyInstances(AuthUser user, Map<String, String> query) {
+    requireUser(user);
+    int page = Math.max(1, Jsons.intValue(query.get("page"), 1));
+    int limit = Math.max(1, Math.min(100, Jsons.intValue(query.get("limit"), 20)));
+    String status = query.get("status");
+    List<Map<String, Object>> items = repo.listInstancesForUser(user.id(), status, page, limit);
+    long total = repo.countInstancesForUser(user.id(), status);
+    return Map.of("items", items, "total", total, "page", page, "limit", limit);
+  }
+
+  /** 转办：把待办任务的处理人改为他人 */
+  @Transactional
+  public Map<String, Object> transferTask(AuthUser user, long taskId, long toUserId, String comment) {
+    requireUser(user);
+    if (toUserId <= 0) throw ApiException.badRequest("缺少转办目标用户");
+    Map<String, Object> task = repo.getTask(taskId).orElseThrow(() -> ApiException.notFound("任务不存在"));
+    if (!"pending".equals(String.valueOf(task.get("status")))) throw ApiException.badRequest("任务已处理");
+    if (Jsons.longValue(task.get("assignee_id"), 0) != user.id() && !user.isAdmin()) {
+      throw ApiException.forbidden("只能转办自己的待办任务");
+    }
+    if (toUserId == user.id()) throw ApiException.badRequest("不能转办给自己");
+    int updated = repo.reassignTask(taskId, toUserId);
+    if (updated == 0) throw ApiException.badRequest("任务已处理");
+    return Map.of("id", taskId, "assignee_id", toUserId, "action", "transferred");
+  }
+
+  /** 加签：在当前节点为任务追加一名并行审批人（会签需其通过，或签作为额外候选） */
+  @Transactional
+  public Map<String, Object> addSignTask(AuthUser user, long taskId, long addUserId, String comment) {
+    requireUser(user);
+    if (addUserId <= 0) throw ApiException.badRequest("缺少加签用户");
+    Map<String, Object> task = repo.getTask(taskId).orElseThrow(() -> ApiException.notFound("任务不存在"));
+    if (!"pending".equals(String.valueOf(task.get("status")))) throw ApiException.badRequest("任务已处理");
+    if (Jsons.longValue(task.get("assignee_id"), 0) != user.id() && !user.isAdmin()) {
+      throw ApiException.forbidden("只能为自己的待办任务加签");
+    }
+    long instanceId = Jsons.longValue(task.get("instance_id"), 0);
+    String nodeId = String.valueOf(task.get("node_id"));
+    boolean exists = repo.listTasksByNode(instanceId, nodeId).stream()
+        .anyMatch(t -> Jsons.longValue(t.get("assignee_id"), 0) == addUserId
+            && "pending".equals(String.valueOf(t.get("status"))));
+    if (exists) throw ApiException.badRequest("该用户已是本节点的待办审批人");
+    Map<String, Object> newTask = new LinkedHashMap<>();
+    newTask.put("instance_id", instanceId);
+    newTask.put("node_id", nodeId);
+    newTask.put("node_name", task.getOrDefault("node_name", nodeId));
+    newTask.put("assignee_id", addUserId);
+    newTask.put("meta", Map.of("added_by", user.id(), "type", "countersign"));
+    repo.createTasks(List.of(newTask));
+    return Map.of("instance_id", instanceId, "node_id", nodeId, "added_user_id", addUserId, "action", "add_sign");
+  }
+
+  /** 撤回：发起人撤回运行中的流程，取消全部待办并置为 canceled */
+  @Transactional
+  public Map<String, Object> withdrawInstance(AuthUser user, long instanceId) {
+    requireUser(user);
+    Map<String, Object> instance = repo.getInstance(instanceId).orElseThrow(() -> ApiException.notFound("流程实例不存在"));
+    long creator = Jsons.longValue(instance.get("created_by"), 0);
+    if (creator != user.id() && !user.isAdmin()) throw ApiException.forbidden("只能撤回自己发起的流程");
+    if (!"running".equals(String.valueOf(instance.get("status")))) throw ApiException.badRequest("仅运行中的流程可撤回");
+    repo.cancelAllPendingTasks(instanceId);
+    repo.updateInstance(instanceId, "canceled", List.of());
+    syncEntityStatus(String.valueOf(instance.get("entity_type")), Jsons.longValue(instance.get("entity_id"), 0), "canceled");
+    completeAllFlowableTasks(Jsons.string(instance.get("engine_instance_id")), null);
+    return Map.of("id", instanceId, "status", "canceled", "action", "withdrawn");
   }
 
   @Transactional
@@ -332,8 +403,9 @@ public class WorkflowService {
     for (Map<String, Object> node : nodes(definition)) {
       if (!"approval".equals(String.valueOf(node.get("type")))) continue;
       List<Long> approvers = resolveApprovers(node, ctx);
-      String csv = String.join(",", approvers.stream().map(String::valueOf).toList());
-      vars.put(FlowableBpmnBuilder.candidateVariable(String.valueOf(node.get("id"))), csv);
+      // 多实例 collection / candidateUsers 均接受集合：用 List 避免 CSV 字符串被当作变量名解析
+      List<String> ids = approvers.stream().map(String::valueOf).toList();
+      vars.put(FlowableBpmnBuilder.candidateVariable(String.valueOf(node.get("id"))), ids);
     }
     return vars;
   }
@@ -415,6 +487,7 @@ public class WorkflowService {
     if ("exam".equals(entityType)) {
       if ("approved".equals(status)) repo.updateExamStatus(entityId, "approved");
       if ("rejected".equals(status)) repo.updateExamStatus(entityId, "rejected");
+      if ("canceled".equals(status)) repo.updateExamStatus(entityId, "draft"); // 撤回后退回草稿，允许重新提交
     }
   }
 
@@ -431,9 +504,22 @@ public class WorkflowService {
   }
 
   private List<String> nextNodes(Map<String, Object> definition, String from, Map<String, Object> ctx) {
-    return edges(definition)
-        .stream()
-        .filter(e -> Objects.equals(String.valueOf(e.get("from")), from))
+    Map<String, Object> fromNode = findNode(definition, from).orElse(null);
+    boolean exclusive = fromNode != null && "gateway".equals(String.valueOf(fromNode.get("type")));
+    List<Map<String, Object>> outgoing = new ArrayList<>(
+        edges(definition).stream().filter(e -> Objects.equals(String.valueOf(e.get("from")), from)).toList());
+    if (exclusive) {
+      // 条件网关：按 priority 升序排他匹配，命中第一个满足条件的分支（无条件=默认分支，置于末位兜底）
+      outgoing.sort(Comparator.comparingInt(e -> Jsons.intValue(e.get("priority"), 999)));
+      for (Map<String, Object> edge : outgoing) {
+        if (matchCondition(Jsons.map(edge.get("condition")), ctx)) {
+          String to = String.valueOf(edge.get("to"));
+          return to == null || to.isBlank() ? List.of() : List.of(to);
+        }
+      }
+      return List.of();
+    }
+    return outgoing.stream()
         .filter(e -> matchCondition(Jsons.map(e.get("condition")), ctx))
         .map(e -> String.valueOf(e.get("to")))
         .filter(s -> s != null && !s.isBlank())
@@ -483,14 +569,25 @@ public class WorkflowService {
     return false;
   }
 
-  private Split splitNextNodes(Map<String, Object> definition, List<String> ids) {
+  private Split splitNextNodes(Map<String, Object> definition, List<String> ids, Map<String, Object> ctx) {
     List<String> active = new ArrayList<>();
     boolean hasEnd = false;
-    for (String id : ids) {
+    Deque<String> queue = new ArrayDeque<>(ids);
+    Set<String> seen = new HashSet<>();
+    while (!queue.isEmpty()) {
+      String id = queue.poll();
+      if (id == null || !seen.add(id)) continue;
       Map<String, Object> node = findNode(definition, id).orElse(null);
       if (node == null) continue;
-      if ("end".equals(String.valueOf(node.get("type")))) hasEnd = true;
-      else active.add(id);
+      String type = String.valueOf(node.get("type"));
+      if ("end".equals(type)) {
+        hasEnd = true;
+      } else if ("gateway".equals(type)) {
+        // 条件网关：直通展开，不生成任务
+        queue.addAll(nextNodes(definition, id, ctx));
+      } else {
+        active.add(id);
+      }
     }
     return new Split(active, hasEnd);
   }

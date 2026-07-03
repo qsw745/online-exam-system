@@ -11,6 +11,7 @@ import Header from './Header'
 import LoadingSpinner from './LoadingSpinner'
 import LayoutOffsetVars from './LayoutOffsetVars'
 import AiAssistantWidget from './AiAssistantWidget'
+import { translate } from '@/shared/utils/i18n'
 
 const { Content } = AntLayout
 const HEADER_H = 48
@@ -43,7 +44,7 @@ const Layout: React.FC = () => {
   }
 
   if (loading || !user) {
-    return <LoadingSpinner center="page" text="加载用户信息…" />
+    return <LoadingSpinner center="page" text={translate('visible.4f42c81a77')} />
   }
 
   const headTotal = HEADER_H + (showTabs ? TABS_H : 0)

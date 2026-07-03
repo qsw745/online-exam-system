@@ -8,6 +8,7 @@ import {
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
 import { aiApi } from '@/shared/api/endpoints/ai'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -209,10 +210,9 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   }
 
   const typeLabel = (t?: string) =>
-    (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[
-      t || ''
-    ] || t)
-  const diffLabel = (d?: string) => (({ easy: '简单', medium: '中等', hard: '困难' } as any)[d || ''] || d)
+    (({ single_choice: translate('questions.single_choice'), multiple_choice: translate('questions.multiple_choice'), true_false: translate('questions.judge'), short_answer: translate('questions.type_short') } as any)[t || ''] || t)
+  const diffLabel = (d?: string) =>
+    (({ easy: translate('questions.easy'), medium: translate('questions.medium'), hard: translate('questions.hard') } as any)[d || ''] || d)
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
@@ -234,12 +234,11 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
             <Space wrap size={12}>
               <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
-                返回列表
-              </Button>
-              <Tag color="blue">本页试题：{qs.length} 题</Tag>
+                {translate('papers.back_to_list')}</Button>
+              <Tag color="blue">{translate('auto.c7e038341d')}{qs.length} {translate('papers.unit_question')}</Tag>
               {submitted && (
                 <Tag color="green">
-                  成绩：{summary.correct} / {summary.total}
+                  {translate('auto.16cde0126c')}{summary.correct} / {summary.total}
                 </Tag>
               )}
             </Space>
@@ -250,12 +249,11 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                 type="primary"
                 ghost
               >
-                {showExp ? '隐藏解析' : '显示解析'}
+                {showExp ? translate('visible.fbdfb3c5b1') : translate('visible.e25ef71017')}
               </Button>
               {!submitted ? (
                 <Button type="primary" onClick={submitAll} loading={grading}>
-                  提交全部
-                </Button>
+                  {translate('auto.fe82d08c17')}</Button>
               ) : (
                 <Button
                   onClick={() => {
@@ -267,19 +265,18 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
                 >
-                  重新作答
-                </Button>
+                  {translate('auto.36971023b6')}</Button>
               )}
             </Space>
           </div>
         </div>
 
-        <Spin spinning={loading} tip="加载题目中...">
+        <Spin spinning={loading} tip={translate('questions.loading')}>
           {!loading && error && (
             <Card>
               <Space direction="vertical" align="center" style={{ width: '100%' }}>
                 <AlertTriangle size={64} color="#ff4d4f" />
-                <Title level={3}>题目加载失败</Title>
+                <Title level={3}>{translate('auto.c2bd90b611')}</Title>
                 <Text type="secondary">{error}</Text>
               </Space>
             </Card>
@@ -307,7 +304,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                     <Space>
                       {submitted && (
                         <Tag color={ok ? 'success' : 'error'} icon={<CheckCircle size={16} />}>
-                          {ok ? '正确' : '错误'}
+                          {ok ? translate('questions.tf_true') : translate('questions.tf_false')}
                         </Tag>
                       )}
                       <Button
@@ -318,20 +315,20 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                             if (fav[k]) {
                               await removeQuestionFromFavorites(k)
                               setFav(prev => ({ ...prev, [k]: false }))
-                              message.success('已取消收藏')
+                              message.success(translate('auto.0fc87e8309'))
                             } else {
                               await addQuestionToFavorites(k, (q.content || '').slice(0, 100))
                               setFav(prev => ({ ...prev, [k]: true }))
-                              message.success('已添加到收藏')
+                              message.success(translate('auto.143a521b56'))
                             }
                           } catch (e: any) {
-                            message.error(e?.message || '操作失败')
+                            message.error(e?.message || translate('app.operation_failed'))
                           }
                         }}
                         danger={!!fav[k]}
                         type={fav[k] ? 'primary' : 'default'}
                       >
-                        {fav[k] ? '已收藏' : '收藏'}
+                        {fav[k] ? translate('visible.2d2cdabf29') : translate('header.favorites')}
                       </Button>
                     </Space>
                   </div>
@@ -398,7 +395,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
 
                   {q.question_type === 'true_false' && (
                     <Space direction="vertical" style={{ width: '100%' }}>
-                      {['正确', '错误'].map((label, oi) => {
+                      {[translate('questions.tf_true'), translate('questions.tf_false')].map((label, oi) => {
                         const isSel = a.selected.includes(oi)
                         const idx = (q.correct_answer as string) === 'true' ? 0 : 1
                         const isCorrect = idx === oi
@@ -454,7 +451,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                         const v = e.target.value
                         setAnswers(prev => ({ ...prev, [k]: { ...(prev[k] || { selected: [] }), text: v } }))
                       }}
-                      placeholder="请输入您的答案..."
+                      placeholder={translate('auto.977e722666')}
                       disabled={submitted}
                       rows={5}
                       style={{ marginTop: 8 }}
@@ -467,8 +464,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                       style={{ marginTop: 12, backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
                       title={
                         <Title level={5} style={{ margin: 0, color: '#1890ff' }}>
-                          题目解析
-                        </Title>
+                          {translate('aiAssistant.action.explain_question')}</Title>
                       }
                     >
                       <Text style={{ color: '#1890ff', lineHeight: 1.6 }}>{q.explanation}</Text>

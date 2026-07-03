@@ -3,6 +3,7 @@ import React, { FormEvent } from 'react'
 import { Button, Col, Input, Row, Select, Space, Typography } from 'antd'
 import { DownloadOutlined, SearchOutlined } from '@ant-design/icons'
 import type { PaperLite } from '@/shared/types/grades'
+import { translate } from '@/shared/utils/i18n'
 
 const { Option } = Select
 const { Text } = Typography
@@ -44,15 +45,15 @@ export const GradeFilters: React.FC<Props> = ({
           <Input
             allowClear
             size="middle"
-            placeholder="搜索学生姓名或邮箱..."
+            placeholder={translate('auto.d761e8f9a3')}
             value={searchTerm}
             onChange={e => onSearchChange(e.target.value)}
             suffix={<SearchOutlined />}
           />
         </Col>
         <Col xs={24} md={5}>
-          <Select value={filterPaper} onChange={onFilterPaper} style={{ width: '100%' }} placeholder="选择试卷">
-            <Option value="all">所有试卷</Option>
+          <Select value={filterPaper} onChange={onFilterPaper} style={{ width: '100%' }} placeholder={translate('auto.237ab680f8')}>
+            <Option value="all">{translate('auto.f4769c19fd')}</Option>
             {papers.map(p => (
               <Option key={p.id} value={String(p.id)}>
                 {p.title}
@@ -61,27 +62,24 @@ export const GradeFilters: React.FC<Props> = ({
           </Select>
         </Col>
         <Col xs={24} md={5}>
-          <Select value={filterStatus} onChange={onFilterStatus} style={{ width: '100%' }} placeholder="选择状态">
-            <Option value="all">所有状态</Option>
-            <Option value="completed">已完成</Option>
-            <Option value="in_progress">进行中</Option>
-            <Option value="not_started">未开始</Option>
+          <Select value={filterStatus} onChange={onFilterStatus} style={{ width: '100%' }} placeholder={translate('auto.315f5ee18b')}>
+            <Option value="all">{translate('results.all_status')}</Option>
+            <Option value="completed">{translate('dashboard.status_completed')}</Option>
+            <Option value="in_progress">{translate('dashboard.status_in_progress')}</Option>
+            <Option value="not_started">{translate('dashboard.status_not_started')}</Option>
           </Select>
         </Col>
         <Col xs="auto">
           <Space>
             <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-              查询
-            </Button>
+              {translate('auto.711363c424')}</Button>
             <Button icon={<DownloadOutlined />} onClick={onExport} loading={exporting}>
-              导出
-            </Button>
+              {translate('questions.export')}</Button>
           </Space>
         </Col>
         <Col flex="auto">
           <Text type="secondary" style={{ float: 'right' }}>
-            可通过左侧搜索与筛选快速定位成绩
-          </Text>
+            {translate('auto.0730c223b6')}</Text>
         </Col>
       </Row>
     </form>

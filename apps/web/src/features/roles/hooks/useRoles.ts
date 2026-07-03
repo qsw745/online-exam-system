@@ -2,6 +2,7 @@
 import { rolesApi } from '@/shared/api/endpoints/roles' // ⭐ 正确来源
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export type Role = {
   id: number
@@ -82,7 +83,7 @@ export function useRoles() {
         setPage(Number.isFinite(nextPage) && nextPage > 0 ? nextPage : 1)
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载角色失败')
+        message.error(e?.message || translate('roles.message.load_failed'))
         setList([])
         setTotal(0)
       } finally {

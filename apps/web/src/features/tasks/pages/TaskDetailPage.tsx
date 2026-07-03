@@ -8,6 +8,7 @@ import { TaskForm } from '../components/TaskForm'
 import { useTaskById } from '../hooks/useTaskById'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 /** ─── 工具：把可能是 string/number 的值安全转成 number ───────────────────────── */
 const toNum = (v: any): number | undefined => {
@@ -120,11 +121,11 @@ export default function TaskDetailPage() {
 
       const res: any = (await (tasksApi as any).update?.(id, patch)) ?? {}
       if (!isSuccess(res)) throw new Error(res?.error || res?.message || '保存失败')
-      message.success('保存成功')
+      message.success(translate('orgs.message.save_success'))
       cancelEdit()
       await refetch()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || translate('roles.message.save_failed'))
     } finally {
       setSaving(false)
     }
@@ -144,11 +145,11 @@ export default function TaskDetailPage() {
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       {editing ? (
         <Card
-          title="编辑任务"
+          title={translate('jobs.edit_job')}
           extra={
             <Space>
-              <Button onClick={() => nav(-1)}>返回</Button>
-              <Button onClick={cancelEdit}>取消编辑</Button>
+              <Button onClick={() => nav(-1)}>{translate('app.back')}</Button>
+              <Button onClick={cancelEdit}>{translate('auto.c698df948d')}</Button>
             </Space>
           }
           variant="outlined"

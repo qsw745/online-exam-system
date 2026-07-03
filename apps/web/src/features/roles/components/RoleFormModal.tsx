@@ -1,6 +1,7 @@
 // src/features/roles/components/RoleFormModal.tsx
 import { Form, Input, Modal } from 'antd'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export default function RoleFormModal({
   open,
@@ -41,23 +42,23 @@ export default function RoleFormModal({
   return (
     <Modal
       maskClosable={false}
-      title={isEdit ? '编辑角色' : '新建角色'}
+      title={isEdit ? translate('visible.b9dcd82a7b') : translate('roles.action.create')}
       open={open}
       onCancel={onCancel}
       onOk={handleOk}
-      okText="保存"
+      okText={translate('app.save')}
       destroyOnHidden
       forceRender
       afterOpenChange={afterOpenChange}
     >
       <Form key={role?.id ?? 'new'} form={form} layout="vertical" preserve={false}>
-        <Form.Item label="角色名称" name="name" rules={[{ required: true, message: '请输入角色名称' }]}>
-          <Input placeholder="例如：教务管理员" autoFocus />
+        <Form.Item label={translate('roles.columns.name')} name="name" rules={[{ required: true, message: translate('roles.filters.name_placeholder') }]}>
+          <Input placeholder={translate('auto.4eb7ae2c2c')} autoFocus />
         </Form.Item>
-        <Form.Item label="角色编码" name="code" tooltip="可选；建议使用英文/下划线组合">
-          <Input placeholder="例如：academic_admin" />
+        <Form.Item label={translate('auto.c12ace673d')} name="code" tooltip={translate('auto.8349222c6c')}>
+          <Input placeholder={translate('auto.ff67c4c3e2')} />
         </Form.Item>
-        <Form.Item label="备注" name="description">
+        <Form.Item label={translate('users.form.remark')} name="description">
           <Input.TextArea rows={3} maxLength={200} showCount />
         </Form.Item>
       </Form>

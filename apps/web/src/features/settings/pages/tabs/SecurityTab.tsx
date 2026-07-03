@@ -6,6 +6,8 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { logsApi, type LogEntry } from '@/shared/api/endpoints/logs'
 import './security-tab.css'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Row = LogEntry & {
   // 兼容后端可能在 details 里放地理和客户端信息
@@ -59,42 +61,42 @@ export default function SecurityTab() {
   const columns = useMemo(
     () => [
       {
-        title: '详情',
+        title: translate('auto.4f55ee1e68'),
         dataIndex: 'message',
         ellipsis: true,
         render: (_: any, r: Row) => brief(r),
       },
       {
-        title: 'IP 地址',
+        title: translate('auto.010efa2cbc'),
         dataIndex: 'ip_address',
         width: 160,
         ellipsis: true,
       },
       {
-        title: '地点',
+        title: translate('auto.e9e0a3f4e5'),
         width: 200,
         ellipsis: true,
         render: (_: any, r: Row) => pickLocation(r),
       },
       {
-        title: '操作系统',
+        title: translate('auto.7c30099b89'),
         width: 140,
         ellipsis: true,
         render: (_: any, r: Row) => r.client?.os || parseOS(r.user_agent) || '-',
       },
       {
-        title: '浏览器类型',
+        title: translate('auto.d9dcf7d362'),
         width: 160,
         ellipsis: true,
         render: (_: any, r: Row) => r.client?.browser || parseBrowser(r.user_agent) || '-',
       },
       {
-        title: '时间',
+        title: translate('workflow.col_time'),
         dataIndex: 'created_at',
         width: 200,
         ellipsis: true,
         align: 'right' as const,
-        render: (t: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
+        render: (t: string) => (t ? formatDateTime(t) : '-'),
       },
     ],
     []
@@ -113,7 +115,7 @@ export default function SecurityTab() {
       setTotal(ret.total)
     } catch (e) {
       console.error(e)
-      message.error('获取安全日志失败')
+      message.error(translate('auto.d4c704810c'))
       setRows([])
       setTotal(0)
     } finally {
@@ -128,7 +130,7 @@ export default function SecurityTab() {
 
   return (
     <div>
-      <h2 style={{ marginBottom: 16 }}>安全日志</h2>
+      <h2 style={{ marginBottom: 16 }}>{translate('auto.eb7770fabe')}</h2>
 
       <Table<Row>
         className="security-log-table"

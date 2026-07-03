@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react'
-import { Alert, Card, Typography } from 'antd'
+import React, { useEffect, useRef, useState } from 'react'
+import { Alert, App, Button, Card, Modal, Typography } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 
@@ -7,11 +7,14 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLogin } from '../../auth/hooks/useLogin'
 import { DemoAccountsCard } from '../../auth/components/DemoAccountsCard'
 import { LoginForm } from '../../auth/components/LoginForm'
+import FaceCaptureWizard from '../../auth/components/FaceCaptureWizard'
+import QrLoginModal from '../../auth/components/QrLoginModal'
 import { OAuthLoginButtons } from '../../auth/components/OAuthLoginButtons'
 import { menuApi } from '@/shared/api/endpoints/menu'
 import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { AuthTopControls } from '../components/AuthTopControls'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -57,7 +60,13 @@ const LoginPage: React.FC = () => {
     keep7Days,
     setKeep7Days,
     loading,
+    faceLoginLoading,
     submit,
+    faceLogin,
+    faceModalOpen,
+    faceCaptureSubmit,
+    closeFaceModal,
+    faceActionMode,
     submitDisabled,
     inputsDisabled,
     isLocked,
@@ -74,6 +83,10 @@ const LoginPage: React.FC = () => {
     refreshCaptcha,
     quickLogin,
   } = useLogin()
+
+  const { message } = App.useApp()
+  const [qrOpen, setQrOpen] = useState(false)
+  const openQrLogin = () => setQrOpen(true)
 
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
@@ -183,11 +196,13 @@ const LoginPage: React.FC = () => {
           rememberMe={rememberMe}
           keep7Days={keep7Days}
           loading={loading}
+          faceLoginLoading={faceLoginLoading}
           onEmailChange={setEmail}
           onPasswordChange={setPassword}
           onRememberChange={setRememberMe}
           onKeep7DaysChange={setKeep7Days}
           onSubmit={submit}
+          onFaceLogin={faceLogin}
           submitDisabled={submitDisabled}
           inputsDisabled={inputsDisabled}
           isLocked={isLocked}
@@ -200,7 +215,30 @@ const LoginPage: React.FC = () => {
           onCaptchaChange={setCaptcha}
           onRefreshCaptcha={refreshCaptcha}
         />
+
+        <div style={{ textAlign: 'center', marginTop: 8 }}>
+          <Button type="link" size="small" disabled={inputsDisabled} onClick={openQrLogin}>
+            {translate('auto.83ecbae416')}</Button>
+        </div>
       </Card>
+
+      <Modal
+        title={translate('auth.face_login')}
+        open={faceModalOpen}
+        onCancel={closeFaceModal}
+        footer={null}
+        destroyOnHidden
+        maskClosable={false}
+        width={420}
+      >
+        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+          {translate('auto.f219b05d0e')}</Text>
+        {faceModalOpen && (
+          <FaceCaptureWizard auto actionMode={faceActionMode} busy={faceLoginLoading} onComplete={faceCaptureSubmit} />
+        )}
+      </Modal>
+
+      <QrLoginModal open={qrOpen} email={email} keep7Days={keep7Days} onClose={() => setQrOpen(false)} />
     </div>
   )
 }

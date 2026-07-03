@@ -7,6 +7,7 @@ import { AuthProvider } from '@/shared/contexts/AuthContext'
 import { LanguageProvider } from '@/shared/contexts/LanguageContext'
 import { MenuPermissionProvider } from '@/shared/contexts/MenuPermissionContext'
 import { router } from '@/app/routes'
+import AppProviders from '@/AppProviders'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,12 +37,14 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <LanguageProvider>
-          <MenuPermissionProvider>
-            {/* v5 全局 Suspense：用 React 的 <Suspense> 包裹路由 */}
-            <Suspense fallback={null}>
-              <RouterProvider router={router} />
-            </Suspense>
-          </MenuPermissionProvider>
+          <AppProviders>
+            <MenuPermissionProvider>
+              {/* v5 全局 Suspense：用 React 的 <Suspense> 包裹路由 */}
+              <Suspense fallback={null}>
+                <RouterProvider router={router} />
+              </Suspense>
+            </MenuPermissionProvider>
+          </AppProviders>
         </LanguageProvider>
       </AuthProvider>
     </QueryClientProvider>

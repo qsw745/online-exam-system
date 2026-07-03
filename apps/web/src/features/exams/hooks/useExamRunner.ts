@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { App } from 'antd'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { translate } from '@/shared/utils/i18n'
 
 type Question = {
   id: number
@@ -65,7 +66,7 @@ export function useExamRunner(taskOrExamId: string) {
       const res: any = await tasksApi.startExam(taskOrExamId)
       const data = (res?.data ?? res) as ExamPayload
       if (!data || !data.duration || !Array.isArray(data.questions) || data.questions.length === 0) {
-        message.error('考试数据无效')
+        message.error(translate('auto.6f07bbeb45'))
         setExam(null)
         return
       }
@@ -82,7 +83,7 @@ export function useExamRunner(taskOrExamId: string) {
       setTimeLeft(data.duration * 60)
     } catch (e) {
       console.error(e)
-      message.error('加载试卷失败')
+      message.error(translate('exam.load_error'))
       setExam(null)
     } finally {
       setLoading(false)
@@ -139,7 +140,7 @@ export function useExamRunner(taskOrExamId: string) {
       return true
     } catch (e: any) {
       console.error(e)
-      message.error('提交答案失败')
+      message.error(translate('auto.022afea411'))
       return false
     } finally {
       setSubmitting(false)

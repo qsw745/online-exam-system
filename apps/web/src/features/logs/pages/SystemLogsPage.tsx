@@ -6,6 +6,7 @@ import SystemFiltersBar from '@/features/logs/components/SystemFiltersBar'
 import SystemLogsTable from '@/features/logs/components/SystemLogsTable'
 import { useLogs } from '@/features/logs/hooks/useLogs'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title } = Typography
 
@@ -41,12 +42,10 @@ export default function SystemLogsPage() {
         <Space>
           <Cpu style={{ width: 22, height: 22, color: '#1677ff' }} />
           <Title level={2} style={{ margin: 0 }}>
-            系统日志
-          </Title>
+            {translate('menus.system-logs-system')}</Title>
         </Space>
         <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={exportLogs}>
-          导出
-        </Button>
+          {translate('questions.export')}</Button>
       </div>
 
       <Card style={{ marginBottom: 12,  }}>

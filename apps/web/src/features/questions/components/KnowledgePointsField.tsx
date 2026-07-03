@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Button, Input, Space, Tag } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 export default function KnowledgePointsField({
   points,
@@ -26,12 +27,11 @@ export default function KnowledgePointsField({
           value={kw}
           onChange={e => setKw(e.target.value)}
           onPressEnter={e => (e.preventDefault(), add())}
-          placeholder="输入知识点"
+          placeholder={translate('questions.kp_ph')}
           disabled={disabled}
         />
         <Button type="primary" onClick={add} disabled={disabled}>
-          添加
-        </Button>
+          {translate('app.add')}</Button>
       </Space.Compact>
       <Space wrap>
         {points.map((p, i) => (

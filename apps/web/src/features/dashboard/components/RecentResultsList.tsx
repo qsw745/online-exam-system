@@ -4,6 +4,7 @@ import React from 'react'
 
 import dayjs from '@/shared/utils/dayjs'
 import { Link } from 'react-router-dom'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -42,7 +43,7 @@ export const RecentResultsList: React.FC<{
                   <Space>
                     <Calendar style={{ width: 14, height: 14 }} />
                     <Text type="secondary">
-                      {label.submit}: {dayjs(result.created_at).locale(locale).format('YYYY/MM/DD HH:mm')}
+                      {label.submit}: {formatDateTime(result.created_at)}
                     </Text>
                   </Space>
                 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { message } from 'antd'
 import { questionsApi, isSuccess } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 export function useQuestionSelection(ids: string[], reload: () => void) {
   const [selected, setSelected] = useState<string[]>([])
@@ -20,7 +21,7 @@ export function useQuestionSelection(ids: string[], reload: () => void) {
         if (typeof QA.delete === 'function') return QA.delete(id)
         if (typeof QA.destroy === 'function') return QA.destroy(id)
         if (typeof QA.del === 'function') return QA.del(id)
-        return Promise.reject(new Error('删除接口未实现'))
+        return Promise.reject(new Error(translate('auto.b0375d2f7b')))
       }
 
       const results = await Promise.all(selected.map(id => callDelete(id)))
@@ -28,13 +29,13 @@ export function useQuestionSelection(ids: string[], reload: () => void) {
       const fail = results.length - ok
 
       if (ok) message.success(`成功删除 ${ok} 道题目${fail ? `，失败 ${fail} 条` : ''}`)
-      else message.error('批量删除失败')
+      else message.error(translate('users.message.batch_failed'))
 
       setSelected([])
       setVisible(false)
       reload()
     } catch {
-      message.error('批量删除失败')
+      message.error(translate('users.message.batch_failed'))
     }
   }
 

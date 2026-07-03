@@ -1,6 +1,7 @@
 // features/questions/practice/components/KnowledgePointsCard.tsx
 import { Card, Space, Tag, Typography } from 'antd'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 const { Title } = Typography
 export function KnowledgePointsCard({ points }: { points: string[] }) {
   if (!points?.length) return null
@@ -8,8 +9,7 @@ export function KnowledgePointsCard({ points }: { points: string[] }) {
     <Card
       title={
         <Title level={4} style={{ margin: 0 }}>
-          相关知识点
-        </Title>
+          {translate('auto.8e00a85a37')}</Title>
       }
     >
       <Space wrap>

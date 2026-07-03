@@ -113,6 +113,11 @@ export class UserRepository {
     return (rows[0] as unknown as IUser) || null
   }
 
+  /** 标记邮箱已验证 */
+  static async markEmailVerified(userId: number): Promise<void> {
+    await pool.execute(`UPDATE users SET email_verified=1, email_verified_at=NOW() WHERE id=?`, [userId])
+  }
+
   static async findByOAuth(provider: OAuthProvider, providerUserId: string): Promise<IUser | null> {
     const cols = await loadUserColumns()
     const [rows] = await pool.execute<RowDataPacket[]>(

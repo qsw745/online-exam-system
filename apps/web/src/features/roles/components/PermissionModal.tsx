@@ -1,6 +1,7 @@
 import { Button, Descriptions, Modal, Tree } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export type Role = { id: number; name: string; code?: string; description?: string | null }
 
@@ -31,23 +32,22 @@ export function PermissionModal({
       onOk={onOk}
       onCancel={onCancel}
       width={800}
-      okText="保存"
+      okText={translate('app.save')}
       destroyOnHidden
     >
       {role && (
         <>
           <Descriptions size="small" column={2} className="mb-4">
-            <Descriptions.Item label="角色名称">{role.name}</Descriptions.Item>
-            <Descriptions.Item label="角色编码">{role.code}</Descriptions.Item>
-            <Descriptions.Item label="角色描述" span={2}>
-              {role.description || '无描述'}
+            <Descriptions.Item label={translate('roles.columns.name')}>{role.name}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.c12ace673d')}>{role.code}</Descriptions.Item>
+            <Descriptions.Item label={translate('auto.a0a62a0031')} span={2}>
+              {role.description || translate('visible.2070d97c0d')}
             </Descriptions.Item>
           </Descriptions>
           <div className="flex justify-between items-center mb-3">
-            <h3 className="text-lg font-medium">菜单权限</h3>
+            <h3 className="text-lg font-medium">{translate('auto.270eba340e')}</h3>
             <Button size="small" onClick={onRefreshMenus}>
-              刷新菜单
-            </Button>
+              {translate('auto.1cadb7ca0f')}</Button>
           </div>
           <Tree
             checkable

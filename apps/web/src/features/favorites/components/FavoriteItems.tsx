@@ -1,6 +1,8 @@
 import { Button, Empty, List, Space, Spin, Tag, Typography } from 'antd'
 import { Trash2 } from 'lucide-react'
 import type { FavoriteItem } from '@/shared/api/endpoints/favorites'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -19,11 +21,11 @@ function getDifficultyColor(d?: string) {
 function getDifficultyText(d?: string) {
   switch ((d || '').toLowerCase()) {
     case 'easy':
-      return '简单'
+      return translate('questions.easy')
     case 'medium':
-      return '中等'
+      return translate('questions.medium')
     case 'hard':
-      return '困难'
+      return translate('questions.hard')
     default:
       return d
   }
@@ -37,7 +39,7 @@ type Props = {
 }
 
 export default function FavoriteItems({ items, loading, onView, onRemove }: Props) {
-  if (!loading && items.length === 0) return <Empty description="收藏夹为空" />
+  if (!loading && items.length === 0) return <Empty description={translate('auto.9f1c610c1a')} />
   return (
     <Spin spinning={loading}>
       <List
@@ -54,8 +56,7 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
                   if (typeof qid === 'number') onView(qid)
                 }}
               >
-                查看题目
-              </Button>,
+                {translate('questions.page_view')}</Button>,
               <Button
                 key="remove"
                 type="text"
@@ -63,8 +64,7 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
                 icon={<Trash2 style={{ width: 16, height: 16 }} />}
                 onClick={() => onRemove(item.id)}
               >
-                移除
-              </Button>,
+                {translate('papers.op_remove')}</Button>,
             ]}
           >
             <List.Item.Meta
@@ -77,14 +77,14 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
               description={
                 <Space size="large">
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    科目: {item.subject || '-'}
+                    {translate('auto.75b468a7bc')}{item.subject || '-'}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    类型: {item.question_type || item.item_type || '-'}
+                    {translate('auto.fe5230eabe')}{item.question_type || item.item_type || '-'}
                   </Text>
                   <Text type="secondary" style={{ fontSize: 14 }}>
-                    收藏时间:{' '}
-                    {item.added_at ? new Date(item.added_at).toLocaleDateString() : '未知'}
+                    {translate('auto.b83b012042')}{' '}
+                    {item.added_at ? formatDateTime(item.added_at) : translate('examPage.proctor.status.unknown')}
                   </Text>
                 </Space>
               }

@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { User as UserIcon, Settings as SettingsIcon, ShieldCheck, BookUser, ChevronLeft } from 'lucide-react'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import { withAppAssetPath } from '@/shared/router/basePath'
+import { translate } from '@/shared/utils/i18n'
 
 // 懒加载四个 Tab（仍然按需加载，首屏更轻）
 const ProfileTab = React.lazy(() => import('./tabs/ProfileTab'))
@@ -14,16 +15,15 @@ const AccountTab = React.lazy(() => import('./tabs/AccountTab'))
 
 type TabKey = 'profile' | 'preferences' | 'security' | 'account'
 
-const menuItems = [
-  { key: 'profile', icon: <UserIcon size={16} />, label: '个人信息' },
-  { key: 'preferences', icon: <SettingsIcon size={16} />, label: '偏好设置' },
-  { key: 'security', icon: <ShieldCheck size={16} />, label: '安全日志' },
-  { key: 'account', icon: <BookUser size={16} />, label: '账户管理' },
-] as const
-
 export default function SettingsPage() {
   const nav = useNavigate()
   const [active, setActive] = useState<TabKey>('profile') // ✅ 本地状态控制
+  const menuItems = [
+    { key: 'profile', icon: <UserIcon size={16} />, label: translate('nav.profile') },
+    { key: 'preferences', icon: <SettingsIcon size={16} />, label: translate('settings.preferences') },
+    { key: 'security', icon: <ShieldCheck size={16} />, label: translate('auto.eb7770fabe') },
+    { key: 'account', icon: <BookUser size={16} />, label: translate('settings.account') },
+  ] as const
 
   const goBack = () => {
     if (window.history.length > 1) nav(-1)
@@ -51,7 +51,7 @@ export default function SettingsPage() {
       <button
         type="button"
         onClick={goBack}
-        aria-label="返回"
+        aria-label={translate('app.back')}
         style={{
           alignSelf: 'flex-start',
           display: 'inline-flex',
@@ -71,7 +71,7 @@ export default function SettingsPage() {
         onMouseLeave={e => ((e.currentTarget.style as any).backgroundColor = 'transparent')}
       >
         <ChevronLeft size={18} />
-        <span style={{ fontSize: 16 }}>返回</span>
+        <span style={{ fontSize: 16 }}>{translate('app.back')}</span>
       </button>
 
       {/* 主体两栏布局 */}
@@ -86,8 +86,8 @@ export default function SettingsPage() {
               style={{ borderRadius: 8, objectFit: 'cover' }}
             />
             <div style={{ lineHeight: 1.2 }}>
-              <div style={{ fontWeight: 600 }}>账户设置</div>
-              <div style={{ fontSize: 12, color: 'var(--app-colorTextTertiary,#999)' }}>管理个人资料与偏好</div>
+              <div style={{ fontWeight: 600 }}>{translate('header.account_settings')}</div>
+              <div style={{ fontSize: 12, color: 'var(--app-colorTextTertiary,#999)' }}>{translate('auto.204e49ad8c')}</div>
             </div>
           </div>
           <Menu
@@ -101,7 +101,7 @@ export default function SettingsPage() {
 
         {/* 右侧内容区域：组件切换 */}
         <Card>
-          <Suspense fallback={<LoadingSpinner center="page" text="加载中…" />}>
+          <Suspense fallback={<LoadingSpinner center="page" text={translate('auto.300ee3dee4')} />}>
             {Content}
           </Suspense>
         </Card>

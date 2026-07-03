@@ -2,6 +2,7 @@ import { App, Button, Card, Form, Input, Radio, Space, Select } from 'antd'
 import React, { useCallback, useEffect, useState } from 'react'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { notificationsApi } from '@/shared/api/endpoints/notifications'
+import { translate } from '@/shared/utils/i18n'
 
 export default function BroadcastAndTestPage() {
   const [form] = Form.useForm()
@@ -34,7 +35,7 @@ export default function BroadcastAndTestPage() {
 
   const handleBroadcast = async (values: { channel: string; audience: number[]; title: string; content: string }) => {
     if (!values.audience?.length) {
-      message.warning('请至少选择一位受众')
+      message.warning(translate('auto.c87f7f31a1'))
       return
     }
     setSending(true)
@@ -45,10 +46,10 @@ export default function BroadcastAndTestPage() {
         content: values.content,
         type: values.channel || 'site',
       })
-      message.success('群发已提交')
+      message.success(translate('auto.4a5a23a919'))
       form.resetFields(['audience', 'title', 'content'])
     } catch (e: any) {
-      message.error(e?.message || '发送失败')
+      message.error(e?.message || translate('auto.e767d34c78'))
     } finally {
       setSending(false)
     }
@@ -63,10 +64,10 @@ export default function BroadcastAndTestPage() {
         content: values.content,
         type: 'site',
       })
-      message.success('测试消息已发送')
+      message.success(translate('auto.09b30e8054'))
       testForm.resetFields()
     } catch (e: any) {
-      message.error(e?.message || '测试发送失败')
+      message.error(e?.message || translate('auto.11e6a3e332'))
     } finally {
       setTesting(false)
     }
@@ -74,20 +75,20 @@ export default function BroadcastAndTestPage() {
 
   return (
     <Space direction="vertical" size={12} style={{ width: '100%' }}>
-      <Card title="消息群发">
+      <Card title={translate('auto.b092a787c7')}>
         <Form form={form} layout="vertical" onFinish={handleBroadcast}>
-          <Form.Item name="channel" label="渠道" initialValue="site">
+          <Form.Item name="channel" label={translate('auto.c152be9f50')} initialValue="site">
             <Radio.Group>
-              <Radio.Button value="site">站内信</Radio.Button>
-              <Radio.Button value="email">邮件</Radio.Button>
-              <Radio.Button value="sms">短信</Radio.Button>
+              <Radio.Button value="site">{translate('auto.ab2bf56c23')}</Radio.Button>
+              <Radio.Button value="email">{translate('menus.system-mail')}</Radio.Button>
+              <Radio.Button value="sms">{translate('auto.17e1a481d8')}</Radio.Button>
               <Radio.Button value="webhook">Webhook</Radio.Button>
             </Radio.Group>
           </Form.Item>
-          <Form.Item name="audience" label="受众" rules={[{ required: true, message: '请选择至少一位接收人' }]}>
+          <Form.Item name="audience" label={translate('auto.312812248a')} rules={[{ required: true, message: translate('auto.2107df803f') }]}>
             <Select
               mode="multiple"
-              placeholder="搜索并选择用户"
+              placeholder={translate('auto.2b8462c7dc')}
               showSearch
               allowClear
               filterOption={false}
@@ -99,24 +100,23 @@ export default function BroadcastAndTestPage() {
               }}
             />
           </Form.Item>
-          <Form.Item name="title" label="标题" rules={[{ required: true }]}>
+          <Form.Item name="title" label={translate('papers.field_title')} rules={[{ required: true }]}>
             <Input />
           </Form.Item>
-          <Form.Item name="content" label="内容" rules={[{ required: true }]}>
+          <Form.Item name="content" label={translate('auto.163aec9194')} rules={[{ required: true }]}>
             <Input.TextArea rows={6} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={sending}>
-            发送
-          </Button>
+            {translate('aiAssistant.send')}</Button>
         </Form>
       </Card>
 
-      <Card title="单人测试发送">
+      <Card title={translate('auto.6f339b5628')}>
         <Form form={testForm} layout="inline" onFinish={handleTestSend}>
-          <Form.Item name="userId" rules={[{ required: true, message: '请选择接收用户' }]}>
+          <Form.Item name="userId" rules={[{ required: true, message: translate('auto.e73c3e046e') }]}>
             <Select
               style={{ width: 280 }}
-              placeholder="搜索并选择用户"
+              placeholder={translate('auto.2b8462c7dc')}
               showSearch
               filterOption={false}
               allowClear
@@ -129,14 +129,13 @@ export default function BroadcastAndTestPage() {
             />
           </Form.Item>
           <Form.Item name="title" rules={[{ required: true }]}>
-            <Input placeholder="标题" style={{ width: 220 }} />
+            <Input placeholder={translate('papers.field_title')} style={{ width: 220 }} />
           </Form.Item>
           <Form.Item name="content" rules={[{ required: true }]}>
-            <Input placeholder="内容" style={{ width: 320 }} />
+            <Input placeholder={translate('auto.163aec9194')} style={{ width: 320 }} />
           </Form.Item>
           <Button type="primary" htmlType="submit" loading={testing}>
-            测试发送
-          </Button>
+            {translate('auto.614cdaef43')}</Button>
         </Form>
       </Card>
     </Space>

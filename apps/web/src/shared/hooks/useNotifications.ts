@@ -2,6 +2,7 @@
 import { App, Form } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 // —— 最小类型定义，避免外部类型名不一致 —— //
 export type NotificationType = 'info' | 'success' | 'warning' | 'error' | string
@@ -63,7 +64,7 @@ export function useNotifications() {
       console.error(e)
       setNotifications([])
       setTotal(0)
-      message.error('获取通知列表失败')
+      message.error(translate('auto.e1337f26d4'))
     } finally {
       setLoading(false)
     }
@@ -102,17 +103,17 @@ export function useNotifications() {
     try {
       const r = await api.delete(`/notifications/admin/${id}`)
       if (!isSuccess(r)) throw new Error(getErr(r, '删除失败'))
-      message.success('删除成功')
+      message.success(translate('users.message.delete_success'))
       loadNotifications()
     } catch {
-      message.error('删除失败')
+      message.error(translate('orgs.message.delete_failed'))
     }
   }
 
   const onSubmit = async (values: CreateNotificationForm) => {
     try {
       if (editing) {
-        message.info('通知发送后暂不支持编辑，请删除后重新发送')
+        message.info(translate('auto.241aa687d9'))
         return
       } else {
         // 发送通知
@@ -123,7 +124,7 @@ export function useNotifications() {
         } else if (values.user_ids?.length) {
           targetIds = values.user_ids
         } else {
-          message.error('请选择接收通知的用户')
+          message.error(translate('auto.4392ab8c4a'))
           return
         }
 
@@ -138,7 +139,7 @@ export function useNotifications() {
             attachments,
           })
           if (!isSuccess(r)) throw new Error(getErr(r, '发送失败'))
-          message.success('通知发送成功')
+          message.success(translate('auto.cded7e2727'))
         } else {
           // 优先尝试批量接口，不存在则降级为逐个发送
           try {
@@ -173,7 +174,7 @@ export function useNotifications() {
       loadNotifications()
     } catch (e) {
       console.error(e)
-      message.error(editing ? '更新失败' : '发送失败')
+      message.error(editing ? translate('roles.message.update_failed') : translate('auto.e767d34c78'))
     }
   }
 

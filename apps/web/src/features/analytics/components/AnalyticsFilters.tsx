@@ -2,6 +2,7 @@ import { DatePicker, Select } from 'antd'
 import  dayjs from  '@/shared/utils/dayjs'
 import React from 'react'
 import type { DateRange } from '@/shared/hooks/useAnalytics'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { RangePicker } = DatePicker
 const { Option } = Select
@@ -21,6 +22,7 @@ export const AnalyticsFilters: React.FC<Props> = ({
   timeRange,
   onRangeChange,
 }) => {
+  const { t } = useLanguage()
   const handleRangeChange = (dates: [dayjs.Dayjs | null, dayjs.Dayjs | null] | null) => {
     if (dates && dates[0] && dates[1]) onRangeChange([dates[0], dates[1]])
     else onRangeChange(null)
@@ -29,7 +31,7 @@ export const AnalyticsFilters: React.FC<Props> = ({
   return (
     <div className="flex items-center space-x-4">
       <Select value={selectedSubject} onChange={onSubjectChange} style={{ width: 140 }}>
-        <Option value="all">全部科目</Option>
+        <Option value="all">{t('analytics.all_subjects')}</Option>
         {subjects.map(s => (
           <Option key={s} value={s}>
             {s}

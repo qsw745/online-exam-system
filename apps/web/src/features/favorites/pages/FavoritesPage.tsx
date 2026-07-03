@@ -6,6 +6,7 @@ import CreateFavoriteModal from '../components/CreateFavoriteModal'
 import EditFavoriteModal from '../components/EditFavoriteModal'
 import FavoriteItems from '../components/FavoriteItems'
 import FavoritesList from '../components/FavoritesList'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 export default function FavoritesPage() {
@@ -31,9 +32,9 @@ export default function FavoritesPage() {
 
   const onDelete = (id: number) => {
     Modal.confirm({
-      title: '确认删除',
-      content: '删除后无法恢复，确定要删除这个收藏夹吗？',
-      onOk: () => deleteFavorite(id).catch(() => message.error('删除收藏夹失败')),
+      title: translate('papers.confirm_delete'),
+      content: translate('auto.55f8f1225b'),
+      onOk: () => deleteFavorite(id).catch(() => message.error(translate('auto.c127a4863b'))),
     })
   }
 
@@ -46,22 +47,20 @@ export default function FavoritesPage() {
           <Space align="center">
             <Heart style={{ width: 24, height: 24, color: '#f5222d' }} />
             <Title level={2} style={{ margin: 0 }}>
-              我的收藏夹
-            </Title>
+              {translate('auto.aa8ab014e9')}</Title>
           </Space>
           <Button type="primary" icon={<Plus style={{ width: 16, height: 16 }} />} onClick={() => setCreateOpen(true)}>
-            新建收藏夹
-          </Button>
+            {translate('auto.be459bcd93')}</Button>
         </div>
 
         <Row gutter={24}>
           {/* 左侧列表 */}
           <Col xs={24} lg={10}>
-            <Card title="收藏夹列表" style={{ height: '100%' }}>
+            <Card title={translate('auto.1ece63b7c9')} style={{ height: '100%' }}>
               {loading ? (
-                <Empty description="加载中..." />
+                <Empty description={translate('app.loading')} />
               ) : favorites.length === 0 ? (
-                <Empty description="暂无收藏夹" />
+                <Empty description={translate('auto.5111da5937')} />
               ) : (
                 <FavoritesList
                   data={favorites}
@@ -71,7 +70,7 @@ export default function FavoritesPage() {
                     setSelectedId(fav.id)
                     setEditOpen(true)
                   }}
-                  onShare={fav => shareFavorite(fav.id).catch(() => message.error('生成分享链接失败'))}
+                  onShare={fav => shareFavorite(fav.id).catch(() => message.error(translate('auto.19a9339497')))}
                   onDelete={fav => onDelete(fav.id)}
                 />
               )}
@@ -88,7 +87,7 @@ export default function FavoritesPage() {
                     <span>{selected.name}</span>
                   </Space>
                 ) : (
-                  '选择收藏夹查看内容'
+                  translate('visible.866240e0b2')
                 )
               }
               style={{ height: '100%' }}
@@ -98,12 +97,12 @@ export default function FavoritesPage() {
                   items={items}
                   loading={itemsLoading}
                   onView={qid => window.open(`/questions/${qid}`, '_blank')}
-                  onRemove={id => removeItem(id).catch(() => message.error('移除失败'))}
+                  onRemove={id => removeItem(id).catch(() => message.error(translate('papers.remove_failed')))}
                 />
               ) : (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
                   <Star style={{ width: 64, height: 64, color: '#d9d9d9', margin: '0 auto 16px' }} />
-                  <Text type="secondary">请选择一个收藏夹查看内容</Text>
+                  <Text type="secondary">{translate('auto.f5c9ac95af')}</Text>
                 </div>
               )}
             </Card>
@@ -117,7 +116,7 @@ export default function FavoritesPage() {
           onSubmit={vals =>
             createFavorite(vals)
               .then(() => setCreateOpen(false))
-              .catch(() => message.error('创建收藏夹失败'))
+              .catch(() => message.error(translate('auto.83d3a1137b')))
           }
         />
         <EditFavoriteModal
@@ -127,7 +126,7 @@ export default function FavoritesPage() {
           onSubmit={vals =>
             updateFavorite(vals)
               .then(() => setEditOpen(false))
-              .catch(() => message.error('更新收藏夹失败'))
+              .catch(() => message.error(translate('auto.5008e77ced')))
           }
         />
       </Space>

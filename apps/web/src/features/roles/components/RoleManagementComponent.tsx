@@ -46,6 +46,7 @@ import { useRoleMembers } from '@/features/roles/hooks/useRoleMembers'
 import { useRolePermissions } from '@/features/roles/hooks/useRolePermissions'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 // —— 小工具 —— //
 const isOk = (r: any) => r?.success !== false && !r?.error
@@ -367,7 +368,7 @@ export default function RoleManagementComponent() {
       ellipsis: true,
       align: 'center',
       width: 180,
-      render: (t: any) => (t ? new Date(t).toLocaleString() : null),
+      render: (t: any) => (t ? formatDateTime(t) : null),
     },
     actions: {
       title: columnLabels.actions,

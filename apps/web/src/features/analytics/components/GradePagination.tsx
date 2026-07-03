@@ -2,6 +2,7 @@
 import React from 'react'
 import { Flex, Typography } from 'antd'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 type Props = {
   page: number
@@ -22,8 +23,7 @@ export const GradePagination: React.FC<Props> = ({ page, pageSize, totalPages, t
   return (
     <Flex align="center" justify="space-between" wrap="wrap" gap={12}>
       <Text type="secondary">
-        显示第 {start} - {end} 条，共 {totalResults} 条记录
-      </Text>
+        {translate('auto.78715e49e9')}{start} - {end} {translate('auto.a0ba8f7a92')}{totalResults} {translate('auto.69d28aa1b0')}</Text>
       <GlobalPagination
         current={page}
         pageSize={pageSize}

@@ -1,9 +1,11 @@
 import React from 'react'
 import { Button, Card, DatePicker, Drawer, Input, Space, Table, Tag, Typography, message } from 'antd'
 import { Download, Search } from 'lucide-react'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import GlobalPagination from '@/shared/components/GlobalPagination'
 import { aiLogsApi, type AiLogFilters, type AiLogItem } from '@/shared/api/endpoints/ai-logs'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text, Paragraph } = Typography
 const { RangePicker } = DatePicker
@@ -17,6 +19,7 @@ const initialFilters: AiLogFilters = {
 }
 
 export default function AiLogsPage() {
+  const { t } = useLanguage()
   const [draft, setDraft] = React.useState<AiLogFilters>(initialFilters)
   const [filters, setFilters] = React.useState<AiLogFilters>(initialFilters)
   const [items, setItems] = React.useState<AiLogItem[]>([])
@@ -33,11 +36,11 @@ export default function AiLogsPage() {
       setItems(res.items)
       setTotal(res.total)
     } catch (e: any) {
-      message.error(e?.message || '加载AI问答记录失败')
+      message.error(e?.message || t('aiLogs.load_failed'))
     } finally {
       setLoading(false)
     }
-  }, [filters, page, pageSize])
+  }, [filters, page, pageSize, t])
 
   React.useEffect(() => {
     void fetchLogs()
@@ -66,19 +69,19 @@ export default function AiLogsPage() {
       link.remove()
       URL.revokeObjectURL(url)
     } catch (e: any) {
-      message.error(e?.message || '导出失败')
+      message.error(e?.message || t('aiLogs.export_failed'))
     }
   }
 
   const columns = [
     {
-      title: '时间',
+      title: t('aiLogs.col_time'),
       dataIndex: 'createdAt',
       width: 170,
-      render: (value: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      render: (value: string) => (value ? formatDateTime(value) : '-'),
     },
     {
-      title: '用户',
+      title: t('aiLogs.col_user'),
       dataIndex: 'nickname',
       width: 160,
       render: (_: string, record: AiLogItem) => (
@@ -91,40 +94,40 @@ export default function AiLogsPage() {
       ),
     },
     {
-      title: '模型',
+      title: t('aiLogs.col_model'),
       dataIndex: 'model',
       width: 140,
-      render: (value: string) => <Text>{value || '默认'}</Text>,
+      render: (value: string) => <Text>{value || t('aiLogs.default_model')}</Text>,
     },
     {
-      title: '会话',
+      title: t('aiLogs.col_session'),
       dataIndex: 'sessionId',
       width: 140,
       render: (value: string) => <Text type="secondary">{value || '-'}</Text>,
     },
     {
-      title: '摘要',
+      title: t('aiLogs.col_summary'),
       dataIndex: 'preview',
       render: (_: any, record: AiLogItem) => (
         <Space direction="vertical" size={4}>
           <Text>
-            <Text type="secondary">用户：</Text>
+            <Text type="secondary">{t('aiLogs.user_prefix')}</Text>
             {record.preview?.user || '—'}
           </Text>
           <Text>
-            <Text type="secondary">助手：</Text>
+            <Text type="secondary">{t('aiLogs.assistant_prefix')}</Text>
             {record.preview?.assistant || '—'}
           </Text>
         </Space>
       ),
     },
     {
-      title: '操作',
+      title: t('aiLogs.col_action'),
       dataIndex: 'action',
       width: 100,
       render: (_: any, record: AiLogItem) => (
         <Button size="small" onClick={() => setActive(record)}>
-          查看
+          {t('aiLogs.view')}
         </Button>
       ),
     },
@@ -135,41 +138,41 @@ export default function AiLogsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <Space>
           <Title level={2} style={{ margin: 0 }}>
-            AI 问答记录
+            {t('aiLogs.title')}
           </Title>
-          <Tag color="blue">已脱敏</Tag>
-          <Text type="secondary">自动保留 180 天</Text>
+          <Tag color="blue">{t('aiLogs.desensitized')}</Tag>
+          <Text type="secondary">{t('aiLogs.retention')}</Text>
         </Space>
         <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={onExport}>
-          导出 JSONL
+          {t('aiLogs.export_jsonl')}
         </Button>
       </div>
 
       <Card style={{ marginBottom: 12 }}>
         <Space wrap>
           <Input
-            placeholder="关键词"
+            placeholder={t('aiLogs.keyword')}
             value={draft.keyword}
             onChange={e => setDraft(prev => ({ ...prev, keyword: e.target.value }))}
             allowClear
             style={{ width: 200 }}
           />
           <Input
-            placeholder="模型"
+            placeholder={t('aiLogs.model')}
             value={draft.model}
             onChange={e => setDraft(prev => ({ ...prev, model: e.target.value }))}
             allowClear
             style={{ width: 200 }}
           />
           <Input
-            placeholder="会话ID"
+            placeholder={t('aiLogs.session_id')}
             value={draft.sessionId}
             onChange={e => setDraft(prev => ({ ...prev, sessionId: e.target.value }))}
             allowClear
             style={{ width: 200 }}
           />
           <Input
-            placeholder="用户ID"
+            placeholder={t('aiLogs.user_id')}
             value={draft.userId ? String(draft.userId) : ''}
             onChange={e =>
               setDraft(prev => ({
@@ -185,9 +188,9 @@ export default function AiLogsPage() {
             onChange={value => setDraft(prev => ({ ...prev, dateRange: value }))}
           />
           <Button type="primary" icon={<Search style={{ width: 16, height: 16 }} />} onClick={onSearch}>
-            查询
+            {t('app.search')}
           </Button>
-          <Button onClick={onReset}>重置</Button>
+          <Button onClick={onReset}>{t('app.reset')}</Button>
         </Space>
       </Card>
 
@@ -207,7 +210,7 @@ export default function AiLogsPage() {
       </Card>
 
       <Drawer
-        title="问答详情"
+        title={t('aiLogs.detail_title')}
         open={!!active}
         onClose={() => setActive(null)}
         width={520}
@@ -216,14 +219,14 @@ export default function AiLogsPage() {
         {active && (
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Space>
-              <Text type="secondary">用户：</Text>
+              <Text type="secondary">{t('aiLogs.user_prefix')}</Text>
               <Text>{active.nickname || '—'}</Text>
               <Text type="secondary">{active.email || ''}</Text>
             </Space>
             <Space>
-              <Text type="secondary">模型：</Text>
-              <Text>{active.model || '默认'}</Text>
-              <Text type="secondary">会话ID：</Text>
+              <Text type="secondary">{t('aiLogs.model_prefix')}</Text>
+              <Text>{active.model || t('aiLogs.default_model')}</Text>
+              <Text type="secondary">{t('aiLogs.session_prefix')}</Text>
               <Text>{active.sessionId || '-'}</Text>
             </Space>
             {Array.isArray(active.messages) && active.messages.length > 0 ? (
@@ -238,11 +241,11 @@ export default function AiLogsPage() {
                 </Card>
               ))
             ) : (
-              <Text type="secondary">暂无消息</Text>
+              <Text type="secondary">{t('aiLogs.no_messages')}</Text>
             )}
             {active.action && (
               <Card size="small">
-                <Text type="secondary">执行动作</Text>
+                <Text type="secondary">{t('aiLogs.action_payload')}</Text>
                 <Paragraph style={{ whiteSpace: 'pre-wrap', marginBottom: 0 }}>
                   {JSON.stringify(active.action, null, 2)}
                 </Paragraph>

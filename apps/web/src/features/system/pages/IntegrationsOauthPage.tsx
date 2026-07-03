@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { App, Button, Card, Form, Input, Modal, Space, Switch, Table, Typography } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { integrationsApi, type Integration } from '@/shared/api/endpoints/integrations'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -20,7 +21,7 @@ export default function IntegrationsOauthPage() {
       const list = await integrationsApi.list('oauth')
       setRows(list)
     } catch (e: any) {
-      message.error(e?.message || '加载失败')
+      message.error(e?.message || translate('common.load_failed'))
     } finally {
       setLoading(false)
     }
@@ -36,25 +37,25 @@ export default function IntegrationsOauthPage() {
     try {
       if (modal.editing) {
         await integrationsApi.update(modal.editing.id, payload)
-        message.success('更新成功')
+        message.success(translate('roles.message.update_success'))
       } else {
         await integrationsApi.create(payload)
-        message.success('创建成功')
+        message.success(translate('orgs.message.create_success'))
       }
       setModal({ open: false })
       form.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || translate('roles.message.save_failed'))
     }
   }
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name' },
-    { title: '应用ID', dataIndex: ['config', 'clientId'], key: 'clientId', render: (_: any, record: Integration) => record?.config?.clientId || '-' },
-    { title: '状态', dataIndex: 'enabled', key: 'enabled', render: (enabled: boolean) => (enabled ? '启用' : '停用') },
+    { title: translate('systemConfig.col_name'), dataIndex: 'name', key: 'name' },
+    { title: translate('auto.be8af550f3'), dataIndex: ['config', 'clientId'], key: 'clientId', render: (_: any, record: Integration) => record?.config?.clientId || '-' },
+    { title: translate('users.columns.status'), dataIndex: 'enabled', key: 'enabled', render: (enabled: boolean) => (enabled ? '启用' : '停用') },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       key: 'actions',
       render: (_: any, record: Integration) => (
         <Button
@@ -64,8 +65,7 @@ export default function IntegrationsOauthPage() {
             form.setFieldsValue({ ...record, config: JSON.stringify(record.config || {}, null, 2) })
           }}
         >
-          编辑
-        </Button>
+          {translate('app.edit')}</Button>
       ),
     },
   ]
@@ -76,9 +76,8 @@ export default function IntegrationsOauthPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              OAuth 应用
-            </Title>
-            <Text type="secondary">配置第三方登录/授权</Text>
+              {translate('auto.270ed72096')}</Title>
+            <Text type="secondary">{translate('auto.ca9dcd27b9')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData} />
@@ -90,8 +89,7 @@ export default function IntegrationsOauthPage() {
                 form.resetFields()
               }}
             >
-              新增应用
-            </Button>
+              {translate('auto.279904a6b8')}</Button>
           </Space>
         </Space>
       </Card>
@@ -101,22 +99,22 @@ export default function IntegrationsOauthPage() {
 
       <Modal
         open={modal.open}
-        title={modal.editing ? '编辑应用' : '新增应用'}
+        title={modal.editing ? translate('visible.d340993263') : translate('auto.279904a6b8')}
         onCancel={() => setModal({ open: false })}
         onOk={handleSave}
         destroyOnClose
       >
         <Form layout="vertical" form={form} preserve={false}>
-          <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入名称' }]}>
+          <Form.Item label={translate('systemConfig.col_name')} name="name" rules={[{ required: true, message: translate('systemConfig.config_name_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="授权地址" name="endpoint" rules={[{ required: true, message: '请输入授权地址' }]}>
+          <Form.Item label={translate('auto.1688129b62')} name="endpoint" rules={[{ required: true, message: translate('auto.8d251ea411') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="配置 JSON" name="config" rules={[{ required: true, message: '请输入配置' }]}>
+          <Form.Item label={translate('auto.88beb0e1dd')} name="config" rules={[{ required: true, message: translate('auto.3f8462ab01') }]}>
             <Input.TextArea rows={6} placeholder='{ "clientId": "", "clientSecret": "" }' />
           </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+          <Form.Item label={translate('users.status.enable')} name="enabled" valuePropName="checked" initialValue>
             <Switch />
           </Form.Item>
         </Form>

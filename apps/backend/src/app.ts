@@ -22,6 +22,8 @@ import { HttpError } from '@/common/errors/http-error'
 // 统一响应 & 请求ID & 日志等中间件
 import { optionalAuth } from '@/common/middleware/auth'
 import { httpLogger } from '@/common/middleware/http-logger'
+import { requestContext } from '@/common/middleware/request-context'
+import { imageWatermark } from '@/common/middleware/image-watermark'
 import { requestId } from '@/common/middleware/requestId'
 import { responseEnvelope } from '@/common/middleware/response'
 
@@ -64,11 +66,6 @@ const API_PREFIXES = Array.from(
 // 如在反向代理后（Nginx/Ingress），建议开启：可让 req.ip/secure 等更准确
 app.set('trust proxy', true)
 
-// 静态资源也挂在 /api 下，避免与前端路由冲突
-for (const prefix of API_PREFIXES) {
-  app.use(`${prefix}/uploads`, express.static(UPLOADS_DIR))
-}
-
 // —— 顺序很重要 —— //
 // 1) 请求 ID（为统一响应/日志提供 requestId）
 app.use(requestId())
@@ -93,7 +90,14 @@ app.use(express.urlencoded({ extended: true, limit: '5mb' }))
 // 5) 可选鉴权（解析 JWT，不强制）
 app.use(optionalAuth)
 
+// 5.5) 静态资源挂在 /api 下（避免与前端路由冲突）；须在 optionalAuth 之后：
+// 图片先过服务端水印中间件（需要 req.user 标识请求者），未命中/未开启时回落静态下发
+for (const prefix of API_PREFIXES) {
+  app.use(`${prefix}/uploads`, imageWatermark(UPLOADS_DIR), express.static(UPLOADS_DIR))
+}
+
 // 6) 请求日志
+app.use(requestContext())
 app.use(httpLogger())
 
 /** 健康检查（统一响应） */

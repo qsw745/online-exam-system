@@ -4,6 +4,7 @@ import { message } from 'antd'
 import { useState } from 'react'
 import { api, isSuccess } from '@/shared/api/http'
 import { ensureArrayFromMaybeCsv, pickField } from '@/shared/api/normalizers/import-normalize'
+import { translate } from '@/shared/utils/i18n'
 
 // 兼容：本地声明导入文件里用到的字段结构（避免缺少 ParsedQuestion 类型）
 type ParsedQuestion = {
@@ -40,7 +41,7 @@ export function useImportQuestions(onDone: () => void, reloadTags: () => void) {
   const [loading, setLoading] = useState(false)
 
   const startImport = async () => {
-    if (!file) return message.error('请先选择要导入的文件')
+    if (!file) return message.error(translate('auto.0649706bb0'))
     setLoading(true)
     setProgress(10)
     try {
@@ -49,7 +50,7 @@ export function useImportQuestions(onDone: () => void, reloadTags: () => void) {
       if (!parsedRes?.success || !parsedRes.data) throw new Error(parsedRes?.errors?.join('; ') || '文件解析失败')
 
       const rows = parsedRes.data as ParsedQuestion[]
-      if (!rows.length) throw new Error('文件中没有有效的题目数据')
+      if (!rows.length) throw new Error(translate('auto.b809a9b7f8'))
 
       setProgress(50)
       const payload = rows.map((q, idx) => {
@@ -89,13 +90,13 @@ export function useImportQuestions(onDone: () => void, reloadTags: () => void) {
       if (ok || fail) {
         message.success(`导入完成！成功 ${ok} 道${fail ? `，失败 ${fail} 道` : ''}`)
       } else {
-        message.success('导入完成')
+        message.success(translate('auto.75c33f5c2e'))
       }
 
       onDone()
       reloadTags()
     } catch (e: any) {
-      message.error(e?.message || '批量导入失败')
+      message.error(e?.message || translate('questions.import_failed'))
     } finally {
       setLoading(false)
       setProgress(0)

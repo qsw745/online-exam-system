@@ -2,6 +2,7 @@ import React from 'react'
 import { Card, Typography, Space, Button } from 'antd'
 import { MailOutlined, ArrowLeftOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -37,21 +38,17 @@ export const ForgotPasswordSuccess: React.FC = () => {
 
             <div>
               <Title level={3} style={{ marginBottom: 8 }}>
-                邮件已发送
-              </Title>
+                {translate('auto.c29ab1346a')}</Title>
               <Text type="secondary" style={{ display: 'block' }}>
-                我们已向您的邮箱发送了密码重置链接，请查收邮件并按照指示重置密码。
-              </Text>
+                {translate('auto.71a52f22da')}</Text>
             </div>
 
             <div>
               <Text type="secondary" style={{ display: 'block', fontSize: 14, marginBottom: 12 }}>
-                没有收到邮件？请检查垃圾邮件文件夹，或稍后重试。
-              </Text>
+                {translate('auto.d1320f58c5')}</Text>
               <Link to="/login">
                 <Button type="link" icon={<ArrowLeftOutlined />} style={{ padding: 0 }}>
-                  返回登录
-                </Button>
+                  {translate('auto.f2fe4ecc0f')}</Button>
               </Link>
             </div>
           </Space>

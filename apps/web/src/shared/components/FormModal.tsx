@@ -1,6 +1,7 @@
 import React, { ReactNode, useMemo, useState } from 'react'
 import { Modal, Form } from 'antd'
 import type { FormInstance, FormProps, ModalProps } from 'antd'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export interface FormModalProps<T extends object = any> {
   /** 标题 */
@@ -42,8 +43,8 @@ function FormModal<T extends object = any>({
   onOpenChange,
   onSubmit,
   initialValues,
-  okText = '保存',
-  cancelText = '取消',
+  okText,
+  cancelText,
   width = 560,
   confirmLoading,
   destroyOnClose = true,
@@ -54,6 +55,7 @@ function FormModal<T extends object = any>({
   modalProps,
   children,
 }: FormModalProps<T>) {
+  const { t } = useLanguage()
   const [form] = Form.useForm<T>()
   const formInst = externalForm ?? form
   const [innerLoading, setInnerLoading] = useState(false)
@@ -91,8 +93,8 @@ function FormModal<T extends object = any>({
       open={open}
       onOk={handleOk}
       onCancel={handleCancel}
-      okText={okText}
-      cancelText={cancelText}
+      okText={okText ?? t('app.save')}
+      cancelText={cancelText ?? t('app.cancel')}
       width={width}
       confirmLoading={loading}
       destroyOnHidden={destroyOnClose}

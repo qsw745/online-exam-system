@@ -23,6 +23,7 @@ import {
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
 import { aiApi } from '@/shared/api/endpoints/ai'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -101,7 +102,7 @@ export default function SinglePracticeView({
         let data = cacheRef.current.get(qid)
         if (!data) {
           const fetched = (await getQuestionById(qid)) as Question | undefined
-          if (!fetched) throw new Error('题目不存在')
+          if (!fetched) throw new Error(translate('auto.a51a5ae17e'))
           cacheRef.current.set(qid, fetched as Question)
           data = fetched as Question
         }
@@ -164,10 +165,10 @@ export default function SinglePracticeView({
         } else {
           ok = false
           setGradeDetail(null)
-          message.warning('AI 评分结果不完整')
+          message.warning(translate('auto.96c89051c8'))
         }
       } catch (e: any) {
-        message.error(e?.message || 'AI 评分失败')
+        message.error(e?.message || translate('auto.58acb9c05d'))
         return
       } finally {
         setGradeLoading(false)
@@ -192,10 +193,10 @@ export default function SinglePracticeView({
       if (next >= ids.length) {
         if (hasNextPage && onNextPage) {
           const ok = onNextPage()
-          if (ok !== false) message.success('已进入下一页继续练习')
+          if (ok !== false) message.success(translate('auto.37b2d3e7ca'))
           return i
         }
-        message.success('恭喜！您已完成当前页所有题目')
+        message.success(translate('auto.470bf1ba8f'))
         onExit()
         return i
       }
@@ -204,11 +205,10 @@ export default function SinglePracticeView({
   }
 
   const typeLabel = (t?: string) =>
-    (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[
-      t || ''
-    ] || t)
+    (({ single_choice: translate('questions.single_choice'), multiple_choice: translate('questions.multiple_choice'), true_false: translate('questions.judge'), short_answer: translate('questions.type_short') } as any)[t || ''] || t)
 
-  const diffLabel = (d?: string) => (({ easy: '简单', medium: '中等', hard: '困难' } as any)[d || ''] || d)
+  const diffLabel = (d?: string) =>
+    (({ easy: translate('questions.easy'), medium: translate('questions.medium'), hard: translate('questions.hard') } as any)[d || ''] || d)
 
   const requestAiExplain = async () => {
     if (!q || aiLoading) return
@@ -230,10 +230,10 @@ export default function SinglePracticeView({
         setAiExp(exp)
         setShowExp(true)
       } else {
-        message.warning('AI 未返回解析内容')
+        message.warning(translate('auto.7d03e91106'))
       }
     } catch (e: any) {
-      message.error(e?.message || 'AI 解析失败')
+      message.error(e?.message || translate('auto.c740b0c5d5'))
     } finally {
       setAiLoading(false)
     }
@@ -248,23 +248,20 @@ export default function SinglePracticeView({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
             <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
-              返回列表
-            </Button>
-            {!!ids.length && <Tag color="blue">进度：{progress}</Tag>}
+              {translate('papers.back_to_list')}</Button>
+            {!!ids.length && <Tag color="blue">{translate('auto.960bcbcd93')}{progress}</Tag>}
           </Space>
           <Space>
             <Button icon={<ChevronLeft size={16} />} onClick={goPrev} disabled={index === 0}>
-              上一题
-            </Button>
+              {translate('exam.previous')}</Button>
             <Button
               icon={<SkipForward size={16} />}
               onClick={goNext}
               style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
             >
-              跳过
-            </Button>
+              {translate('auto.31a98593f1')}</Button>
             <Button type="primary" onClick={goNext} disabled={!canAdvance}>
-              {isLast && hasNextPage ? '下一页' : '下一题'} <ChevronRight size={16} />
+              {isLast && hasNextPage ? translate('visible.67a246a344') : translate('exam.next')} <ChevronRight size={16} />
             </Button>
             <Button
               icon={fav ? <Heart size={16} /> : <HeartOff size={16} />}
@@ -274,20 +271,20 @@ export default function SinglePracticeView({
                   if (fav) {
                     await removeQuestionFromFavorites(String(q.id))
                     setFav(false)
-                    message.success('已取消收藏')
+                    message.success(translate('auto.0fc87e8309'))
                   } else {
                     await addQuestionToFavorites(String(q.id), (q.content || '').slice(0, 100))
                     setFav(true)
-                    message.success('已添加到收藏')
+                    message.success(translate('auto.143a521b56'))
                   }
                 } catch (e: any) {
-                  message.error(e?.message || '操作失败')
+                  message.error(e?.message || translate('app.operation_failed'))
                 }
               }}
               danger={fav}
               type={fav ? 'primary' : 'default'}
             >
-              {fav ? '已收藏' : '收藏'}
+              {fav ? translate('visible.2d2cdabf29') : translate('header.favorites')}
             </Button>
             <Button
               icon={showExp ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -295,20 +292,19 @@ export default function SinglePracticeView({
               type="primary"
               ghost
             >
-              {showExp ? '隐藏解析' : '查看解析'}
+              {showExp ? translate('visible.fbdfb3c5b1') : translate('visible.716d473a0a')}
             </Button>
             <Button icon={<Sparkles size={16} />} onClick={requestAiExplain} loading={aiLoading} disabled={!q}>
-              AI解析
-            </Button>
+              {translate('auto.710dba6721')}</Button>
           </Space>
         </div>
 
-        <Spin spinning={loading} tip="加载题目中...">
+        <Spin spinning={loading} tip={translate('questions.loading')}>
           {!loading && error && (
             <Card>
               <Space direction="vertical" align="center" style={{ width: '100%' }}>
                 <AlertTriangle size={64} color="#ff4d4f" />
-                <Title level={3}>题目不存在</Title>
+                <Title level={3}>{translate('auto.a51a5ae17e')}</Title>
                 <Text type="secondary">{error}</Text>
               </Space>
             </Card>
@@ -330,12 +326,12 @@ export default function SinglePracticeView({
                   </Space>
                   {answered && (
                     <Tag color={correct ? 'success' : 'error'} icon={<CheckCircle size={16} />}>
-                      {correct ? '回答正确' : '回答错误'}
+                      {correct ? translate('visible.7567ea3038') : translate('visible.dcc7740c26')}
                     </Tag>
                   )}
                   {answered && gradeDetail && (
                     <Tag color="purple">
-                      AI 评分 {gradeDetail.score}/{gradeDetail.maxScore}
+                      {translate('auto.1cc7e9cace')}{gradeDetail.score}/{gradeDetail.maxScore}
                     </Tag>
                   )}
                 </div>
@@ -393,7 +389,7 @@ export default function SinglePracticeView({
 
                 {q.question_type === 'true_false' && (
                   <Space direction="vertical" style={{ width: '100%', marginBottom: 24 }}>
-                    {['正确', '错误'].map((label, i) => {
+                    {[translate('questions.tf_true'), translate('questions.tf_false')].map((label, i) => {
                       const isSel = selected.includes(i)
                       const idx = (q.correct_answer as string) === 'true' ? 0 : 1
                       const isCorrect = idx === i
@@ -434,7 +430,7 @@ export default function SinglePracticeView({
                     <TextArea
                       value={text}
                       onChange={e => setText(e.target.value)}
-                      placeholder="请输入您的答案..."
+                      placeholder={translate('auto.977e722666')}
                       disabled={answered}
                       rows={6}
                     />
@@ -456,8 +452,7 @@ export default function SinglePracticeView({
                       (q.question_type === 'short_answer' && !text.trim())
                     }
                   >
-                    提交答案
-                  </Button>
+                    {translate('exam.submit')}</Button>
                 ) : (
                   <Space>
                     <Button
@@ -471,10 +466,9 @@ export default function SinglePracticeView({
                         setGradeDetail(null)
                       }}
                     >
-                      重新练习
-                    </Button>
+                      {translate('auto.a5e6460134')}</Button>
                     <Button type="primary" size="large" onClick={goNext} disabled={!canAdvance}>
-                      {isLast ? (hasNextPage ? '下一页' : '已完成本页') : '下一题'}{' '}
+                      {isLast ? (hasNextPage ? translate('visible.67a246a344') : translate('visible.400fc97c8d')) : translate('exam.next')}{' '}
                       {!isLast && <ChevronRight size={16} />}
                     </Button>
                   </Space>
@@ -485,8 +479,7 @@ export default function SinglePracticeView({
                 <Card
                   title={
                     <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-                      题目解析
-                    </Title>
+                      {translate('aiAssistant.action.explain_question')}</Title>
                   }
                   style={{ backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
                 >
@@ -498,8 +491,7 @@ export default function SinglePracticeView({
                 <Card
                   title={
                     <Title level={4} style={{ margin: 0, color: '#389e0d' }}>
-                      AI解析
-                    </Title>
+                      {translate('auto.710dba6721')}</Title>
                   }
                   style={{ backgroundColor: '#f6ffed', borderColor: '#b7eb8f' }}
                 >
@@ -511,8 +503,7 @@ export default function SinglePracticeView({
                 <Card
                   title={
                     <Title level={4} style={{ margin: 0 }}>
-                      相关知识点
-                    </Title>
+                      {translate('auto.8e00a85a37')}</Title>
                   }
                 >
                   {q.knowledge_points.map((p, i) => (

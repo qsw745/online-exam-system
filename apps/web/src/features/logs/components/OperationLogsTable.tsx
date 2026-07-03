@@ -3,6 +3,8 @@ import { Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from '@/shared/utils/dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Paragraph } = Typography
 
@@ -72,11 +74,11 @@ function parseBrowser(ua?: string) {
 
 function statusInfo(r: Row) {
   const s = String(r.status || '').toLowerCase()
-  if (['success', 'ok', 'passed', 'true', '有效', '成功'].includes(s)) return { text: '成功', color: 'green' as const }
+  if (['success', 'ok', 'passed', 'true', '有效', '成功'].includes(s)) return { text: translate('auto.51991a5d11'), color: 'green' as const }
   if (['fail', 'failed', 'error', 'false', '无效', '失败', 'unauthorized'].includes(s))
-    return { text: '失败', color: 'red' as const }
-  if (String(r.level).toLowerCase() === 'error') return { text: '失败', color: 'red' as const }
-  return { text: '成功', color: 'green' as const }
+    return { text: translate('auto.3e3c8068bb'), color: 'red' as const }
+  if (String(r.level).toLowerCase() === 'error') return { text: translate('auto.3e3c8068bb'), color: 'red' as const }
+  return { text: translate('auto.51991a5d11'), color: 'green' as const }
 }
 
 export default function OperationLogsTable({
@@ -92,14 +94,14 @@ export default function OperationLogsTable({
 }) {
   const columns: ColumnsType<Row> = [
     {
-      title: '序号',
+      title: translate('papers.col_order'),
       width: 72,
       align: 'center',
       fixed: 'left',
       render: (_: any, __, idx) => (page - 1) * pageSize + idx + 1,
     },
     {
-      title: '操作人员',
+      title: translate('auto.ae0849ff19'),
       dataIndex: 'username',
       width: 140,
       fixed: 'left',
@@ -107,13 +109,13 @@ export default function OperationLogsTable({
       render: (v?: string) => v || '系统',
     },
     {
-      title: '所属模块',
+      title: translate('auto.27713f242f'),
       width: 160,
       ellipsis: true,
       render: (_: any, r) => pickModule(r),
     },
     {
-      title: '操作概要',
+      title: translate('auto.36572eb93b'),
       width: 300,
       render: (_: any, r) => {
         const text = pickSummary(r)
@@ -127,31 +129,31 @@ export default function OperationLogsTable({
       },
     },
     {
-      title: '操作 IP',
+      title: translate('auto.e95a2168d9'),
       dataIndex: 'ip_address',
       width: 150,
       ellipsis: true,
     },
     {
-      title: '操作地点',
+      title: translate('auto.28ad4a0df8'),
       width: 220,
       ellipsis: true,
       render: (_: any, r) => pickLocation(r),
     },
     {
-      title: '操作系统',
+      title: translate('auto.7c30099b89'),
       width: 140,
       ellipsis: true,
       render: (_: any, r) => pickOS(r),
     },
     {
-      title: '浏览器类型',
+      title: translate('auto.d9dcf7d362'),
       width: 140,
       ellipsis: true,
       render: (_: any, r) => pickBrowser(r),
     },
     {
-      title: '操作状态',
+      title: translate('auto.2cc7fbfc9b'),
       width: 120,
       align: 'center',
       render: (_: any, r) => {
@@ -160,10 +162,10 @@ export default function OperationLogsTable({
       },
     },
     {
-      title: '操作时间',
+      title: translate('auto.c7fc0c4dd7'),
       dataIndex: 'created_at',
       width: 180,
-      render: (t?: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      render: (t?: string) => (t ? formatDateTime(t) : '-'),
     },
   ]
 

@@ -2,6 +2,7 @@
 import { Button, Space } from 'antd'
 import { BookOpen, ChevronRight, CheckCircle } from 'lucide-react'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export function PracticeFooter({
   mode,
@@ -24,16 +25,14 @@ export function PracticeFooter({
     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
       {!answered ? (
         <Button type="primary" size="large" icon={<CheckCircle size={16} />} onClick={onSubmit} disabled={!canSubmit}>
-          提交答案
-        </Button>
+          {translate('exam.submit')}</Button>
       ) : (
         <Space>
           <Button icon={<BookOpen size={16} />} onClick={onRetry}>
-            重新练习
-          </Button>
+            {translate('auto.a5e6460134')}</Button>
           {mode === 'continuous' && (
             <Button type="primary" size="large" onClick={onNext} disabled={isLast}>
-              {isLast ? '已完成所有题目' : '下一题'} {!isLast && <ChevronRight size={16} />}
+              {isLast ? translate('visible.90d19c03bf') : translate('exam.next')} {!isLast && <ChevronRight size={16} />}
             </Button>
           )}
         </Space>

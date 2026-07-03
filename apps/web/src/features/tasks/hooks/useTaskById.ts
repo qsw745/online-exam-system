@@ -2,6 +2,7 @@ import { App } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import type { Task } from '@/shared/types'
+import { translate } from '@/shared/utils/i18n'
 
 export function useTaskById(id?: string) {
   const { message } = App.useApp()
@@ -19,7 +20,7 @@ export function useTaskById(id?: string) {
       setTask(entity ?? null)
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载任务失败')
+      message.error(e?.message || translate('tasks.load_error'))
       setTask(null)
     } finally {
       setLoading(false)

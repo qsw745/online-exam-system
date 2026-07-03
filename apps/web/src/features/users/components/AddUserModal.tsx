@@ -2,6 +2,7 @@ import { useOrgTree } from '@/shared/hooks'
 import { App, Col, Form, Input, Modal, Row, Select, Space, Switch, TreeSelect, Typography } from 'antd'
 import React from 'react'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -181,9 +182,9 @@ export const AddUserModal: React.FC<{
                 placeholder={t('users.form.gender_placeholder')}
                 allowClear
                 options={[
-                  { label: t('users.gender.male'), value: '男' },
-                  { label: t('users.gender.female'), value: '女' },
-                  { label: t('users.gender.secret'), value: '保密' },
+                  { label: t('users.gender.male'), value: translate('users.gender.male') },
+                  { label: t('users.gender.female'), value: translate('users.gender.female') },
+                  { label: t('users.gender.secret'), value: translate('users.gender.secret') },
                 ]}
               />
             </Form.Item>

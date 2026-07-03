@@ -10,13 +10,14 @@ export const TrueFalseEditor = ({
   disabled?: boolean
 }) => (
   <Radio.Group value={value} onChange={e => onChange(e.target.value)} disabled={disabled}>
-    <Radio value="true">正确</Radio>
-    <Radio value="false">错误</Radio>
+    <Radio value="true">{translate('questions.tf_true')}</Radio>
+    <Radio value="false">{translate('questions.tf_false')}</Radio>
   </Radio.Group>
 )
 
 // features/questions/components/ShortAnswerEditor.tsx
 import { Input } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 const { TextArea } = Input
 export const ShortAnswerEditor = ({
   value,
@@ -32,6 +33,6 @@ export const ShortAnswerEditor = ({
     value={value}
     onChange={e => onChange(e.target.value)}
     disabled={disabled}
-    placeholder="输入参考答案"
+    placeholder={translate('auto.7f89dc48c2')}
   />
 )

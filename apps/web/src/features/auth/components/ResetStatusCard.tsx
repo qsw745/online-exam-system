@@ -2,6 +2,7 @@ import React from 'react'
 import { Alert, Button, Space, Spin, Typography } from 'antd'
 import { CheckCircleOutlined } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -16,7 +17,7 @@ export const ResetStatusCard: React.FC<Props> = props => {
       <div style={{ textAlign: 'center' }}>
         <Space direction="vertical" size={16}>
           <Spin size="large" />
-          <Text>正在验证重置链接…</Text>
+          <Text>{translate('auto.d1d7794556')}</Text>
         </Space>
       </div>
     )
@@ -28,23 +29,20 @@ export const ResetStatusCard: React.FC<Props> = props => {
         <Space direction="vertical" size={24} style={{ width: '100%' }}>
           <div>
             <Title level={3} style={{ marginBottom: 8 }}>
-              链接无效
-            </Title>
+              {translate('auto.5369b189fb')}</Title>
             <Text type="secondary" style={{ display: 'block' }}>
-              {props.message || '重置链接无效或已过期，请重新申请密码重置。'}
+              {props.message || translate('visible.8f5e7324c7')}
             </Text>
           </div>
 
           <Space direction="vertical" style={{ width: '100%' }} size={12}>
             <Link to="/forgot-password">
               <Button type="primary" size="large" block>
-                重新申请重置
-              </Button>
+                {translate('auto.44dbce1816')}</Button>
             </Link>
             <Link to="/login">
               <Button type="default" size="large" block>
-                返回登录
-              </Button>
+                {translate('auto.f2fe4ecc0f')}</Button>
             </Link>
           </Space>
         </Space>
@@ -73,18 +71,16 @@ export const ResetStatusCard: React.FC<Props> = props => {
 
         <div>
           <Title level={3} style={{ marginBottom: 8 }}>
-            密码重置成功
-          </Title>
+            {translate('auto.f490870352')}</Title>
           <Text type="secondary" style={{ display: 'block' }}>
-            您的密码已成功重置，即将跳转到登录页面{typeof props.countdown === 'number' ? `（${props.countdown}s）` : ''}
+            {translate('auto.b1075dfdcc')}{typeof props.countdown === 'number' ? `（${props.countdown}s）` : ''}
             …
           </Text>
         </div>
 
         <Link to="/login">
           <Button type="primary" size="large">
-            立即登录
-          </Button>
+            {translate('auth.login_now')}</Button>
         </Link>
       </Space>
     </div>

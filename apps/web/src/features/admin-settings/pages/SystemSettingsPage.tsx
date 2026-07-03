@@ -5,6 +5,7 @@ import { SettingOutlined } from '@ant-design/icons'
 import { Col, Row, Typography } from 'antd'
 import { SettingsForm } from '../components/SettingsForm'
 import { useSettings } from '../hooks/useSettings'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 export default function AdminSettingsPage() {
@@ -16,14 +17,13 @@ export default function AdminSettingsPage() {
       <div style={{ marginBottom: 24 }}>
         <Title level={2}>
           <SettingOutlined style={{ marginRight: 8 }} />
-          系统设置
-        </Title>
-        <Text type="secondary">管理系统的基本配置和参数</Text>
+          {translate('menus.system-settings')}</Title>
+        <Text type="secondary">{translate('auto.e8c95c7822')}</Text>
       </div>
 
       <Row gutter={[24, 24]}>
         <Col span={24}>
-          <SectionCard title="基本设置" loading={loading}>
+          <SectionCard title={translate('auto.b68228a04e')} loading={loading}>
             <SettingsForm
               value={current ?? undefined}
               loading={loading}

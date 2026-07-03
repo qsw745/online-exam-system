@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 type Props = { password: string }
 
@@ -39,7 +40,7 @@ export const PasswordStrengthBar: React.FC<Props> = ({ password }) => {
           }}
         />
       </div>
-      <div style={{ marginTop: 6, fontSize: 12, color: '#8c8c8c' }}>密码强度：{label}</div>
+      <div style={{ marginTop: 6, fontSize: 12, color: '#8c8c8c' }}>{translate('account.password_strength_prefix')}{label}</div>
     </div>
   )
 }

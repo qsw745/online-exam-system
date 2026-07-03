@@ -7,6 +7,7 @@ import { buildExportHeaders, compactObject, exportToXlsx, getMsg } from '@/share
 import { DownloadOutlined, InboxOutlined } from '@ant-design/icons'
 import type { UploadProps } from 'antd'
 import { Alert, App, Button, Checkbox, Divider, Modal, Progress, Radio, Space, Table, Typography, Upload } from 'antd'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Dragger } = Upload
 const { Text } = Typography
@@ -25,6 +26,7 @@ export default function ImportModal({
   reloadTags: () => void
 }) {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [file, setFile] = useState<File | null>(null)
   const [parsed, setParsed] = useState<{ rows: Row[]; errors: string[]; total: number }>({
     rows: [],
@@ -82,21 +84,21 @@ export default function ImportModal({
   }
 
   const doParse = async () => {
-    if (!file) return message.error('请先选择文件')
+    if (!file) return message.error(t('questions.select_file_first'))
     setLoading(true)
     setProgress(20)
     try {
       const r = await parseFile(file)
       setProgress(60)
-      if (!r.success) throw new Error((r.errors || []).join('\n') || '文件解析失败')
+      if (!r.success) throw new Error((r.errors || []).join('\n') || t('questions.parse_failed'))
 
       // 预览前 50 行，并给每行稳定的 _idx 作为 rowKey
       const rows = (r.data || []).map((x, i) => ({ _idx: i, ...x }))
       setParsed({ rows, errors: r.errors || [], total: r.total ?? rows.length })
-      message.success(`解析完成：共 ${r.total ?? rows.length} 行，预览 ${Math.min(50, rows.length)} 行`)
+      message.success(t('questions.parse_done').replace('{total}', String(r.total ?? rows.length)).replace('{preview}', String(Math.min(50, rows.length))))
       setProgress(80)
     } catch (e: any) {
-      message.error(e?.message || '文件解析失败')
+      message.error(e?.message || t('questions.parse_failed'))
     } finally {
       setLoading(false)
       setProgress(0)
@@ -107,7 +109,7 @@ export default function ImportModal({
   }
 
   const startImport = async () => {
-    if (!parsed.rows.length) return message.error('没有可导入的数据，请先解析文件')
+    if (!parsed.rows.length) return message.error(t('questions.no_import_data'))
     setLoading(true)
     setProgress(10)
     try {
@@ -133,7 +135,7 @@ export default function ImportModal({
       // 组装 payload（仅保留有效字段）
       const payload = rows.map((q: any, idx: number) =>
         compactObject({
-          title: q.title || `题目${idx + 1}`,
+          title: q.title || t('questions.item_n').replace('{n}', String(idx + 1)),
           content: q.content,
           question_type: q.question_type,
           difficulty: q.difficulty || 'medium',
@@ -155,11 +157,11 @@ export default function ImportModal({
         { params: { upsert: mode === 'upsert' } }
       )
       setProgress(90)
-      if (!isSuccess(res)) return message.error(getMsg(res, '批量导入失败'))
+      if (!isSuccess(res)) return message.error(getMsg(res, t('questions.import_failed')))
 
       const ok = Number(res.data?.success_count ?? res.data?.success ?? 0)
       const fail = Number(res.data?.fail_count ?? res.data?.failed ?? 0)
-      message.success(`导入完成：成功 ${ok} 条${fail ? `，失败 ${fail} 条` : ''}`)
+      message.success(t('questions.import_done').replace('{ok}', String(ok)).replace('{failPart}', fail ? t('questions.import_fail_part').replace('{fail}', String(fail)) : ''))
 
       // 通知父组件刷新列表/标签，然后关闭弹窗
       onImported?.()
@@ -171,7 +173,7 @@ export default function ImportModal({
       setParsed({ rows: [], errors: [], total: 0 })
       resetUploader()
     } catch (e: any) {
-      message.error(e?.message || '批量导入失败')
+      message.error(e?.message || t('questions.import_failed'))
     } finally {
       setLoading(false)
       setProgress(0)
@@ -180,12 +182,12 @@ export default function ImportModal({
 
   return (
     <Modal
-      title="批量导入题目"
+      title={t('questions.import_title')}
       open={open}
       maskClosable={false}
       onCancel={onClose}
       onOk={startImport}
-      okText={loading ? (progress ? `导入中… ${Math.round(progress)}%` : '导入中…') : '开始导入'}
+      okText={loading ? (progress ? t('questions.importing_pct').replace('{pct}', String(Math.round(progress))) : t('questions.importing')) : t('questions.import_start')}
       confirmLoading={loading}
       width={980}
       destroyOnHidden
@@ -195,20 +197,20 @@ export default function ImportModal({
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">点击或拖拽文件到此处上传（支持 .xlsx / .csv）</p>
+          <p className="ant-upload-text">{t('questions.upload_hint')}</p>
           <p className="ant-upload-hint">
-            建议使用模板，表头自动识别（题目内容、类型、选项A~F、正确答案、标签、知识点、解析、难度、分值）
+            {t('questions.template_hint')}
           </p>
         </Dragger>
 
         <Space align="center" wrap>
           <Radio.Group value={mode} onChange={e => setMode(e.target.value)} disabled={loading}>
-            <Radio.Button value="insert">仅新增</Radio.Button>
-            <Radio.Button value="upsert">存在则更新（根据内容/类型）</Radio.Button>
+            <Radio.Button value="insert">{t('questions.mode_insert')}</Radio.Button>
+            <Radio.Button value="upsert">{t('questions.mode_upsert')}</Radio.Button>
           </Radio.Group>
 
           <Checkbox checked={dedupe} onChange={e => setDedupe(e.target.checked)} disabled={loading}>
-            导入前去重
+            {t('questions.dedup_before_import')}
           </Checkbox>
 
           <Button
@@ -216,14 +218,14 @@ export default function ImportModal({
             icon={<DownloadOutlined />}
             onClick={async () => {
               const headers = buildExportHeaders()
-              await exportToXlsx([{ content: '', question_type: 'single_choice' }], '题目导入模板.xlsx', headers)
+              await exportToXlsx([{ content: '', question_type: 'single_choice' }], t('questions.template_filename'), headers)
             }}
           >
-            下载导入模板
+            {t('questions.download_template')}
           </Button>
 
           <Button type="link" onClick={doParse} disabled={!file}>
-            解析文件预览
+            {t('questions.parse_preview')}
           </Button>
 
           {loading && <Progress percent={Math.round(progress)} style={{ width: 200 }} />}
@@ -232,7 +234,7 @@ export default function ImportModal({
         {parsed.errors.length > 0 && (
           <Alert
             type="warning"
-            message="解析警告"
+            message={t('questions.parse_warning')}
             description={
               <div style={{ maxHeight: 150, overflow: 'auto' }}>
                 {parsed.errors.map((e, i) => (
@@ -248,7 +250,7 @@ export default function ImportModal({
 
         <Divider style={{ margin: '8px 0' }} />
         <Text type="secondary">
-          预览前 {Math.min(50, parsed.rows.length)} / 共 {parsed.total} 行
+          {t('questions.preview_rows').replace('{shown}', String(Math.min(50, parsed.rows.length))).replace('{total}', String(parsed.total))}
         </Text>
         <Table
           size="small"

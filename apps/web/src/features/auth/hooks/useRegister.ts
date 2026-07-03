@@ -2,6 +2,7 @@ import { App } from 'antd'
 import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { translate } from '@/shared/utils/i18n'
 
 export type RegisterValues = {
   email: string
@@ -51,26 +52,30 @@ export function useRegister() {
     async (values: RegisterValues) => {
       // 基础前端校验（表单层已校验，这里兜底）
       if (!values.email || !values.password || !values.confirmPassword) {
-        message.error('请填写所有必需字段')
+        message.error(translate('auto.f59ba47760'))
         return
       }
       if (values.password !== values.confirmPassword) {
-        message.error('密码与确认密码不一致')
+        message.error(translate('auto.eddee1f9e9'))
         return
       }
       if (values.password.length < 6) {
-        message.error('密码长度不能少于6位')
+        message.error(translate('auto.3add9a5261'))
         return
       }
       if (!values.agree) {
-        message.error('请阅读并同意用户协议与隐私政策')
+        message.error(translate('auto.d5bb8bc505'))
         return
       }
 
       setLoading(true)
       try {
-        await signUp(values.email, values.password, { nickname: values.nickname || undefined })
-        message.success('注册成功，请登录')
+        const res = await signUp(values.email, values.password, { nickname: values.nickname || undefined })
+        if (res?.needVerification) {
+          message.success(translate('auto.2fc1f72de8'))
+        } else {
+          message.success(translate('auto.5fcfe1534e'))
+        }
         navigate('/login')
       } catch (err: any) {
         message.error(parseRegisterError(err))

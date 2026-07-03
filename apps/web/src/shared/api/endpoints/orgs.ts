@@ -1,6 +1,7 @@
 import { api } from '@/shared/api/http'
 import { isSuccess, getErr, type ApiResult } from '@/shared/api/core/types'
 import type { UsersListResult, UserDTO } from './users'
+import { translate } from '@/shared/utils/i18n'
 
 export interface OrgNode {
   id: number
@@ -84,7 +85,7 @@ export const orgsApi = {
 
   /** 批量按邮箱添加：后端已无对应接口，这里直接抛错提示（避免 404） */
   async addUsersByEmail(_orgId: number, _emails: string[]) {
-    throw new Error('按邮箱批量添加用户的接口已下线，请先创建/查找用户后，再设置其主机构。')
+    throw new Error(translate('auto.2fad9665cd'))
   },
 
   /** 从机构移除用户：等价于 PUT /users/:id { org_id: null } */

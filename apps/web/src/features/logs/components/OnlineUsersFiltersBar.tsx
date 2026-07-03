@@ -1,5 +1,6 @@
 // apps/web/src/features/logs/components/OnlineUsersFiltersBar.tsx
 import { Button, Input, Typography } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -29,11 +30,10 @@ export default function OnlineUsersFiltersBar({
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 64, textAlign: 'right' }}>
-          用户名
-        </Text>
+          {translate('auth.username')}</Text>
         <Input
           allowClear
-          placeholder="请输入用户名"
+          placeholder={translate('auto.ad5f05f1cf')}
           value={username}
           onChange={e => onUsernameChange(e.target.value)}
           style={{ width: 240 }} // 你要更短可调成 200/220
@@ -46,12 +46,10 @@ export default function OnlineUsersFiltersBar({
         loading={loading}
         style={{ minWidth: 88 }} // 小保护，避免太窄
       >
-        搜索
-      </Button>
+        {translate('app.search')}</Button>
 
       <Button onClick={onReset} disabled={loading} style={{ minWidth: 88 }}>
-        重置
-      </Button>
+        {translate('app.reset')}</Button>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { Button, Form, Input, Select } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 const { TextArea } = Input
 
@@ -27,20 +28,20 @@ export default function PaperInfoForm({
 }) {
   return (
     <Form layout="vertical" onFinish={onSubmit}>
-      <Form.Item label="试卷标题" required>
-        <Input value={title} onChange={e => onChange({ title: e.target.value })} placeholder="输入试卷标题" />
+      <Form.Item label={translate('papers.title_ph')} required>
+        <Input value={title} onChange={e => onChange({ title: e.target.value })} placeholder={translate('auto.cd273f855c')} />
       </Form.Item>
 
-      <Form.Item label="试卷说明">
+      <Form.Item label={translate('auto.8f2a2b8c8d')}>
         <TextArea
           value={description}
           onChange={e => onChange({ description: e.target.value })}
           rows={4}
-          placeholder="输入试卷说明"
+          placeholder={translate('auto.13b97574b2')}
         />
       </Form.Item>
 
-      <Form.Item label="考试时长（分钟）" required>
+      <Form.Item label={translate('auto.12511b57ac')} required>
         <Input
           type="number"
           min={1}
@@ -49,32 +50,31 @@ export default function PaperInfoForm({
         />
       </Form.Item>
 
-      <Form.Item label="试卷难度" required>
+      <Form.Item label={translate('auto.ee33d84f8a')} required>
         <Select
           value={difficulty}
           onChange={v => onChange({ difficulty: v })}
           options={[
-            { label: '简单', value: 'easy' },
-            { label: '中等', value: 'medium' },
-            { label: '困难', value: 'hard' },
+            { label: translate('questions.easy'), value: 'easy' },
+            { label: translate('questions.medium'), value: 'medium' },
+            { label: translate('questions.hard'), value: 'hard' },
           ]}
         />
       </Form.Item>
 
       <div style={{ paddingTop: 16, borderTop: '1px solid #f0f0f0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-          <span>已选题目数</span>
+          <span>{translate('auto.625c240809')}</span>
           <b>{selectedCount}</b>
         </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 8 }}>
-          <span>总分</span>
-          <b>{totalScore} 分</b>
+          <span>{translate('papers.col_total_score')}</span>
+          <b>{totalScore} {translate('papers.addon_score')}</b>
         </div>
       </div>
 
       <Button type="primary" htmlType="submit" block style={{ marginTop: 24 }} loading={submitting}>
-        创建试卷
-      </Button>
+        {translate('papers.create_paper')}</Button>
     </Form>
   )
 }

@@ -3,6 +3,8 @@ import React, { useEffect, useState } from 'react'
 import dayjs from '@/shared/utils/dayjs'
 import './inbox-page.css'
 import { notificationsApi, type NotificationAttachment, type NotificationDTO } from '@/shared/api/endpoints/notifications'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Paragraph, Text } = Typography
 
@@ -28,7 +30,7 @@ export default function InboxPage() {
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={12}>
       <Badge count={unread} offset={[-6, 12]} className="inbox-badge">
-        <Card title="收件箱" className="inbox-card">
+        <Card title={translate('menus.notify-inbox')} className="inbox-card">
           <List
             dataSource={list}
             renderItem={it => (
@@ -44,11 +46,11 @@ export default function InboxPage() {
               >
                 <Space size={12} wrap>
                   <Tag color={it.type === 'announcement' ? 'blue' : 'green'}>
-                    {it.type === 'announcement' ? '公告' : '消息'}
+                    {it.type === 'announcement' ? translate('menus.notify-announcements') : translate('header.tab_message')}
                   </Tag>
                   <span className="inbox-title">{it.title}</span>
                   <span className="inbox-time">
-                    {it.created_at ? dayjs(it.created_at).format('YYYY-MM-DD HH:mm') : ''}
+                    {it.created_at ? formatDateTime(it.created_at) : ''}
                   </span>
                 </Space>
               </List.Item>
@@ -60,12 +62,12 @@ export default function InboxPage() {
       <Modal open={!!active} title={active?.title} onCancel={() => setActive(null)} footer={null} centered>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
           <Text type="secondary">
-            {active?.created_at ? dayjs(active.created_at).format('YYYY-MM-DD HH:mm') : ''}
+            {active?.created_at ? formatDateTime(active.created_at) : ''}
           </Text>
           <Paragraph>{active?.content}</Paragraph>
           {active?.attachments && active.attachments.length > 0 && (
             <div>
-              <Text strong>附件：</Text>
+              <Text strong>{translate('auto.25d48523db')}</Text>
               <ul style={{ paddingLeft: 16 }}>
                 {active.attachments.map((att: NotificationAttachment) => (
                   <li key={att.id}>

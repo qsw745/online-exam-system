@@ -216,7 +216,9 @@ public class WorkflowRepository {
     List<Object> values = new ArrayList<>();
     StringBuilder where = new StringBuilder("t.assignee_id = ?");
     values.add(userId);
-    if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+    if ("processed".equalsIgnoreCase(status)) {
+      where.append(" AND t.status IN ('approved','rejected')");
+    } else if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
       where.append(" AND t.status = ?");
       values.add(status);
     }
@@ -247,7 +249,9 @@ public class WorkflowRepository {
     List<Object> values = new ArrayList<>();
     StringBuilder where = new StringBuilder("t.assignee_id = ?");
     values.add(userId);
-    if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+    if ("processed".equalsIgnoreCase(status)) {
+      where.append(" AND t.status IN ('approved','rejected')");
+    } else if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
       where.append(" AND t.status = ?");
       values.add(status);
     }
@@ -322,6 +326,65 @@ public class WorkflowRepository {
         instanceId,
         nodeId
     );
+  }
+
+  public void cancelAllPendingTasks(long instanceId) {
+    jdbc.update(
+        "UPDATE workflow_tasks SET status = 'canceled', updated_at = NOW() WHERE instance_id = ? AND status = 'pending'",
+        instanceId
+    );
+  }
+
+  public int reassignTask(long taskId, long toUserId) {
+    return jdbc.update(
+        "UPDATE workflow_tasks SET assignee_id = ?, updated_at = NOW() WHERE id = ? AND status = 'pending'",
+        toUserId,
+        taskId
+    );
+  }
+
+  public List<Map<String, Object>> listInstancesForUser(long userId, String status, int page, int limit) {
+    int offset = (page - 1) * limit;
+    List<Object> values = new ArrayList<>();
+    StringBuilder where = new StringBuilder("i.created_by = ?");
+    values.add(userId);
+    if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+      where.append(" AND i.status = ?");
+      values.add(status);
+    }
+    values.add(offset);
+    values.add(limit);
+    return jdbc
+        .queryForList(
+            """
+            SELECT i.*, t.name AS template_name
+            FROM workflow_instances i
+            LEFT JOIN workflow_templates t ON t.id = i.template_id
+            WHERE %s
+            ORDER BY i.created_at DESC
+            LIMIT ?, ?
+            """.formatted(where),
+            values.toArray()
+        )
+        .stream()
+        .map(this::instance)
+        .toList();
+  }
+
+  public long countInstancesForUser(long userId, String status) {
+    List<Object> values = new ArrayList<>();
+    StringBuilder where = new StringBuilder("created_by = ?");
+    values.add(userId);
+    if (status != null && !status.isBlank() && !"all".equalsIgnoreCase(status)) {
+      where.append(" AND status = ?");
+      values.add(status);
+    }
+    Long total = jdbc.queryForObject(
+        "SELECT COUNT(*) FROM workflow_instances WHERE " + where,
+        Long.class,
+        values.toArray()
+    );
+    return total == null ? 0 : total;
   }
 
   public List<Long> listUserIdsByRoles(List<Long> roleIds) {

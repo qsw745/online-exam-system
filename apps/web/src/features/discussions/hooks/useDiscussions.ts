@@ -1,6 +1,7 @@
 import { discussionsApi } from '@/shared/api/endpoints/discussions'
 import { App, Form } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 // —— 最小必要类型，避免外部类型导入不齐导致构建失败 ——
 export type SortBy = 'latest' | 'hot' | 'replies'
@@ -68,7 +69,7 @@ export function useDiscussions() {
       setSelectedDiscussion(prev => (prev && Array.isArray(list) && list.some(d => d.id === prev.id) ? prev : null))
     } catch {
       setDiscussions([])
-      message.error('获取讨论列表失败')
+      message.error(translate('auto.512a763089'))
     } finally {
       setLoading(false)
     }
@@ -109,7 +110,7 @@ export function useDiscussions() {
         setDiscussions(prev => prev.map(d => (d.id === id ? { ...d, ...payload } : d)))
         setSelectedDiscussion(prev => (prev && prev.id === id ? { ...prev, ...payload } : prev))
       } catch {
-        message.error('点赞失败')
+        message.error(translate('auto.b11cc4945e'))
       }
     },
     [message]
@@ -123,7 +124,7 @@ export function useDiscussions() {
         if (!payload) return
         setReplies(prev => prev.map(r => (r.id === replyId ? { ...r, ...payload } : r)))
       } catch {
-        message.error('点赞回复失败')
+        message.error(translate('auto.b406bf9867'))
       }
     },
     [message]
@@ -136,9 +137,9 @@ export function useDiscussions() {
         setDiscussions(prev => [created, ...prev])
         setCreateOpen(false)
         createForm.resetFields()
-        message.success('发布讨论成功')
+        message.success(translate('auto.ce58397b82'))
       } else {
-        message.error('发布讨论失败')
+        message.error(translate('auto.412bb6e431'))
       }
     },
     [createForm, message]
@@ -153,9 +154,9 @@ export function useDiscussions() {
         setSelectedDiscussion(prev => (prev ? { ...prev, replies_count: (prev.replies_count ?? 0) + 1 } : prev))
         setReplyOpen(false)
         replyForm.resetFields()
-        message.success('回复成功')
+        message.success(translate('auto.31f44cfc31'))
       } else {
-        message.error('回复失败')
+        message.error(translate('auto.fccf47ff04'))
       }
     },
     [fetchReplies, message, replyForm, selectedDiscussion]

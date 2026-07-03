@@ -5,6 +5,7 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { resetRemoteCryptoCache, tryEncryptRemote } from '@/shared/utils/cryptoLocal'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 const STORAGE_FLAG_KEY = 'auth_storage'
 const REMEMBER_PACK_KEY = 'remember_pack_v1'
@@ -34,6 +35,7 @@ type Settings = {
   captchaAfterFailedAttempts: number
   lockAfterFailedAttempts: number
   lockMinutes: number
+  loginLivenessLevel: 'none' | 'silent' | 'action'
 }
 
 function normalizeSettings(raw: any): Settings {
@@ -55,11 +57,13 @@ function normalizeSettings(raw: any): Settings {
     Number(raw?.lockAfterFailedAttempts ?? raw?.lockAfterFailed ?? raw?.lock_after_failed) ||
     Math.max((Number.isFinite(captchaAfterFailedAttempts) ? captchaAfterFailedAttempts : 3) + 2, 6)
   const lockMinutes = Number(raw?.lockMinutes ?? raw?.lock_minutes ?? 5)
+  const lvl = raw?.loginLivenessLevel
   return {
     enableCaptcha,
     captchaAfterFailedAttempts: Number.isFinite(captchaAfterFailedAttempts) ? captchaAfterFailedAttempts : 3,
     lockAfterFailedAttempts: Number.isFinite(lockAfter) ? lockAfter : 6,
     lockMinutes: Number.isFinite(lockMinutes) ? lockMinutes : 5,
+    loginLivenessLevel: lvl === 'none' || lvl === 'silent' || lvl === 'action' ? lvl : 'silent',
   }
 }
 
@@ -90,6 +94,29 @@ const looksLikeBadCreds = (msg?: string) =>
   !!msg && /(用户名|邮箱|账号).*(密码).*(错误)|密码错误|credentials/i.test(msg || '')
 const looksLikeNeedCaptcha = (msg?: string) => !!msg && /(请先完成验证码|验证码(错误|过期)|captcha)/i.test(msg || '')
 
+type FaceFailureReason =
+  | 'unsupported'
+  | 'detector_unavailable'
+  | 'camera_denied'
+  | 'camera_unavailable'
+  | 'no_face'
+  | 'multiple_faces'
+  | 'liveness_failed'
+  | 'action_failed'
+  | 'verification_failed'
+  | 'not_enrolled'
+  | 'unknown'
+
+// 人脸失败原因 → 具体、可操作的提示（避免笼统的“核验失败”）
+const FACE_FAIL_MESSAGE: Record<string, string> = {
+  liveness_failed: '活体检测未通过：请在光线充足处正对摄像头，摘掉口罩/帽子，避免用照片或屏幕翻拍',
+  action_failed: '未检测到转头动作：请按屏幕提示缓慢左右转动头部完成活体检测',
+  no_face: '未检测到人脸：请让面部完整、清晰地出现在画面中央',
+  multiple_faces: '画面中不止一张人脸：请确保只有本人出现在镜头前',
+  not_enrolled: '该账号尚未录入人脸：请改用密码登录，或先在个人中心录入人脸',
+  verification_failed: '人脸比对未通过：可能受光线或角度影响，请重试或改用密码登录',
+}
+
 function toMMSS(totalSec: number) {
   const s = Math.max(0, Math.floor(totalSec))
   const m = Math.floor(s / 60)
@@ -99,9 +126,11 @@ function toMMSS(totalSec: number) {
   return `${m}:${r}`
 }
 
+// 摄像头采集已移交 FaceCaptureWizard 组件，这里不再做无界面抓帧。
+
 export function useLogin() {
   const { message } = App.useApp()
-  const { signIn } = useAuth()
+  const { signIn, signInWithSession } = useAuth()
 
   // 表单
   const [email, setEmail] = useState('')
@@ -109,6 +138,8 @@ export function useLogin() {
   const [rememberMe, setRememberMe] = useState(false)
   const [keep7Days, setKeep7Days] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [faceLoginLoading, setFaceLoginLoading] = useState(false)
+  const [faceModalOpen, setFaceModalOpen] = useState(false)
   const [prefsReady, setPrefsReady] = useState(false)
 
   // 设置
@@ -168,7 +199,7 @@ export function useLogin() {
       try {
         setSettings(normalizeSettings(await adminSettingsApi.getPublic()))
       } catch {
-        setSettings({ enableCaptcha: true, captchaAfterFailedAttempts: 3, lockAfterFailedAttempts: 6, lockMinutes: 5 })
+        setSettings({ enableCaptcha: true, captchaAfterFailedAttempts: 3, lockAfterFailedAttempts: 6, lockMinutes: 5, loginLivenessLevel: 'silent' })
       }
     })()
   }, [])
@@ -313,22 +344,151 @@ export function useLogin() {
     return () => window.clearTimeout(tid)
   }, [email, rememberMe, saveRemember, prefsReady])
 
+  const applyFaceFailurePolicy = useCallback(
+    async (data: any, fallbackMessage: string) => {
+      if (data?.locked) {
+        const unlockAt =
+          typeof data.unlockAt === 'number' && data.unlockAt > Date.now()
+            ? data.unlockAt
+            : typeof data.remainingSec === 'number' && data.remainingSec > 0
+            ? Date.now() + data.remainingSec * 1000
+            : 0
+
+        if (unlockAt > Date.now()) {
+          setLockUntil(unlockAt)
+          try {
+            localStorage.setItem(lockKey(email), String(unlockAt))
+          } catch {}
+          const nextTry = Date.now() + 10_000
+          setLockedNextTryAt(nextTry)
+          try {
+            localStorage.setItem(lockTryKey(email), String(nextTry))
+          } catch {}
+          const secs = Math.max(1, Math.ceil((unlockAt - Date.now()) / 1000))
+          message.error(`人脸登录失败次数过多，账号已临时锁定 ${secs} 秒`)
+        } else {
+          message.error(translate('auto.9a28fb0669'))
+        }
+        return
+      }
+
+      if (data?.captchaRequired) {
+        setCaptchaByServer(true)
+        try {
+          localStorage.setItem(SERVER_CAPTCHA_FLAG, '1')
+        } catch {}
+        setCaptcha('')
+        await loadCaptcha()
+        message.error(translate('auto.c85a13301e'))
+        return
+      }
+
+      message.error(fallbackMessage)
+    },
+    [email, loadCaptcha, message]
+  )
+
+  const reportFaceLoginFailure = useCallback(
+    async (
+      reason: FaceFailureReason,
+      stage: string,
+      detector: Record<string, any> | undefined,
+      fallbackMessage: string
+    ) => {
+      const loginEmail = email.trim()
+      if (!loginEmail) {
+        message.error(translate('auto.e435dc0a34'))
+        return
+      }
+
+      const resp = await authApi.reportFaceLoginFailure({ email: loginEmail, reason, stage, detector })
+      if (!(resp as any)?.success) {
+        message.error((resp as any)?.error || translate('auto.a2fc9559a0'))
+        return
+      }
+      await applyFaceFailurePolicy((resp as any).data, fallbackMessage)
+    },
+    [applyFaceFailurePolicy, email, message]
+  )
+
+  // 点「人脸登录」：直接打开采集弹窗（1:N 刷脸，无需先填邮箱）
+  const faceLogin = useCallback(() => {
+    if (isLocked && lockTryRemainSec > 0) return
+    if (!navigator.mediaDevices?.getUserMedia) {
+      message.error(translate('auto.7df64c2a8f'))
+      return
+    }
+    setFaceModalOpen(true)
+  }, [isLocked, lockTryRemainSec, message])
+
+  const closeFaceModal = useCallback(() => setFaceModalOpen(false), [])
+
+  // 采集弹窗回传帧 → 服务端活体+1:1 比对 → 命中则登录
+  const faceCaptureSubmit = useCallback(
+    async (images: string[]) => {
+      if (!images.length) {
+        message.error(translate('auto.6790993615'))
+        return
+      }
+      setFaceLoginLoading(true)
+      try {
+        // 填了邮箱走 1:1，否则走 1:N 直接刷脸识别
+        const resp = await authApi.faceLoginVerify({ email: email.trim() || undefined, images, keep7Days })
+        if ((resp as any)?.success === false) {
+          message.error((resp as any)?.error || translate('auto.437bf3c418'))
+          return
+        }
+
+        const data = (resp as any).data
+        if (data?.matched && data?.token && data?.user) {
+          setFaceModalOpen(false)
+          await signInWithSession(data.token, data.user, keep7Days)
+          message.success(translate('auto.9579e9ee6a'))
+          return
+        }
+
+        const reason = (data?.reason as string) || 'verification_failed'
+        const specificMsg =
+          FACE_FAIL_MESSAGE[reason] || data?.message || '人脸验证未通过，请重试或使用密码登录'
+        // 1:N 刷脸（未填邮箱）：reportFaceLoginFailure 需要邮箱做锁定计数，会吞掉真实原因，
+        // 因此直接展示具体提示；仅 1:1（填了邮箱）才走失败计数策略。
+        if (email.trim()) {
+          // 上报真实原因，由服务端按 NOT_COUNTED 决定是否计入锁定
+          // （活体/无脸/多脸等不计入，只有真正的人脸不匹配才计入）
+          await reportFaceLoginFailure(
+            reason as any,
+            'verify',
+            { api: 'server', similarity: data?.similarity },
+            specificMsg
+          )
+        } else {
+          message.error(specificMsg)
+        }
+      } catch (e: any) {
+        message.error(e?.message || translate('auto.437bf3c418'))
+      } finally {
+        setFaceLoginLoading(false)
+      }
+    },
+    [email, keep7Days, message, reportFaceLoginFailure, signInWithSession]
+  )
+
   // —— 提交 —— //
   const submit = useCallback(async () => {
     // 锁定 + 10s 冷却未到：禁止提交
     if (isLocked && lockTryRemainSec > 0) return
 
     if (!email || !password) {
-      message.error('请填写邮箱和密码')
+      message.error(translate('auto.45398d93e0'))
       return
     }
     if (captchaRequired) {
       if (!captcha) {
-        message.error('请输入验证码')
+        message.error(translate('account.code_required'))
         return
       }
       if (!captchaId) {
-        message.error('验证码已失效，请点击刷新')
+        message.error(translate('auto.b9edd1304c'))
         await loadCaptcha()
         return
       }
@@ -356,7 +516,7 @@ export function useLogin() {
       setCaptchaImgUrl(undefined)
       setCaptchaByServer(false)
       setCaptchaByThreshold(false)
-      message.success('登录成功')
+      message.success(translate('auto.2991317aba'))
     }
     try {
       localStorage.setItem(STORAGE_FLAG_KEY, keep7Days ? '7d' : 'session')
@@ -459,7 +619,7 @@ export function useLogin() {
       if (isBadCaptcha) {
         setCaptcha('')
         await loadCaptcha()
-        message.error(finalMsg || '验证码错误，请重试')
+        message.error(finalMsg || translate('auto.12d8c11d1c'))
         return
       }
       if (isNeedCaptcha) {
@@ -469,7 +629,7 @@ export function useLogin() {
         } catch {}
         setCaptcha('')
         await loadCaptcha()
-        message.error(msg || '请先完成验证码验证')
+        message.error(msg || translate('auto.1b3b2aa3c9'))
         return
       }
       if (isBadCreds) {
@@ -490,7 +650,7 @@ export function useLogin() {
           }
         }
 
-        message.error(finalMsg || '邮箱或密码错误')
+        message.error(finalMsg || translate('auto.e64880a1b1'))
         return
       }
 
@@ -499,7 +659,7 @@ export function useLogin() {
         setCaptcha('')
         await loadCaptcha()
       }
-      message.error(finalMsg || '登录失败')
+      message.error(finalMsg || translate('auto.aeb6c8a818'))
     } finally {
       setLoading(false)
     }
@@ -535,9 +695,15 @@ export function useLogin() {
     keep7Days,
     setKeep7Days,
     loading,
+    faceLoginLoading,
 
     // 提交 & 控制
     submit,
+    faceLogin,
+    faceModalOpen,
+    faceCaptureSubmit,
+    closeFaceModal,
+    faceActionMode: settings?.loginLivenessLevel === 'action',
     submitDisabled,
     inputsDisabled,
 

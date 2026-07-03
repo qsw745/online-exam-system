@@ -3,6 +3,7 @@ import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { papersApi, type Paper, type PaperDifficulty } from '@/shared/api/endpoints/papers'
 import { useDebouncedValue } from './useDebouncedValue'
+import { translate } from '@/shared/utils/i18n'
 
 export function usePapersList() {
   const { message } = App.useApp()
@@ -31,7 +32,7 @@ export function usePapersList() {
       setTotal(total)
     } catch (e: any) {
       console.error('加载试卷失败', e)
-      message.error(e?.response?.data?.message || e?.message || '加载试卷失败')
+      message.error(e?.response?.data?.message || e?.message || translate('exam.load_error'))
       setItems([])
       setTotal(0)
     } finally {
@@ -52,7 +53,7 @@ export function usePapersList() {
         // 两种都支持
         if ((papersApi as any).remove) await (papersApi as any).remove(id)
         else await (papersApi as any).delete(id)
-        message.success('试卷删除成功')
+        message.success(translate('auto.555e8d470f'))
         if (items.length === 1 && page > 1) {
           setPage(p => p - 1)
         } else {
@@ -60,7 +61,7 @@ export function usePapersList() {
         }
       } catch (e: any) {
         setItems(lastSnapshot.current) // 回滚
-        message.error(e?.response?.data?.message || e?.message || '删除试卷失败')
+        message.error(e?.response?.data?.message || e?.message || translate('auto.0e861fa294'))
       }
     },
     [items, load, message, page]

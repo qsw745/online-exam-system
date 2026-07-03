@@ -1,7 +1,9 @@
 import React from 'react'
 import { Avatar, Button, Empty, List, Skeleton, Tooltip } from 'antd'
 import { ThumbsUp } from 'lucide-react'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type ReplyVM = {
   id: number
@@ -22,7 +24,7 @@ type Props = {
 const toVM = (r: any): ReplyVM => ({
   id: Number(r.id),
   content: r.content ?? '',
-  author_name: r.author_name ?? r.username ?? '匿名用户',
+  author_name: r.author_name ?? r.username ?? translate('common.anonymous_user'),
   author_avatar: r.author_avatar ?? r.avatar ?? undefined,
   created_at: r.created_at ?? r.createdAt ?? undefined,
   is_liked: !!(r.is_liked ?? 0),
@@ -33,7 +35,7 @@ export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
   const data = Array.isArray(replies) ? replies.map(toVM) : []
 
   if (!loading && data.length === 0) {
-    return <Empty description="暂无回复" />
+    return <Empty description={translate('auto.e6b9f96ec8')} />
   }
 
   return (
@@ -48,7 +50,7 @@ export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
           <List.Item
             key={item.id}
             actions={[
-              <Tooltip key="like" title={item.is_liked ? '取消点赞' : '点赞'}>
+              <Tooltip key="like" title={item.is_liked ? translate('visible.5907f05aa4') : translate('auto.e07f300d0c')}>
                 <Button
                   size="small"
                   type={item.is_liked ? 'primary' : 'default'}
@@ -63,14 +65,14 @@ export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
             <List.Item.Meta
               avatar={
                 <Avatar src={item.author_avatar} className="bg-blue-500">
-                  {(item.author_name ?? '匿').charAt(0)}
+                  {(item.author_name ?? translate('visible.4e0a3caa22')).charAt(0)}
                 </Avatar>
               }
               title={
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{item.author_name}</span>
                   {item.created_at && (
-                    <span className="text-xs text-gray-500">{dayjs(item.created_at).format('YYYY-MM-DD HH:mm')}</span>
+                    <span className="text-xs text-gray-500">{formatDateTime(item.created_at)}</span>
                   )}
                 </div>
               }

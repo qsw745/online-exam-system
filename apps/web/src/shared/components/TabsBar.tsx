@@ -1,4 +1,5 @@
 import { useLayout } from '@/shared/contexts/LayoutContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useTabs } from '@/shared/contexts/TabsContext'
 import { getTitle as getRegisteredTitle } from '@/shared/contexts/tabsTitleRegistry'
 import type { MenuProps } from 'antd'
@@ -25,6 +26,7 @@ const HOME_PATH = '/dashboard' // 仪表盘路径
 
 export const TabsBar: React.FC = () => {
   const navigate = useNavigate()
+  const { t } = useLanguage()
   const { tabs, activeKey, closeTab, closeOthers, closeAll } = useTabs()
   const { showTabs, mode, collapsed } = useLayout()
   if (!showTabs) return null
@@ -68,32 +70,32 @@ export const TabsBar: React.FC = () => {
 
   const globalMenuItems: MenuProps['items'] = useMemo(
     () => [
-      { key: 'reload', icon: <RotateCw size={16} />, label: '重新加载' },
+      { key: 'reload', icon: <RotateCw size={16} />, label: t('tabs.reload') },
       { type: 'divider' as const },
-      { key: 'close-current', icon: <X size={16} />, label: '关闭当前标签页' },
+      { key: 'close-current', icon: <X size={16} />, label: t('tabs.close_current') },
       {
         key: 'close-left',
         icon: <PanelLeftClose size={16} />,
-        label: '关闭左侧标签页',
+        label: t('tabs.close_left'),
         disabled: leftKeys.length === 0,
       },
       {
         key: 'close-right',
         icon: <PanelRightClose size={16} />,
-        label: '关闭右侧标签页',
+        label: t('tabs.close_right'),
         disabled: rightKeys.length === 0,
       },
       { type: 'divider' as const },
-      { key: 'close-others', icon: <Split size={16} />, label: '关闭其他标签页' },
-      { key: 'close-all', icon: <Minus size={16} />, label: '关闭全部标签页' },
+      { key: 'close-others', icon: <Split size={16} />, label: t('tabs.close_others') },
+      { key: 'close-all', icon: <Minus size={16} />, label: t('tabs.close_all') },
       { type: 'divider' as const },
       {
         key: 'fullscreen',
         icon: fullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />,
-        label: fullscreen ? '内容区退出全屏' : '内容区全屏',
+        label: fullscreen ? t('tabs.content_exit_fullscreen') : t('tabs.content_fullscreen'),
       },
     ],
-    [leftKeys.length, rightKeys.length, fullscreen]
+    [leftKeys.length, rightKeys.length, fullscreen, t]
   )
 
   const onGlobalMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -208,7 +210,7 @@ export const TabsBar: React.FC = () => {
 
     // 1) 仪表盘：仅“重新加载”
     if (isDashboard(clickedKey)) {
-      return [{ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' }]
+      return [{ k: 'reload', icon: <RotateCw size={14} />, label: t('tabs.reload') }]
     }
 
     const isActive = clickedKey === activeKey
@@ -220,24 +222,24 @@ export const TabsBar: React.FC = () => {
     //    仅当该标签“被激活”时显示“重新加载”，否则不显示
     if (total === 2 && includeDashboard) {
       const list: CtxItem[] = []
-      if (isActive) list.push({ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' })
-      list.push({ k: 'close', icon: <X size={14} />, label: '关闭当前标签页' })
-      list.push({ k: 'closeAll', icon: <Minus size={14} />, label: '关闭全部标签页' })
+      if (isActive) list.push({ k: 'reload', icon: <RotateCw size={14} />, label: t('tabs.reload') })
+      list.push({ k: 'close', icon: <X size={14} />, label: t('tabs.close_current') })
+      list.push({ k: 'closeAll', icon: <Minus size={14} />, label: t('tabs.close_all') })
       return list
     }
 
     // 3) 常规（>=3 标签）
     const list: CtxItem[] = []
     if (isActive) {
-      list.push({ k: 'reload', icon: <RotateCw size={14} />, label: '重新加载' })
+      list.push({ k: 'reload', icon: <RotateCw size={14} />, label: t('tabs.reload') })
     }
-    list.push({ k: 'close', icon: <X size={14} />, label: '关闭当前标签页' })
+    list.push({ k: 'close', icon: <X size={14} />, label: t('tabs.close_current') })
     if (total >= 3) {
-      list.push({ k: 'closeOthers', icon: <Split size={14} />, label: '关闭其他标签页' })
+      list.push({ k: 'closeOthers', icon: <Split size={14} />, label: t('tabs.close_others') })
     }
-    list.push({ k: 'closeAll', icon: <Minus size={14} />, label: '关闭全部标签页' })
-    if (hasLeft) list.push({ k: 'closeLeft', icon: <PanelLeftClose size={14} />, label: '关闭左侧标签页' })
-    if (hasRight) list.push({ k: 'closeRight', icon: <PanelRightClose size={14} />, label: '关闭右侧标签页' })
+    list.push({ k: 'closeAll', icon: <Minus size={14} />, label: t('tabs.close_all') })
+    if (hasLeft) list.push({ k: 'closeLeft', icon: <PanelLeftClose size={14} />, label: t('tabs.close_left') })
+    if (hasRight) list.push({ k: 'closeRight', icon: <PanelRightClose size={14} />, label: t('tabs.close_right') })
     return list
   }
 
@@ -312,7 +314,7 @@ export const TabsBar: React.FC = () => {
           //   opacity: canLeft ? 1 : 0.35,
           pointerEvents: canLeft ? 'auto' : 'none',
         }}
-        title="向左查看更多"
+        title={t('tabs.scroll_left')}
         onClick={() => scrollBy(-SCROLL_STEP)}
       >
         <ChevronLeft size={18} />
@@ -346,8 +348,8 @@ export const TabsBar: React.FC = () => {
                 {closable && (
                   <span
                     className="tag-close"
-                    aria-label="关闭标签"
-                    title="关闭"
+                    aria-label={t('tabs.close_tab')}
+                    title={t('tabs.close')}
                     onClick={e => {
                       e.stopPropagation()
                       closeTab(key)
@@ -371,7 +373,7 @@ export const TabsBar: React.FC = () => {
           //   opacity: canRight ? 1 : 0.35,
           pointerEvents: canRight ? 'auto' : 'none',
         }}
-        title="向右查看更多"
+        title={t('tabs.scroll_right')}
         onClick={() => scrollBy(SCROLL_STEP)}
       >
         <ChevronRight size={18} />
@@ -395,7 +397,7 @@ export const TabsBar: React.FC = () => {
           trigger={['click']}
           placement="bottomRight"
         >
-          <span className="arrow-down" role="button" aria-haspopup="menu" title="更多标签操作">
+          <span className="arrow-down" role="button" aria-haspopup="menu" title={t('tabs.more')}>
             <ChevronDown size={16} />
           </span>
         </Dropdown>

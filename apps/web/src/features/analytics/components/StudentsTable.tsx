@@ -3,6 +3,9 @@ import { Card, Progress, Table } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import React, { useMemo } from 'react'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 // ==== 本地最小类型与工具，去除对 ../types 与 ../utils 的依赖 ====
 export type StudentRow = {
@@ -25,8 +28,8 @@ const formatStudyTime = (minutes: number) => {
   const m = Math.max(0, Math.floor(minutes || 0))
   const h = Math.floor(m / 60)
   const mm = m % 60
-  if (h === 0) return `${mm}分`
-  return `${h}小时${mm}分`
+  if (h === 0) return `${mm}${translate('time.minute')}`
+  return `${h}${translate('time.hour')}${mm}${translate('time.minute')}`
 }
 
 // ==== 组件 ====
@@ -39,10 +42,11 @@ type Props = {
 }
 
 export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize, onPageChange }) => {
+  const { t } = useLanguage()
   const columns = useMemo(
     () => [
       {
-        title: '学生',
+        title: t('analytics.col_student'),
         dataIndex: 'username',
         key: 'username',
         render: (username: string, r: StudentRow) => (
@@ -53,7 +57,7 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         ),
       },
       {
-        title: '平均分',
+        title: t('analytics.avg_score'),
         dataIndex: 'avg_score',
         key: 'avg_score',
         sorter: (a: any, b: any) => b.avg_score - a.avg_score,
@@ -72,38 +76,38 @@ export const StudentsTable: React.FC<Props> = ({ data, total, current, pageSize,
         ),
       },
       {
-        title: '完成考试',
+        title: t('analytics.col_completed_exams'),
         dataIndex: 'exams_completed',
         key: 'exams_completed',
         sorter: (a: any, b: any) => b.exams_completed - a.exams_completed,
         render: (n: number) => <div className="text-center font-medium">{n}</div>,
       },
       {
-        title: '总分',
+        title: t('analytics.col_total_score'),
         dataIndex: 'total_score',
         key: 'total_score',
         sorter: (a: any, b: any) => b.total_score - a.total_score,
         render: (s: number) => <div className="text-center font-medium">{Number.isFinite(s) ? s.toFixed(1) : '-'}</div>,
       },
       {
-        title: '学习时长',
+        title: t('analytics.col_study_time'),
         dataIndex: 'study_time',
         key: 'study_time',
         sorter: (a: any, b: any) => b.study_time - a.study_time,
         render: (m: number) => <div className="text-center">{formatStudyTime(m)}</div>,
       },
       {
-        title: '最后活跃',
+        title: t('analytics.col_last_active'),
         dataIndex: 'last_active',
         key: 'last_active',
-        render: (t: string) => <div className="text-sm text-gray-600">{t ? dayjs(t).format('MM-DD HH:mm') : '-'}</div>,
+        render: (val: string) => <div className="text-sm text-gray-600">{val ? formatDateTime(val) : '-'}</div>,
       },
     ],
-    []
+    [t]
   )
 
   return (
-    <Card title="学生表现">
+    <Card title={t('analytics.student_performance')}>
       <Table
         columns={columns as any}
         dataSource={Array.isArray(data) ? data : []}

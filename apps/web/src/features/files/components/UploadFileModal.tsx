@@ -1,6 +1,7 @@
 import { InboxOutlined } from '@ant-design/icons'
 import { App, Form, Input, Modal, Upload, type UploadProps } from 'antd'
 import { useEffect, useState } from 'react'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 type Props = {
   open: boolean
@@ -12,6 +13,7 @@ type Props = {
 
 export function UploadFileModal({ open, parentId, confirmLoading, onSubmit, onCancel }: Props) {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [form] = Form.useForm<{ name?: string; description?: string; tags?: string }>()
   const [file, setFile] = useState<File | null>(null)
 
@@ -37,14 +39,14 @@ export function UploadFileModal({ open, parentId, confirmLoading, onSubmit, onCa
 
   return (
     <Modal
-      title="上传文件"
+      title={t('files.upload_file')}
       open={open}
-      okText="上传"
+      okText={t('files.upload')}
       confirmLoading={confirmLoading}
       onCancel={onCancel}
       onOk={async () => {
         if (!file) {
-          message.error('请选择文件')
+          message.error(t('files.validation.select_file'))
           return
         }
         const values = await form.validateFields()
@@ -63,17 +65,17 @@ export function UploadFileModal({ open, parentId, confirmLoading, onSubmit, onCa
         <p className="ant-upload-drag-icon">
           <InboxOutlined />
         </p>
-        <p className="ant-upload-text">{file ? file.name : '点击或拖拽文件到此处上传'}</p>
+        <p className="ant-upload-text">{file ? file.name : t('files.upload_drag_text')}</p>
       </Upload.Dragger>
       <Form form={form} layout="vertical">
-        <Form.Item label="名称" name="name">
-          <Input maxLength={120} placeholder="可选，默认为文件原始名称" />
+        <Form.Item label={t('files.fields.name')} name="name">
+          <Input maxLength={120} placeholder={t('files.placeholders.file_name')} />
         </Form.Item>
-        <Form.Item label="标签" name="tags">
-          <Input placeholder="多个标签使用逗号分隔" />
+        <Form.Item label={t('files.fields.tags')} name="tags">
+          <Input placeholder={t('files.placeholders.tags')} />
         </Form.Item>
-        <Form.Item label="描述" name="description">
-          <Input.TextArea rows={3} maxLength={200} showCount placeholder="补充说明" />
+        <Form.Item label={t('files.fields.description')} name="description">
+          <Input.TextArea rows={3} maxLength={200} showCount placeholder={t('files.placeholders.description')} />
         </Form.Item>
       </Form>
     </Modal>

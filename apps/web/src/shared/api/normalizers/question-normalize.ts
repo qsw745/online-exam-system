@@ -1,5 +1,6 @@
 // features/questions/utils/question-normalize.ts
 import type { OptionDTO, QuestionDTO, QuestionType } from '@/shared/types/question'
+import { translate } from '@/shared/utils/i18n'
 
 export const ensureArrayFromMaybeCsv = (input: unknown): string[] => {
   if (Array.isArray(input)) return input.map(String).filter(Boolean)
@@ -112,7 +113,7 @@ export const buildPayload = (form: {
     base.options = form.options
     base.correct_answer = form.options.map((o, i) => (o.is_correct ? i : null)).filter((v): v is number => v !== null)
   } else if (form.type === 'true_false') {
-    base.options = [{ content: '正确' }, { content: '错误' }]
+    base.options = [{ content: translate('questions.tf_true') }, { content: translate('questions.tf_false') }]
     base.correct_answer = [form.answer === 'true' ? 0 : 1]
   } else if (form.type === 'short_answer') {
     base.options = []

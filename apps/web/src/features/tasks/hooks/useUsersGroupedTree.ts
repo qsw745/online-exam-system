@@ -1,6 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import * as http from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 /**
  * 分组为 角色 → 用户 的 TreeSelect 数据
@@ -21,7 +22,7 @@ export function useUsersGroupedTree() {
       setUsers(Array.isArray(list) ? list : [])
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载用户失败')
+      message.error(e?.message || translate('workflowTemplates.errors.load_users_failed'))
       setUsers([])
     } finally {
       setLoading(false)

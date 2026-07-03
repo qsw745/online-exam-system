@@ -1,6 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api, isSuccess, wrongQuestions as wqApi } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 export type WQFilter = 'unmastered' | 'mastered' | 'all'
 
@@ -173,7 +174,7 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
         setPage(p)
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载错题本失败')
+        message.error(e?.message || translate('auto.4096ebd1fe'))
         setList([])
         setTotal(0)
       } finally {
@@ -201,7 +202,7 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
     setRefreshing(true)
     await Promise.all([loadList(page), loadStats()])
     setRefreshing(false)
-    message.success('数据已刷新')
+    message.success(translate('auto.519b29552c'))
   }, [loadList, loadStats, page, message])
 
   const markMastered = useCallback(
@@ -224,7 +225,7 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
       } catch (e: any) {
         setList(prev) // 回滚
         if (prevStats) setStats(prevStats)
-        message.error(e?.message || '操作失败')
+        message.error(e?.message || translate('app.operation_failed'))
       }
     },
     [list, stats, message]
@@ -247,12 +248,12 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
       try {
         const ok = await svc.remove(qidOrRid)
         if (!ok) throw new Error('failed')
-        message.success('已从错题本移除')
+        message.success(translate('auto.298b7582b3'))
         if (next.length === 0 && page > 1) loadList(page - 1)
       } catch (e: any) {
         setList(prev) // 回滚
         if (prevStats) setStats(prevStats)
-        message.error(e?.message || '操作失败')
+        message.error(e?.message || translate('app.operation_failed'))
       }
     },
     [list, stats, page, loadList, message]

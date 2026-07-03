@@ -6,6 +6,7 @@ import OperationFiltersBar from '@/features/logs/components/OperationFiltersBar'
 import OperationLogsTable from '@/features/logs/components/OperationLogsTable'
 import { useLogs } from '@/features/logs/hooks/useLogs'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title } = Typography
 
@@ -31,12 +32,10 @@ export default function OperationLogsPage() {
         <Space>
           <Activity style={{ width: 22, height: 22, color: '#1677ff' }} />
           <Title level={2} style={{ margin: 0 }}>
-            操作日志
-          </Title>
+            {translate('menus.system-logs-ops')}</Title>
         </Space>
         <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={exportLogs}>
-          导出
-        </Button>
+          {translate('questions.export')}</Button>
       </div>
 
       {/* 顶部横向筛选条（所属模块 / 操作状态 / 操作时间） */}

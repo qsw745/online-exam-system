@@ -3,6 +3,7 @@ import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { Checkbox, Radio } from 'antd'
 import type { FormListFieldData, FormListOperation } from 'antd/es/form'
 import { Button, Form } from '@/shared/components/ui'
+import { translate } from '@/shared/utils/i18n'
 
 /** 题目类型（这里只区分选择题两类） */
 export type ChoiceMode = 'single' | 'multiple'
@@ -17,7 +18,7 @@ export default function OptionsEditor({ mode, name = 'options' }: { mode: Choice
         {
           validator: async (_: unknown, v: unknown) => {
             const arr = Array.isArray(v) ? v.filter((x: any) => (x?.content ?? '').trim()) : []
-            if (arr.length < 2) return Promise.reject('最少需要 2 个有效选项')
+            if (arr.length < 2) return Promise.reject(translate('visible.63f6a19ddf'))
           },
         },
       ]}
@@ -52,7 +53,7 @@ export default function OptionsEditor({ mode, name = 'options' }: { mode: Choice
 
               <Form.Item
                 name={[field.name, 'content']}
-                rules={[{ required: true, message: '请输入选项内容' }]}
+                rules={[{ required: true, message: translate('auto.7100773463') }]}
                 style={{ flex: 1, marginBottom: 0 }}
               >
                 <Form.Input
@@ -62,7 +63,7 @@ export default function OptionsEditor({ mode, name = 'options' }: { mode: Choice
               </Form.Item>
 
               <Button
-                aria-label="删除选项"
+                aria-label={translate('auto.cedaea7425')}
                 icon={<DeleteOutlined />}
                 danger
                 onClick={() => remove(field.name)}
@@ -72,8 +73,7 @@ export default function OptionsEditor({ mode, name = 'options' }: { mode: Choice
           ))}
 
           <Button type="dashed" icon={<PlusOutlined />} onClick={() => add({ content: '', is_correct: false })} block>
-            添加选项
-          </Button>
+            {translate('questions.add_option')}</Button>
         </>
       )}
     </Form.List>

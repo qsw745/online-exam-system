@@ -3,6 +3,8 @@ import { Table, Tag } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from '@/shared/utils/dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Row = LogEntry & {
   // 兼容后端可能的字段命名
@@ -50,12 +52,12 @@ function parseBrowser(ua?: string) {
 
 function statusInfo(r: Row) {
   const s = String(r.status || '').toLowerCase()
-  if (['success', 'ok', 'passed', 'true', '有效', '成功'].includes(s)) return { text: '成功', color: 'green' as const }
+  if (['success', 'ok', 'passed', 'true', '有效', '成功'].includes(s)) return { text: translate('auto.51991a5d11'), color: 'green' as const }
   if (['fail', 'failed', 'error', 'false', '无效', '失败', 'unauthorized'].includes(s))
-    return { text: '失败', color: 'red' as const }
+    return { text: translate('auto.3e3c8068bb'), color: 'red' as const }
   // 回退到 level 判断
-  if (String(r.level).toLowerCase() === 'error') return { text: '失败', color: 'red' as const }
-  return { text: '成功', color: 'green' as const }
+  if (String(r.level).toLowerCase() === 'error') return { text: translate('auto.3e3c8068bb'), color: 'red' as const }
+  return { text: translate('auto.51991a5d11'), color: 'green' as const }
 }
 
 export default function LoginLogsTable({
@@ -71,14 +73,14 @@ export default function LoginLogsTable({
 }) {
   const columns: ColumnsType<Row> = [
     {
-      title: '序号',
+      title: translate('papers.col_order'),
       width: 72,
       align: 'center',
       render: (_: any, __: Row, idx: number) => (page - 1) * pageSize + idx + 1,
       fixed: 'left',
     },
     {
-      title: '用户名',
+      title: translate('auth.username'),
       dataIndex: 'username',
       width: 140,
       render: (v?: string) => v || '系统',
@@ -86,31 +88,31 @@ export default function LoginLogsTable({
       fixed: 'left',
     },
     {
-      title: '登录 IP',
+      title: translate('auto.9eb73961ff'),
       dataIndex: 'ip_address',
       width: 160,
       ellipsis: true,
     },
     {
-      title: '登录地点',
+      title: translate('auto.6f631e57a5'),
       width: 220,
       ellipsis: true,
       render: (_: any, r) => pickLocation(r),
     },
     {
-      title: '操作系统',
+      title: translate('auto.7c30099b89'),
       width: 140,
       ellipsis: true,
       render: (_: any, r) => pickOS(r),
     },
     {
-      title: '浏览器类型',
+      title: translate('auto.d9dcf7d362'),
       width: 140,
       ellipsis: true,
       render: (_: any, r) => pickBrowser(r),
     },
     {
-      title: '登录状态',
+      title: translate('auto.854597d2b1'),
       width: 120,
       align: 'center',
       render: (_: any, r) => {
@@ -119,17 +121,17 @@ export default function LoginLogsTable({
       },
     },
     {
-      title: '登录行为',
+      title: translate('auto.ee816b9f5b'),
       dataIndex: 'action',
       width: 160,
       ellipsis: true,
       render: (v?: string) => v || '-',
     },
     {
-      title: '登录时间',
+      title: translate('auto.570df2c0f9'),
       dataIndex: 'created_at',
       width: 180,
-      render: (t?: string) => (t ? dayjs(t).format('YYYY-MM-DD HH:mm:ss') : '-'),
+      render: (t?: string) => (t ? formatDateTime(t) : '-'),
     },
   ]
 

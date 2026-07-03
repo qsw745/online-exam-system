@@ -29,6 +29,8 @@ import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/c
 import type { FileRecord, FileBreadcrumb } from '../types'
 import { CreateFolderModal } from '../components/CreateFolderModal'
 import { UploadFileModal } from '../components/UploadFileModal'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -46,6 +48,7 @@ const formatSize = (bytes?: number | null) => {
 
 export default function FilesLibraryPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [parentId, setParentId] = useState<number | null>(null)
   const [search, setSearch] = useState('')
   const [keyword, setKeyword] = useState('')
@@ -82,13 +85,13 @@ export default function FilesLibraryPage() {
       setBreadcrumbs(data.breadcrumbs || [])
       if (data.stats) setStats(data.stats)
     } catch (e: any) {
-      message.error(e?.message || '加载文件失败')
+      message.error(e?.message || t('files.messages.load_failed'))
       setRows([])
       setPaginationTotal(0)
     } finally {
       setLoading(false)
     }
-  }, [parentId, search, page, limit, message])
+  }, [parentId, search, page, limit, message, t])
 
   useEffect(() => {
     fetchList()
@@ -98,11 +101,11 @@ export default function FilesLibraryPage() {
     setCreateLoading(true)
     try {
       await filesApi.createFolder({ name, parent_id: parentId })
-      message.success('文件夹创建成功')
+      message.success(t('files.messages.folder_created'))
       setCreateOpen(false)
       fetchList()
     } catch (e: any) {
-      message.error(e?.message || '创建失败')
+      message.error(e?.message || t('files.messages.create_failed'))
     } finally {
       setCreateLoading(false)
     }
@@ -112,11 +115,11 @@ export default function FilesLibraryPage() {
     setUploadLoading(true)
     try {
       await filesApi.upload(formData)
-      message.success('上传成功')
+      message.success(t('files.messages.upload_success'))
       setUploadOpen(false)
       fetchList()
     } catch (e: any) {
-      message.error(e?.message || '上传失败')
+      message.error(e?.message || t('files.messages.upload_failed'))
     } finally {
       setUploadLoading(false)
     }
@@ -127,11 +130,11 @@ export default function FilesLibraryPage() {
     setRenameLoading(true)
     try {
       await filesApi.update(renameTarget.id, { name })
-      message.success('更新成功')
+      message.success(t('files.messages.update_success'))
       setRenameTarget(null)
       fetchList()
     } catch (e: any) {
-      message.error(e?.message || '更新失败')
+      message.error(e?.message || t('files.messages.update_failed'))
     } finally {
       setRenameLoading(false)
     }
@@ -140,10 +143,10 @@ export default function FilesLibraryPage() {
   const handleDelete = async (record: FileRecord) => {
     try {
       await filesApi.remove(record.id)
-      message.success('删除成功')
+      message.success(t('files.messages.delete_success'))
       fetchList()
     } catch (e: any) {
-      message.error(e?.message || '删除失败')
+      message.error(e?.message || t('files.messages.delete_failed'))
     }
   }
 
@@ -154,14 +157,14 @@ export default function FilesLibraryPage() {
   }
 
   const breadcrumbItems = useMemo(() => {
-    const items = [{ id: null as number | null, name: '全部文件' }]
+    const items = [{ id: null as number | null, name: t('files.root') }]
     if (breadcrumbs?.length) items.push(...breadcrumbs)
     return items
-  }, [breadcrumbs])
+  }, [breadcrumbs, t])
 
   const columns = [
     {
-      title: '名称',
+      title: t('files.columns.name'),
       dataIndex: 'name',
       key: 'name',
       render: (_: string, record: FileRecord) => {
@@ -184,22 +187,22 @@ export default function FilesLibraryPage() {
       },
     },
     {
-      title: '类型',
+      title: t('files.columns.type'),
       dataIndex: 'type',
       key: 'type',
       width: 120,
       render: (type: string, record: FileRecord) =>
-        type === 'folder' ? <Tag color="blue">文件夹</Tag> : <Tag>{record.ext?.toUpperCase() || '文件'}</Tag>,
+        type === 'folder' ? <Tag color="blue">{t('files.folder')}</Tag> : <Tag>{record.ext?.toUpperCase() || t('files.file')}</Tag>,
     },
     {
-      title: '大小',
+      title: t('files.columns.size'),
       dataIndex: 'size',
       key: 'size',
       width: 140,
       render: (size: number, record: FileRecord) => (record.type === 'folder' ? '-' : formatSize(size)),
     },
     {
-      title: '标签',
+      title: t('files.columns.tags'),
       dataIndex: 'tags',
       key: 'tags',
       render: (tags: string[]) =>
@@ -214,21 +217,21 @@ export default function FilesLibraryPage() {
         ),
     },
     {
-      title: '更新时间',
+      title: t('files.columns.updated_at'),
       dataIndex: 'updated_at',
       key: 'updated_at',
       width: 200,
-      render: (value: string) => (value ? dayjs(value).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (value: string) => (value ? formatDateTime(value) : '-'),
     },
     {
-      title: '操作',
+      title: t('files.columns.actions'),
       key: 'actions',
       width: 220,
       render: (_: any, record: FileRecord) => {
         const isFolder = record.type === 'folder'
         return (
           <Space>
-            <Tooltip title="重命名">
+            <Tooltip title={t('files.rename')}>
               <Button
                 size="small"
                 icon={<EditOutlined />}
@@ -238,7 +241,7 @@ export default function FilesLibraryPage() {
               />
             </Tooltip>
             {!isFolder && record.download_url && (
-              <Tooltip title="下载">
+              <Tooltip title={t('files.download')}>
                 <Button
                   size="small"
                   icon={<DownloadOutlined />}
@@ -246,7 +249,7 @@ export default function FilesLibraryPage() {
                 />
               </Tooltip>
             )}
-            <Popconfirm title="确定要删除吗？" onConfirm={() => handleDelete(record)}>
+            <Popconfirm title={t('files.confirm_delete')} onConfirm={() => handleDelete(record)}>
               <Button size="small" danger icon={<DeleteOutlined />} />
             </Popconfirm>
           </Space>
@@ -261,7 +264,7 @@ export default function FilesLibraryPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Typography.Title level={4} style={{ marginBottom: 8 }}>
-              文件库
+              {t('files.library')}
             </Typography.Title>
             <Breadcrumb>
               {breadcrumbItems.map(item => (
@@ -282,7 +285,7 @@ export default function FilesLibraryPage() {
           </div>
           <Space>
             <Input.Search
-              placeholder="搜索文件/文件夹"
+              placeholder={t('files.search_placeholder')}
               value={keyword}
               onChange={e => {
                 setKeyword(e.target.value)
@@ -300,10 +303,10 @@ export default function FilesLibraryPage() {
             />
             <Button icon={<ReloadOutlined />} onClick={() => fetchList()} />
             <Button icon={<FolderAddOutlined />} type="default" onClick={() => setCreateOpen(true)}>
-              新建文件夹
+              {t('files.new_folder')}
             </Button>
             <Button type="primary" icon={<CloudUploadOutlined />} onClick={() => setUploadOpen(true)}>
-              上传文件
+              {t('files.upload_file')}
             </Button>
           </Space>
         </Space>
@@ -311,13 +314,13 @@ export default function FilesLibraryPage() {
 
       <Space size="middle" style={{ width: '100%' }}>
         <Card style={{ flex: 1 }}>
-          <Statistic title="文件数" value={stats.files} />
+          <Statistic title={t('files.stats.files')} value={stats.files} />
         </Card>
         <Card style={{ flex: 1 }}>
-          <Statistic title="文件夹" value={stats.folders} />
+          <Statistic title={t('files.stats.folders')} value={stats.folders} />
         </Card>
         <Card style={{ flex: 1 }}>
-          <Statistic title="占用空间" value={formatSize(stats.totalSize)} />
+          <Statistic title={t('files.stats.used_space')} value={formatSize(stats.totalSize)} />
         </Card>
       </Space>
 
@@ -330,7 +333,7 @@ export default function FilesLibraryPage() {
             current: page,
             pageSize: limit,
             total: paginationTotal,
-            unit: '项',
+            unit: t('files.pagination_unit'),
             onChange: handlePaginationChange,
           })}
           loading={loading}
@@ -354,7 +357,7 @@ export default function FilesLibraryPage() {
 
       <CreateFolderModal
         open={!!renameTarget}
-        title="重命名"
+        title={t('files.rename')}
         initialName={renameTarget?.name}
         confirmLoading={renameLoading}
         onCancel={() => setRenameTarget(null)}

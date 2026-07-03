@@ -3,6 +3,11 @@ import { Router, type RequestHandler, type Response } from 'express'
 import type { AuthRequest } from '@/types/auth.js'
 import { AuthController } from '../controllers/auth.controller.js'
 import { PasswordResetController } from '../controllers/password-reset.controller.js'
+import { FaceCredentialController } from '../controllers/face-credential.controller.js'
+import { FaceLoginController } from '../controllers/face-login.controller.js'
+import { QrLoginController } from '../controllers/qr-login.controller.js'
+import { EmailVerificationController } from '../controllers/email-verification.controller.js'
+import { authenticateToken } from '@/common/middleware/auth'
 import { rateLimit } from '@/common/middleware/rate-limit'
 import { pool } from '@/config/database'
 import bcrypt from 'bcryptjs'
@@ -32,6 +37,57 @@ router.post(
   '/login',
   rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:login`, limit: 5, windowSec: 60 }),
   wrap(AuthController.login)
+)
+router.post(
+  '/face-login',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:face-login`, limit: 10, windowSec: 60 }),
+  wrap(FaceLoginController.faceLogin)
+)
+router.post(
+  '/face-login/failure',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:face-login:failure`, limit: 10, windowSec: 60 }),
+  wrap(AuthController.reportFaceLoginFailure)
+)
+
+// ===== 扫码手机刷脸登录 =====
+router.post(
+  '/qr/create',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:create`, limit: 20, windowSec: 60 }),
+  wrap(QrLoginController.create)
+)
+router.get(
+  '/qr/poll',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:poll`, limit: 120, windowSec: 60 }),
+  wrap(QrLoginController.poll)
+)
+router.get(
+  '/qr/info',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:info`, limit: 30, windowSec: 60 }),
+  wrap(QrLoginController.info)
+)
+router.post(
+  '/qr/authorize',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:authorize`, limit: 15, windowSec: 60 }),
+  wrap(QrLoginController.authorize)
+)
+
+// ===== 人脸凭据录入（自助，需登录态 + 本人同意）=====
+router.get('/face/status', authenticateToken, wrap(FaceCredentialController.status))
+router.post(
+  '/face/enroll',
+  authenticateToken,
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:face:enroll`, limit: 10, windowSec: 60 }),
+  wrap(FaceCredentialController.enroll)
+)
+router.delete('/face/enroll', authenticateToken, wrap(FaceCredentialController.unenroll))
+
+// ===== 注册邮箱验证 =====
+router.post('/verify-email', wrap(EmailVerificationController.verify))
+router.get('/verify-email', wrap(EmailVerificationController.verify))
+router.post(
+  '/verify-email/resend',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:verify:resend`, limit: 5, windowSec: 300 }),
+  wrap(EmailVerificationController.resend)
 )
 
 // 兼容前端 httpClient 的 GET 兜底

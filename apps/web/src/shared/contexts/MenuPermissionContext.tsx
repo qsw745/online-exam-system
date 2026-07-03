@@ -105,26 +105,16 @@ const fetchUserMenus = async () => {
   setLoading(true)
   setError(null)
   try {
-    const isAdminName = String( user.email || '').toLowerCase() === 'admin'
-    const roleStr = (user as any)?.role?.toLowerCase?.() || localStorage.getItem('USER_ROLE') || ''
-    const isAdminRole = roleStr === 'admin' || roleStr === 'super_admin'
-
-    let menuTree: MenuItem[] = []
-
-    if (isAdminName || isAdminRole) {
-      // ✅ 管理员：直接走系统功能树（后端已做兜底）
-      const data = await menuApi.functionsTree()
-      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
-    } else {
-      // 普通用户：走用户-机构权限树
-      const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
-      const data = await menuApi.userMenus(Number(user.id), orgId, {
-        strict: true,
-        nocache: true, // 首次强刷
-        transport: 'header',
-      })
-      menuTree = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
-    }
+    // 统一走"按用户角色过滤"的菜单树——后端对任意角色（含管理员=全部授权）都返回正确结果。
+    // 不能按前端的 email/role/localStorage 判断管理员后改走 functionsTree() 全量，
+    // 否则残留的 USER_ROLE 等会让普通用户误拿到全部模块（越权可见）。
+    const orgId = (user as any)?.orgId ?? (user as any)?.primary_org_id ?? getCurrentOrgId()
+    const data = await menuApi.userMenus(Number(user.id), orgId, {
+      strict: true,
+      nocache: true, // 首次强刷
+      transport: 'header',
+    })
+    const menuTree: MenuItem[] = Array.isArray(data) ? (data as any) : (data as any)?.data ?? []
 
     setRawMenus(menuTree)
     setPermissions(extractPermissions(menuTree))

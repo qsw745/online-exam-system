@@ -3,6 +3,8 @@ import { App, Button, Card, Form, Input, Modal, Space, Select, Table, Tag, Typog
 import { PlayCircleOutlined, PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { SchedulerJob } from '@/shared/api/endpoints/jobs'
 import { jobsApi } from '@/shared/api/endpoints/jobs'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text } = Typography
 
@@ -13,6 +15,7 @@ type JobModal = {
 
 export default function SystemJobsPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [rows, setRows] = useState<SchedulerJob[]>([])
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState<JobModal>({ open: false })
@@ -24,11 +27,11 @@ export default function SystemJobsPage() {
       const list = await jobsApi.list()
       setRows(list)
     } catch (e: any) {
-      message.error(e?.message || '加载任务失败')
+      message.error(e?.message || t('jobs.load_failed'))
     } finally {
       setLoading(false)
     }
-  }, [message])
+  }, [message, t])
 
   useEffect(() => {
     fetchData()
@@ -39,41 +42,45 @@ export default function SystemJobsPage() {
     try {
       if (modal.editing) {
         await jobsApi.update(modal.editing.id, values)
-        message.success('更新任务成功')
+        message.success(t('jobs.update_success'))
       } else {
         await jobsApi.create(values)
-        message.success('创建任务成功')
+        message.success(t('jobs.create_success'))
       }
       setModal({ open: false })
       form.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('jobs.save_failed'))
     }
   }
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name' },
+    { title: t('jobs.col_name'), dataIndex: 'name', key: 'name' },
     { title: 'Cron', dataIndex: 'cron', key: 'cron' },
-    { title: '执行器', dataIndex: 'handler', key: 'handler' },
+    { title: t('jobs.col_handler'), dataIndex: 'handler', key: 'handler' },
     {
-      title: '状态',
+      title: t('jobs.col_status'),
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => <Tag color={status === 'running' ? 'green' : 'orange'}>{status}</Tag>,
+      render: (status: string) => (
+        <Tag color={status === 'running' ? 'green' : 'orange'}>
+          {status === 'running' ? t('jobs.status_running') : t('jobs.status_paused')}
+        </Tag>
+      ),
     },
-    { title: '上次执行', dataIndex: 'last_run_at', key: 'last_run_at' },
+    { title: t('jobs.col_last_run'), dataIndex: 'last_run_at', key: 'last_run_at', render: (v?: string) => (v ? formatDateTime(v) : '-') },
     {
-      title: '操作',
+      title: t('jobs.col_action'),
       key: 'actions',
       render: (_: any, record: SchedulerJob) => (
         <Space>
           <Button
             type="link"
             icon={<PlayCircleOutlined />}
-            onClick={() => message.info('暂未接入调度器，待补充')}
+            onClick={() => message.info(t('jobs.scheduler_not_connected'))}
           >
-            触发
+            {t('jobs.trigger')}
           </Button>
           <Button
             type="link"
@@ -82,7 +89,7 @@ export default function SystemJobsPage() {
               form.setFieldsValue(record)
             }}
           >
-            编辑
+            {t('app.edit')}
           </Button>
         </Space>
       ),
@@ -95,9 +102,9 @@ export default function SystemJobsPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              定时任务
+              {t('jobs.title')}
             </Title>
-            <Text type="secondary">管理后台 cron 任务</Text>
+            <Text type="secondary">{t('jobs.description')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData} />
@@ -109,7 +116,7 @@ export default function SystemJobsPage() {
                 form.resetFields()
               }}
             >
-              新增任务
+              {t('jobs.add_job')}
             </Button>
           </Space>
         </Space>
@@ -119,30 +126,30 @@ export default function SystemJobsPage() {
       </Card>
       <Modal
         open={modal.open}
-        title={modal.editing ? '编辑任务' : '新增任务'}
+        title={modal.editing ? t('jobs.edit_job') : t('jobs.add_job')}
         onCancel={() => setModal({ open: false })}
         onOk={handleSave}
         destroyOnClose
       >
         <Form layout="vertical" form={form} preserve={false}>
-          <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入名称' }]}>
+          <Form.Item label={t('jobs.name')} name="name" rules={[{ required: true, message: t('jobs.name_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="Cron 表达式" name="cron" rules={[{ required: true, message: '请输入 Cron' }]}>
+          <Form.Item label={t('jobs.cron_expression')} name="cron" rules={[{ required: true, message: t('jobs.cron_required') }]}>
             <Input placeholder="0 0 * * *" />
           </Form.Item>
-          <Form.Item label="执行器" name="handler" rules={[{ required: true, message: '请输入执行器' }]}>
+          <Form.Item label={t('jobs.handler')} name="handler" rules={[{ required: true, message: t('jobs.handler_required') }]}>
             <Input placeholder="module.service" />
           </Form.Item>
-          <Form.Item label="状态" name="status" initialValue="paused">
+          <Form.Item label={t('jobs.status')} name="status" initialValue="paused">
             <Select
               options={[
-                { label: '暂停', value: 'paused' },
-                { label: '运行中', value: 'running' },
+                { label: t('jobs.status_paused'), value: 'paused' },
+                { label: t('jobs.status_running'), value: 'running' },
               ]}
             />
           </Form.Item>
-          <Form.Item label="备注" name="description">
+          <Form.Item label={t('jobs.remark')} name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
         </Form>

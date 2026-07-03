@@ -9,6 +9,7 @@ import { ChevronsLeft, ChevronsRight } from 'lucide-react'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import '../css/DynamicSidebar.css'
+import { translate } from '@/shared/utils/i18n'
 
 // 宽松菜单类型，避免联合类型在 filter/map 后收敛成 never
 type AnyMenu = {
@@ -278,7 +279,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
   const goDashboard = () => {
     const p = cleanPath(dashboardPath)
     ;(window as any).scrollTo?.(0, 0)
-    addOrActivate({ key: p, title: '仪表盘', closable: p !== '/' })
+    addOrActivate({ key: p, title: translate('nav.dashboard'), closable: p !== '/' })
   }
 
   const siderW = collapsed ? 64 : width
@@ -317,7 +318,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           borderRight: '1px solid var(--sider-border, #f0f0f0)',
         }}
       >
-        <div style={{ padding: 16, color: '#dc2626' }}>菜单加载失败：{error}</div>
+        <div style={{ padding: 16, color: '#dc2626' }}>{translate('auto.3ff2c4b846')}{error}</div>
       </aside>
     )
   }
@@ -374,8 +375,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           />
           {!collapsed && (
             <strong className="brand-title" style={{ fontSize: 14 }}>
-              在线考试系统
-            </strong>
+              {translate('app.title')}</strong>
           )}
         </div>
       )}
@@ -423,7 +423,7 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
             if (redirect) {
               const p = cleanPath(redirect)
               ;(window as any).scrollTo?.(0, 0)
-              addOrActivate({ key: p, title: title || '菜单', closable: p !== '/' })
+              addOrActivate({ key: p, title: title || translate('menuList.type.menu'), closable: p !== '/' })
               return
             }
 
@@ -447,10 +447,10 @@ export default function DynamicSidebar({ className = '', width = 240 }: { classN
           pointerEvents: hovered ? 'auto' : 'none',
         }}
       >
-        <Tooltip title={collapsed ? '点击展开' : '点击折叠'} placement="right">
+        <Tooltip title={collapsed ? translate('visible.b98e8359c4') : translate('visible.73a85b0e5b')} placement="right">
           <button
             onClick={toggleCollapsed}
-            aria-label={collapsed ? '展开侧栏' : '折叠侧栏'}
+            aria-label={collapsed ? translate('visible.f4cbda2958') : translate('visible.37b948c35e')}
             style={{
               width: 24,
               height: 34,
@@ -513,7 +513,7 @@ export function MobileSidebar({ isOpen, onClose }: { isOpen: boolean; onClose: (
 
   return (
     <Drawer
-      title="菜单"
+      title={translate('menuList.type.menu')}
       placement="left"
       width={260}
       open={isOpen}

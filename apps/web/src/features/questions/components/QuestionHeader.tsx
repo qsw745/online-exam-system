@@ -2,6 +2,7 @@
 import { Button, Col, Row, Typography } from 'antd'
 import { ArrowLeft } from 'lucide-react'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Paragraph } = Typography
 
 export default function QuestionHeader({ title, desc, onBack }: { title: string; desc: string; onBack: () => void }) {
@@ -17,8 +18,7 @@ export default function QuestionHeader({ title, desc, onBack }: { title: string;
       </Col>
       <Col>
         <Button onClick={onBack} icon={<ArrowLeft style={{ width: 16, height: 16 }} />}>
-          返回题目列表
-        </Button>
+          {translate('questions.back_to_list')}</Button>
       </Col>
     </Row>
   )

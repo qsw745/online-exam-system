@@ -1,5 +1,6 @@
 import { Button, Space } from 'antd'
 import { PlusOutlined, DragOutlined, ExportOutlined, ImportOutlined } from '@ant-design/icons'
+import { translate } from '@/shared/utils/i18n'
 
 export default function MenuToolbar({
   onCreate,
@@ -15,17 +16,13 @@ export default function MenuToolbar({
   return (
     <Space>
       <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
-        添加菜单
-      </Button>
+        {translate('auto.55c59bd0c9')}</Button>
       <Button icon={<DragOutlined />} onClick={onBatchSort}>
-        批量排序
-      </Button>
+        {translate('auto.a0e1f784e9')}</Button>
       <Button icon={<ExportOutlined />} onClick={onExport}>
-        导出配置
-      </Button>
+        {translate('auto.3d05c8ad5e')}</Button>
       <Button icon={<ImportOutlined />} onClick={onImport}>
-        导入配置
-      </Button>
+        {translate('auto.280779a502')}</Button>
     </Space>
   )
 }

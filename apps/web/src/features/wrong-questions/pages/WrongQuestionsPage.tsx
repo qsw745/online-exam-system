@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
 import { useWrongQuestions } from '../hooks/useWrongQuestions'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 // 小工具：统一中文展示
@@ -40,7 +41,7 @@ export default function WrongQuestionsPage() {
   if (loading && list.length === 0) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '50vh' }}>
-        <Spin size="large" tip="加载中...">
+        <Spin size="large" tip={translate('app.loading')}>
           <div style={{ minHeight: 200, minWidth: 200 }} />
         </Spin>
       </div>
@@ -62,9 +63,8 @@ export default function WrongQuestionsPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space direction="vertical" size={0}>
             <Title level={1} style={{ margin: 0 }}>
-              错题本
-            </Title>
-            <Text type="secondary">复习错题，巩固知识点</Text>
+              {translate('menus.learning-wrong')}</Title>
+            <Text type="secondary">{translate('auto.34b0ef0ba9')}</Text>
           </Space>
           <Button
             type="primary"
@@ -72,18 +72,17 @@ export default function WrongQuestionsPage() {
             loading={refreshing}
             icon={<RefreshCw style={{ width: 20, height: 20 }} />}
           >
-            刷新
-          </Button>
+            {translate('app.refresh')}</Button>
         </div>
 
         {/* 统计：中文展示 */}
         {zhStats && (
           <Card>
             <Space size="large" wrap>
-              <StatBox label="总练习次数" value={zhStats.总练习次数} />
-              <StatBox label="正确率" value={zhStats.正确率} />
-              <StatBox label="错题数量" value={zhStats.错题数量} />
-              <StatBox label="已掌握数量" value={zhStats.已掌握数量} />
+              <StatBox label={translate('auto.61de46de99')} value={zhStats.总练习次数} />
+              <StatBox label={translate('auto.8dc159502e')} value={zhStats.正确率} />
+              <StatBox label={translate('auto.44736e6a6b')} value={zhStats.错题数量} />
+              <StatBox label={translate('auto.eaadada177')} value={zhStats.已掌握数量} />
             </Space>
           </Card>
         )}
@@ -91,14 +90,14 @@ export default function WrongQuestionsPage() {
         {/* 过滤条 */}
         <Card>
           <Space align="center">
-            <div style={{ color: '#666' }}>筛选：</div>
+            <div style={{ color: '#666' }}>{translate('auto.f7c8e8edcf')}</div>
             <Segmented
               value={filter}
               onChange={v => setFilter(v as any)}
               options={[
-                { label: '未掌握', value: 'unmastered' },
-                { label: '已掌握', value: 'mastered' },
-                { label: '全部', value: 'all' },
+                { label: translate('auto.74cb412b30'), value: 'unmastered' },
+                { label: translate('profile.mastered'), value: 'mastered' },
+                { label: translate('auto.778fc8f994'), value: 'all' },
               ]}
             />
           </Space>
@@ -112,21 +111,19 @@ export default function WrongQuestionsPage() {
               description={
                 <Space direction="vertical">
                   <Title level={3} style={{ margin: 0 }}>
-                    暂时没有符合条件的错题
-                  </Title>
+                    {translate('auto.72f6eaac13')}</Title>
                   <Text type="secondary">
                     {filter === 'unmastered'
-                      ? '恭喜！您暂时没有未掌握的错题'
+                      ? translate('visible.b497d7c79f')
                       : filter === 'mastered'
-                      ? '您还没有掌握任何错题'
-                      : '您的错题本是空的，开始练习题目吧！'}
+                      ? translate('visible.559d512525')
+                      : translate('visible.6d5c2bebb2')}
                   </Text>
                 </Space>
               }
             >
               <Button type="primary" onClick={() => navigate('/learning/practice')}>
-                开始练习
-              </Button>
+                {translate('auto.5c007a10e6')}</Button>
             </Empty>
           </Card>
         ) : (

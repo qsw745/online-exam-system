@@ -1,4 +1,5 @@
-import { App, Badge, Button, Drawer, FloatButton, Input, List, Modal, Select, Space, Tag, Tooltip, Typography } from 'antd'
+import { App, Badge, Button, Drawer, Input, List, Modal, Select, Space, Tag, Tooltip, Typography } from 'antd'
+import { Sparkles } from 'lucide-react'
 import {
   AudioOutlined,
   CheckCircleOutlined,
@@ -28,6 +29,7 @@ import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { api, getErr, isSuccess } from '@/shared/api/http'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { redirectToLogin } from '@/shared/router/basePath'
 import './AiAssistantWidget.css'
 
@@ -41,6 +43,8 @@ type ChatSession = { id: string; title: string; items: ChatItem[]; createdAt: nu
 type ExecutionMode = 'request' | 'review' | 'auto'
 type ExecuteOptions = { confirmation?: 'ask' | 'skip'; automated?: boolean }
 type AttachmentStatus = 'processing' | 'ready' | 'error'
+type TranslateFn = (key: string, fallback?: string) => string
+type TranslationValues = Record<string, string | number | null | undefined>
 type AssistantAttachment = {
   id: string
   name: string
@@ -64,12 +68,15 @@ type BrowserSpeechRecognition = {
 const HELLO_ITEM: ChatItem = {
   id: 'hello',
   role: 'assistant',
-  content: '你好！我可以帮你查找功能、生成题目、给出学习建议。',
+  content: '',
 }
 
-const createSession = (): ChatSession => {
+const formatText = (template: string, values: TranslationValues = {}) =>
+  Object.entries(values).reduce((next, [key, value]) => next.replaceAll(`{${key}}`, String(value ?? '')), template)
+
+const createSession = (t: TranslateFn): ChatSession => {
   const now = Date.now()
-  return { id: String(now), title: '新对话', items: [HELLO_ITEM], createdAt: now, updatedAt: now }
+  return { id: String(now), title: t('aiAssistant.new_conversation'), items: [HELLO_ITEM], createdAt: now, updatedAt: now }
 }
 
 const normalizeItems = (items: any[]): ChatItem[] =>
@@ -80,11 +87,11 @@ const normalizeItems = (items: any[]): ChatItem[] =>
     action: i.action,
   }))
 
-const normalizeSession = (s: any): ChatSession => {
+const normalizeSession = (s: any, t: TranslateFn): ChatSession => {
   const now = Date.now()
   return {
     id: String(s.id || now),
-    title: String(s.title || '新对话'),
+    title: String(s.title || t('aiAssistant.new_conversation')),
     items: Array.isArray(s.items) ? normalizeItems(s.items) : [HELLO_ITEM],
     createdAt: Number(s.createdAt || now),
     updatedAt: Number(s.updatedAt || now),
@@ -114,32 +121,32 @@ const generatePassword = (length = 12) => {
   return arr.join('')
 }
 
-const ACTION_LABELS: Record<string, string> = {
-  navigate: '页面跳转',
-  open_url: '打开链接',
-  send_mail: '发送邮件',
-  generate_questions: '生成题目',
-  create_paper: '生成试卷',
-  create_task: '创建任务',
-  create_user: '创建用户',
-  create_org: '创建部门',
-  assign_role: '分配角色',
-  update_paper: '修改试卷',
-  suggest_paper: '组卷建议',
-  study_plan: '学习计划',
-  explain_question: '题目解析',
-  summarize_exam: '考试总结',
-  change_password: '修改密码',
-  reset_password: '重置密码',
-  run_test: '系统测速',
-}
+const getActionLabels = (t: TranslateFn): Record<string, string> => ({
+  navigate: t('aiAssistant.action.navigate'),
+  open_url: t('aiAssistant.action.open_url'),
+  send_mail: t('aiAssistant.action.send_mail'),
+  generate_questions: t('aiAssistant.action.generate_questions'),
+  create_paper: t('aiAssistant.action.create_paper'),
+  create_task: t('aiAssistant.action.create_task'),
+  create_user: t('aiAssistant.action.create_user'),
+  create_org: t('aiAssistant.action.create_org'),
+  assign_role: t('aiAssistant.action.assign_role'),
+  update_paper: t('aiAssistant.action.update_paper'),
+  suggest_paper: t('aiAssistant.action.suggest_paper'),
+  study_plan: t('aiAssistant.action.study_plan'),
+  explain_question: t('aiAssistant.action.explain_question'),
+  summarize_exam: t('aiAssistant.action.summarize_exam'),
+  change_password: t('aiAssistant.action.change_password'),
+  reset_password: t('aiAssistant.action.reset_password'),
+  run_test: t('aiAssistant.action.run_test'),
+})
 
-const QUICK_COMMANDS = [
-  { label: '生成题目', prompt: '帮我生成 10 道中等难度单选题，主题是本周课程重点，先给预览，不入库。' },
-  { label: '智能组卷', prompt: '按中等难度生成一份 20 题、100 分、60 分钟的试卷，并在生成后带我去查看。' },
-  { label: '审批流程', prompt: '查看我待处理的审批任务，并说明每个任务需要我做什么。' },
-  { label: '学习计划', prompt: '根据我的薄弱知识点生成 4 周学习计划，按周列出训练重点。' },
-  { label: '系统测速', prompt: '运行一次系统测速，覆盖 users、questions、exams、notifications、mail。' },
+const getQuickCommands = (t: TranslateFn) => [
+  { label: t('aiAssistant.quick.generate_questions'), prompt: t('aiAssistant.quick.generate_questions_prompt') },
+  { label: t('aiAssistant.quick.smart_paper'), prompt: t('aiAssistant.quick.smart_paper_prompt') },
+  { label: t('aiAssistant.quick.workflow'), prompt: t('aiAssistant.quick.workflow_prompt') },
+  { label: t('aiAssistant.quick.study_plan'), prompt: t('aiAssistant.quick.study_plan_prompt') },
+  { label: t('aiAssistant.quick.system_test'), prompt: t('aiAssistant.quick.system_test_prompt') },
 ]
 
 const HIGH_IMPACT_ACTIONS = new Set([
@@ -157,8 +164,7 @@ const HIGH_IMPACT_ACTIONS = new Set([
   'run_test',
 ])
 
-const MODEL_OPTIONS = [
-  { label: '默认模型', value: '' },
+const MODEL_PROVIDER_OPTIONS = [
   { label: 'OpenAI · gpt-4o-mini', value: 'gpt-4o-mini' },
   { label: 'OpenAI · gpt-4o', value: 'gpt-4o' },
   { label: 'OpenAI · gpt-4.1-mini', value: 'gpt-4.1-mini' },
@@ -178,13 +184,15 @@ const MODEL_OPTIONS = [
   { label: 'Gemini · gemini-3-flash-preview', value: 'gemini-3-flash-preview' },
   { label: 'DeepSeek · deepseek-v4-flash', value: 'deepseek-v4-flash' },
   { label: 'DeepSeek · deepseek-v4-pro', value: 'deepseek-v4-pro' },
-  { label: '通义 · qwen3-max', value: 'qwen3-max' },
-  { label: '豆包 · doubao-seed-1.6-thinking', value: 'doubao-seed-1.6-thinking' },
-  { label: '通义 · qwen-turbo', value: 'qwen-turbo' },
-  { label: '通义 · qwen-plus', value: 'qwen-plus' },
-  { label: '智谱 · glm-4', value: 'glm-4' },
+  { label: 'Qwen · qwen3-max', value: 'qwen3-max' },
+  { label: 'Doubao · doubao-seed-1.6-thinking', value: 'doubao-seed-1.6-thinking' },
+  { label: 'Qwen · qwen-turbo', value: 'qwen-turbo' },
+  { label: 'Qwen · qwen-plus', value: 'qwen-plus' },
+  { label: 'Zhipu · glm-4', value: 'glm-4' },
   { label: 'Moonshot · kimi-k2', value: 'kimi-k2' },
 ]
+
+const getModelOptions = (t: TranslateFn) => [{ label: t('aiAssistant.default_model'), value: '' }, ...MODEL_PROVIDER_OPTIONS]
 
 const QUESTION_BATCH_SIZE =
   Number((typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_AI_QUESTION_BATCH_SIZE) || 10) || 10
@@ -193,36 +201,34 @@ const QUESTION_BATCH_MAX =
 
 const EXECUTION_MODE_STORAGE_KEY = 'ai-assistant:execution-mode'
 
-const EXECUTION_MODE_META: Record<
-  ExecutionMode,
-  { label: string; shortLabel: string; description: string; color: string }
-> = {
+type ExecutionModeMeta = { label: string; shortLabel: string; description: string; color: string }
+
+const getExecutionModeMeta = (t: TranslateFn): Record<ExecutionMode, ExecutionModeMeta> => ({
   request: {
-    label: '请求执行',
-    shortLabel: '请求',
-    description: '助手只生成动作卡片，由你点击执行；高风险动作仍会二次确认。',
+    label: t('aiAssistant.execution.request'),
+    shortLabel: t('aiAssistant.execution.request_short'),
+    description: t('aiAssistant.execution.request_desc'),
     color: 'default',
   },
   review: {
-    label: '审核执行',
-    shortLabel: '审核',
-    description: '低风险动作自动执行；高风险动作自动弹出审核确认后再执行。',
+    label: t('aiAssistant.execution.review'),
+    shortLabel: t('aiAssistant.execution.review_short'),
+    description: t('aiAssistant.execution.review_desc'),
     color: 'processing',
   },
   auto: {
-    label: '完全执行',
-    shortLabel: '自动',
-    description: '动作返回后直接执行；权限、登录、必填参数和密码强度校验仍然保留。',
+    label: t('aiAssistant.execution.auto'),
+    shortLabel: t('aiAssistant.execution.auto_short'),
+    description: t('aiAssistant.execution.auto_desc'),
     color: 'success',
   },
-}
+})
 
-const EXECUTION_MODE_OPTIONS = (Object.entries(EXECUTION_MODE_META) as Array<[ExecutionMode, typeof EXECUTION_MODE_META[ExecutionMode]]>).map(
-  ([value, meta]) => ({
-    label: meta.label,
+const getExecutionModeOptions = (meta: Record<ExecutionMode, ExecutionModeMeta>) =>
+  (Object.entries(meta) as Array<[ExecutionMode, ExecutionModeMeta]>).map(([value, item]) => ({
+    label: item.label,
     value,
-  })
-)
+  }))
 
 const normalizeExecutionMode = (value: unknown): ExecutionMode =>
   value === 'review' || value === 'auto' || value === 'request' ? value : 'request'
@@ -255,45 +261,48 @@ const getSpeechRecognitionCtor = () => {
   return (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition || null
 }
 
-function actionSummary(action: AgentAction): string {
+function actionSummary(action: AgentAction, t: TranslateFn): string {
   const p = action.payload || {}
   switch (action.type) {
     case 'navigate':
-      return `跳转到 ${p.path || '/'}`
+      return formatText(t('aiAssistant.summary.navigate'), { path: p.path || '/' })
     case 'open_url':
-      return `打开链接 ${p.url || ''}`
+      return formatText(t('aiAssistant.summary.open_url'), { url: p.url || '' })
     case 'generate_questions':
-      return `生成题目 ${p.count ?? ''} ${p.question_type ?? ''}`.trim()
+      return formatText(t('aiAssistant.summary.generate_questions'), {
+        count: p.count ?? '',
+        type: p.question_type ?? '',
+      }).trim()
     case 'create_paper':
-      return `生成试卷 ${p.totalQuestions ?? ''} 题`.trim()
+      return formatText(t('aiAssistant.summary.create_paper'), { count: p.totalQuestions ?? '' }).trim()
     case 'create_task':
-      return `创建任务 ${p.title || ''}`.trim()
+      return formatText(t('aiAssistant.summary.create_task'), { title: p.title || '' }).trim()
     case 'update_paper':
-      return `修改试卷 ${p.paper_id ?? ''}`.trim()
+      return formatText(t('aiAssistant.summary.update_paper'), { id: p.paper_id ?? '' }).trim()
     case 'create_user':
-      return `创建用户 ${p.email || p.username || ''}`.trim()
+      return formatText(t('aiAssistant.summary.create_user'), { user: p.email || p.username || '' }).trim()
     case 'create_org':
-      return `创建部门 ${p.name || p.org_name || ''}`.trim()
+      return formatText(t('aiAssistant.summary.create_org'), { org: p.name || p.org_name || '' }).trim()
     case 'assign_role':
-      return `分配角色 ${p.role || p.role_name || p.role_code || ''}`.trim()
+      return formatText(t('aiAssistant.summary.assign_role'), { role: p.role || p.role_name || p.role_code || '' }).trim()
     case 'send_mail':
-      return `发送邮件给 ${p.to_email || p.email || ''}`.trim()
+      return formatText(t('aiAssistant.summary.send_mail'), { email: p.to_email || p.email || '' }).trim()
     case 'suggest_paper':
-      return `生成组卷建议（总题数 ${p.totalQuestions ?? '-'}）`
+      return formatText(t('aiAssistant.summary.suggest_paper'), { count: p.totalQuestions ?? '-' })
     case 'study_plan':
-      return `生成学习计划 ${p.time_range ?? ''}`.trim()
+      return formatText(t('aiAssistant.summary.study_plan'), { range: p.time_range ?? '' }).trim()
     case 'explain_question':
-      return `生成题目解析`
+      return t('aiAssistant.summary.explain_question')
     case 'summarize_exam':
-      return `生成考试总结`
+      return t('aiAssistant.summary.summarize_exam')
     case 'change_password':
-      return '修改当前账号密码'
+      return t('aiAssistant.summary.change_password')
     case 'reset_password':
-      return '重置用户密码'
+      return t('aiAssistant.summary.reset_password')
     case 'run_test':
-      return '执行系统测速任务'
+      return t('aiAssistant.summary.run_test')
     default:
-      return '执行操作'
+      return t('aiAssistant.summary.default')
   }
 }
 
@@ -304,6 +313,7 @@ function needsConfirm(action: AgentAction): boolean {
 
 export default function AiAssistantWidget() {
   const { message } = App.useApp()
+  const { language, t } = useLanguage()
   const inputRef = useRef<any>(null)
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -347,7 +357,7 @@ export default function AiAssistantWidget() {
   useEffect(() => {
     setLastTouchedId(null)
     if (!user?.id) {
-      setSessions([createSession()])
+      setSessions([createSession(t)])
       setActiveId('')
       return
     }
@@ -356,18 +366,18 @@ export default function AiAssistantWidget() {
       setHydrating(true)
       try {
         const res: any = await aiApi.listSessions()
-        if (!res?.success) throw new Error(res?.error || '加载历史失败')
+        if (!res?.success) throw new Error(res?.error || t('aiAssistant.errors.load_history_failed'))
         const list = Array.isArray(res?.data) ? res.data : []
-        const next = list.length ? list.map(normalizeSession) : [createSession()]
+        const next = list.length ? list.map((item: any) => normalizeSession(item, t)) : [createSession(t)]
         if (!cancelled) {
           setSessions(next)
           setActiveId(next[0]?.id || '')
         }
       } catch (e: any) {
         if (!cancelled) {
-          setSessions([createSession()])
+          setSessions([createSession(t)])
           setActiveId('')
-          message.error(e?.message || '加载历史失败')
+          message.error(e?.message || t('aiAssistant.errors.load_history_failed'))
         }
       } finally {
         if (!cancelled) setHydrating(false)
@@ -391,9 +401,9 @@ export default function AiAssistantWidget() {
     saveTimer.current = window.setTimeout(async () => {
       try {
         const res: any = await aiApi.saveSession(session.id, { title: session.title, items: session.items })
-        if (!res?.success) throw new Error(res?.error || '保存失败')
+        if (!res?.success) throw new Error(res?.error || t('aiAssistant.errors.save_failed'))
       } catch (e: any) {
-        message.error(e?.message || '保存失败')
+        message.error(e?.message || t('aiAssistant.errors.save_failed'))
       }
     }, 400)
     return () => {
@@ -420,14 +430,19 @@ export default function AiAssistantWidget() {
     () =>
       [...sessions]
         .sort((a, b) => b.updatedAt - a.updatedAt)
-        .map(s => ({ label: s.title || '新对话', value: s.id })),
-    [sessions]
+        .map(s => ({ label: s.title || t('aiAssistant.new_conversation'), value: s.id })),
+    [sessions, t]
   )
 
   const actionCount = useMemo(() => items.filter(i => !!i.action).length, [items])
   const lastAction = useMemo(() => [...items].reverse().find(i => !!i.action)?.action, [items])
-  const currentModelLabel = customModel.trim() || model || '默认模型'
-  const executionModeMeta = EXECUTION_MODE_META[executionMode]
+  const actionLabels = useMemo(() => getActionLabels(t), [t])
+  const quickCommands = useMemo(() => getQuickCommands(t), [t])
+  const modelOptions = useMemo(() => getModelOptions(t), [t])
+  const executionModeMetaMap = useMemo(() => getExecutionModeMeta(t), [t])
+  const executionModeOptions = useMemo(() => getExecutionModeOptions(executionModeMetaMap), [executionModeMetaMap])
+  const currentModelLabel = customModel.trim() || model || t('aiAssistant.default_model')
+  const executionModeMeta = executionModeMetaMap[executionMode]
   const attachmentBusy = attachments.some(item => item.status === 'processing')
   const readyAttachments = attachments.filter(item => item.status === 'ready' && item.text)
 
@@ -437,7 +452,7 @@ export default function AiAssistantWidget() {
         if (s.id !== activeSession?.id) return s
         const nextItems = [...s.items, item]
         const title =
-          s.title === '新对话' && item.role === 'user'
+          s.title === t('aiAssistant.new_conversation') && item.role === 'user'
             ? String(item.content || '').slice(0, 24) || s.title
             : s.title
         return { ...s, title, items: nextItems, updatedAt: Date.now() }
@@ -448,16 +463,21 @@ export default function AiAssistantWidget() {
   }
 
   const isAuthExpired = (err: any) => {
-    const msg = String(err?.message || err?.error || '').toLowerCase()
-    return msg.includes('jwt expired') || msg.includes('unauthorized') || msg.includes('401')
+    const msg = String(err?.message || err?.error || '')
+    // 仅匹配「本系统」真正的会话失效信号（后端返回的是中文）。
+    // 不再用通用的 'unauthorized'/'401' —— 那会误伤上游 AI 服务返回的 401（如 API Key 无效），
+    // 把"AI 调用失败"错显示成"登录已过期"。
+    return /登录已失效|登录已过期|登录状态.*失效|访问令牌(缺失|无效)|无效的访问令牌|被强退|会话已过期|jwt expired/i.test(
+      msg
+    )
   }
 
   const promptReLogin = () => {
     Modal.confirm({
-      title: '登录已过期',
-      content: '需要重新登录后才能继续执行，是否跳转登录？',
-      okText: '去登录',
-      cancelText: '取消',
+      title: t('aiAssistant.relogin.title'),
+      content: t('aiAssistant.relogin.content'),
+      okText: t('aiAssistant.relogin.ok'),
+      cancelText: t('app.cancel'),
       onOk: () => redirectToLogin(),
     })
   }
@@ -468,27 +488,27 @@ export default function AiAssistantWidget() {
       let next = ''
       let confirm = ''
       Modal.confirm({
-        title: '修改密码',
+        title: t('aiAssistant.password.change_title'),
         content: (
           <Space direction="vertical" style={{ width: '100%' }}>
-            <Input.Password placeholder="当前密码" onChange={e => (current = e.target.value)} />
-            <Input.Password placeholder="新密码（至少 8 位）" onChange={e => (next = e.target.value)} />
-            <Input.Password placeholder="确认新密码" onChange={e => (confirm = e.target.value)} />
+            <Input.Password placeholder={t('aiAssistant.password.current_placeholder')} onChange={e => (current = e.target.value)} />
+            <Input.Password placeholder={t('aiAssistant.password.new_placeholder')} onChange={e => (next = e.target.value)} />
+            <Input.Password placeholder={t('aiAssistant.password.confirm_placeholder')} onChange={e => (confirm = e.target.value)} />
           </Space>
         ),
-        okText: '确认修改',
-        cancelText: '取消',
+        okText: t('aiAssistant.password.confirm_change'),
+        cancelText: t('app.cancel'),
         onOk: () => {
           if (!current || !next) {
-            message.error('请输入当前密码和新密码')
+            message.error(t('aiAssistant.password.current_and_new_required'))
             return Promise.reject()
           }
           if (next.length < 8) {
-            message.error('新密码至少 8 位')
+            message.error(t('aiAssistant.password.min_length'))
             return Promise.reject()
           }
           if (next !== confirm) {
-            message.error('两次输入的新密码不一致')
+            message.error(t('aiAssistant.password.mismatch'))
             return Promise.reject()
           }
           resolve({ current, next })
@@ -504,36 +524,36 @@ export default function AiAssistantWidget() {
       let password = ''
       let confirm = ''
       Modal.confirm({
-        title: '重置用户密码',
+        title: t('aiAssistant.password.reset_title'),
         content: (
           <Space direction="vertical" style={{ width: '100%' }}>
             <Input
-              placeholder="用户邮箱或ID"
+              placeholder={t('aiAssistant.password.target_placeholder')}
               defaultValue={initialTarget}
               onChange={e => (target = e.target.value)}
             />
-            <Input.Password placeholder="自定义新密码（留空则用系统默认）" onChange={e => (password = e.target.value)} />
-            <Input.Password placeholder="确认新密码" onChange={e => (confirm = e.target.value)} />
+            <Input.Password placeholder={t('aiAssistant.password.custom_placeholder')} onChange={e => (password = e.target.value)} />
+            <Input.Password placeholder={t('aiAssistant.password.confirm_placeholder')} onChange={e => (confirm = e.target.value)} />
           </Space>
         ),
-        okText: '确认重置',
-        cancelText: '取消',
+        okText: t('aiAssistant.password.confirm_reset'),
+        cancelText: t('app.cancel'),
         onOk: () => {
           if (!String(target || '').trim()) {
-            message.error('请输入用户邮箱或ID')
+            message.error(t('aiAssistant.password.target_required'))
             return Promise.reject()
           }
           if (password) {
             if (password.length < 8) {
-              message.error('新密码至少 8 位')
+              message.error(t('aiAssistant.password.min_length'))
               return Promise.reject()
             }
             if (passwordKinds(password) < 2) {
-              message.error('密码至少包含两类（大小写/数字/符号）')
+              message.error(t('aiAssistant.password.complexity'))
               return Promise.reject()
             }
             if (password !== confirm) {
-              message.error('两次输入的新密码不一致')
+              message.error(t('aiAssistant.password.mismatch'))
               return Promise.reject()
             }
           }
@@ -737,12 +757,12 @@ export default function AiAssistantWidget() {
           return
         }
         if (Date.now() - startAt > 15 * 60 * 1000) {
-          append({ id: String(Date.now() + 9), role: 'assistant', content: '任务仍在处理中，可稍后再试。' })
+          append({ id: String(Date.now() + 9), role: 'assistant', content: t('aiAssistant.jobs.still_processing') })
           return
         }
         setTimeout(poll, 2000)
       } catch (e: any) {
-        message.error(e?.message || '查询任务失败')
+        message.error(e?.message || t('aiAssistant.jobs.query_failed'))
       }
     }
     setTimeout(poll, 1200)
@@ -766,7 +786,7 @@ export default function AiAssistantWidget() {
               content: `测速完成：通过 ${summary.passed}/${summary.total}，失败 ${summary.failed}，耗时 ${summary.durationMs}ms。`,
             })
           } else {
-            append({ id: String(Date.now() + 12), role: 'assistant', content: '测速完成。' })
+            append({ id: String(Date.now() + 12), role: 'assistant', content: t('aiAssistant.tests.completed') })
           }
           const failures = Array.isArray(result?.results)
             ? result.results.filter((r: any) => r && r.ok === false)
@@ -800,12 +820,12 @@ export default function AiAssistantWidget() {
           return
         }
         if (Date.now() - startAt > 20 * 60 * 1000) {
-          append({ id: String(Date.now() + 12), role: 'assistant', content: '任务仍在处理中，可稍后再试。' })
+          append({ id: String(Date.now() + 12), role: 'assistant', content: t('aiAssistant.jobs.still_processing') })
           return
         }
         setTimeout(poll, 2000)
       } catch (e: any) {
-        message.error(e?.message || '查询任务失败')
+        message.error(e?.message || t('aiAssistant.jobs.query_failed'))
       }
     }
     setTimeout(poll, 1200)
@@ -822,7 +842,7 @@ export default function AiAssistantWidget() {
 
   const extractAttachmentText = async (file: File) => {
     if (file.size > MAX_ATTACHMENT_SIZE) {
-      throw new Error('文件超过 10MB，暂不处理')
+      throw new Error(t('aiAssistant.attachments.too_large'))
     }
     if (file.type.startsWith('image/')) {
       const tesseract = await import('tesseract.js')
@@ -832,7 +852,7 @@ export default function AiAssistantWidget() {
     if (isTextFile(file)) {
       return truncateAttachmentText(await file.text())
     }
-    throw new Error('暂只支持图片 OCR 和文本类文件')
+    throw new Error(t('aiAssistant.attachments.unsupported_type'))
   }
 
   const processAttachment = async (file: File) => {
@@ -851,9 +871,9 @@ export default function AiAssistantWidget() {
       message.success(file.type.startsWith('image/') ? `已识别图片：${file.name}` : `已读取文件：${file.name}`)
     } catch (e: any) {
       setAttachments(prev =>
-        prev.map(item => (item.id === id ? { ...item, status: 'error', error: e?.message || '处理失败' } : item))
+        prev.map(item => (item.id === id ? { ...item, status: 'error', error: e?.message || t('aiAssistant.attachments.process_failed') } : item))
       )
-      message.error(`${file.name}：${e?.message || '处理失败'}`)
+      message.error(formatText(t('aiAssistant.attachments.process_failed_with_name'), { name: file.name, error: e?.message || t('aiAssistant.attachments.process_failed') }))
     }
   }
 
@@ -863,7 +883,7 @@ export default function AiAssistantWidget() {
     list.slice(0, 5).forEach(file => {
       void processAttachment(file)
     })
-    if (list.length > 5) message.warning('一次最多处理 5 个附件')
+    if (list.length > 5) message.warning(t('aiAssistant.attachments.max_count'))
   }
 
   const removeAttachment = (id: string) => {
@@ -886,12 +906,12 @@ export default function AiAssistantWidget() {
     }
     const SpeechRecognition = getSpeechRecognitionCtor()
     if (!SpeechRecognition) {
-      message.warning('当前浏览器不支持语音输入，请使用 Chrome 或 Edge。')
+      message.warning(t('aiAssistant.voice.unsupported'))
       return
     }
     const recognition = new SpeechRecognition() as BrowserSpeechRecognition
     speechRef.current = recognition
-    recognition.lang = 'zh-CN'
+    recognition.lang = language
     recognition.continuous = false
     recognition.interimResults = true
     recognition.onresult = (event: any) => {
@@ -904,7 +924,7 @@ export default function AiAssistantWidget() {
     }
     recognition.onerror = (event: any) => {
       setListening(false)
-      message.error(event?.error === 'not-allowed' ? '浏览器未授权麦克风' : '语音识别失败')
+      message.error(event?.error === 'not-allowed' ? t('aiAssistant.voice.permission_denied') : t('aiAssistant.voice.failed'))
     }
     recognition.onend = () => setListening(false)
     try {
@@ -912,7 +932,7 @@ export default function AiAssistantWidget() {
       setListening(true)
     } catch (e: any) {
       setListening(false)
-      message.error(e?.message || '启动语音输入失败')
+      message.error(e?.message || t('aiAssistant.voice.start_failed'))
     }
   }
 
@@ -931,7 +951,7 @@ export default function AiAssistantWidget() {
     const text = input.trim() || (readyAttachments.length ? '请分析我上传的附件内容。' : '')
     if (!text || loading) return
     if (attachmentBusy) {
-      message.warning('附件仍在识别中，请稍后再发送。')
+      message.warning(t('aiAssistant.attachments.busy'))
       return
     }
     const filesForThisTurn = readyAttachments
@@ -959,17 +979,17 @@ export default function AiAssistantWidget() {
       append({
         id: String(Date.now() + 1),
         role: 'assistant',
-        content: reply || '（已处理）',
+        content: reply || t('aiAssistant.reply.processed'),
         action,
       })
       scheduleActionByMode(action)
     } catch (e: any) {
       if (isAuthExpired(e)) {
-        append({ id: String(Date.now() + 2), role: 'assistant', content: '登录已过期，请重新登录后再试。' })
+        append({ id: String(Date.now() + 2), role: 'assistant', content: t('aiAssistant.relogin.retry_after_login') })
         promptReLogin()
         return
       }
-      message.error(e?.message || 'AI 请求失败')
+      message.error(e?.message || t('aiAssistant.errors.request_failed'))
     } finally {
       setLoading(false)
     }
@@ -992,9 +1012,9 @@ export default function AiAssistantWidget() {
         document.execCommand('copy')
         textarea.remove()
       }
-      message.success('已复制')
+      message.success(t('aiAssistant.copy.success'))
     } catch (e: any) {
-      message.error(e?.message || '复制失败')
+      message.error(e?.message || t('aiAssistant.copy.failed'))
     }
   }
 
@@ -1010,7 +1030,7 @@ export default function AiAssistantWidget() {
 
   const executeAction = async (action: AgentAction, options: ExecuteOptions = {}) => {
     const run = async () => {
-      const actionKey = `${action.type}:${actionSummary(action)}`
+      const actionKey = `${action.type}:${actionSummary(action, t)}`
       setExecutingActionKey(actionKey)
       try {
         switch (action.type) {
@@ -1027,23 +1047,23 @@ export default function AiAssistantWidget() {
               }
               navigate(next)
             }
-            append({ id: String(Date.now() + 2), role: 'assistant', content: '已完成页面跳转。' })
+            append({ id: String(Date.now() + 2), role: 'assistant', content: t('aiAssistant.actions.navigate_done') })
             return
           case 'open_url':
             if (action.payload?.url) window.open(String(action.payload.url), '_blank')
-            append({ id: String(Date.now() + 3), role: 'assistant', content: '已打开链接。' })
+            append({ id: String(Date.now() + 3), role: 'assistant', content: t('aiAssistant.actions.open_url_done') })
             return
           case 'generate_questions': {
             const rawPayload = action.payload || {}
             const total = Number(rawPayload.count ?? 5)
-            if (!Number.isFinite(total) || total <= 0) throw new Error('题目数量无效')
+            if (!Number.isFinite(total) || total <= 0) throw new Error(t('aiAssistant.errors.invalid_question_count'))
             const persist = !!rawPayload.persist
             const useAsync = String(rawPayload.background ?? '').toLowerCase() !== 'false'
             if (useAsync) {
               const res: any = await aiApi.generateQuestionsAsync({ ...rawPayload, count: total })
               if (!res?.success) throw new Error(res?.error || '后台任务创建失败')
               const jobId = String(res?.data?.jobId || res?.data?.id || '')
-              if (!jobId) throw new Error('未返回任务ID')
+              if (!jobId) throw new Error(t('aiAssistant.jobs.missing_id'))
               append({
                 id: String(Date.now() + 4),
                 role: 'assistant',
@@ -1167,7 +1187,7 @@ export default function AiAssistantWidget() {
                   append({
                     id: String(Date.now() + 8),
                     role: 'assistant',
-                    content: '没有找到可用的试卷审批流程模板，请先在流程管理中发布模板。',
+                    content: t('aiAssistant.paper.no_review_template'),
                   })
                   navigate(`/admin/paper-detail/${paperId}`)
                   return
@@ -1184,7 +1204,7 @@ export default function AiAssistantWidget() {
                   append({
                     id: String(Date.now() + 8),
                     role: 'assistant',
-                    content: '已发起试卷审批流程。',
+                    content: t('aiAssistant.paper.review_started'),
                   })
                 } catch (err: any) {
                   append({
@@ -1200,7 +1220,7 @@ export default function AiAssistantWidget() {
             append({
               id: String(Date.now() + 6),
               role: 'assistant',
-              content: '已生成试卷预览，请在智能组卷页面继续。',
+              content: t('aiAssistant.paper.preview_created'),
             })
             navigate('/admin/papers/create/smart')
             return
@@ -1248,7 +1268,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 11),
                 role: 'assistant',
-                content: '需要明确要修改的试卷ID，请提供试卷ID或说明“最新试卷”。',
+                content: t('aiAssistant.paper.need_paper_id'),
               })
               return
             }
@@ -1268,7 +1288,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 11),
                 role: 'assistant',
-                content: '没有可修改的字段，请说明要修改的内容（如标题、时长）。',
+                content: t('aiAssistant.paper.no_update_fields'),
               })
               return
             }
@@ -1334,7 +1354,7 @@ export default function AiAssistantWidget() {
                   append({
                     id: String(Date.now() + 9),
                     role: 'assistant',
-                    content: '当前没有可用试卷，请先生成试卷后再创建考试任务。',
+                    content: t('aiAssistant.task.no_paper_available'),
                   })
                   return
                 }
@@ -1370,7 +1390,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 9),
                 role: 'assistant',
-                content: '已自动调整任务时间（结束时间需晚于当前时间）。',
+                content: t('aiAssistant.task.time_adjusted'),
               })
             }
             const start = startDate.toISOString()
@@ -1404,7 +1424,7 @@ export default function AiAssistantWidget() {
           }
           case 'create_user': {
             if (user?.role !== 'admin') {
-              append({ id: String(Date.now() + 10), role: 'assistant', content: '只有管理员可以创建用户。' })
+              append({ id: String(Date.now() + 10), role: 'assistant', content: t('aiAssistant.permissions.admin_create_user') })
               return
             }
             const payload = action.payload || {}
@@ -1429,7 +1449,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 10),
                 role: 'assistant',
-                content: '创建用户需要至少提供邮箱、用户名或手机号中的一个。',
+                content: t('aiAssistant.user.create_requires_identity'),
               })
               return
             }
@@ -1475,8 +1495,8 @@ export default function AiAssistantWidget() {
             if (!password) {
               password = generatePassword(12)
             }
-            if (password.length < 8) throw new Error('新密码至少 8 位')
-            if (passwordKinds(password) < 2) throw new Error('密码至少包含两类（大小写/数字/符号）')
+            if (password.length < 8) throw new Error(t('aiAssistant.password.min_length'))
+            if (passwordKinds(password) < 2) throw new Error(t('aiAssistant.password.complexity'))
 
             const nickname = nicknameRaw || (email ? email.split('@')[0] : username || phone || '新用户')
 
@@ -1507,7 +1527,7 @@ export default function AiAssistantWidget() {
           }
           case 'create_org': {
             if (user?.role !== 'admin') {
-              append({ id: String(Date.now() + 10), role: 'assistant', content: '只有管理员可以创建部门。' })
+              append({ id: String(Date.now() + 10), role: 'assistant', content: t('aiAssistant.permissions.admin_create_org') })
               return
             }
             const payload = action.payload || {}
@@ -1517,7 +1537,7 @@ export default function AiAssistantWidget() {
             const parentIdRaw = Number(payload.parent_id ?? payload.parentId ?? 0)
             const parentName = String(payload.parent_name || payload.parentName || payload.parent || '').trim()
             if (!name) {
-              append({ id: String(Date.now() + 10), role: 'assistant', content: '请提供部门名称。' })
+              append({ id: String(Date.now() + 10), role: 'assistant', content: t('aiAssistant.org.name_required') })
               return
             }
 
@@ -1617,7 +1637,7 @@ export default function AiAssistantWidget() {
           }
           case 'assign_role': {
             if (user?.role !== 'admin') {
-              append({ id: String(Date.now() + 10), role: 'assistant', content: '只有管理员可以分配角色。' })
+              append({ id: String(Date.now() + 10), role: 'assistant', content: t('aiAssistant.permissions.admin_assign_role') })
               return
             }
             const payload = action.payload || {}
@@ -1632,7 +1652,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 10),
                 role: 'assistant',
-                content: '未找到该用户，请提供完整邮箱或用户ID。',
+                content: t('aiAssistant.user.not_found_need_identity'),
               })
               return
             }
@@ -1655,7 +1675,7 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 10),
                 role: 'assistant',
-                content: '未找到该角色，请提供准确的角色名称或角色ID。',
+                content: t('aiAssistant.role.not_found'),
               })
               return
             }
@@ -1712,7 +1732,7 @@ export default function AiAssistantWidget() {
           }
           case 'send_mail': {
             const to = String(action.payload?.to_email || action.payload?.email || action.payload?.recipient || '').trim()
-            if (!to) throw new Error('缺少收件人邮箱')
+            if (!to) throw new Error(t('aiAssistant.mail.missing_recipient'))
             const subject = String(action.payload?.subject || '考试提醒')
             const content = String(action.payload?.content || '请及时参加考试。')
             const options = await mailApi.recipientOptions(to)
@@ -1720,13 +1740,13 @@ export default function AiAssistantWidget() {
             const hit =
               options.find(o => String(o.email || '').toLowerCase() === emailLower) ||
               options.find(o => String(o.name || '').includes(to))
-            if (!hit) throw new Error('未找到该邮箱对应的用户')
+            if (!hit) throw new Error(t('aiAssistant.mail.recipient_not_found'))
             const sendExternal = await new Promise<boolean>(resolve => {
               Modal.confirm({
-                title: '发送到外部邮箱？',
+                title: t('aiAssistant.mail.external_title'),
                 content: `是否同时发送到外部邮箱（${hit.email || to}）？`,
-                okText: '外部+站内',
-                cancelText: '仅站内信',
+                okText: t('aiAssistant.mail.external_and_internal'),
+                cancelText: t('aiAssistant.mail.internal_only'),
                 onOk: () => resolve(true),
                 onCancel: () => resolve(false),
               })
@@ -1773,7 +1793,7 @@ export default function AiAssistantWidget() {
             const res: any = await systemTestsApi.run({ modules, iterations })
             if (!res?.success) throw new Error(res?.error || '创建测速任务失败')
             const jobId = String(res?.data?.jobId || '')
-            if (!jobId) throw new Error('未返回任务ID')
+            if (!jobId) throw new Error(t('aiAssistant.jobs.missing_id'))
             append({
               id: String(Date.now() + 12),
               role: 'assistant',
@@ -1787,12 +1807,12 @@ export default function AiAssistantWidget() {
             if (!payload) return
             const res = await api.put<unknown>('/users/me/password', payload)
             if (!isSuccess(res)) throw new Error(getErr(res, '修改密码失败'))
-            append({ id: String(Date.now() + 9), role: 'assistant', content: '密码已更新，请使用新密码登录。' })
+            append({ id: String(Date.now() + 9), role: 'assistant', content: t('aiAssistant.password.updated') })
             return
           }
           case 'reset_password': {
             if (user?.role !== 'admin') {
-              append({ id: String(Date.now() + 10), role: 'assistant', content: '只有管理员可以重置其他用户密码。' })
+              append({ id: String(Date.now() + 10), role: 'assistant', content: t('aiAssistant.permissions.admin_reset_password') })
               return
             }
             const payload = action.payload || {}
@@ -1816,7 +1836,7 @@ export default function AiAssistantWidget() {
             }
 
             if (!target) {
-              message.error('缺少目标用户')
+              message.error(t('aiAssistant.user.missing_target'))
               return
             }
 
@@ -1826,7 +1846,7 @@ export default function AiAssistantWidget() {
                 append({
                   id: String(Date.now() + 10),
                   role: 'assistant',
-                  content: '未找到该用户，请提供完整邮箱或用户ID。',
+                  content: t('aiAssistant.user.not_found_need_identity'),
                 })
                 return
               }
@@ -1865,12 +1885,12 @@ export default function AiAssistantWidget() {
             }
 
             if (password) {
-              if (password.length < 8) throw new Error('新密码至少 8 位')
-              if (passwordKinds(password) < 2) throw new Error('密码至少包含两类（大小写/数字/符号）')
+              if (password.length < 8) throw new Error(t('aiAssistant.password.min_length'))
+              if (passwordKinds(password) < 2) throw new Error(t('aiAssistant.password.complexity'))
             }
 
             const targetUser = await resolveTargetUser(target)
-            if (!targetUser) throw new Error('未找到该用户')
+            if (!targetUser) throw new Error(t('aiAssistant.user.not_found'))
             const res = await usersApi.resetPassword(targetUser.id, password || undefined)
             if (!isSuccess(res)) throw new Error(getErr(res, '重置密码失败'))
             const tempPwd = (res.data as any)?.password
@@ -1885,15 +1905,15 @@ export default function AiAssistantWidget() {
             return
           }
           default:
-            message.warning('该操作暂不支持')
+            message.warning(t('aiAssistant.actions.unsupported'))
         }
       } catch (e: any) {
         if (isAuthExpired(e)) {
-          append({ id: String(Date.now() + 9), role: 'assistant', content: '登录已过期，请重新登录后再执行。' })
+          append({ id: String(Date.now() + 9), role: 'assistant', content: t('aiAssistant.relogin.retry_before_execute') })
           promptReLogin()
           return
         }
-        message.error(e?.message || '操作失败')
+        message.error(e?.message || t('app.operation_failed'))
       } finally {
         setExecutingActionKey(null)
       }
@@ -1902,10 +1922,10 @@ export default function AiAssistantWidget() {
     const shouldConfirm = options.confirmation === 'skip' ? false : needsConfirm(action)
     if (shouldConfirm) {
       Modal.confirm({
-        title: options.automated ? '审核后执行操作' : '确认执行操作',
-        content: actionSummary(action),
-        okText: options.automated ? '审核通过并执行' : '执行',
-        cancelText: '取消',
+        title: options.automated ? t('aiAssistant.confirm.review_title') : t('aiAssistant.confirm.title'),
+        content: actionSummary(action, t),
+        okText: options.automated ? t('aiAssistant.confirm.approve_and_execute') : t('aiAssistant.execute'),
+        cancelText: t('app.cancel'),
         onOk: run,
       })
     } else {
@@ -1915,14 +1935,39 @@ export default function AiAssistantWidget() {
 
   return (
     <>
-      <FloatButton icon={<MessageOutlined />} onClick={() => setOpen(true)} tooltip={<div>AI 助手</div>} />
+      <style>{`
+        .ai-fab {
+          position: fixed; inset-inline-end: 28px; inset-block-end: 92px; z-index: 1000;
+          display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+          width: 58px; height: 58px; padding: 0; border: none; cursor: pointer; color: #fff;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 48%, #d946ef 100%);
+          box-shadow: 0 10px 24px -6px rgba(124,58,237,.5), 0 2px 6px rgba(0,0,0,.12);
+          transition: transform .22s cubic-bezier(.16,1,.3,1), box-shadow .22s ease;
+          animation: aiFabBreathe 3.6s ease-in-out infinite;
+        }
+        .ai-fab:hover { transform: translateY(-3px) scale(1.05); box-shadow: 0 16px 32px -6px rgba(124,58,237,.62), 0 3px 8px rgba(0,0,0,.16); }
+        .ai-fab:active { transform: scale(.95); }
+        .ai-fab__icon { width: 23px; height: 23px; filter: drop-shadow(0 1px 2px rgba(0,0,0,.18)); }
+        .ai-fab__text { font-size: 11px; font-weight: 600; letter-spacing: .3px; line-height: 1; }
+        .ai-fab__dot { position: absolute; top: 6px; inset-inline-end: 6px; width: 8px; height: 8px; border-radius: 50%; background: #ff4d4f; box-shadow: 0 0 0 2px rgba(255,255,255,.85); }
+        @keyframes aiFabBreathe { 0%,100% { box-shadow: 0 10px 24px -6px rgba(124,58,237,.5), 0 0 0 0 rgba(139,92,246,.4); } 50% { box-shadow: 0 12px 26px -6px rgba(124,58,237,.55), 0 0 0 8px rgba(139,92,246,0); } }
+        @media (prefers-reduced-motion: reduce) { .ai-fab { animation: none; } }
+      `}</style>
+      <Tooltip title={t('aiAssistant.fab_tooltip')} placement="left">
+        <button className="ai-fab" onClick={() => setOpen(true)} aria-label={t('aiAssistant.title')}>
+          <Sparkles className="ai-fab__icon" strokeWidth={2.2} />
+          <span className="ai-fab__text">{t('aiAssistant.short_title')}</span>
+          {!open && <span className="ai-fab__dot" />}
+        </button>
+      </Tooltip>
       <Drawer
         rootClassName="ai-assistant-drawer"
         title={
           <Space size={10}>
             <RobotOutlined />
-            <span>AI 助手</span>
-            <Badge color={loading ? 'orange' : 'green'} text={loading ? '思考中' : '就绪'} />
+            <span>{t('aiAssistant.title')}</span>
+            <Badge color={loading ? 'orange' : 'green'} text={loading ? t('aiAssistant.status.thinking') : t('aiAssistant.status.ready')} />
           </Space>
         }
         placement="right"
@@ -1932,25 +1977,25 @@ export default function AiAssistantWidget() {
         styles={{ body: { padding: 0, background: '#f7f8fa' } }}
         extra={
           <Space>
-            <Tooltip title="新建对话">
+            <Tooltip title={t('aiAssistant.new_chat')}>
               <Button
                 icon={<PlusOutlined />}
                 onClick={() => {
-                  const next = createSession()
+                  const next = createSession(t)
                   setSessions(prev => [next, ...prev])
                   setActiveId(next.id)
                   setLastTouchedId(next.id)
                 }}
               />
             </Tooltip>
-            <Tooltip title="删除当前">
+            <Tooltip title={t('aiAssistant.delete_current')}>
               <Button
                 icon={<DeleteOutlined />}
                 onClick={() => {
                   if (!activeSession) return
                   const deletingId = activeSession.id
                   if (sessions.length <= 1) {
-                    const next = createSession()
+                    const next = createSession(t)
                     setSessions([next])
                     setActiveId('')
                     setLastTouchedId(next.id)
@@ -1964,7 +2009,7 @@ export default function AiAssistantWidget() {
                 }}
               />
             </Tooltip>
-            <Tooltip title="清空当前">
+            <Tooltip title={t('aiAssistant.clear_current')}>
               <Button
                 icon={<ClearOutlined />}
                 onClick={() => {
@@ -1972,7 +2017,7 @@ export default function AiAssistantWidget() {
                   setSessions(prev =>
                     prev.map(s =>
                       s.id === activeSession.id
-                        ? { ...s, title: '新对话', items: [HELLO_ITEM], updatedAt: Date.now() }
+                        ? { ...s, title: t('aiAssistant.new_conversation'), items: [HELLO_ITEM], updatedAt: Date.now() }
                         : s
                     )
                   )
@@ -1996,20 +2041,20 @@ export default function AiAssistantWidget() {
               <Space direction="vertical" size={10} style={{ width: '100%' }}>
                 <Space wrap size={8}>
                   <Tag icon={<HistoryOutlined />} color="default">
-                    {sessions.length} 个会话
+                    {formatText(t('aiAssistant.stats.sessions'), { count: sessions.length })}
                   </Tag>
                   <Tag icon={<ToolOutlined />} color={actionCount ? 'blue' : 'default'}>
-                    {actionCount} 个动作
+                    {formatText(t('aiAssistant.stats.actions'), { count: actionCount })}
                   </Tag>
                   <Tag icon={<CheckCircleOutlined />} color={lastAction ? 'green' : 'default'}>
-                    {lastAction ? ACTION_LABELS[lastAction.type] || lastAction.type : '无待办动作'}
+                    {lastAction ? actionLabels[lastAction.type] || lastAction.type : t('aiAssistant.no_pending_action')}
                   </Tag>
                   <Tooltip title={executionModeMeta.description}>
-                    <Tag color={executionModeMeta.color}>执行：{executionModeMeta.shortLabel}</Tag>
+                    <Tag color={executionModeMeta.color}>{formatText(t('aiAssistant.execution.label_with_value'), { value: executionModeMeta.shortLabel })}</Tag>
                   </Tooltip>
                 </Space>
                 <Space wrap size={8}>
-                  {QUICK_COMMANDS.map(item => (
+                  {quickCommands.map(item => (
                     <Button key={item.label} size="small" icon={<ThunderboltOutlined />} onClick={() => fillQuickCommand(item.prompt)}>
                       {item.label}
                     </Button>
@@ -2023,7 +2068,7 @@ export default function AiAssistantWidget() {
                   value={activeSession?.id}
                   onChange={val => setActiveId(val)}
                   options={sessionOptions}
-                  placeholder="历史对话"
+                  placeholder={t('aiAssistant.history_placeholder')}
                   showSearch
                 />
                 <Select
@@ -2031,8 +2076,8 @@ export default function AiAssistantWidget() {
                   style={{ width: '100%' }}
                   value={model}
                   onChange={val => setModel(val)}
-                  options={MODEL_OPTIONS}
-                  placeholder="选择模型"
+                  options={modelOptions}
+                  placeholder={t('aiAssistant.model_placeholder')}
                   showSearch
                   allowClear
                 />
@@ -2041,17 +2086,17 @@ export default function AiAssistantWidget() {
                   style={{ width: '100%' }}
                   value={executionMode}
                   onChange={val => setExecutionMode(normalizeExecutionMode(val))}
-                  options={EXECUTION_MODE_OPTIONS}
-                  placeholder="执行等级"
+                  options={executionModeOptions}
+                  placeholder={t('aiAssistant.execution_placeholder')}
                 />
                 <Input
                   size="middle"
                   value={customModel}
                   onChange={e => setCustomModel(e.target.value)}
-                  placeholder="自定义模型"
+                  placeholder={t('aiAssistant.custom_model_placeholder')}
                 />
                 <Text type="secondary" style={{ fontSize: 12 }}>
-                  当前：{currentModelLabel}
+                  {formatText(t('aiAssistant.current_model'), { model: currentModelLabel })}
                 </Text>
               </Space>
             </div>
@@ -2061,10 +2106,11 @@ export default function AiAssistantWidget() {
             <List
               split={false}
               dataSource={items}
-              locale={{ emptyText: '暂无消息' }}
+              locale={{ emptyText: t('aiAssistant.empty_messages') }}
               renderItem={item => {
                 const isUser = item.role === 'user'
-                const actionKey = item.action ? `${item.action.type}:${actionSummary(item.action)}` : ''
+                const displayContent = item.id === 'hello' ? t('aiAssistant.hello') : item.content
+                const actionKey = item.action ? `${item.action.type}:${actionSummary(item.action, t)}` : ''
                 return (
                   <List.Item style={{ justifyContent: isUser ? 'flex-end' : 'flex-start', padding: '7px 0' }}>
                     <div style={{ maxWidth: '92%', minWidth: item.action ? 'min(460px, 100%)' : undefined }}>
@@ -2075,7 +2121,7 @@ export default function AiAssistantWidget() {
                           marginBottom: 4,
                         }}
                       >
-                        <Tag color={isUser ? 'processing' : 'success'}>{isUser ? '你' : '助手'}</Tag>
+                        <Tag color={isUser ? 'processing' : 'success'}>{isUser ? t('aiAssistant.role.user') : t('aiAssistant.role.assistant')}</Tag>
                       </div>
                       <div
                         style={{
@@ -2088,7 +2134,7 @@ export default function AiAssistantWidget() {
                           lineHeight: 1.65,
                         }}
                       >
-                        <Text>{item.content}</Text>
+                        <Text>{displayContent}</Text>
                       </div>
                       <div
                         style={{
@@ -2098,12 +2144,12 @@ export default function AiAssistantWidget() {
                         }}
                       >
                         <Space size={4}>
-                          <Tooltip title="复制">
-                            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(item.content)} />
+                          <Tooltip title={t('aiAssistant.copy.tooltip')}>
+                            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(displayContent)} />
                           </Tooltip>
                           {isUser && (
-                            <Tooltip title="编辑">
-                              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(item.content)} />
+                            <Tooltip title={t('app.edit')}>
+                              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(displayContent)} />
                             </Tooltip>
                           )}
                         </Space>
@@ -2120,23 +2166,23 @@ export default function AiAssistantWidget() {
                         >
                           <Space direction="vertical" size={8} style={{ width: '100%' }}>
                             <Space wrap>
-                              <Tag color="blue">{ACTION_LABELS[item.action.type] || item.action.type}</Tag>
+                              <Tag color="blue">{actionLabels[item.action.type] || item.action.type}</Tag>
                               {executionMode !== 'request' && (
                                 <Tooltip
                                   title={
                                     executionMode === 'auto'
-                                      ? '完全执行模式会直接运行该动作'
+                                      ? t('aiAssistant.execution.auto_tooltip')
                                       : needsConfirm(item.action)
-                                        ? '审核执行模式会先弹出确认'
-                                        : '审核执行模式会自动运行该动作'
+                                        ? t('aiAssistant.execution.review_confirm_tooltip')
+                                        : t('aiAssistant.execution.review_auto_tooltip')
                                   }
                                 >
                                   <Tag color={executionMode === 'auto' ? 'green' : needsConfirm(item.action) ? 'orange' : 'green'}>
-                                    {executionMode === 'auto' ? '自动执行' : needsConfirm(item.action) ? '待审核' : '自动执行'}
+                                    {executionMode === 'auto' ? t('aiAssistant.execution.auto_run') : needsConfirm(item.action) ? t('aiAssistant.execution.pending_review') : t('aiAssistant.execution.auto_run')}
                                   </Tag>
                                 </Tooltip>
                               )}
-                              <Text type="secondary">{actionSummary(item.action)}</Text>
+                              <Text type="secondary">{actionSummary(item.action, t)}</Text>
                             </Space>
                             <Button
                               size="small"
@@ -2146,7 +2192,7 @@ export default function AiAssistantWidget() {
                               disabled={!!executingActionKey && executingActionKey !== actionKey}
                               onClick={() => executeAction(item.action!)}
                             >
-                              {executionMode === 'request' ? '执行' : '手动执行'}
+                              {executionMode === 'request' ? t('aiAssistant.execute') : t('aiAssistant.manual_execute')}
                             </Button>
                           </Space>
                         </div>
@@ -2175,7 +2221,7 @@ export default function AiAssistantWidget() {
                 rows={4}
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                placeholder="输入任务或问题，也可以上传图片让助手先 OCR 识别"
+                placeholder={t('aiAssistant.input_placeholder')}
                 ref={inputRef}
                 onPaste={e => {
                   const files = Array.from(e.clipboardData?.files || [])
@@ -2194,13 +2240,17 @@ export default function AiAssistantWidget() {
               {attachments.length > 0 && (
                 <Space wrap size={6}>
                   {attachments.map(file => (
-                    <Tooltip key={file.id} title={file.error || (file.text ? `${file.text.length} 字` : '处理中')}>
+                    <Tooltip key={file.id} title={file.error || (file.text ? formatText(t('aiAssistant.attachments.char_count'), { count: file.text.length }) : t('aiAssistant.attachments.processing'))}>
                       <Tag
                         color={file.status === 'ready' ? 'green' : file.status === 'error' ? 'red' : 'processing'}
                         closable
                         onClose={() => removeAttachment(file.id)}
                       >
-                        {file.status === 'processing' ? '识别中：' : file.status === 'error' ? '失败：' : '已识别：'}
+                        {file.status === 'processing'
+                          ? t('aiAssistant.attachments.processing_prefix')
+                          : file.status === 'error'
+                            ? t('aiAssistant.attachments.failed_prefix')
+                            : t('aiAssistant.attachments.ready_prefix')}
                         {file.name}
                       </Tag>
                     </Tooltip>
@@ -2210,18 +2260,18 @@ export default function AiAssistantWidget() {
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                 <Text type="secondary" style={{ fontSize: 12 }}>
                   {attachmentBusy
-                    ? '附件识别中'
+                    ? t('aiAssistant.attachments.busy_short')
                     : listening
-                      ? '语音输入中'
+                      ? t('aiAssistant.voice.listening')
                       : hydrating
-                        ? '加载历史中'
-                        : activeSession?.title || '新对话'}
+                        ? t('aiAssistant.history_loading')
+                        : activeSession?.title || t('aiAssistant.new_conversation')}
                 </Text>
                 <Space size={8}>
-                  <Tooltip title="上传图片或文本文件">
+                  <Tooltip title={t('aiAssistant.attachments.upload_tooltip')}>
                     <Button icon={<PaperClipOutlined />} onClick={() => fileInputRef.current?.click()} />
                   </Tooltip>
-                  <Tooltip title={listening ? '停止语音输入' : '语音输入'}>
+                  <Tooltip title={listening ? t('aiAssistant.voice.stop') : t('aiAssistant.voice.start')}>
                     <Button
                       icon={<AudioOutlined />}
                       type={listening ? 'primary' : 'default'}
@@ -2236,7 +2286,7 @@ export default function AiAssistantWidget() {
                     disabled={attachmentBusy}
                     onClick={send}
                   >
-                    发送
+                    {t('aiAssistant.send')}
                   </Button>
                 </Space>
               </div>

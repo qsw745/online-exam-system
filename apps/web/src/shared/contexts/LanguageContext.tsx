@@ -1,6 +1,7 @@
 // src/shared/contexts/LanguageContext.tsx
 import importedTranslations from '@/app/i18n'
 import React, { createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { setDayjsLocaleForLanguage } from '@/shared/utils/dayjs'
 import { useAuth } from './AuthContext'
 
 type Language = 'zh-CN' | 'en-US'
@@ -71,6 +72,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (typeof document !== 'undefined') {
       document.documentElement.lang = language
     }
+    setDayjsLocaleForLanguage(language)
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('app-language-changed', { detail: language }))
     }

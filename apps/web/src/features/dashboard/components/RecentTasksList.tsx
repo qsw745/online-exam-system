@@ -4,6 +4,8 @@ import { BookmarkPlus, Calendar, Play } from 'lucide-react'
 import React from 'react'
 import { Link } from 'react-router-dom'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -79,7 +81,7 @@ export const RecentTasksList: React.FC<Props> = ({
             let start = '-'
             if (task.start_time) {
               const d = dayjs(task.start_time)
-              if (d.isValid()) start = d.locale(locale).format('YYYY/MM/DD HH:mm')
+              if (d.isValid()) start = formatDateTime(task.start_time) || '-'
             }
             const clickable = Boolean(onStartTask)
             const canStart = onStartTask && canStartStatus(ui)
@@ -100,7 +102,7 @@ export const RecentTasksList: React.FC<Props> = ({
                           }}
                           disabled={!canStart}
                         >
-                          {task.type === 'exam' ? '进入考试' : '开始练习'}
+                          {task.type === 'exam' ? translate('visible.d5b9caf5ec') : translate('auto.5c007a10e6')}
                         </Button>,
                       ]
                     : undefined

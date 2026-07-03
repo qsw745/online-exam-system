@@ -49,6 +49,7 @@ import { UploadAvatarModal } from '../components/UploadAvatarModal'
 import { useOrgPathMap } from '../hooks/useOrgPathMap'
 import { useOrgUsersQuery } from '../hooks/useOrgUsersQuery'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Sider, Content } = Layout
 const { Text } = Typography
@@ -444,7 +445,7 @@ export default function UserManagementPage() {
         align: 'center',
         render: (_: any, r: Row) => {
           const t = created(r)
-          return t ? new Date(t).toLocaleString() : ''
+          return t ? formatDateTime(t) : ''
         },
       },
       actions: {

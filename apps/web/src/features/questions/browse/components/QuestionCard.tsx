@@ -3,8 +3,10 @@ import { BookmarkPlus, Clock, Eye, Heart } from 'lucide-react'
 import { Button, Card, Space, Tag, Typography } from 'antd'
 import React from 'react'
 import { Link } from 'react-router-dom'
-import { diffColor, diffLabel, typeColor, typeLabel } from '../utils/labelMaps'
+import { diffColor, diffLabelKey, typeColor, typeLabelKey } from '../utils/labelMaps'
 import type { Question } from '@/shared/api/endpoints/questions'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Paragraph, Text } = Typography
 
@@ -35,7 +37,7 @@ export function QuestionCard({
         <Link to={`/questions/${id}/practice`} key="view">
           <Space>
             <Eye size={16} />
-            <span>查看</span>
+            <span>{translate('workflow.btn_view')}</span>
           </Space>
         </Link>,
       ]}
@@ -59,7 +61,7 @@ export function QuestionCard({
             {!!createdAt && (
               <Space>
                 <Clock size={16} />
-                <Text type="secondary">{new Date(createdAt).toLocaleString('zh-CN')}</Text>
+                <Text type="secondary">{formatDateTime(createdAt)}</Text>
               </Space>
             )}
           </Space>
@@ -75,8 +77,8 @@ export function QuestionCard({
 
       <div style={{ marginTop: 16 }}>
         <Space>
-          <Tag color={typeColor[qType] || 'default'}>{typeLabel[qType] || qType}</Tag>
-          <Tag color={diffColor[diff] || 'default'}>{diffLabel[diff] || diff}</Tag>
+          <Tag color={typeColor[qType] || 'default'}>{typeLabelKey[qType] ? translate(typeLabelKey[qType]) : qType}</Tag>
+          <Tag color={diffColor[diff] || 'default'}>{diffLabelKey[diff] ? translate(diffLabelKey[diff]) : diff}</Tag>
         </Space>
       </div>
     </Card>

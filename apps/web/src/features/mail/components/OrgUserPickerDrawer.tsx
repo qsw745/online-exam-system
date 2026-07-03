@@ -6,6 +6,7 @@ import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { usersApi, type UserDTO } from '@/shared/api/endpoints/users'
 import type { RecipientOption } from '@/shared/api/endpoints/mail'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 type Props = {
   open: boolean
@@ -46,7 +47,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
       setTreeData(toTreeData(data))
       if (data?.[0]?.id) setSelectedOrgId(data[0].id)
     } catch (error: any) {
-      message.error(error?.message || '加载组织结构失败')
+      message.error(error?.message || translate('auto.81aa6c5da8'))
     } finally {
       setTreeLoading(false)
     }
@@ -60,7 +61,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
         setUsers(resp.users || [])
         setPager({ page: resp.page, limit: resp.limit, total: resp.total })
       } catch (error: any) {
-        message.error(error?.message || '加载用户失败')
+        message.error(error?.message || translate('workflowTemplates.errors.load_users_failed'))
       } finally {
         setUserLoading(false)
       }
@@ -105,13 +106,13 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
   const columns: ColumnsType<UserDTO> = useMemo(
     () => [
       {
-        title: '姓名',
+        title: translate('auto.be4c2616b1'),
         dataIndex: 'nickname',
         render: (_: any, row) => row.nickname || row.username || row.email || `用户${row.id}`,
       },
-      { title: '邮箱', dataIndex: 'email' },
-      { title: '手机号', dataIndex: 'phone' },
-      { title: '角色', dataIndex: 'role' },
+      { title: translate('auth.email'), dataIndex: 'email' },
+      { title: translate('users.form.phone'), dataIndex: 'phone' },
+      { title: translate('auth.role'), dataIndex: 'role' },
     ],
     []
   )
@@ -120,7 +121,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
 
   return (
     <Drawer
-      title="从组织架构选择收件人"
+      title={translate('auto.b979ac7f97')}
       width={820}
       open={open}
       onClose={onClose}
@@ -129,7 +130,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
     >
       <Space align="start" size={16} style={{ width: '100%' }}>
         <div style={{ width: 260, maxHeight: 520, overflow: 'auto', border: '1px solid #f0f0f0', padding: 8 }}>
-          <Typography.Text type="secondary">组织结构</Typography.Text>
+          <Typography.Text type="secondary">{translate('auto.21dfec6104')}</Typography.Text>
           {treeLoading ? (
             <div style={{ textAlign: 'center', padding: '40px 0' }}>
               <Spin />
@@ -149,7 +150,7 @@ export default function OrgUserPickerDrawer({ open, selectedIds, onSelect, onClo
           <Space style={{ marginBottom: 12 }}>
             <Form form={searchForm} layout="inline" onFinish={handleSearch}>
               <Form.Item name="keyword">
-                <Input.Search placeholder="搜索姓名 / 邮箱 / 手机" allowClear onSearch={handleSearch} />
+                <Input.Search placeholder={translate('auto.d74e88df4f')} allowClear onSearch={handleSearch} />
               </Form.Item>
             </Form>
           </Space>

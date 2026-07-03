@@ -5,6 +5,7 @@ import MailViewerDrawer from '@/features/mail/components/MailViewerDrawer'
 import { useMailList } from '@/features/mail/hooks/useMailList'
 import type { MailMessage } from '@/shared/api/endpoints/mail'
 import { mailApi } from '@/shared/api/endpoints/mail'
+import { translate } from '@/shared/utils/i18n'
 
 export default function MailInboxPage() {
   const { message } = App.useApp()
@@ -22,22 +23,22 @@ export default function MailInboxPage() {
 
   return (
     <>
-      <Card title="收件箱" extra={null}>
+      <Card title={translate('menus.notify-inbox')} extra={null}>
         <MailTable
           mailbox="inbox"
           data={data}
           loading={loading}
           onDelete={record => {
             Modal.confirm({
-              title: '删除邮件',
-              content: '删除后不可恢复，确认删除该邮件吗？',
+              title: translate('auto.4c862066b3'),
+              content: translate('auto.5dc9ae51c3'),
               onOk: async () => {
                 try {
                   await mailApi.deleteInbox(record.id)
                   setData(prev => prev.filter(item => item.id !== record.id))
-                  message.success('已删除')
+                  message.success(translate('auto.fb5fe1e266'))
                 } catch (error: any) {
-                  message.error(error?.message || '删除失败')
+                  message.error(error?.message || translate('orgs.message.delete_failed'))
                 }
               },
             })
@@ -54,7 +55,7 @@ export default function MailInboxPage() {
         onClose={() => setSelected(null)}
         onRead={() => {
           if (selected) markReadLocally(selected.id)
-          reload().catch(err => message.error(err?.message || '刷新失败'))
+          reload().catch(err => message.error(err?.message || translate('auto.be6ff1fbf8')))
         }}
       />
     </>

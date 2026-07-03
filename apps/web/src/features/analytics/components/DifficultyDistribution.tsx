@@ -1,11 +1,12 @@
 // apps/web/src/features/analytics/components/DifficultyDistribution.tsx
 import React from 'react'
 import type { DifficultyDatum } from '@/shared/hooks/useDataAnalytics'
+import { translate } from '@/shared/utils/i18n'
 
 function labelOf(d: string) {
-  if (d === 'easy') return '简单'
-  if (d === 'medium') return '中等'
-  if (d === 'hard') return '困难'
+  if (d === 'easy') return translate('questions.easy')
+  if (d === 'medium') return translate('questions.medium')
+  if (d === 'hard') return translate('questions.hard')
   return d
 }
 
@@ -31,7 +32,7 @@ function getCorrectRate(item: DifficultyDatum): number {
 export const DifficultyDistribution: React.FC<{ list: DifficultyDatum[] }> = ({ list }) => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-      <h2 className="text-lg font-semibold text-gray-900 mb-4">难度分布</h2>
+      <h2 className="text-lg font-semibold text-gray-900 mb-4">{translate('auto.e83c6e4fa8')}</h2>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {list.map(item => {
           const rate = getCorrectRate(item)
@@ -39,11 +40,11 @@ export const DifficultyDistribution: React.FC<{ list: DifficultyDatum[] }> = ({ 
             <div key={(item as any).difficulty} className="p-4 bg-gray-50 rounded-lg">
               <div className="text-lg font-medium text-gray-900 mb-2">{labelOf(String((item as any).difficulty))}</div>
               <div className="text-3xl font-bold text-gray-900 mb-2">{(item as any).count ?? 0}</div>
-              <div className="text-sm text-gray-500">正确率 {(rate * 100).toFixed(1)}%</div>
+              <div className="text-sm text-gray-500">{translate('auto.8dc159502e')}{(rate * 100).toFixed(1)}%</div>
             </div>
           )
         })}
-        {list.length === 0 && <div className="text-sm text-gray-500">暂无数据</div>}
+        {list.length === 0 && <div className="text-sm text-gray-500">{translate('common.no_data')}</div>}
       </div>
     </div>
   )

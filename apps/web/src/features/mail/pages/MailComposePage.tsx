@@ -7,6 +7,8 @@ import AttachmentUploader, {
 import RecipientSelect from '@/features/mail/components/RecipientSelect'
 import RichTextEditor from '@/features/mail/components/RichTextEditor'
 import { mailApi } from '@/shared/api/endpoints/mail'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type ComposeFormValues = {
   recipients: number[]
@@ -54,7 +56,7 @@ export default function MailComposePage() {
         setContent(detail.content)
         setDraftId(detail.id)
       } catch (error: any) {
-        message.error(error?.message || '加载草稿失败')
+        message.error(error?.message || translate('auto.816e498ddc'))
       }
     })()
   }, [draftIdFromQuery, form, message])
@@ -124,9 +126,9 @@ export default function MailComposePage() {
       setDraftId(saved.id)
       lastSnapshotRef.current = buildSnapshot()
       setLastAutoSavedAt(new Date())
-      message.success('草稿已保存')
+      message.success(translate('auto.9d84cfe84d'))
     } catch (error: any) {
-      message.error(error?.message || '保存草稿失败')
+      message.error(error?.message || translate('auto.d90c726dc7'))
     } finally {
       setSaving(false)
     }
@@ -136,18 +138,18 @@ export default function MailComposePage() {
     try {
       await form.validateFields(['recipients', 'subject'])
       if (!content || !content.replace(/<[^>]+>/g, '').trim()) {
-        message.warning('请填写邮件正文')
+        message.warning(translate('auto.10da346646'))
         return
       }
       setSending(true)
       const payload = buildPayload()
       await mailApi.send({ ...payload, draftId: draftId ?? undefined })
       lastSnapshotRef.current = buildSnapshot()
-      message.success('邮件发送成功')
+      message.success(translate('auto.0c7c05ad53'))
       navigate('/mail/sent')
     } catch (error: any) {
       if (error?.errorFields) return
-      message.error(error?.message || '发送失败')
+      message.error(error?.message || translate('auto.e767d34c78'))
     } finally {
       setSending(false)
     }
@@ -155,36 +157,34 @@ export default function MailComposePage() {
 
   return (
     <Card
-      title="撰写邮件"
+      title={translate('auto.69866426e7')}
       extra={
         <Space>
           <Typography.Text type="secondary">
             {autoSaving
-              ? '正在自动保存...'
+              ? translate('visible.86b1195aed')
               : lastAutoSavedAt
-              ? `自动保存：${lastAutoSavedAt.toLocaleTimeString()}`
+              ? `${translate('mail.auto_saved_at')}${formatDateTime(lastAutoSavedAt)}`
               : ''}
           </Typography.Text>
           <Button onClick={handleSaveDraft} loading={saving}>
-            保存草稿
-          </Button>
+            {translate('auto.4cd30ef91e')}</Button>
           <Button type="primary" onClick={handleSend} loading={sending}>
-            发送
-          </Button>
+            {translate('aiAssistant.send')}</Button>
         </Space>
       }
     >
       <Form form={form} layout="vertical" initialValues={{ recipients: [], attachments: [] }}>
-        <Form.Item name="recipients" label="收件人"   rules={[{ required: true, message: '请选择收件人' }]}>
-          <RecipientSelect  placeholder="搜索姓名/用户名/邮箱" />
+        <Form.Item name="recipients" label={translate('auto.529414cfe5')}   rules={[{ required: true, message: translate('auto.5e45a0565d') }]}>
+          <RecipientSelect  placeholder={translate('auto.9070d7a254')} />
         </Form.Item>
-        <Form.Item name="subject" label="主题" rules={[{ required: true, message: '请输入主题' }]}>
-          <Input placeholder="请输入邮件主题" />
+        <Form.Item name="subject" label={translate('settings.theme')} rules={[{ required: true, message: translate('auto.da72d90e60') }]}>
+          <Input placeholder={translate('auto.5ce6c87094')} />
         </Form.Item>
-        <Form.Item label="正文">
+        <Form.Item label={translate('richTextEditor.format.body')}>
           <RichTextEditor value={content} onChange={setContent} />
         </Form.Item>
-        <Form.Item name="attachments" label="附件">
+        <Form.Item name="attachments" label={translate('auto.99f6fe6c41')}>
           <AttachmentUploader />
         </Form.Item>
       </Form>

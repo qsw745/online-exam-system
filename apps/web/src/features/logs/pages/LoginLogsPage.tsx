@@ -5,6 +5,7 @@ import LoginFiltersBar from '@/features/logs/components/LoginFiltersBar'
 import LoginLogsTable from '@/features/logs/components/LoginLogsTable'
 import { useLogs } from '@/features/logs/hooks/useLogs'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title } = Typography
 
@@ -30,12 +31,10 @@ export default function LoginLogsPage() {
         <Space>
           <LogIn style={{ width: 22, height: 22, color: '#1677ff' }} />
           <Title level={2} style={{ margin: 0 }}>
-            登录日志
-          </Title>
+            {translate('menus.system-logs-login')}</Title>
         </Space>
         <Button type="primary" icon={<Download style={{ width: 16, height: 16 }} />} onClick={exportLogs}>
-          导出
-        </Button>
+          {translate('questions.export')}</Button>
       </div>
 
       {/* 顶部横向筛选条（与截图一致） */}

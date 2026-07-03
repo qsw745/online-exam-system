@@ -1,15 +1,12 @@
 import { Outlet } from 'react-router-dom'
-import AppProviders from '@/AppProviders'
 import RouteProgress from '@/shared/components/RouteProgress'
 
-/** 路由根：把 AppProviders（含 LayoutProvider）放到 Router 内部 */
+/** 路由根：只挂路由级能力，全局 Provider 在 App.tsx 根部统一包裹 */
 export default function RouterRoot() {
     return (
       <>
         <RouteProgress /> {/* ✅ 顶部只挂一次 */}
-        <AppProviders>
-          <Outlet />
-        </AppProviders>
+        <Outlet />
       </>
     )
 }

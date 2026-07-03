@@ -113,3 +113,14 @@ check-*.html
 *.sql
 !**/migrations/*.sql
 !**/database/schema.sql
+
+########## Python / face-engine ##########
+.venv/
+__pycache__/
+apps/face-engine/models/
+
+########## Claude Code 本地配置 ##########
+.claude/
+
+# i18n 扫描报告（生成文件）
+apps/web/i18n-report.txt

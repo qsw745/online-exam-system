@@ -2,6 +2,7 @@ import { Avatar, Badge, Spin, Table } from 'antd'
 import { Award, Medal, Trophy } from 'lucide-react'
 import type { LeaderboardEntry } from '@/shared/api/endpoints/leaderboard'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 function RankIcon({ rank }: { rank: number }) {
   switch (rank) {
@@ -43,7 +44,7 @@ export default function LeaderboardTable({
 }: Props) {
   const columns = [
     {
-      title: '排名',
+      title: translate('auto.db669ff2ab'),
       dataIndex: 'rank',
       key: 'rank',
       width: 80,
@@ -54,7 +55,7 @@ export default function LeaderboardTable({
       ),
     },
     {
-      title: '用户',
+      title: translate('users.tag.user'),
       dataIndex: 'username',
       key: 'username',
       render: (username: string, r: LeaderboardEntry) => (
@@ -73,14 +74,14 @@ export default function LeaderboardTable({
       ),
     },
     {
-      title: '分数',
+      title: translate('auto.da335e204f'),
       dataIndex: 'score',
       key: 'score',
       sorter: (a: LeaderboardEntry, b: LeaderboardEntry) => b.score - a.score,
       render: (s: number) => <div className="text-lg font-bold text-blue-600">{Number(s).toFixed(1)}</div>,
     },
     {
-      title: '正确率',
+      title: translate('auto.8dc159502e'),
       key: 'accuracy',
       render: (r: LeaderboardEntry) => {
         const total = Number(r.total_questions) || 0
@@ -97,13 +98,13 @@ export default function LeaderboardTable({
       },
     },
     {
-      title: '学习时长',
+      title: translate('analytics.col_study_time'),
       dataIndex: 'study_time',
       key: 'study_time',
       render: (t: number) => <div className="text-center font-medium">{formatTime(t)}</div>,
     },
     {
-      title: '连续天数',
+      title: translate('auto.c7a45a0fc0'),
       dataIndex: 'streak_days',
       key: 'streak_days',
       render: (d: number) => (

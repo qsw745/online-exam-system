@@ -1,4 +1,5 @@
 // features/questions/practice/utils/answer.ts
+import { translate } from '@/shared/utils/i18n'
 
 type AnyQuestion = {
   type?: string
@@ -38,7 +39,16 @@ export function isAnswerCorrect(q: AnyQuestion, selected: number[], text: string
 }
 
 export const typeLabel = (t: string) =>
-  (({ single_choice: '单选题', multiple_choice: '多选题', true_false: '判断题', short_answer: '简答题' } as any)[t] ||
-  t)
+  (({
+    single_choice: translate('questions.single_choice'),
+    multiple_choice: translate('questions.multiple_choice'),
+    true_false: translate('questions.judge'),
+    short_answer: translate('questions.type_short'),
+  } as any)[t] || t)
 
-export const difficultyLabel = (d?: string) => (({ easy: '简单', medium: '中等', hard: '困难' } as any)[d || ''] || d)
+export const difficultyLabel = (d?: string) =>
+  (({
+    easy: translate('questions.easy'),
+    medium: translate('questions.medium'),
+    hard: translate('questions.hard'),
+  } as any)[d || ''] || d)

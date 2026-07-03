@@ -8,6 +8,7 @@ import { DiscussionList } from '../components/DiscussionList'
 import { ReplyList } from '../components/ReplyList'
 import { ReplyModal } from '../components/ReplyModal'
 import { useDiscussions } from '../hooks/useDiscussions'
+import { translate } from '@/shared/utils/i18n'
 export default function DiscussionPage() {
   const {
     discussions,
@@ -76,7 +77,7 @@ export default function DiscussionPage() {
               <Card className="h-full border bg-white shadow-sm rounded-xl">
                 <div className="text-center py-16">
                   <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">请选择左侧的讨论查看详情</p>
+                  <p className="text-gray-500">{translate('auto.9da61ef7f0')}</p>
                 </div>
               </Card>
             )}

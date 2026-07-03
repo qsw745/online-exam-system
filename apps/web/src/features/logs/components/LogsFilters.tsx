@@ -1,6 +1,7 @@
 import { DatePicker, Input, Select, Button, Space, Typography } from 'antd'
 import { Filter, Search } from 'lucide-react'
 import type { LogFilters } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
 const { RangePicker } = DatePicker
 const { Option } = Select
 const { Text } = Typography
@@ -19,41 +20,37 @@ export default function LogsFilters({
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 16 }}>
         <div>
           <Text strong style={{ display: 'block', marginBottom: 8 }}>
-            日志级别
-          </Text>
+            {translate('auto.307ac59fee')}</Text>
           <Select value={filters.level} onChange={v => onChange({ level: v })} style={{ width: '100%' }}>
-            <Option value="all">全部级别</Option>
-            <Option value="info">信息</Option>
-            <Option value="warning">警告</Option>
-            <Option value="error">错误</Option>
+            <Option value="all">{translate('auto.e1e387db60')}</Option>
+            <Option value="info">{translate('auto.2da40f4073')}</Option>
+            <Option value="warning">{translate('auto.5521e368d8')}</Option>
+            <Option value="error">{translate('questions.tf_false')}</Option>
           </Select>
         </div>
         <div>
           <Text strong style={{ display: 'block', marginBottom: 8 }}>
-            操作类型
-          </Text>
+            {translate('auto.19e41f1bea')}</Text>
           <Input
             value={filters.action}
             onChange={e => onChange({ action: e.target.value })}
-            placeholder="搜索操作类型"
+            placeholder={translate('auto.305742e1ec')}
             prefix={<Search style={{ width: 16, height: 16, color: '#bfbfbf' }} />}
           />
         </div>
         <div>
           <Text strong style={{ display: 'block', marginBottom: 8 }}>
-            用户名
-          </Text>
+            {translate('auth.username')}</Text>
           <Input
             value={filters.username}
             onChange={e => onChange({ username: e.target.value })}
-            placeholder="搜索用户名"
+            placeholder={translate('auto.ab34fb52ad')}
             prefix={<Search style={{ width: 16, height: 16, color: '#bfbfbf' }} />}
           />
         </div>
         <div>
           <Text strong style={{ display: 'block', marginBottom: 8 }}>
-            时间范围
-          </Text>
+            {translate('auto.2be9040878')}</Text>
           <RangePicker
             value={filters.dateRange as any}
             onChange={v => onChange({ dateRange: (v as any) ?? null })}
@@ -64,8 +61,7 @@ export default function LogsFilters({
       </div>
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
         <Button icon={<Filter style={{ width: 16, height: 16 }} />} onClick={onApply}>
-          应用筛选
-        </Button>
+          {translate('auto.758c4639c5')}</Button>
       </div>
     </div>
   )

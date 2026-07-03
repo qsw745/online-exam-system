@@ -15,6 +15,7 @@ import {
 import { Button, Input, Select, Space, Tooltip } from 'antd'
 import { useEffect, useRef, useState } from 'react'
 import { htmlFromPlainText, sanitizeHtml } from '@/shared/utils/sanitizeHtml'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 type Props = {
   value?: string
@@ -33,6 +34,7 @@ const FONT_SIZES: Record<string, string> = {
 const FONT_FAMILIES = ['宋体', '微软雅黑', '黑体', 'Arial', 'Tahoma', 'Times New Roman']
 
 export default function RichTextEditor({ value, onChange }: Props) {
+  const { t } = useLanguage()
   const editorRef = useRef<HTMLDivElement>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const selectionRef = useRef<Range | null>(null)
@@ -146,6 +148,13 @@ export default function RichTextEditor({ value, onChange }: Props) {
 
   const hideContextMenu = () => setContextMenu(null)
 
+  const paragraphFormats = [
+    { key: 'body', label: t('richTextEditor.format.body'), block: '<p>' },
+    { key: 'heading1', label: t('richTextEditor.format.heading1'), block: '<h1>' },
+    { key: 'heading2', label: t('richTextEditor.format.heading2'), block: '<h2>' },
+    { key: 'quote', label: t('richTextEditor.format.quote'), block: '<blockquote>' },
+  ]
+
   useEffect(() => {
     const listener = () => setContextMenu(null)
     document.addEventListener('click', listener)
@@ -155,39 +164,39 @@ export default function RichTextEditor({ value, onChange }: Props) {
   return (
     <div className="rich-text-editor" ref={wrapperRef} onContextMenu={handleContextMenu} style={{ position: 'relative' }}>
       <Space style={{ flexWrap: 'wrap', marginBottom: 8 }}>
-        <Tooltip title="撤销">
+        <Tooltip title={t('richTextEditor.undo')}>
           <Button icon={<UndoOutlined />} size="small" onClick={() => exec('undo')} />
         </Tooltip>
-        <Tooltip title="重做">
+        <Tooltip title={t('richTextEditor.redo')}>
           <Button icon={<RedoOutlined />} size="small" onClick={() => exec('redo')} />
         </Tooltip>
         <Select
           size="small"
           style={{ width: 90 }}
-          placeholder="字号"
+          placeholder={t('richTextEditor.font_size')}
           onSelect={(value: string) => handleFontSizeSelect(value)}
           options={Object.keys(FONT_SIZES).map(size => ({ value: size, label: size }))}
         />
         <Select
           size="small"
           style={{ width: 130 }}
-          placeholder="字体"
+          placeholder={t('richTextEditor.font_family')}
           onSelect={(value: string) => handleFontFamilySelect(value)}
           options={FONT_FAMILIES.map(font => ({ value: font, label: font }))}
         />
-        <Tooltip title="加粗">
+        <Tooltip title={t('richTextEditor.bold')}>
           <Button icon={<BoldOutlined />} size="small" onClick={() => exec('bold')} />
         </Tooltip>
-        <Tooltip title="斜体">
+        <Tooltip title={t('richTextEditor.italic')}>
           <Button icon={<ItalicOutlined />} size="small" onClick={() => exec('italic')} />
         </Tooltip>
-        <Tooltip title="下划线">
+        <Tooltip title={t('richTextEditor.underline')}>
           <Button icon={<UnderlineOutlined />} size="small" onClick={() => exec('underline')} />
         </Tooltip>
-        <Tooltip title="删除线">
+        <Tooltip title={t('richTextEditor.strikethrough')}>
           <Button icon={<StrikethroughOutlined />} size="small" onClick={() => exec('strikeThrough')} />
         </Tooltip>
-        <Tooltip title="字体颜色">
+        <Tooltip title={t('richTextEditor.text_color')}>
           <Input
             type="color"
             size="small"
@@ -195,7 +204,7 @@ export default function RichTextEditor({ value, onChange }: Props) {
             style={{ width: 40, padding: 0, border: 'none', background: 'transparent' }}
           />
         </Tooltip>
-        <Tooltip title="背景色">
+        <Tooltip title={t('richTextEditor.background_color')}>
           <Input
             type="color"
             size="small"
@@ -203,37 +212,37 @@ export default function RichTextEditor({ value, onChange }: Props) {
             style={{ width: 40, padding: 0, border: 'none', background: 'transparent' }}
           />
         </Tooltip>
-        <Tooltip title="有序列表">
+        <Tooltip title={t('richTextEditor.ordered_list')}>
           <Button icon={<OrderedListOutlined />} size="small" onClick={() => exec('insertOrderedList')} />
         </Tooltip>
-        <Tooltip title="无序列表">
+        <Tooltip title={t('richTextEditor.unordered_list')}>
           <Button icon={<UnorderedListOutlined />} size="small" onClick={() => exec('insertUnorderedList')} />
         </Tooltip>
-        <Tooltip title="左对齐">
+        <Tooltip title={t('richTextEditor.align_left')}>
           <Button icon={<AlignLeftOutlined />} size="small" onClick={() => exec('justifyLeft')} />
         </Tooltip>
-        <Tooltip title="居中">
+        <Tooltip title={t('richTextEditor.align_center')}>
           <Button icon={<AlignCenterOutlined />} size="small" onClick={() => exec('justifyCenter')} />
         </Tooltip>
-        <Tooltip title="右对齐">
+        <Tooltip title={t('richTextEditor.align_right')}>
           <Button icon={<AlignRightOutlined />} size="small" onClick={() => exec('justifyRight')} />
         </Tooltip>
-        <Tooltip title="两端对齐">
+        <Tooltip title={t('richTextEditor.align_justify')}>
           <Button size="small" onClick={() => exec('justifyFull')}>
-            齐
+            {t('richTextEditor.align_justify_short')}
           </Button>
         </Tooltip>
-        <Tooltip title="增加缩进">
+        <Tooltip title={t('richTextEditor.increase_indent')}>
           <Button size="small" onClick={() => exec('indent')}>
-            增
+            {t('richTextEditor.increase_indent_short')}
           </Button>
         </Tooltip>
-        <Tooltip title="减少缩进">
+        <Tooltip title={t('richTextEditor.decrease_indent')}>
           <Button size="small" onClick={() => exec('outdent')}>
-            减
+            {t('richTextEditor.decrease_indent_short')}
           </Button>
         </Tooltip>
-        <Tooltip title="清除格式">
+        <Tooltip title={t('richTextEditor.clear_format')}>
           <Button icon={<ClearOutlined />} size="small" onClick={() => exec('removeFormat')} />
         </Tooltip>
       </Space>
@@ -268,59 +277,59 @@ export default function RichTextEditor({ value, onChange }: Props) {
         >
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={() => { exec('selectAll'); hideContextMenu() }}>
-              全选
+              {t('richTextEditor.select_all')}
             </Button>
           </div>
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={clearDocument}>
-              清空文档
+              {t('richTextEditor.clear_document')}
             </Button>
           </div>
           <div className="context-item" style={{ padding: '2px 8px', fontSize: 12, color: '#999' }}>
-            段落格式
+            {t('richTextEditor.paragraph_format')}
           </div>
-          {['正文', '标题1', '标题2', '引用'].map(item => (
-            <div className="context-item" key={item} onMouseDown={e => e.preventDefault()}>
+          {paragraphFormats.map(item => (
+            <div className="context-item" key={item.key} onMouseDown={e => e.preventDefault()}>
               <Button
                 type="text"
                 size="small"
                 onClick={() => {
-                  exec('formatBlock', item === '正文' ? '<p>' : item === '标题1' ? '<h1>' : item === '标题2' ? '<h2>' : '<blockquote>')
+                  exec('formatBlock', item.block)
                   hideContextMenu()
                 }}
               >
-                {item}
+                {item.label}
               </Button>
             </div>
           ))}
           <div className="context-item" style={{ padding: '2px 8px', fontSize: 12, color: '#999' }}>
-            表格
+            {t('richTextEditor.table')}
           </div>
           {[2, 3].map(size => (
             <div className="context-item" key={size} onMouseDown={e => e.preventDefault()}>
               <Button type="text" size="small" onClick={() => insertTable(size, size)}>
-                插入{size}x{size}
+                {t('richTextEditor.insert_table').replace(/\{size\}/g, String(size))}
               </Button>
             </div>
           ))}
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={() => insertParagraph('before')}>
-              前插入段落
+              {t('richTextEditor.insert_paragraph_before')}
             </Button>
           </div>
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={() => insertParagraph('after')}>
-              后插入段落
+              {t('richTextEditor.insert_paragraph_after')}
             </Button>
           </div>
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={() => { exec('copy'); hideContextMenu() }}>
-              复制 (Ctrl + C)
+              {t('richTextEditor.copy')}
             </Button>
           </div>
           <div className="context-item" onMouseDown={e => e.preventDefault()}>
             <Button type="text" size="small" onClick={() => { exec('paste'); hideContextMenu() }}>
-              粘贴 (Ctrl + V)
+              {t('richTextEditor.paste')}
             </Button>
           </div>
         </div>

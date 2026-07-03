@@ -1,6 +1,7 @@
 import { Card, List, Typography } from 'antd'
 import React, { useEffect, useState } from 'react'
 import { announcementsApi, type Announcement } from '@/shared/api/endpoints/announcements'
+import { translate } from '@/shared/utils/i18n'
 
 export default function AnnouncementsPage() {
   const [items, setItems] = useState<Announcement[]>([])
@@ -17,7 +18,7 @@ export default function AnnouncementsPage() {
   }, [])
 
   return (
-    <Card title="公告">
+    <Card title={translate('menus.notify-announcements')}>
       <List
         itemLayout="vertical"
         dataSource={items}

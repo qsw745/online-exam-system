@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import { logsApi, type LogEntry } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
 
 export type CommonFilters = {
   level?: 'all' | 'info' | 'warning' | 'error'
@@ -67,7 +68,7 @@ export function useLogs(type: 'all' | 'login' | 'audit' | 'system' = 'all') {
       setTotal(ret.total)
     } catch (e) {
       console.error(e)
-      message.error('获取日志失败')
+      message.error(translate('auto.f36da5ba46'))
       setLogs([])
       setTotal(0)
     } finally {
@@ -85,10 +86,10 @@ export function useLogs(type: 'all' | 'login' | 'audit' | 'system' = 'all') {
       a.download = `logs_${dayjs().format('YYYY-MM-DD')}.csv`
       a.click()
       URL.revokeObjectURL(url)
-      message.success('日志导出成功')
+      message.success(translate('auto.ef27c2badc'))
     } catch (e) {
       console.error(e)
-      message.error('导出日志失败')
+      message.error(translate('auto.f610b8f951'))
     }
   }, [filters, message])
 

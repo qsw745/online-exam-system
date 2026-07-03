@@ -1,6 +1,8 @@
 import { Button, Space, Table, Tag, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { MailMessage } from '@/shared/api/endpoints/mail'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Mailbox = 'inbox' | 'sent' | 'drafts'
 
@@ -22,8 +24,8 @@ const renderRecipients = (recipients: MailMessage['recipients']) => {
         const recalled = r.status === 'recalled'
         return (
           <Tag key={r.id} color={recalled ? 'default' : 'blue'}>
-            {r.name || `用户${r.id}`}
-            {recalled ? '（已撤回）' : ''}
+            {r.name || `${translate('mail.user_prefix')}${r.id}`}
+            {recalled ? translate('visible.a4b988db7b') : ''}
           </Tag>
         )
       })}
@@ -34,62 +36,60 @@ const renderRecipients = (recipients: MailMessage['recipients']) => {
 export default function MailTable({ mailbox, data, loading, onView, onEditDraft, onDelete, onRecall }: Props) {
   const columns: ColumnsType<MailMessage> = [
     {
-      title: '主题',
+      title: translate('settings.theme'),
       dataIndex: 'subject',
       render: (text: string, record) => (
         <Space size={4}>
-          {mailbox === 'inbox' && !record.is_read && <Tag color="red">未读</Tag>}
-          {mailbox === 'sent' && record.status === 'recalled' && <Tag color="orange">全部撤回</Tag>}
+          {mailbox === 'inbox' && !record.is_read && <Tag color="red">{translate('auto.1e230aa201')}</Tag>}
+          {mailbox === 'sent' && record.status === 'recalled' && <Tag color="orange">{translate('auto.2b0e1bf4dc')}</Tag>}
           {mailbox === 'sent' &&
             record.status !== 'recalled' &&
             (record.recipients || []).some(r => r.status === 'recalled') && (
               <Tag color="orange">
-                已撤回 {(record.recipients || []).filter(r => r.status === 'recalled').length}/
+                {translate('workflow.msg_withdrawn')}{(record.recipients || []).filter(r => r.status === 'recalled').length}/
                 {(record.recipients || []).length}
               </Tag>
             )}
-          <Typography.Link onClick={() => onView?.(record)}>{text || '(无主题)'}</Typography.Link>
+          <Typography.Link onClick={() => onView?.(record)}>{text || translate('visible.dd6026e30d')}</Typography.Link>
         </Space>
       ),
     },
     {
-      title: mailbox === 'inbox' ? '发件人' : '收件人',
+      title: mailbox === 'inbox' ? translate('mail.sender') : translate('mail.recipient'),
       dataIndex: mailbox === 'inbox' ? 'sender_name' : 'recipients',
       render: (_: any, record) =>
         mailbox === 'inbox'
-          ? record.sender_name || `用户${record.sender_id}`
+          ? record.sender_name || `${translate('mail.user_prefix')}${record.sender_id}`
           : renderRecipients(record.recipients),
       width: 240,
     },
     {
-      title: mailbox === 'drafts' ? '最后保存时间' : '发送时间',
+      title: mailbox === 'drafts' ? translate('mail.last_saved_at') : translate('mail.sent_at'),
       dataIndex: mailbox === 'drafts' ? 'updated_at' : 'sent_at',
       width: 200,
       render: (value: string | null, record) => {
         const time = value || record.created_at
-        return time ? new Date(time).toLocaleString() : '-'
+        return time ? formatDateTime(time) : '-'
       },
     },
   ]
 
   if (mailbox === 'drafts') {
     columns.push({
-      title: '操作',
+      title: translate('users.columns.actions'),
       width: 160,
       render: (_, record) => (
         <Space>
           <Button type="link" onClick={() => onEditDraft?.(record)}>
-            继续编辑
-          </Button>
+            {translate('auto.3a481bc764')}</Button>
           <Button type="link" danger onClick={e => (e.stopPropagation(), onDelete?.(record, mailbox))}>
-            删除
-          </Button>
+            {translate('app.delete')}</Button>
         </Space>
       ),
     })
   } else if (mailbox === 'sent') {
     columns.push({
-      title: '操作',
+      title: translate('users.columns.actions'),
       width: 200,
       render: (_, record) => {
         const hasActiveRecipients = record.recipients?.some(r => r.status !== 'recalled') ?? false
@@ -103,8 +103,7 @@ export default function MailTable({ mailbox, data, loading, onView, onEditDraft,
                   onRecall?.(record)
                 }}
               >
-                撤回
-              </Button>
+                {translate('workflow.btn_withdraw')}</Button>
             )}
             <Button
               type="link"
@@ -114,15 +113,14 @@ export default function MailTable({ mailbox, data, loading, onView, onEditDraft,
                 onDelete?.(record, mailbox)
               }}
             >
-              删除
-            </Button>
+              {translate('app.delete')}</Button>
           </Space>
         )
       },
     })
   } else if (mailbox === 'inbox') {
     columns.push({
-      title: '操作',
+      title: translate('users.columns.actions'),
       width: 120,
       render: (_, record) => (
         <Button
@@ -133,8 +131,7 @@ export default function MailTable({ mailbox, data, loading, onView, onEditDraft,
             onDelete?.(record, mailbox)
           }}
         >
-          删除
-        </Button>
+          {translate('app.delete')}</Button>
       ),
     })
   }

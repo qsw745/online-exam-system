@@ -2,6 +2,8 @@ import { Card, Space, Tag, Typography, Button } from 'antd'
 import { BookmarkPlus, Clock, Eye } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type { ResultItem } from '@/shared/api/endpoints/results'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -17,7 +19,7 @@ type Props = {
 
 export default function ResultCard({ result, statusLabel, statusTagColor, locale }: Props) {
   const navigate = useNavigate()
-  const start = result.start_time ? new Date(result.start_time).toLocaleString(locale) : '-'
+  const start = result.start_time ? formatDateTime(result.start_time) : '-'
   const uiStatus = toUiStatus(String(result.status))
 
   return (
@@ -36,8 +38,7 @@ export default function ResultCard({ result, statusLabel, statusTagColor, locale
           }}
           icon={<Eye style={{ width: 16, height: 16 }} />}
         >
-          查看详情
-        </Button>,
+          {translate('results.review')}</Button>,
       ]}
     >
       <Card.Meta
@@ -47,12 +48,12 @@ export default function ResultCard({ result, statusLabel, statusTagColor, locale
             <Space>
               <BookmarkPlus style={{ width: 16, height: 16 }} />
               <Text type="secondary">
-                成绩: {result.score} / {result.total_score}
+                {translate('auto.a49689d93f')}{result.score} / {result.total_score}
               </Text>
             </Space>
             <Space>
               <Clock style={{ width: 16, height: 16 }} />
-              <Text type="secondary">开始时间: {start}</Text>
+              <Text type="secondary">{translate('auto.c4ac0ed36a')}{start}</Text>
             </Space>
             <div style={{ marginTop: 8 }}>
               <Tag color={statusTagColor(uiStatus)}>{statusLabel(uiStatus)}</Tag>

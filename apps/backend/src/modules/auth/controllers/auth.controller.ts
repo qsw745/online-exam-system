@@ -12,9 +12,52 @@ import { AuthLockService } from '@/modules/auth/services/auth-lock.service'
 import { getClientIp } from '@/common/utils/request-ip'
 import Geo from '@/common/utils/geo'
 import { OAuthService } from '@/modules/auth/services/oauth.service'
+import { LogService } from '@/modules/logs/services/log.service'
+import { UserRepository } from '@/modules/auth/repositories/user.repository'
 
 const svc = new AuthService()
 const OAUTH_STATE_COOKIE = 'oauth_state'
+
+const FACE_FAILURE_REASON_LABELS: Record<string, string> = {
+  unsupported: '浏览器不支持摄像头访问',
+  detector_unavailable: '本地人脸检测能力不可用',
+  camera_denied: '摄像头权限被拒绝',
+  camera_unavailable: '摄像头不可用',
+  no_face: '未检测到人脸',
+  multiple_faces: '检测到多张人脸',
+  liveness_failed: '活体检测未通过',
+  action_failed: '动作活体未通过',
+  verification_failed: '人脸识别未通过',
+  not_enrolled: '未录入人脸凭据',
+  unknown: '未知原因',
+}
+
+// 仅“真正的人脸不匹配 verification_failed”计入账号锁定；
+// 活体/画质/摄像头等环境类失败不计入，避免合法用户几次没过就被锁号（连密码都登不了）。
+const FACE_FAILURE_REASONS_NOT_COUNTED = new Set([
+  'unsupported',
+  'detector_unavailable',
+  'camera_denied',
+  'camera_unavailable',
+  'not_enrolled',
+  'no_face',
+  'multiple_faces',
+  'liveness_failed',
+  'action_failed',
+])
+
+function normalizeFaceFailureReason(raw: unknown) {
+  const value = String(raw || '').trim().toLowerCase()
+  return FACE_FAILURE_REASON_LABELS[value] ? value : 'unknown'
+}
+
+function lockPayload(untilMs: number, remainSec: number, lockMinutes: number) {
+  const until = new Date(untilMs)
+  const unlockDate = `${until.getFullYear()}-${String(until.getMonth() + 1).padStart(2, '0')}-${String(
+    until.getDate()
+  ).padStart(2, '0')}`
+  return { locked: true, unlockAt: untilMs, remainingSec: remainSec, unlockDate, lockMinutes }
+}
 
 function oauthCookieOptions(maxAgeMs?: number) {
   const isProd = process?.env?.NODE_ENV === 'production'
@@ -30,11 +73,19 @@ export class AuthController {
           error: { details: [{ field: 'email/password', message: '必填' }] },
         })
       }
-      const { token, refresh, user, persist } = await svc.register(
+      const result = await svc.register(
         { email, password, nickname: nickname ?? null },
         { ip: getClientIp(req) || req.ip, ua: req.get('User-Agent') || undefined },
         { persist: !!keep7Days }
       )
+      // 开启邮箱验证：不自动登录，提示去邮箱激活
+      if ((result as any).needVerification) {
+        return (res as any).created(
+          { needVerification: true, email: (result as any).email },
+          '注册成功，请前往注册邮箱完成验证后再登录'
+        )
+      }
+      const { token, refresh, user, persist } = result as any
       svc.setRefreshCookie(res, refresh, { persist })
       return (res as any).created({ token, user }, '注册成功')
     } catch (e: any) {
@@ -208,6 +259,125 @@ export class AuthController {
         })
       }
       return (res as any).internal(msg || '登录失败')
+    }
+  }
+
+  /** 人脸登录失败上报：复用登录失败计数、验证码阈值和锁定策略，不接收或保存人脸图像 */
+  static async reportFaceLoginFailure(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    try {
+      const settings = await AdminSettingsService.getSafe()
+      const enableCaptcha = !!(settings as any).enableCaptcha
+      const captchaAfter = Number(
+        (settings as any).captchaAfterFailedAttempts ??
+          (settings as any).captchaAfterFailed ??
+          (settings as any).captcha_after_failed ??
+          3
+      )
+      const lockAfter = Number(
+        (settings as any).lockAfterFailedAttempts ??
+          (settings as any).lockAfterFailed ??
+          (settings as any).lock_after_failed ??
+          Math.max(captchaAfter + 2, 6)
+      )
+      const lockMinutes = Number((settings as any).lockMinutes ?? (settings as any).lock_minutes ?? 5)
+      const lockSvc = new AuthLockService(lockMinutes)
+
+      const { email, reason, stage, detector } = (req.body || {}) as any
+      const loginEmail = typeof email === 'string' ? email.trim() : ''
+      if (!loginEmail) {
+        return (res as any).badRequest('请先填写邮箱后再使用人脸登录', {
+          code: CODES.VALIDATION_ERROR,
+          error: { retryable: false, details: [{ field: 'email', message: '必填' }] },
+        })
+      }
+
+      const ip = getClientIp(req) || req.ip || ''
+      const ua = req.get('User-Agent') || undefined
+      const normalizedReason = normalizeFaceFailureReason(reason)
+      const reasonLabel = FACE_FAILURE_REASON_LABELS[normalizedReason]
+      const counted = !FACE_FAILURE_REASONS_NOT_COUNTED.has(normalizedReason)
+
+      await lockSvc.unlockIfExpired(loginEmail, ip)
+      await lockSvc.decayOldFails(loginEmail, ip, lockMinutes)
+
+      const existingLock = await lockSvc.isLocked(loginEmail, ip)
+      const current = await lockSvc.getRecord(loginEmail, ip)
+
+      if (existingLock.locked) {
+        await LogService.log({
+          type: 'login',
+          status: 'failed',
+          action: '人脸登录',
+          message: '人脸登录失败：账号已临时锁定',
+          details: {
+            email: loginEmail,
+            reason: normalizedReason,
+            reasonLabel,
+            counted: false,
+            source: 'face_login',
+            stage: typeof stage === 'string' ? stage.slice(0, 80) : undefined,
+          },
+          ipAddress: ip,
+          userAgent: ua,
+        } as any)
+        return (res as any).ok(
+          {
+            counted: false,
+            failedAttempts: current?.fail_count ?? 0,
+            captchaRequired: false,
+            ...lockPayload(existingLock.untilMs, existingLock.remainSec, lockMinutes),
+          },
+          '账号已临时锁定'
+        )
+      }
+
+      let next = current?.fail_count ?? 0
+      let locked: ReturnType<typeof lockPayload> | null = null
+      if (counted) {
+        next = await lockSvc.hitFail(loginEmail, ip)
+        if (next >= lockAfter) {
+          const { untilMs, remainSec } = await lockSvc.lock(loginEmail, ip, lockMinutes, next)
+          locked = lockPayload(untilMs, remainSec, lockMinutes)
+        }
+      }
+
+      const user = await UserRepository.findByLogin(loginEmail).catch(() => null)
+      await LogService.log({
+        type: 'login',
+        status: 'failed',
+        userId: user?.id,
+        action: '人脸登录',
+        message: `人脸登录失败：${reasonLabel}`,
+        details: {
+          email: loginEmail,
+          reason: normalizedReason,
+          reasonLabel,
+          counted,
+          failedAttempts: next,
+          lockAfter,
+          source: 'face_login',
+          stage: typeof stage === 'string' ? stage.slice(0, 80) : undefined,
+          detector: detector && typeof detector === 'object' ? detector : undefined,
+        },
+        ipAddress: ip,
+        userAgent: ua,
+      } as any)
+
+      return (res as any).ok(
+        {
+          counted,
+          reason: normalizedReason,
+          reasonLabel,
+          failedAttempts: next,
+          remainingBeforeLock: counted ? Math.max(0, lockAfter - next) : null,
+          captchaRequired: counted && enableCaptcha && next >= captchaAfter,
+          lockAfter,
+          ...(locked || { locked: false, lockMinutes }),
+        },
+        locked ? `人脸登录失败次数过多，账号已锁定 ${lockMinutes} 分钟` : '已记录人脸登录失败'
+      )
+    } catch (e: any) {
+      return (res as any).internal(e?.message || '记录人脸登录失败失败')
     }
   }
 

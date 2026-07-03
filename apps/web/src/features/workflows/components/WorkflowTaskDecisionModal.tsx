@@ -1,9 +1,13 @@
-import { App, Button, Descriptions, Modal, Space, Spin, Tag, Typography, Input } from 'antd'
+import { App, Button, Descriptions, Modal, Select, Space, Spin, Tag, Typography, Input } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { workflowsApi, type WorkflowInstanceDetail, type WorkflowTask } from '@/shared/api/endpoints/workflows'
+import { usersApi } from '@/shared/api/endpoints/users'
 import { workflowStatusLabel } from '@/shared/utils/workflow'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { RuntimeSummary } from '@/features/workflows/components/WorkflowRuntimeView'
+import WorkflowProcessTable from '@/features/workflows/components/WorkflowProcessTable'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text, Title } = Typography
 const { TextArea } = Input
@@ -114,6 +118,51 @@ export default function WorkflowTaskDecisionModal({
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<WorkflowInstanceDetail | null>(null)
   const [comment, setComment] = useState('')
+  const [pickerMode, setPickerMode] = useState<'transfer' | 'addSign' | null>(null)
+  const [pickerUser, setPickerUser] = useState<number | null>(null)
+  const [userOpts, setUserOpts] = useState<Array<{ label: string; value: number }>>([])
+  const [userLoading, setUserLoading] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
+
+  const fetchUsers = async (keyword?: string) => {
+    setUserLoading(true)
+    try {
+      const data = await usersApi.list({ page: 1, limit: 20, search: keyword || undefined })
+      setUserOpts(
+        (data.users || []).map((u: any) => ({
+          label: `${u.nickname || u.username || u.email}（${u.email || u.username || u.id}）`,
+          value: Number(u.id),
+        }))
+      )
+    } catch (e: any) {
+      message.error(e?.message || translate('workflowTemplates.errors.load_users_failed'))
+    } finally {
+      setUserLoading(false)
+    }
+  }
+
+  const openPicker = (mode: 'transfer' | 'addSign') => {
+    setPickerUser(null)
+    setPickerMode(mode)
+    if (!userOpts.length) fetchUsers()
+  }
+
+  const confirmPicker = async () => {
+    if (!task || !pickerUser || !pickerMode) return
+    setSubmitting(true)
+    try {
+      if (pickerMode === 'transfer') await workflowsApi.transferTask(task.id, pickerUser, comment)
+      else await workflowsApi.addSignTask(task.id, pickerUser, comment)
+      message.success(pickerMode === 'transfer' ? translate('auto.5994ce9ae8') : translate('auto.62febbf644'))
+      setPickerMode(null)
+      onDone()
+      onClose()
+    } catch (e: any) {
+      message.error(e?.message || translate('app.operation_failed'))
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   useEffect(() => {
     if (!open || !task?.instance_id) return
@@ -121,7 +170,7 @@ export default function WorkflowTaskDecisionModal({
     workflowsApi
       .getInstance(task.instance_id)
       .then(res => setDetail(res))
-      .catch(err => message.error(err?.message || '加载流程详情失败'))
+      .catch(err => message.error(err?.message || translate('papers.wf_load_detail_failed')))
       .finally(() => setLoading(false))
   }, [message, open, task?.instance_id])
 
@@ -153,9 +202,9 @@ export default function WorkflowTaskDecisionModal({
     const entityType = detail?.instance?.entity_type
     const entityId = detail?.instance?.entity_id
     if (!entityType || !entityId) return null
-    if (entityType === 'paper') return { label: '试卷', path: `/admin/paper-detail/${entityId}` }
-    if (entityType === 'exam') return { label: '考试', path: `/exam/${entityId}` }
-    return { label: '业务', path: null }
+    if (entityType === 'paper') return { label: translate('papers.col_paper'), path: `/admin/paper-detail/${entityId}` }
+    if (entityType === 'exam') return { label: translate('nav.exams'), path: `/exam/${entityId}` }
+    return { label: translate('auto.4fea859859'), path: null }
   }, [detail])
 
   const formatStamp = (value: Date) => {
@@ -190,30 +239,34 @@ export default function WorkflowTaskDecisionModal({
       } else {
         await workflowsApi.rejectTask(task.id, { comment: signedComment, form_values: formValues })
       }
-      message.success('审批已提交')
+      message.success(translate('auto.7213b294cd'))
       onDone()
       onClose()
     } catch (e: any) {
-      message.error(e?.message || '审批失败')
+      message.error(e?.message || translate('auto.f03ea1c181'))
     }
   }
 
+  const canAct = task?.status === 'pending'
+
   return (
+    <>
     <Modal
       open={open}
       onCancel={onClose}
-      title="处理审批"
-      width={840}
+      title={translate('auto.9f5fc4871c')}
+      width={860}
       footer={[
         <Button key="cancel" onClick={onClose}>
-          取消
-        </Button>,
-        <Button key="reject" danger onClick={() => submit('reject')}>
-          驳回
-        </Button>,
-        <Button key="approve" type="primary" onClick={() => submit('approve')}>
-          通过
-        </Button>,
+          {translate('app.cancel')}</Button>,
+        <Button key="transfer" disabled={!canAct} onClick={() => openPicker('transfer')}>
+          {translate('auto.a52c169137')}</Button>,
+        <Button key="addsign" disabled={!canAct} onClick={() => openPicker('addSign')}>
+          {translate('auto.f2218c36a4')}</Button>,
+        <Button key="reject" danger disabled={!canAct} onClick={() => submit('reject')}>
+          {translate('auto.21ec781468')}</Button>,
+        <Button key="approve" type="primary" disabled={!canAct} onClick={() => submit('approve')}>
+          {translate('results.passed')}</Button>,
       ]}
     >
       {loading ? (
@@ -222,16 +275,16 @@ export default function WorkflowTaskDecisionModal({
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
             <Title level={5} style={{ marginBottom: 4 }}>
-              {detail?.template?.name || '流程'}
+              {detail?.template?.name || translate('workflow.col_flow')}
             </Title>
             <Space>
-              <Text>节点</Text>
+              <Text>{translate('workflow.col_node')}</Text>
               <Tag>{task?.node_name}</Tag>
-              <Text>状态</Text>
+              <Text>{translate('users.columns.status')}</Text>
               <Tag>{workflowStatusLabel(task?.status)}</Tag>
               {entityInfo?.path && (
                 <Button size="small" onClick={() => navigate(entityInfo.path)}>
-                  查看{entityInfo.label}
+                  {translate('workflow.btn_view')}{entityInfo.label}
                 </Button>
               )}
             </Space>
@@ -256,11 +309,51 @@ export default function WorkflowTaskDecisionModal({
           )}
 
           <div>
-            <Text strong>审批意见</Text>
+            <Text strong>{translate('auto.801ab0896b')}</Text>
             <TextArea rows={3} value={comment} onChange={e => setComment(e.target.value)} />
           </div>
+
+          {detail && (
+            <div>
+              <Text strong>{translate('auto.cc1549689e')}</Text>
+              <div style={{ marginTop: 12 }}>
+                <RuntimeSummary detail={detail} />
+                <WorkflowProcessTable tasks={detail.tasks || []} />
+              </div>
+            </div>
+          )}
         </Space>
       )}
     </Modal>
+
+    <Modal
+      open={!!pickerMode}
+      title={pickerMode === 'transfer' ? translate('visible.a7b576ceb8') : translate('visible.c4349fffa7')}
+      okText={pickerMode === 'transfer' ? translate('visible.0ecb47a6cc') : translate('visible.78e1418384')}
+      confirmLoading={submitting}
+      okButtonProps={{ disabled: !pickerUser }}
+      onOk={confirmPicker}
+      onCancel={() => setPickerMode(null)}
+      destroyOnHidden
+    >
+      <Space direction="vertical" style={{ width: '100%' }} size="middle">
+        <Text type="secondary">
+          {pickerMode === 'transfer' ? translate('visible.259dc4fd65') : translate('visible.b2dcd95e05')}
+        </Text>
+        <Select
+          showSearch
+          style={{ width: '100%' }}
+          placeholder={translate('auto.628b997b46')}
+          loading={userLoading}
+          options={userOpts}
+          value={pickerUser ?? undefined}
+          onChange={v => setPickerUser(v)}
+          onSearch={kw => fetchUsers(kw)}
+          filterOption={false}
+          notFoundContent={userLoading ? <Spin size="small" /> : null}
+        />
+      </Space>
+    </Modal>
+    </>
   )
 }

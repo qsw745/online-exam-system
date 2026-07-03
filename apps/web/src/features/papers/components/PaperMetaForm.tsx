@@ -1,4 +1,5 @@
 import { Form, Input, Select } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 const { TextArea } = Input
 
 export default function PaperMetaForm({
@@ -28,27 +29,27 @@ export default function PaperMetaForm({
 }) {
   return (
     <div style={{ display: 'grid', gap: 16 }}>
-      <Form.Item label="试卷标题" required>
+      <Form.Item label={translate('papers.title_ph')} required>
         <Input
           value={title}
           onChange={e => onChange({ title: e.target.value })}
           disabled={disabled}
-          placeholder="输入试卷标题"
+          placeholder={translate('auto.cd273f855c')}
         />
       </Form.Item>
 
-      <Form.Item label="试卷说明">
+      <Form.Item label={translate('auto.8f2a2b8c8d')}>
         <TextArea
           value={description}
           onChange={e => onChange({ description: e.target.value })}
           disabled={disabled}
           rows={4}
-          placeholder="输入试卷说明"
+          placeholder={translate('auto.13b97574b2')}
         />
       </Form.Item>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(200px,1fr))', gap: 16 }}>
-        <Form.Item label="考试时长（分钟）">
+        <Form.Item label={translate('auto.12511b57ac')}>
           <Input
             type="number"
             min={1}
@@ -57,7 +58,7 @@ export default function PaperMetaForm({
             disabled={disabled}
           />
         </Form.Item>
-        <Form.Item label="总分值">
+        <Form.Item label={translate('auto.30667c2c03')}>
           <Input
             type="number"
             min={1}
@@ -66,15 +67,15 @@ export default function PaperMetaForm({
             disabled={disabled}
           />
         </Form.Item>
-        <Form.Item label="试卷难度">
+        <Form.Item label={translate('auto.ee33d84f8a')}>
           <Select
             value={difficulty}
             onChange={v => onChange({ difficulty: v })}
             disabled={disabled}
             options={[
-              { label: '简单', value: 'easy' },
-              { label: '中等', value: 'medium' },
-              { label: '困难', value: 'hard' },
+              { label: translate('questions.easy'), value: 'easy' },
+              { label: translate('questions.medium'), value: 'medium' },
+              { label: translate('questions.hard'), value: 'hard' },
             ]}
           />
         </Form.Item>

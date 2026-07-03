@@ -1,5 +1,7 @@
 import { Button, Card, Form, Input, Modal, Space, Table, Tag } from 'antd'
 import React, { useMemo, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Template = {
   id: number
@@ -13,19 +15,18 @@ export default function MessageTemplatesPage() {
   const [form] = Form.useForm()
   const data = useMemo<Template[]>(
     () => [
-      { id: 1, name: '考试开始提醒', channel: 'site', updated_at: '2025-01-02 12:00' },
-      { id: 2, name: '成绩发布通知', channel: 'email', updated_at: '2025-01-04 09:12' },
+      { id: 1, name: translate('auto.179704494f'), channel: 'site', updated_at: '2025-01-02 12:00' },
+      { id: 2, name: translate('auto.774f09f0b6'), channel: 'email', updated_at: '2025-01-04 09:12' },
     ],
     []
   )
 
   return (
     <Card
-      title="消息模板"
+      title={translate('menus.notify-template')}
       extra={
         <Button type="primary" onClick={() => setOpen(true)}>
-          新建模板
-        </Button>
+          {translate('workflowTemplates.add_template')}</Button>
       }
     >
       <Table
@@ -33,38 +34,36 @@ export default function MessageTemplatesPage() {
         dataSource={data}
         columns={[
           { title: 'ID', dataIndex: 'id', width: 80 },
-          { title: '名称', dataIndex: 'name' },
+          { title: translate('systemConfig.col_name'), dataIndex: 'name' },
           {
-            title: '渠道',
+            title: translate('auto.c152be9f50'),
             dataIndex: 'channel',
             width: 140,
             render: (v: Template['channel']) => <Tag>{v.toUpperCase()}</Tag>,
           },
-          { title: '更新时间', dataIndex: 'updated_at', width: 200 },
+          { title: translate('papers.col_updated_at'), dataIndex: 'updated_at', width: 200, render: (v?: string) => (v ? formatDateTime(v) : '-') },
           {
-            title: '操作',
+            title: translate('users.columns.actions'),
             width: 200,
             render: () => (
               <Space>
                 <Button size="small" onClick={() => setOpen(true)}>
-                  编辑
-                </Button>
+                  {translate('app.edit')}</Button>
                 <Button size="small" danger>
-                  删除
-                </Button>
+                  {translate('app.delete')}</Button>
               </Space>
             ),
           },
         ]}
       />
 
-      <Modal title="模板编辑" open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}>
+      <Modal title={translate('auto.8e67f2128b')} open={open} onCancel={() => setOpen(false)} onOk={() => form.submit()}>
         <Form form={form} layout="vertical" onFinish={() => setOpen(false)}>
-          <Form.Item name="name" label="模板名称" rules={[{ required: true }]}>
-            <Input placeholder="例如：考试开始提醒" />
+          <Form.Item name="name" label={translate('auto.bbc511d06d')} rules={[{ required: true }]}>
+            <Input placeholder={translate('auto.28b2809c4a')} />
           </Form.Item>
-          <Form.Item name="content" label="模板内容" rules={[{ required: true }]}>
-            <Input.TextArea rows={6} placeholder="支持变量：{examTitle}、{startTime} ..." />
+          <Form.Item name="content" label={translate('auto.dc3624631e')} rules={[{ required: true }]}>
+            <Input.TextArea rows={6} placeholder={translate('auto.86d242f96f')} />
           </Form.Item>
         </Form>
       </Modal>

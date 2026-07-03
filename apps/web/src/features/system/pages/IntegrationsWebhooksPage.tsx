@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { App, Button, Card, Form, Input, Modal, Space, Switch, Table, Typography } from 'antd'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import { integrationsApi, type Integration } from '@/shared/api/endpoints/integrations'
+import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 
@@ -20,7 +21,7 @@ export default function IntegrationsWebhooksPage() {
       const list = await integrationsApi.list('webhook')
       setRows(list)
     } catch (e: any) {
-      message.error(e?.message || '加载失败')
+      message.error(e?.message || translate('common.load_failed'))
     } finally {
       setLoading(false)
     }
@@ -36,31 +37,31 @@ export default function IntegrationsWebhooksPage() {
     try {
       if (modal.editing) {
         await integrationsApi.update(modal.editing.id, payload)
-        message.success('更新成功')
+        message.success(translate('roles.message.update_success'))
       } else {
         await integrationsApi.create(payload)
-        message.success('创建成功')
+        message.success(translate('orgs.message.create_success'))
       }
       setModal({ open: false })
       form.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || translate('roles.message.save_failed'))
     }
   }
 
   const columns = [
-    { title: '名称', dataIndex: 'name', key: 'name' },
-    { title: '回调地址', dataIndex: 'endpoint', key: 'endpoint' },
-    { title: '说明', dataIndex: 'description', key: 'description' },
+    { title: translate('systemConfig.col_name'), dataIndex: 'name', key: 'name' },
+    { title: translate('auto.bce6707cff'), dataIndex: 'endpoint', key: 'endpoint' },
+    { title: translate('papers.field_desc'), dataIndex: 'description', key: 'description' },
     {
-      title: '启用',
+      title: translate('users.status.enable'),
       dataIndex: 'enabled',
       key: 'enabled',
       render: (enabled: boolean) => (enabled ? '是' : '否'),
     },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       key: 'actions',
       render: (_: any, record: Integration) => (
         <Button
@@ -70,8 +71,7 @@ export default function IntegrationsWebhooksPage() {
             form.setFieldsValue(record)
           }}
         >
-          编辑
-        </Button>
+          {translate('app.edit')}</Button>
       ),
     },
   ]
@@ -82,9 +82,8 @@ export default function IntegrationsWebhooksPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              Webhook 集成
-            </Title>
-            <Text type="secondary">管理推送地址及密钥</Text>
+              {translate('auto.dc515daed5')}</Title>
+            <Text type="secondary">{translate('auto.84c1dd3d04')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData} />
@@ -96,8 +95,7 @@ export default function IntegrationsWebhooksPage() {
                 form.resetFields()
               }}
             >
-              新增集成
-            </Button>
+              {translate('auto.a7fa02690a')}</Button>
           </Space>
         </Space>
       </Card>
@@ -106,23 +104,23 @@ export default function IntegrationsWebhooksPage() {
       </Card>
 
       <Modal
-        title={modal.editing ? '编辑 Webhook' : '新增 Webhook'}
+        title={modal.editing ? translate('visible.d851bc608a') : translate('visible.78cb758aca')}
         open={modal.open}
         onCancel={() => setModal({ open: false })}
         onOk={handleSave}
         destroyOnClose
       >
         <Form layout="vertical" form={form} preserve={false}>
-          <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入名称' }]}>
+          <Form.Item label={translate('systemConfig.col_name')} name="name" rules={[{ required: true, message: translate('systemConfig.config_name_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="回调地址" name="endpoint" rules={[{ required: true, message: '请输入 URL' }]}>
+          <Form.Item label={translate('auto.bce6707cff')} name="endpoint" rules={[{ required: true, message: translate('auto.c2b8641ecc') }]}>
             <Input placeholder="https://example.com/webhook" />
           </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+          <Form.Item label={translate('users.status.enable')} name="enabled" valuePropName="checked" initialValue>
             <Switch />
           </Form.Item>
-          <Form.Item label="说明" name="description">
+          <Form.Item label={translate('papers.field_desc')} name="description">
             <Input.TextArea rows={3} />
           </Form.Item>
         </Form>

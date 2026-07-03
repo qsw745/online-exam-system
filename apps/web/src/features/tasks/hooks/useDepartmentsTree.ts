@@ -1,6 +1,7 @@
 import * as http from '@/shared/api/http'
 import { App } from 'antd'
 import { useCallback, useMemo, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 type OrgNode = {
   id: number
@@ -34,7 +35,7 @@ export function useDepartmentsTree() {
       setRaw(Array.isArray(list) ? list : [])
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载部门失败')
+      message.error(e?.message || translate('auto.ed16603439'))
       setRaw([])
     } finally {
       setLoading(false)

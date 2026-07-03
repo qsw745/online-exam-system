@@ -1,5 +1,6 @@
 import { DatePicker, Select } from 'antd'
 import type { Dayjs } from 'dayjs'
+import { translate } from '@/shared/utils/i18n'
 const { RangePicker } = DatePicker
 const { Option } = Select
 
@@ -19,7 +20,7 @@ export default function LearningFilters({
   return (
     <div className="flex items-center space-x-3">
       <Select value={subject} onChange={onSubjectChange} style={{ width: 120 }}>
-        <Option value="all">全部科目</Option>
+        <Option value="all">{translate('analytics.all_subjects')}</Option>
         {subjects.map(s => (
           <Option key={s} value={s}>
             {s}

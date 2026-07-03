@@ -2,6 +2,7 @@
 import { Flag } from 'lucide-react'
 import type { Question } from '@/shared/api/http'
 import { sanitizeHtml } from '@/shared/utils/sanitizeHtml'
+import { translate } from '@/shared/utils/i18n'
 
 export function QuestionPanel(props: {
   question: Question
@@ -42,7 +43,7 @@ export function QuestionPanel(props: {
     <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-medium">
-          题目 {index + 1} / {total}
+          {translate('papers.col_question')}{index + 1} / {total}
         </h2>
         <button
           onClick={onToggleFlag}
@@ -51,7 +52,7 @@ export function QuestionPanel(props: {
           }`}
         >
           <Flag className="w-4 h-4" />
-          <span>标记</span>
+          <span>{translate('exam.flag')}</span>
         </button>
       </div>
 

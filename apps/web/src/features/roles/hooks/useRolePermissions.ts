@@ -3,6 +3,7 @@ import { rolesApi } from '@/shared/api/endpoints/roles'
 import { App } from 'antd'
 import type { DataNode } from 'antd/es/tree'
 import { useCallback, useMemo, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export type MenuItem = { id: number; title: string; name?: string; parent_id?: number | null; children?: MenuItem[] }
 export type Role = { id: number; name: string }
@@ -63,7 +64,7 @@ export function useRolePermissions() {
     const ids = Array.from(new Set(selected.map(Number).filter(Number.isFinite))) as number[]
     const resp = await rolesApi.setRoleMenus(role.id, ids)
     if (!isOk(resp)) return message.error(getMsg(resp, '权限设置失败'))
-    message.success('权限已保存')
+    message.success(translate('auto.72155bc9f9'))
     setOpen(false)
   }
 

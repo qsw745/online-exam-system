@@ -4,6 +4,7 @@ import { InputNumber } from 'antd'
 import { HolderOutlined } from '@ant-design/icons'
 import type { MenuDTO } from '@/shared/api/endpoints/menu'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export default function SortableMenuItem({
   menu,
@@ -37,7 +38,7 @@ export default function SortableMenuItem({
           {menu.path && <span style={{ color: '#3b82f6', fontSize: 12 }}>{menu.path}</span>}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, color: '#6b7280' }}>当前位置:</span>
+          <span style={{ fontSize: 12, color: '#6b7280' }}>{translate('auto.7c4833af22')}</span>
           <InputNumber
             size="small"
             value={index}

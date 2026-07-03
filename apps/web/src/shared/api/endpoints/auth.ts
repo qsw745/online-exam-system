@@ -33,6 +33,109 @@ export const auth = {
     return api.post<ApiResult<{ token: string; user: any }>>('/auth/login', body, { headers })
   },
 
+  reportFaceLoginFailure(payload: {
+    email: string
+    reason:
+      | 'unsupported'
+      | 'detector_unavailable'
+      | 'camera_denied'
+      | 'camera_unavailable'
+      | 'no_face'
+      | 'multiple_faces'
+      | 'liveness_failed'
+      | 'action_failed'
+      | 'verification_failed'
+      | 'not_enrolled'
+      | 'unknown'
+    stage?: string
+    detector?: Record<string, any>
+  }) {
+    return api.post<{
+      counted: boolean
+      reason: string
+      reasonLabel: string
+      failedAttempts: number
+      remainingBeforeLock: number | null
+      captchaRequired: boolean
+      locked: boolean
+      unlockAt?: number
+      remainingSec?: number
+      lockMinutes?: number
+    }>('/auth/face-login/failure', payload)
+  },
+
+  /** 人脸登录：采集帧 → 服务端活体 + (有邮箱)1:1 或 (无邮箱)1:N 识别 → 命中返回 token/user。超时 60s */
+  faceLoginVerify(payload: { email?: string; images: string[]; keep7Days?: boolean }) {
+    return api.post<{
+      matched: boolean
+      reason?: 'no_face' | 'multiple_faces' | 'liveness_failed' | 'not_enrolled' | 'verification_failed'
+      message?: string
+      token?: string
+      user?: any
+      similarity?: number
+    }>('/auth/face-login', payload, { timeout: 60000 })
+  },
+
+  /** 校验注册邮箱验证 token */
+  verifyEmail(token: string) {
+    return api.post<{ verified: boolean }>('/auth/verify-email', { token })
+  },
+
+  /** 重新发送验证邮件 */
+  resendVerification(email: string) {
+    return api.post<{ sent: boolean }>('/auth/verify-email/resend', { email })
+  },
+
+  /** PC：生成扫码登录二维码票据（email 可选，不填则手机端 1:N 识别） */
+  qrCreate(payload: { email?: string; keep7Days?: boolean }) {
+    return api.post<{ ticketId: string; pollToken: string; expiresIn: number }>('/auth/qr/create', payload)
+  },
+
+  /** PC：轮询票据状态，confirmed 时返回 token/user */
+  qrPoll(ticketId: string, pollToken: string) {
+    return api.get<{
+      status: 'pending' | 'scanned' | 'confirmed' | 'expired' | 'invalid'
+      token?: string
+      user?: any
+    }>('/auth/qr/poll', { params: { ticket: ticketId, pollToken } })
+  },
+
+  /** 手机：打开二维码页（标记已扫描，返回脱敏账号） */
+  qrInfo(ticketId: string) {
+    return api.get<{ status: 'pending' | 'scanned' | 'confirmed' | 'expired'; emailHint?: string }>(
+      '/auth/qr/info',
+      { params: { ticket: ticketId } }
+    )
+  },
+
+  /** 手机：刷脸授权 */
+  qrAuthorize(payload: { ticket: string; images: string[] }) {
+    return api.post<{ ok: boolean; reason?: string; message?: string }>('/auth/qr/authorize', payload, {
+      timeout: 60000,
+    })
+  },
+
+  /** 查询本人人脸录入状态 */
+  faceStatus() {
+    return api.get<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
+      '/auth/face/status'
+    )
+  },
+
+  /** 录入本人人脸凭据（需本人同意）；images 为 1-8 帧 base64。CPU 推理较慢，放宽超时到 60s */
+  faceEnroll(payload: { images: string[]; consent: boolean }) {
+    return api.post<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
+      '/auth/face/enroll',
+      payload,
+      { timeout: 60000 }
+    )
+  },
+
+  /** 解绑本人人脸凭据 */
+  faceUnenroll() {
+    return api.delete<{ removed: number }>('/auth/face/enroll')
+  },
+
   register(userData: { email: string; password: string; username?: string | null; nickname?: string | null; keep7Days?: boolean }) {
     return api.post<ApiResult<{ token: string; user: any }>>('/auth/register', userData)
   },

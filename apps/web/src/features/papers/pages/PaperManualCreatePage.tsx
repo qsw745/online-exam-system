@@ -26,6 +26,7 @@ import {
 import type { ColumnsType } from 'antd/es/table'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 type BankQuestion = {
   id: number
@@ -37,16 +38,17 @@ type BankQuestion = {
 
 type SelectedItem = { id: number; score: number; order: number }
 
-const diffText: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
-const typeText: Record<string, string> = {
-  single_choice: '单选',
-  multiple_choice: '多选',
-  true_false: '判断',
+const diffKey: Record<string, string> = { easy: 'papers.diff_easy', medium: 'papers.diff_medium', hard: 'papers.diff_hard' }
+const typeKey: Record<string, string> = {
+  single_choice: 'papers.qtype_single',
+  multiple_choice: 'papers.qtype_multiple',
+  true_false: 'papers.qtype_tf',
 }
 
 const { Title, Text } = Typography
 
 export default function PaperManualCreatePage() {
+  const { t } = useLanguage()
   const { message, modal } = App.useApp()
   const nav = useNavigate()
 
@@ -67,7 +69,7 @@ export default function PaperManualCreatePage() {
   const [form] = Form.useForm()
   useEffect(() => {
     form.setFieldsValue({
-      title: '手动组卷',
+      title: t('papers.manual_create2'),
       description: '',
       duration: 60,
       difficulty: 'medium',
@@ -87,7 +89,7 @@ export default function PaperManualCreatePage() {
       setBank(items as any)
       setTotal(total)
     } catch (e: any) {
-      message.error(e?.message || '加载题库失败')
+      message.error(e?.message || t('papers.load_bank_failed'))
       setBank([])
       setTotal(0)
     } finally {
@@ -104,21 +106,21 @@ export default function PaperManualCreatePage() {
   const columns: ColumnsType<BankQuestion> = [
     { title: 'ID', dataIndex: 'id', width: 80 },
     {
-      title: '题型',
+      title: t('papers.col_qtype'),
       dataIndex: 'question_type',
       width: 100,
-      render: t => <Tag color="blue">{typeText[t] || t}</Tag>,
+      render: (v: string) => <Tag color="blue">{typeKey[v] ? t(typeKey[v]) : v}</Tag>,
     },
     {
-      title: '难度',
+      title: t('papers.col_difficulty'),
       dataIndex: 'difficulty',
       width: 90,
       render: d => (
-        <Tag color={d === 'easy' ? 'success' : d === 'hard' ? 'error' : 'warning'}>{diffText[d] || d || '—'}</Tag>
+        <Tag color={d === 'easy' ? 'success' : d === 'hard' ? 'error' : 'warning'}>{diffKey[d] ? t(diffKey[d]) : d || '—'}</Tag>
       ),
     },
     {
-      title: '题干',
+      title: t('questions.field_content'),
       dataIndex: 'content',
       ellipsis: { showTitle: false },
       render: (v, r) => (
@@ -128,7 +130,7 @@ export default function PaperManualCreatePage() {
       ),
     },
     {
-      title: '操作',
+      title: t('papers.col_actions'),
       key: 'op',
       width: 120,
       render: (_, r) => {
@@ -144,7 +146,7 @@ export default function PaperManualCreatePage() {
               }
             }}
           >
-            {exists ? '移除' : '加入'}
+            {exists ? t('papers.op_remove') : t('papers.op_add')}
           </Button>
         )
       },
@@ -168,7 +170,7 @@ export default function PaperManualCreatePage() {
     customForm.resetFields()
     customForm.setFieldsValue({
       type: 'single_choice',
-      options: ['选项A', '选项B', '选项C', '选项D'],
+      options: ['A', 'B', 'C', 'D'],
       score: 5,
     })
   }
@@ -185,7 +187,7 @@ export default function PaperManualCreatePage() {
     ])
     setCustomOpen(false)
     resetCustom()
-    message.success('已加入手工题（暂存）')
+    message.success(t('papers.custom_added'))
   }
 
   const totalScore = useMemo(() => {
@@ -205,7 +207,7 @@ export default function PaperManualCreatePage() {
     try {
       const meta = await form.validateFields()
       if (selected.length === 0 && customList.length === 0) {
-        message.warning('请至少选择或录入 1 道题')
+        message.warning(t('papers.need_one_question'))
         return
       }
 
@@ -236,14 +238,14 @@ export default function PaperManualCreatePage() {
 
       // 询问是否一键创建任务并关联此试卷
       Modal.confirm({
-        title: '试卷创建成功，是否立即创建考试任务？',
-        okText: '创建任务',
-        cancelText: '稍后',
+        title: t('papers.create_success_ask'),
+        okText: t('papers.create_task'),
+        cancelText: t('papers.later'),
         onOk: async () => {
           const start = dayjs()
           const end = start.add(7, 'day')
           await api.post('/tasks', {
-            title: `${meta.title} 考试`,
+            title: t('papers.exam_suffix').replace('{title}', meta.title),
             description: meta.description || '',
             status: 'not_started',
             start_time: start.format('YYYY-MM-DD HH:mm:ss'),
@@ -251,7 +253,7 @@ export default function PaperManualCreatePage() {
             type: 'exam',
             paper_id: paperId, // 🔗 直接关联试卷
           })
-          message.success('任务已创建并关联试卷')
+          message.success(t('papers.task_created'))
           nav('/admin/tasks/create') // 你的任务管理路由
         },
         onCancel: () => {
@@ -259,7 +261,7 @@ export default function PaperManualCreatePage() {
         },
       })
     } catch (e: any) {
-      message.error(e?.response?.data?.message || e?.message || '创建失败')
+      message.error(e?.response?.data?.message || e?.message || t('papers.create_failed'))
     }
   }
 
@@ -272,15 +274,15 @@ export default function PaperManualCreatePage() {
             <Col>
               <Space direction="vertical" size={0}>
                 <Title level={4} style={{ margin: 0 }}>
-                  手动组卷
+                  {t('papers.manual_create2')}
                 </Title>
-                <Text type="secondary">从题库选择 + 手工录入，自由组卷</Text>
+                <Text type="secondary">{t('papers.manual_subtitle')}</Text>
               </Space>
             </Col>
             <Col>
               <Space>
                 <Button type="primary" onClick={onCreatePaper}>
-                  创建试卷
+                  {t('papers.create_paper')}
                 </Button>
               </Space>
             </Col>
@@ -293,11 +295,11 @@ export default function PaperManualCreatePage() {
       <Row gutter={16} align="top">
         {/* 左侧：题库 + 筛选 + 分页 */}
         <Col xs={24} lg={16}>
-          <Card title="题库（支持分页）" style={{ borderRadius: 12 }}>
+          <Card title={t('papers.bank_card')} style={{ borderRadius: 12 }}>
             <Space wrap style={{ marginBottom: 12 }}>
               <Input
                 allowClear
-                placeholder="搜索题干/标题"
+                placeholder={t('papers.search_q_ph')}
                 value={search}
                 onChange={e => {
                   setPage(1)
@@ -313,10 +315,10 @@ export default function PaperManualCreatePage() {
                 }}
                 style={{ width: 160 }}
                 options={[
-                  { value: 'all', label: '所有难度' },
-                  { value: 'easy', label: '简单' },
-                  { value: 'medium', label: '中等' },
-                  { value: 'hard', label: '困难' },
+                  { value: 'all', label: t('papers.diff_all') },
+                  { value: 'easy', label: t('papers.diff_easy') },
+                  { value: 'medium', label: t('papers.diff_medium') },
+                  { value: 'hard', label: t('papers.diff_hard') },
                 ]}
               />
               <Select
@@ -327,10 +329,10 @@ export default function PaperManualCreatePage() {
                 }}
                 style={{ width: 160 }}
                 options={[
-                  { value: 'all', label: '所有题型' },
-                  { value: 'single_choice', label: '单选' },
-                  { value: 'multiple_choice', label: '多选' },
-                  { value: 'true_false', label: '判断' },
+                  { value: 'all', label: t('papers.qtype_all') },
+                  { value: 'single_choice', label: t('papers.qtype_single') },
+                  { value: 'multiple_choice', label: t('papers.qtype_multiple') },
+                  { value: 'true_false', label: t('papers.qtype_tf') },
                 ]}
               />
             </Space>
@@ -344,7 +346,7 @@ export default function PaperManualCreatePage() {
                 current: page,
                 pageSize,
                 total,
-                unit: '题',
+                unit: t('papers.unit_question'),
                 onChange: handleBankPaginationChange,
               })}
             />
@@ -354,31 +356,31 @@ export default function PaperManualCreatePage() {
         {/* 右侧：试卷信息 + 已选题列表 + 手工录入 */}
         <Col xs={24} lg={8}>
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Card title="试卷信息" style={{ borderRadius: 12 }}>
+            <Card title={t('papers.paper_info')} style={{ borderRadius: 12 }}>
               <Form form={form} layout="vertical">
-                <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入试卷标题' }]}>
-                  <Input placeholder="试卷标题" />
+                <Form.Item name="title" label={t('papers.field_title')} rules={[{ required: true, message: t('papers.title_required') }]}>
+                  <Input placeholder={t('papers.title_ph')} />
                 </Form.Item>
-                <Form.Item name="description" label="说明">
-                  <Input.TextArea rows={3} placeholder="试卷说明（可选）" />
+                <Form.Item name="description" label={t('papers.field_desc')}>
+                  <Input.TextArea rows={3} placeholder={t('papers.desc_ph')} />
                 </Form.Item>
-                <Form.Item name="difficulty" label="难度" initialValue="medium">
+                <Form.Item name="difficulty" label={t('papers.col_difficulty')} initialValue="medium">
                   <Select
                     options={[
-                      { value: 'easy', label: '简单' },
-                      { value: 'medium', label: '中等' },
-                      { value: 'hard', label: '困难' },
+                      { value: 'easy', label: t('papers.diff_easy') },
+                      { value: 'medium', label: t('papers.diff_medium') },
+                      { value: 'hard', label: t('papers.diff_hard') },
                     ]}
                   />
                 </Form.Item>
-                <Form.Item name="duration" label="时长（分钟）" initialValue={60}>
+                <Form.Item name="duration" label={t('papers.field_duration')} initialValue={60}>
                   <InputNumber min={5} max={300} style={{ width: 160 }} />
                 </Form.Item>
                 <Divider style={{ margin: '12px 0' }} />
                 <Space>
-                  <Text>当前总分：</Text>
+                  <Text>{t('papers.current_total')}</Text>
                   <Title level={4} style={{ margin: 0 }}>
-                    {totalScore} 分
+                    {t('papers.score_unit').replace('{v}', String(totalScore))}
                   </Title>
                 </Space>
               </Form>
@@ -387,12 +389,12 @@ export default function PaperManualCreatePage() {
             <Card
               title={
                 <Space>
-                  已选题 <Tag color="blue">{selected.length + customList.length}</Tag>
+                  {t('papers.selected_count')} <Tag color="blue">{selected.length + customList.length}</Tag>
                 </Space>
               }
               extra={
                 <Button icon={<PlusOutlined />} onClick={() => setCustomOpen(true)}>
-                  手工录入题目
+                  {t('papers.manual_entry')}
                 </Button>
               }
               style={{ borderRadius: 12 }}
@@ -408,10 +410,10 @@ export default function PaperManualCreatePage() {
                     <Col flex="40px">
                       <Tag>{idx + 1}</Tag>
                     </Col>
-                    <Col flex="auto">题库题（ID: {it.id}）</Col>
+                    <Col flex="auto">{t('papers.bank_q').replace('{id}', String(it.id))}</Col>
                     <Col>
                       <Space>
-                        <Text type="secondary">分值</Text>
+                        <Text type="secondary">{t('questions.field_score')}</Text>
                         <InputNumber
                           min={1}
                           max={100}
@@ -426,7 +428,7 @@ export default function PaperManualCreatePage() {
                           danger
                           onClick={() => setSelected(prev => prev.filter(x => x.id !== it.id))}
                         >
-                          移除
+                          {t('papers.op_remove')}
                         </Button>
                       </Space>
                     </Col>
@@ -445,7 +447,7 @@ export default function PaperManualCreatePage() {
                     </Col>
                     <Col flex="auto">
                       <Space wrap>
-                        <Tag color="processing">{typeText[c.type] || c.type}</Tag>
+                        <Tag color="processing">{typeKey[c.type] ? t(typeKey[c.type]) : c.type}</Tag>
                         <Text ellipsis={{ tooltip: c.content }} style={{ maxWidth: 220 }}>
                           {c.content}
                         </Text>
@@ -453,7 +455,7 @@ export default function PaperManualCreatePage() {
                     </Col>
                     <Col>
                       <Space>
-                        <Text type="secondary">分值</Text>
+                        <Text type="secondary">{t('questions.field_score')}</Text>
                         <InputNumber
                           min={1}
                           max={100}
@@ -470,14 +472,14 @@ export default function PaperManualCreatePage() {
                           danger
                           onClick={() => setCustomList(prev => prev.filter((_, idx) => idx !== i))}
                         >
-                          移除
+                          {t('papers.op_remove')}
                         </Button>
                       </Space>
                     </Col>
                   </Row>
                 ))}
 
-                {selected.length + customList.length === 0 && <Text type="secondary">还没有题目</Text>}
+                {selected.length + customList.length === 0 && <Text type="secondary">{t('papers.no_questions')}</Text>}
               </Space>
             </Card>
           </Space>
@@ -488,23 +490,23 @@ export default function PaperManualCreatePage() {
       <Modal
         open={customOpen}
         maskClosable={false}
-        title="手工录入题目"
+        title={t('papers.manual_entry')}
         onCancel={() => setCustomOpen(false)}
         onOk={onAddCustom}
-        okText="加入试卷"
+        okText={t('papers.add_to_paper')}
       >
         <Form form={customForm} layout="vertical">
-          <Form.Item name="type" label="题型" initialValue="single_choice" rules={[{ required: true }]}>
+          <Form.Item name="type" label={t('papers.col_qtype')} initialValue="single_choice" rules={[{ required: true }]}>
             <Radio.Group
               options={[
-                { value: 'single_choice', label: '单选' },
-                { value: 'multiple_choice', label: '多选' },
-                { value: 'true_false', label: '判断' },
+                { value: 'single_choice', label: t('papers.qtype_single') },
+                { value: 'multiple_choice', label: t('papers.qtype_multiple') },
+                { value: 'true_false', label: t('papers.qtype_tf') },
               ]}
             />
           </Form.Item>
-          <Form.Item name="content" label="题干" rules={[{ required: true, message: '请输入题干' }]}>
-            <Input.TextArea rows={3} placeholder="请输入题干（支持少量 HTML）" />
+          <Form.Item name="content" label={t('questions.field_content')} rules={[{ required: true, message: t('questions.field_content_required') }]}>
+            <Input.TextArea rows={3} placeholder={t('papers.content_ph2')} />
           </Form.Item>
 
           {/* 选项 */}
@@ -514,15 +516,15 @@ export default function PaperManualCreatePage() {
               if (t === 'true_false') {
                 return (
                   <>
-                    <Form.Item label="正确答案" name="answer" rules={[{ required: true, message: '请选择答案' }]}>
+                    <Form.Item label={t('questions.correct_answer')} name="answer" rules={[{ required: true, message: t('papers.select_answer') }]}>
                       <Radio.Group
                         options={[
-                          { value: 'A', label: 'A. 正确' },
-                          { value: 'B', label: 'B. 错误' },
+                          { value: 'A', label: t('papers.opt_a_true') },
+                          { value: 'B', label: t('papers.opt_b_false') },
                         ]}
                       />
                     </Form.Item>
-                    <Form.Item name="options" initialValue={['正确', '错误']} hidden>
+                    <Form.Item name="options" initialValue={[t('questions.tf_true'), t('questions.tf_false')]} hidden>
                       <Input />
                     </Form.Item>
                   </>
@@ -531,14 +533,14 @@ export default function PaperManualCreatePage() {
               return (
                 <>
                   <Form.Item
-                    label="选项（每行一个）"
+                    label={t('papers.options_lines')}
                     name="options"
                     rules={[
-                      { required: true, message: '请输入选项' },
+                      { required: true, message: t('papers.options_required') },
                       {
                         validator: (_, val: string[]) => {
                           const arr = (val || []).filter(Boolean)
-                          if (arr.length < 2) return Promise.reject(new Error('至少 2 个选项'))
+                          if (arr.length < 2) return Promise.reject(new Error(t('papers.min_2_options')))
                           return Promise.resolve()
                         },
                       },
@@ -548,22 +550,22 @@ export default function PaperManualCreatePage() {
                       mode="tags"
                       tokenSeparators={[',', '\n']}
                       open={false}
-                      placeholder="输入后回车添加；默认会显示 A/B/C/D"
+                      placeholder={t('papers.options_ph')}
                     />
                   </Form.Item>
                   <Form.Item
-                    label="正确答案"
+                    label={t('questions.correct_answer')}
                     name="answer"
-                    rules={[{ required: true, message: '请输入答案字母，如 A 或 A,B' }]}
+                    rules={[{ required: true, message: t('papers.answer_letter_required') }]}
                   >
-                    <Input placeholder="单选/判断：A；多选：A,B" />
+                    <Input placeholder={t('papers.answer_ph')} />
                   </Form.Item>
                 </>
               )
             }}
           </Form.Item>
 
-          <Form.Item name="score" label="分值" initialValue={5}>
+          <Form.Item name="score" label={t('questions.field_score')} initialValue={5}>
             <InputNumber min={1} max={100} />
           </Form.Item>
         </Form>

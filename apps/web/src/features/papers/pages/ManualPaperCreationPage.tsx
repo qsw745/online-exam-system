@@ -4,6 +4,7 @@ import { useManualPaper } from '../../../shared/hooks/useManualPaper'
 import PaperInfoForm from '../components/PaperInfoForm'
 import QuestionCard from '../components/QuestionCard'
 import QuestionFilters from '../components/QuestionFilters'
+import { translate } from '@/shared/utils/i18n'
 export default function ManualPaperCreationPage() {
   const h = useManualPaper()
 
@@ -11,14 +12,14 @@ export default function ManualPaperCreationPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
   
       <div>
-        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>手动组卷</h1>
-        <p style={{ color: '#666', margin: 0 }}>从题库中选择题目创建试卷</p>
+        <h1 style={{ fontSize: 24, fontWeight: 600, marginBottom: 4 }}>{translate('menus.admin-papers-manual')}</h1>
+        <p style={{ color: '#666', margin: 0 }}>{translate('auto.dbd4d4faea')}</p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
         {/* 左侧：题目列表 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <Card title="题目列表">
+          <Card title={translate('questions.title')}>
             <div style={{ display: 'flex', marginBottom: 16 }}>
               <QuestionFilters
                 keyword={h.keyword}
@@ -46,7 +47,7 @@ export default function ManualPaperCreationPage() {
         </div>
 
         {/* 右侧：试卷信息 */}
-        <Card title="试卷信息">
+        <Card title={translate('papers.paper_info')}>
           <PaperInfoForm
             title={h.title}
             description={h.description}

@@ -1,5 +1,7 @@
 import React from 'react'
 import { Table, Tag, Space, Button, Popconfirm } from 'antd'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 export type Task = {
   id: string
@@ -90,26 +92,26 @@ export const TasksTable: React.FC<Props> = ({
       pagination={false}
       scroll={{ x: 1200 }}
       columns={[
-        { title: '任务标题', dataIndex: 'title', key: 'title', ellipsis: true },
+        { title: translate('auto.6eae640bc4'), dataIndex: 'title', key: 'title', ellipsis: true },
         {
-          title: '类型',
+          title: translate('systemConfig.col_type'),
           dataIndex: 'type',
           key: 'type',
           width: 100,
-          render: (t: Task['type']) => (t === 'exam' ? '考试' : t === 'practice' ? '练习' : '-'),
+          render: (t: Task['type']) => (t === 'exam' ? translate('nav.exams') : t === 'practice' ? translate('menus.exam-practice') : '-'),
         },
         {
-          title: '状态',
+          title: translate('users.columns.status'),
           dataIndex: 'status',
           key: 'status',
           width: 120,
           render: (s: Task['status']) => <Tag color={statusColor(s)}>{statusText(s)}</Tag>,
         },
-        { title: '开始时间', dataIndex: 'start_time', key: 'start_time', width: 180 },
-        { title: '截止时间', dataIndex: 'end_time', key: 'end_time', width: 180 },
-        { title: '创建时间', dataIndex: 'created_at', key: 'created_at', width: 180 },
+        { title: translate('dashboard.start_time'), dataIndex: 'start_time', key: 'start_time', width: 180, render: (t?: string | null) => (t ? formatDateTime(t) : '-') },
+        { title: translate('auto.864048b32f'), dataIndex: 'end_time', key: 'end_time', width: 180, render: (t?: string | null) => (t ? formatDateTime(t) : '-') },
+        { title: translate('users.columns.created_at'), dataIndex: 'created_at', key: 'created_at', width: 180, render: (t?: string | null) => (t ? formatDateTime(t) : '-') },
         {
-          title: '操作',
+          title: translate('users.columns.actions'),
           key: 'actions',
           width: 280,
           fixed: 'right',
@@ -136,35 +138,32 @@ export const TasksTable: React.FC<Props> = ({
                   borderRadius: 6,
                 }}
               >
-                {onEdit && <Button onClick={() => onEdit?.(r.id)}>编辑</Button>}
+                {onEdit && <Button onClick={() => onEdit?.(r.id)}>{translate('app.edit')}</Button>}
 
                 {canStart && (
                   <Button type="primary" onClick={() => onStart?.(r)}>
-                    开始
-                  </Button>
+                    {translate('workflowTemplates.node.start')}</Button>
                 )}
 
                 {showPublishActions && r.status !== 'published' && r.status !== 'archived' && (
                   <Button type="primary" onClick={() => onPublish?.(r.id)}>
-                    发布
-                  </Button>
+                    {translate('auto.94f172d02f')}</Button>
                 )}
                 {showPublishActions && r.status === 'published' && (
                   <Button danger onClick={() => onUnpublish?.(r.id)}>
-                    下线
-                  </Button>
+                    {translate('auto.706875155b')}</Button>
                 )}
 
                 {onDelete && (
                   <Popconfirm
-                    title="确认删除该任务？"
-                    description="删除后不可恢复，请谨慎操作。"
-                    okText="删除"
-                    cancelText="取消"
+                    title={translate('auto.f0e5964284')}
+                    description={translate('auto.7072411649')}
+                    okText={translate('app.delete')}
+                    cancelText={translate('app.cancel')}
                     okButtonProps={{ danger: true }}
                     onConfirm={() => onDelete?.(r.id)}
                   >
-                    <Button danger>删除</Button>
+                    <Button danger>{translate('app.delete')}</Button>
                   </Popconfirm>
                 )}
               </Space>

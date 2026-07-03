@@ -2,6 +2,7 @@ import { resetPassword as apiReset, validateResetToken as apiValidate } from '@/
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 
 export type ResetValues = { password: string; confirmPassword: string }
 
@@ -107,15 +108,15 @@ export function useResetPassword(rawToken: string | null) {
         return
       }
       if (!values.password || !values.confirmPassword) {
-        message.error('请填写新密码与确认密码')
+        message.error(translate('auto.21cad2124d'))
         return
       }
       if (values.password !== values.confirmPassword) {
-        message.error('两次输入的密码不一致')
+        message.error(translate('auto.3e2b222d98'))
         return
       }
       if (values.password.length < 6) {
-        message.error('密码长度至少6位')
+        message.error(translate('auto.3bbd0a8411'))
         return
       }
 

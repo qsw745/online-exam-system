@@ -5,6 +5,8 @@ import { Button, Card, Space, Tag, Typography } from 'antd'
 import { BookOpen, Clock, Play, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import ExamWorkflowModal from '@/features/exams/components/ExamWorkflowModal'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 const { Title, Paragraph } = Typography
 // ✅ 本地最小化类型（避免从 http 导入不存在的类型）
 type Exam = {
@@ -22,17 +24,19 @@ type Exam = {
 function formatDuration(minutes: number) {
   const h = Math.floor(minutes / 60)
   const m = minutes % 60
-  return h > 0 ? `${h}小时${m > 0 ? m + '分钟' : ''}` : `${m}分钟`
+  return h > 0
+    ? `${h}${translate('time.hour')}${m > 0 ? `${m}${translate('time.minute')}` : ''}`
+    : `${m}${translate('time.minute')}`
 }
 function StatusBadge({ status }: { status: Exam['status'] }) {
   const map = {
-    draft: { label: '草稿', color: 'default' as const },
-    reviewing: { label: '审核中', color: 'warning' as const },
-    approved: { label: '已审核', color: 'processing' as const },
-    published: { label: '已发布', color: 'success' as const },
-    closed: { label: '已关闭', color: 'default' as const },
-    rejected: { label: '已驳回', color: 'error' as const },
-    archived: { label: '已归档', color: 'error' as const },
+    draft: { label: translate('auto.0f436818c0'), color: 'default' as const },
+    reviewing: { label: translate('auto.fe58c849a9'), color: 'warning' as const },
+    approved: { label: translate('auto.3f3d8682dd'), color: 'processing' as const },
+    published: { label: translate('auto.176a2eb4eb'), color: 'success' as const },
+    closed: { label: translate('auto.f628761bf5'), color: 'default' as const },
+    rejected: { label: translate('workflowTemplates.status.rejected'), color: 'error' as const },
+    archived: { label: translate('auto.5cfbea2b76'), color: 'error' as const },
   }
   const cfg = map[status as keyof typeof map] ?? map.draft
   return <Tag color={cfg.color}>{cfg.label}</Tag>
@@ -48,18 +52,15 @@ export function ExamCard({ exam }: { exam: Exam }) {
           exam.status === 'published' ? (
             <Link to={`/exam/${exam.id}`} key="start">
               <Button type="primary" icon={<Play className="w-4 h-4" />}>
-                开始考试
-              </Button>
+                {translate('exam.start')}</Button>
             </Link>
           ) : (
             <Button disabled key="disabled">
-              暂不可用
-            </Button>
+              {translate('auto.4dddd9200c')}</Button>
           ),
           ['draft', 'rejected'].includes(exam.status as string) && (
             <Button type="link" key="workflow" onClick={() => setWorkflowOpen(true)}>
-              提交审批
-            </Button>
+              {translate('auto.25d9be0724')}</Button>
           ),
         ].filter(Boolean)}
       >
@@ -86,27 +87,27 @@ export function ExamCard({ exam }: { exam: Exam }) {
 
             <Space size="small">
               <BookOpen className="w-4 h-4" />
-              <span>{exam.total_score}分</span>
+              <span>{exam.total_score}{translate('papers.addon_score')}</span>
             </Space>
 
             {typeof exam.question_count === 'number' && (
               <Space size="small">
-                <span>{exam.question_count}题</span>
+                <span>{exam.question_count}{translate('papers.unit_question')}</span>
               </Space>
             )}
 
             {typeof exam.participant_count === 'number' && (
               <Space size="small">
                 <Users className="w-4 h-4" />
-                <span>{exam.participant_count}人参加</span>
+                <span>{exam.participant_count}{translate('auto.83f6f4c890')}</span>
               </Space>
             )}
           </Space>
 
           {(exam.start_time || exam.end_time) && (
             <div style={{ marginTop: 12, fontSize: 14, color: '#8c8c8c' }}>
-              {exam.start_time && <div>开始时间: {new Date(exam.start_time).toLocaleString()}</div>}
-              {exam.end_time && <div>结束时间: {new Date(exam.end_time).toLocaleString()}</div>}
+              {exam.start_time && <div>{translate('auto.c4ac0ed36a')}{formatDateTime(exam.start_time)}</div>}
+              {exam.end_time && <div>{translate('auto.a931b9df4e')}{formatDateTime(exam.end_time)}</div>}
             </div>
           )}
         </div>

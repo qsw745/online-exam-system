@@ -1,23 +1,9 @@
 import React, { useRef, useState } from 'react'
 import { Button, Card, Col, Input, Row, Select, Segmented, Space, Typography } from 'antd'
 import type { Difficulty, QuestionType } from '@/features/questions/practice/hooks/usePracticeList'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
-
-// 和后端保持一致的取值
-const TYPE_OPTIONS = [
-  { value: 'single_choice', label: '单选题' },
-  { value: 'multiple_choice', label: '多选题' },
-  { value: 'true_false', label: '判断题' },
-  { value: 'short_answer', label: '简答题' },
-] as const
-
-const DIFF_OPTIONS = [
-  { value: 'all', label: '全部难度' },
-  { value: 'easy', label: '简单' },
-  { value: 'medium', label: '中等' },
-  { value: 'hard', label: '困难' },
-] as const
 
 type Props = {
   /** ✅ 多选题型（精确类型） */
@@ -51,6 +37,19 @@ export default function PracticeFilters({
 }: Props) {
   const [mode, setMode] = useState<'single' | 'bulk'>('single')
   const firstCardIndex = useRef(0)
+  // 和后端保持一致的取值
+  const typeOptions = [
+    { value: 'single_choice', label: translate('questions.single_choice') },
+    { value: 'multiple_choice', label: translate('questions.multiple_choice') },
+    { value: 'true_false', label: translate('questions.judge') },
+    { value: 'short_answer', label: translate('questions.type_short') },
+  ] as const
+  const difficultyOptions = [
+    { value: 'all', label: translate('auto.0ab824ba71') },
+    { value: 'easy', label: translate('questions.easy') },
+    { value: 'medium', label: translate('questions.medium') },
+    { value: 'hard', label: translate('questions.hard') },
+  ] as const
 
   return (
     <Card>
@@ -59,32 +58,30 @@ export default function PracticeFilters({
         <Col xs={24} lg={12}>
           <Input.Search
             allowClear
-            placeholder="搜索题目/关键词"
+            placeholder={translate('auto.ec3e221330')}
             value={search}
             onChange={e => onSearch(e.target.value)}
             onSearch={kw => onSearch(kw)}
-            enterButton="查询"
+            enterButton={translate('auto.711363c424')}
           />
         </Col>
         <Col xs={24} lg={12}>
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Text type="secondary">练习模式：</Text>
+            <Text type="secondary">{translate('auto.4484498f44')}</Text>
             <Segmented
               value={mode}
               onChange={v => setMode(v as any)}
               options={[
-                { label: '单题', value: 'single' },
-                { label: '多题', value: 'bulk' },
+                { label: translate('auto.5840891d40'), value: 'single' },
+                { label: translate('auto.8e224be5db'), value: 'bulk' },
               ]}
             />
             {mode === 'bulk' ? (
               <Button type="primary" onClick={onEnterBulk}>
-                开始多题练习
-              </Button>
+                {translate('auto.221f7f5ae5')}</Button>
             ) : (
               <Button type="primary" onClick={() => onEnterSingle(firstCardIndex.current)}>
-                开始单题练习
-              </Button>
+                {translate('auto.f79ce1cf2c')}</Button>
             )}
           </Space>
         </Col>
@@ -94,31 +91,31 @@ export default function PracticeFilters({
       <Row gutter={[12, 12]} align="middle" style={{ marginTop: 8 }}>
         <Col xs={24} lg={12}>
           <Space wrap>
-            <Text type="secondary">题型：</Text>
+            <Text type="secondary">{translate('auto.bdc36ea3d9')}</Text>
             <Select
               mode="multiple"
               allowClear
               style={{ minWidth: 280 }}
-              placeholder="选择题型（可多选）"
+              placeholder={translate('auto.79b46fdca0')}
               value={types as string[]}
               // antd onChange推断为string[]，这里断言回到QuestionType[]
               onChange={vals => onTypesChange(vals as QuestionType[])}
               maxTagCount="responsive"
-              options={TYPE_OPTIONS as any}
+              options={typeOptions as any}
             />
             {/* “全部类型”快捷按钮：清空选择 */}
-            <Button onClick={() => onTypesChange([])}>全部类型</Button>
+            <Button onClick={() => onTypesChange([])}>{translate('auto.fa6968d9f0')}</Button>
           </Space>
         </Col>
         <Col xs={24} lg={12}>
           <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
-            <Text type="secondary">难度：</Text>
+            <Text type="secondary">{translate('auto.08a090d362')}</Text>
             <Select
               value={difficulty}
               style={{ width: 140 }}
               // antd onChange推断为string，这里断言回到Difficulty
               onChange={v => onDifficultyChange(v as Difficulty)}
-              options={DIFF_OPTIONS as any}
+              options={difficultyOptions as any}
             />
           </Space>
         </Col>
@@ -132,11 +129,11 @@ export default function PracticeFilters({
             allowClear
             value={selectedTags}
             onChange={onTagsChange}
-            placeholder="按标签筛选（可多选）"
+            placeholder={translate('questions.filter_by_tag')}
             options={allTags.map(t => ({ label: t, value: t }))}
             style={{ width: '100%' }}
             maxTagCount="responsive"
-            notFoundContent="暂无数据"
+            notFoundContent={translate('common.no_data')}
             showSearch
             optionFilterProp="label"
           />

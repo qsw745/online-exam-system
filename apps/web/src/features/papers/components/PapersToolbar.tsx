@@ -1,5 +1,6 @@
 import { Button, Card, Input, Select, Space, Tooltip } from 'antd'
 import { PlusOutlined, RobotOutlined, SearchOutlined } from '@ant-design/icons'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export default function PapersToolbar({
   search,
@@ -16,6 +17,7 @@ export default function PapersToolbar({
   onCreateManual: () => void
   onCreateSmart: () => void
 }) {
+  const { t } = useLanguage()
   return (
     <Card>
       <Space style={{ width: '100%' }} align="start" direction="vertical" size={12}>
@@ -25,7 +27,7 @@ export default function PapersToolbar({
               allowClear
               value={search}
               onChange={e => onSearchChange(e.target.value)}
-              placeholder="搜索试卷..."
+              placeholder={t('papers.search_ph')}
               prefix={<SearchOutlined />}
               style={{ width: 320 }}
             />
@@ -35,23 +37,23 @@ export default function PapersToolbar({
               onChange={onDifficultyChange}
               style={{ width: 140 }}
               options={[
-                { value: 'all', label: '所有难度' },
-                { value: 'easy', label: '简单' },
-                { value: 'medium', label: '中等' },
-                { value: 'hard', label: '困难' },
+                { value: 'all', label: t('papers.diff_all') },
+                { value: 'easy', label: t('papers.diff_easy') },
+                { value: 'medium', label: t('papers.diff_medium') },
+                { value: 'hard', label: t('papers.diff_hard') },
               ]}
             />
           </Space>
 
           <Space wrap>
-            <Tooltip title="根据规则一键智能组卷">
+            <Tooltip title={t('papers.smart_tooltip')}>
               <Button type="primary" icon={<RobotOutlined />} onClick={onCreateSmart}>
-                智能组卷
+                {t('papers.smart_create')}
               </Button>
             </Tooltip>
-            <Tooltip title="从题库手动选择题目创建试卷">
+            <Tooltip title={t('papers.manual_tooltip')}>
               <Button icon={<PlusOutlined />} onClick={onCreateManual}>
-                手动组卷
+                {t('papers.manual_create2')}
               </Button>
             </Tooltip>
           </Space>

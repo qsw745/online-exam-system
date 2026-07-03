@@ -2,6 +2,7 @@
 import { Button, Space, Tag } from 'antd'
 import { ArrowLeft, ChevronLeft, ChevronRight, Eye, EyeOff, Heart, HeartOff, SkipForward } from 'lucide-react'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export function PracticeHeader({
   onBack,
@@ -36,11 +37,10 @@ export function PracticeHeader({
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <Space>
         <Button icon={<ArrowLeft size={16} />} onClick={onBack}>
-          返回题库
-        </Button>
+          {translate('auto.a74132a45e')}</Button>
         {mode === 'continuous' && total > 0 && (
           <Tag color="blue">
-            进度: {index + 1} / {total}
+            {translate('auto.8aa84f452a')}{index + 1} / {total}
           </Tag>
         )}
       </Space>
@@ -48,17 +48,15 @@ export function PracticeHeader({
         {mode === 'continuous' && (
           <>
             <Button icon={<ChevronLeft size={16} />} onClick={onPrev} disabled={!canPrev}>
-              上一题
-            </Button>
+              {translate('exam.previous')}</Button>
             <Button
               icon={<SkipForward size={16} />}
               onClick={onSkip}
               style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
             >
-              跳过
-            </Button>
+              {translate('auto.31a98593f1')}</Button>
             <Button type="primary" onClick={onNext} disabled={!canNext}>
-              下一题 <ChevronRight size={16} />
+              {translate('exam.next')}<ChevronRight size={16} />
             </Button>
           </>
         )}
@@ -68,7 +66,7 @@ export function PracticeHeader({
           danger={favorited}
           type={favorited ? 'primary' : 'default'}
         >
-          {favorited ? '已收藏' : '收藏'}
+          {favorited ? translate('visible.2d2cdabf29') : translate('header.favorites')}
         </Button>
         <Button
           icon={showExplanation ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -76,7 +74,7 @@ export function PracticeHeader({
           type="primary"
           ghost
         >
-          {showExplanation ? '隐藏解析' : '查看解析'}
+          {showExplanation ? translate('visible.fbdfb3c5b1') : translate('visible.716d473a0a')}
         </Button>
       </Space>
     </div>

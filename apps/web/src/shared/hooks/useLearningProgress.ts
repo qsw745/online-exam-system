@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import dayjs, { Dayjs } from 'dayjs'
 import { App } from 'antd'
 import { learningProgressApi, type LearningStats, type ProgressRecord } from '@/shared/api/endpoints/learningProgress'
+import { translate } from '@/shared/utils/i18n'
 
 export function useLearningProgress() {
   const { message } = App.useApp()
@@ -22,7 +23,7 @@ export function useLearningProgress() {
       const s = await learningProgressApi.getStats({ start: timeRange[0], end: timeRange[1], subject })
       setStats(s)
     } catch {
-      message.error('获取学习统计失败')
+      message.error(translate('auto.e56cc2ab1f'))
       setStats({
         total_study_time: 0,
         questions_practiced: 0,
@@ -46,7 +47,7 @@ export function useLearningProgress() {
       })
       setRecords(list)
     } catch {
-      message.error('获取学习记录失败')
+      message.error(translate('auto.d1c8904ecf'))
       setRecords([])
     }
   }, [subject, timeRange, message])

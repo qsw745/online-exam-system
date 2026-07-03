@@ -3,6 +3,7 @@ import { App } from 'antd'
 import { menuApi, type MenuDTO } from '@/shared/api/endpoints/menu'
 import { STEP, buildLayerUpdates, isInSubtree, buildTreeData } from '@/shared/utils/tree'
 import type { DataNode } from 'antd/es/tree'
+import { translate } from '@/shared/utils/i18n'
 
 export type MenuFormData = {
   name: string
@@ -54,10 +55,10 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       setLoading(true)
       const list = await menuApi.list({ scope: mode, unitId })
       setMenus(Array.isArray(list) ? list : [])
-      if (!Array.isArray(list)) message.warning('菜单数据格式异常，已为空展示')
+      if (!Array.isArray(list)) message.warning(translate('auto.928b454334'))
     } catch {
       setMenus([])
-      message.error('加载菜单失败')
+      message.error(translate('menuList.messages.load_failed'))
     } finally {
       setLoading(false)
     }
@@ -77,7 +78,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       setSysMenus(candidates)
     } catch {
       setSysMenus([])
-      message.error('加载系统菜单失败')
+      message.error(translate('auto.c640df1cb9'))
     } finally {
       setSysLoading(false)
     }
@@ -89,7 +90,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
   const openCreate = () => {
     if (mode === 'unit') {
       if (!unitId) {
-        message.warning('请先在左侧选择组织')
+        message.warning(translate('auto.9145818679'))
         return
       }
       setPickOpen(true)
@@ -109,7 +110,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
   /** 多选确认：直接批量创建覆盖项，不再弹表单 */
   const onPickSystemOk = async (sysIds: number[]) => {
     if (!unitId) {
-      message.warning('请选择组织')
+      message.warning(translate('auto.f299902d40'))
       return
     }
     if (!sysIds?.length) {
@@ -128,7 +129,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       setPickOpen(false)
       await load()
     } catch {
-      message.error('批量添加失败')
+      message.error(translate('auto.bed398754f'))
     }
   }
 
@@ -163,11 +164,11 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       const ret = await menuApi.remove(id, { scope: mode, unitId })
       const ok = (ret as any)?.success !== false
       ok
-        ? message.success(mode === 'unit' ? '已移除单位覆盖' : '删除成功')
-        : message.error((ret as any)?.message || '删除失败')
+        ? message.success(mode === 'unit' ? translate('auto.a0b8cdb465') : translate('users.message.delete_success'))
+        : message.error((ret as any)?.message || translate('orgs.message.delete_failed'))
       if (ok) await load()
     } catch {
-      message.error('删除失败')
+      message.error(translate('orgs.message.delete_failed'))
     }
   }
 
@@ -183,12 +184,12 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
     let ok = false
     if (mode === 'unit') {
       if (!unitId) {
-        message.warning('请选择组织')
+        message.warning(translate('auto.f299902d40'))
         return
       }
       const sysId = editing?.id
       if (!sysId) {
-        message.warning('未指定系统菜单')
+        message.warning(translate('auto.208ee7c22e'))
         return
       }
       const ret = await menuApi.update(sysId, payload, { scope: 'unit', unitId })
@@ -203,7 +204,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       }
     }
 
-    ok ? message.success('保存成功') : message.error('操作失败')
+    ok ? message.success(translate('orgs.message.save_success')) : message.error(translate('app.operation_failed'))
     if (ok) {
       setFormOpen(false)
       await load()
@@ -223,7 +224,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
 
     const newParentId: number | null = dropToGap ? target.parent_id ?? null : target.id
     if (isInSubtree(menus, draggedId, newParentId)) {
-      message.warning('不能拖到自己的子级下')
+      message.warning(translate('auto.f01376d94d'))
       return
     }
 
@@ -240,10 +241,10 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
     try {
       const ret = await menuApi.batchSort(updates, { scope: mode, unitId })
       const ok = (ret as any)?.success !== false
-      ok ? message.success('菜单结构已更新') : message.error((ret as any)?.message || '更新失败')
+      ok ? message.success(translate('auto.f17047db8f')) : message.error((ret as any)?.message || translate('roles.message.update_failed'))
       if (ok) await load()
     } catch {
-      message.error('更新失败')
+      message.error(translate('roles.message.update_failed'))
     }
   }
 
@@ -256,13 +257,13 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       const updates = sortItems.map((m, i) => ({ id: m.id, sort_order: i * STEP }))
       const ret = await menuApi.batchSort(updates, { scope: mode, unitId })
       const ok = (ret as any)?.success !== false
-      ok ? message.success('批量排序更新成功') : message.error((ret as any)?.message || '批量排序更新失败')
+      ok ? message.success(translate('auto.841f040d8c')) : message.error((ret as any)?.message || translate('auto.4386fbcfb5'))
       if (ok) {
         setSortOpen(false)
         await load()
       }
     } catch {
-      message.error('批量排序更新失败')
+      message.error(translate('auto.4386fbcfb5'))
     }
   }
 
@@ -320,7 +321,7 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
       a.download = `menu-config-${new Date().toISOString().split('T')[0]}.json`
       a.click()
       URL.revokeObjectURL(url)
-      message.success('菜单配置已导出')
+      message.success(translate('auto.b46d843492'))
     },
     importJSON: () => {
       const input = document.createElement('input')
@@ -331,10 +332,10 @@ export function useMenus({ mode = 'unit', unitId }: UseMenusOpts = {}) {
         if (!file) return
         try {
           const arr = JSON.parse(await file.text())
-          if (!Array.isArray(arr)) throw new Error('格式错误')
+          if (!Array.isArray(arr)) throw new Error(translate('auto.b8dbd7d3bf'))
           message.success(`准备导入 ${arr.length} 个菜单项`)
         } catch {
-          message.error('导入文件解析失败，请检查格式')
+          message.error(translate('auto.af1a5b55ab'))
         }
         e.target.value = ''
       }

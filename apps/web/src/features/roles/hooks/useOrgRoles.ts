@@ -2,6 +2,7 @@
 import { rolesApi, type Role } from '@/shared/api/endpoints/roles'
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 const ensureArray = <T>(input: any, fallback: T[] = []): T[] => (Array.isArray(input) ? input : fallback)
 const isOk = (r: any) => r?.success !== false && !r?.error
@@ -34,7 +35,7 @@ export function useOrgRoles(orgId?: number | null) {
         setPageSize(Number(data?.pageSize) || 10)
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载角色失败')
+        message.error(e?.message || translate('roles.message.load_failed'))
         setList([])
         setTotal(0)
       } finally {

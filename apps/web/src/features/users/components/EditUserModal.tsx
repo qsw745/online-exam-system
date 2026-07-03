@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react'
 import { Form, Input, Modal, Select, TreeSelect } from 'antd'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import UserFaceSection from './UserFaceSection'
+import { translate } from '@/shared/utils/i18n'
 const { Option } = Select
 
 // 转 TreeSelect 数据（只取有 id 的）
@@ -97,6 +99,7 @@ export const EditUserModal: React.FC<{
       }}
       onOk={handleOk}
       okText={t('app.confirm')}
+      cancelText={t('app.cancel')}
       width={720}
       // ⛳️ antd 新 API：用 destroyOnHidden 替代 destroyOnClose
       destroyOnHidden
@@ -137,9 +140,9 @@ export const EditUserModal: React.FC<{
 
           <Form.Item label={t('users.form.gender')} name="gender">
             <Select placeholder={t('users.form.gender_placeholder')}>
-              <Option value="男">{t('users.gender.male')}</Option>
-              <Option value="女">{t('users.gender.female')}</Option>
-              <Option value="保密">{t('users.gender.secret')}</Option>
+              <Option value={translate('users.gender.male')}>{t('users.gender.male')}</Option>
+              <Option value={translate('users.gender.female')}>{t('users.gender.female')}</Option>
+              <Option value={translate('users.gender.secret')}>{t('users.gender.secret')}</Option>
             </Select>
           </Form.Item>
 
@@ -170,6 +173,8 @@ export const EditUserModal: React.FC<{
           </Form.Item>
         </div>
       </Form>
+
+      {user?.id ? <UserFaceSection userId={user.id} /> : null}
     </Modal>
   )
 }

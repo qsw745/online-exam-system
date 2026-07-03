@@ -1,6 +1,8 @@
 import { Descriptions, Modal, Tag } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 export const ViewUserModal: React.FC<{
   open: boolean
@@ -12,11 +14,11 @@ export const ViewUserModal: React.FC<{
 
   return (
     <Modal
-      title="用户详情"
+      title={translate('auto.4e1056fe95')}
       open={open}
       onCancel={onClose}
       onOk={onClose}
-      okText="关闭"
+      okText={translate('app.close')}
       cancelButtonProps={{ style: { display: 'none' } }}
       // antd v5 正确写法是 destroyOnHidden
       // destroyOnHidden
@@ -27,16 +29,16 @@ export const ViewUserModal: React.FC<{
         // ⚠️ 新写法：用 styles 而不是 labelStyle
         styles={{ label: { width: 92 } }}
       >
-        <Descriptions.Item label="用户ID">{user?.id ?? '-'}</Descriptions.Item>
-        <Descriptions.Item label="用户名">{user?.username || '-'}</Descriptions.Item>
-        <Descriptions.Item label="邮箱">{user?.email || '-'}</Descriptions.Item>
-        <Descriptions.Item label="状态">
-          <Tag color={user?.status === 'active' ? 'green' : 'red'}>{user?.status === 'active' ? '正常' : '禁用'}</Tag>
+        <Descriptions.Item label={translate('aiLogs.user_id')}>{user?.id ?? '-'}</Descriptions.Item>
+        <Descriptions.Item label={translate('auth.username')}>{user?.username || '-'}</Descriptions.Item>
+        <Descriptions.Item label={translate('auth.email')}>{user?.email || '-'}</Descriptions.Item>
+        <Descriptions.Item label={translate('users.columns.status')}>
+          <Tag color={user?.status === 'active' ? 'green' : 'red'}>{user?.status === 'active' ? translate('examPage.proctor.status.ok') : translate('users.status.disable')}</Tag>
         </Descriptions.Item>
-        <Descriptions.Item label="角色">{user?.role || user?.roles?.join?.(', ') || '-'}</Descriptions.Item>
-        <Descriptions.Item label="机构路径">{orgPath || '—'}</Descriptions.Item>
-        <Descriptions.Item label="创建时间">
-          {createdAt ? dayjs(createdAt).format('YYYY-MM-DD HH:mm:ss') : '-'}
+        <Descriptions.Item label={translate('auth.role')}>{user?.role || user?.roles?.join?.(', ') || '-'}</Descriptions.Item>
+        <Descriptions.Item label={translate('auto.f4d801cba3')}>{orgPath || '—'}</Descriptions.Item>
+        <Descriptions.Item label={translate('users.columns.created_at')}>
+          {createdAt ? formatDateTime(createdAt) : '-'}
         </Descriptions.Item>
       </Descriptions>
     </Modal>

@@ -11,6 +11,7 @@ import { useDataAnalytics } from '@/shared/hooks/useDataAnalytics'
 import { App } from 'antd'
 import { BarChart3 } from 'lucide-react'
 import React, { useEffect } from 'react'
+import { translate } from '@/shared/utils/i18n'
 const DataAnalyticsPage: React.FC = () => {
   const { message } = App.useApp()
   const [period, setPeriod] = React.useState<Period>('7d')
@@ -18,12 +19,12 @@ const DataAnalyticsPage: React.FC = () => {
   const { overview, knowledgePoints, difficulty, activity, isLoading, error, refetchAll } = useDataAnalytics(period)
 
   useEffect(() => {
-    if (error) message.error(error.message || '获取数据分析失败')
+    if (error) message.error(error.message || translate('auto.ccc24fc139'))
   }, [error, message])
 
   // 初次或切换 period 时的加载
   if (isLoading && !overview) {
-    return <LoadingSpinner text="加载数据分析..." />
+    return <LoadingSpinner text={translate('visible.fb9a52af23')} />
   }
 
   const ov = overview || { totalUsers: 0, activeUsers: 0, totalSubmissions: 0, averageScore: 0 }
@@ -35,8 +36,8 @@ const DataAnalyticsPage: React.FC = () => {
       <div className="flex items-center space-x-3">
         <BarChart3 className="w-6 h-6 text-blue-600" />
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">数据分析</h1>
-          <p className="text-gray-600 mt-1">查看系统使用情况和学习效果分析</p>
+          <h1 className="text-2xl font-bold text-gray-900">{translate('menus.analytics')}</h1>
+          <p className="text-gray-600 mt-1">{translate('auto.3b88873ffa')}</p>
         </div>
       </div>
       {/* 显式刷新按钮 */}

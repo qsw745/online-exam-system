@@ -5,6 +5,8 @@ import { EyeOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import type { StudentResult } from '@/shared/types/grades'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Props = {
   results: StudentResult[]
@@ -28,18 +30,18 @@ export const GradeTable: React.FC<Props> = ({
   const columns: ColumnsType<StudentResult> = useMemo(
     () => [
       {
-        title: '学生信息',
+        title: translate('auto.7f77243a0b'),
         key: 'student',
         render: (_, r) => (
           <Space direction="vertical" size={0}>
-            <Text strong>{r.student_name || '未知学生'}</Text>
+            <Text strong>{r.student_name || translate('visible.24b1d68f6d')}</Text>
             <Text type="secondary">{r.student_email}</Text>
           </Space>
         ),
       },
-      { title: '试卷', dataIndex: 'paper_title', ellipsis: true },
+      { title: translate('papers.col_paper'), dataIndex: 'paper_title', ellipsis: true },
       {
-        title: '成绩',
+        title: translate('nav.results'),
         key: 'score',
         render: (_, r) => {
           const pct =
@@ -59,31 +61,30 @@ export const GradeTable: React.FC<Props> = ({
         },
       },
       {
-        title: '用时',
+        title: translate('results.time_spent'),
         key: 'duration',
         width: 120,
         render: (_, r) => (r.duration ? `${Math.floor(r.duration / 60)}分${r.duration % 60}秒` : '-'),
       },
       {
-        title: '状态',
+        title: translate('users.columns.status'),
         dataIndex: 'status',
         width: 120,
         render: (s: string) => <Tag color={statusTagColor(s)}>{statusLabel(s)}</Tag>,
       },
       {
-        title: '提交时间',
+        title: translate('dashboard.submit_time'),
         dataIndex: 'created_at',
         width: 200,
-        render: (v: string) => (v ? dayjs(v).format('YYYY/MM/DD HH:mm:ss') : '-'),
+        render: (v: string) => (v ? formatDateTime(v) : '-'),
       },
       {
-        title: '操作',
+        title: translate('users.columns.actions'),
         key: 'action',
         width: 120,
         render: (_, r) => (
           <Button type="link" icon={<EyeOutlined />} onClick={() => onView?.(r)}>
-            查看详情
-          </Button>
+            {translate('results.review')}</Button>
         ),
       },
     ],

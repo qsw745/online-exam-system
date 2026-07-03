@@ -281,6 +281,7 @@ function IconButton({
 
 /* =============== 搜索面板（命令面板） =============== */
 function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useLanguage()
   const { menus } = useMenuPermissions()
   const { addOrActivate } = useTabs()
   const entries = useMemo(() => flattenMenus(menus), [menus])
@@ -425,7 +426,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
           <Input
             ref={inputRef as any}
             variant="borderless"
-            placeholder="搜索菜单（支持拼音）"
+            placeholder={t('header.search_placeholder')}
             value={q}
             onChange={e => {
               setQ(e.target.value)
@@ -460,7 +461,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
       <div style={{ maxHeight: 420, overflowY: 'auto', padding: 12 }}>
         {q.trim() ? (
           results.length === 0 ? (
-            <div style={{ padding: '24px 16px', color: 'var(--app-colorTextSecondary, #6b7280)' }}>没有匹配结果</div>
+            <div style={{ padding: '24px 16px', color: 'var(--app-colorTextSecondary, #6b7280)' }}>{t('header.no_match')}</div>
           ) : (
             <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               {results.map((r, idx) => (
@@ -494,7 +495,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
             {favEntries.length > 0 && (
               <>
                 <div style={{ fontSize: 13, color: 'var(--app-colorTextTertiary, #888)', padding: '4px 4px 8px' }}>
-                  收藏
+                  {t('header.favorites')}
                 </div>
                 <ul style={{ listStyle: 'none', margin: 0, padding: 0, marginBottom: 8 }}>
                   {favEntries.map((r, idx) => (
@@ -524,7 +525,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                               e.stopPropagation()
                               toggleFav(r)
                             }}
-                            title="取消收藏"
+                            title={t('header.unfavorite')}
                             style={{ fontSize: 14, opacity: 0.95 }}
                           >
                             ★
@@ -538,11 +539,11 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
             )}
 
             <div style={{ fontSize: 13, color: 'var(--app-colorTextTertiary, #888)', padding: '4px 4px 8px' }}>
-              搜索历史
+              {t('header.search_history')}
             </div>
             {historyEntries.length === 0 ? (
               <div style={{ padding: '12px 14px', color: 'var(--app-colorTextSecondary, #6b7280)' }}>
-                暂无历史，试着输入关键字…
+                {t('header.no_history')}
               </div>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
@@ -575,7 +576,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                               e.stopPropagation()
                               toggleFav(r)
                             }}
-                            title={favs.includes(r.path) ? '取消收藏' : '收藏'}
+                            title={favs.includes(r.path) ? t('header.unfavorite') : t('header.favorite')}
                             style={{ fontSize: 14, opacity: 0.95 }}
                           >
                             {favs.includes(r.path) ? '★' : '☆'}
@@ -585,7 +586,7 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
                               e.stopPropagation()
                               removeHistory(r.path)
                             }}
-                            title="移除"
+                            title={t('header.remove')}
                             style={{ fontSize: 16, lineHeight: 1, opacity: 0.6 }}
                           >
                             ×
@@ -613,13 +614,13 @@ function SearchPalette({ open, onClose }: { open: boolean; onClose: () => void }
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Kbd>↵</Kbd> 确认
+          <Kbd>↵</Kbd> {t('header.kbd_enter')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Kbd>↑</Kbd> <Kbd>↓</Kbd> 切换
+          <Kbd>↑</Kbd> <Kbd>↓</Kbd> {t('header.kbd_switch')}
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Kbd>ESC</Kbd> 关闭
+          <Kbd>ESC</Kbd> {t('header.kbd_close')}
         </div>
       </div>
     </Modal>
@@ -645,11 +646,12 @@ function UserBadge({
   onGoSettings: () => void
   onLogout: () => void
 }) {
+  const { t } = useLanguage()
   const name = getDisplayName(user)
   const items: MenuProps['items'] = [
-    { key: 'settings', icon: <Settings size={16} />, label: '账户设置' },
+    { key: 'settings', icon: <Settings size={16} />, label: t('header.account_settings') },
     { type: 'divider' as const },
-    { key: 'logout', icon: <LogOut size={16} />, label: '退出登录', danger: true },
+    { key: 'logout', icon: <LogOut size={16} />, label: t('header.logout'), danger: true },
   ]
   return (
     <Dropdown
@@ -732,6 +734,7 @@ function extractFieldFromResult(result: unknown, field: string, fallback = 0): n
 }
 
 function useInbox() {
+  const { t } = useLanguage()
   const { message: antdMsg } = App.useApp()
 
   const [counts, setCounts] = useState<{ notice: number; message: number; todo: number }>({
@@ -806,7 +809,7 @@ function useInbox() {
         setLists(s => ({ ...s, todo: normalizeTodo(arr) }))
       }
     } catch (e: any) {
-      antdMsg.error(e?.message || '加载失败')
+      antdMsg.error(e?.message || t('common.load_failed'))
     } finally {
       setLoading(s => ({ ...s, [tab]: false }))
     }
@@ -842,6 +845,7 @@ function useInbox() {
 }
 
 function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
+  const { t } = useLanguage()
   const navigate = useNavigate()
   const { counts, lists, loading, loadCounts, loadList, markNoticeRead, markMessageRead, markTodoDone } = useInbox()
   const totalBadge = counts.notice + counts.message + counts.todo
@@ -888,7 +892,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
       )
     }
     if (!data || data.length === 0) {
-      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无数据" style={{ padding: '24px 0' }} />
+      return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={t('common.no_data')} style={{ padding: '24px 0' }} />
     }
     return (
       <div>
@@ -901,7 +905,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
               : tab === 'message'
               ? () => markMessageRead(item.id)
               : () => markTodoDone(item.id)
-          const actionText = tab === 'todo' ? (item.done ? '已完成' : '标记完成') : item.read ? '已读' : '设为已读'
+          const actionText = tab === 'todo' ? (item.done ? t('header.done') : t('header.mark_done')) : item.read ? t('header.read') : t('header.mark_read')
           return (
             <div
               key={item.id}
@@ -926,7 +930,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                   }}
                 >
                   <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--app-colorText)' }}>
-                    {item.title || '(无标题)'}
+                    {item.title || t('header.untitled')}
                   </div>
                   {item.content && (
                     <div style={{ marginTop: 4, fontSize: 13, color: 'var(--app-colorTextSecondary)' }}>
@@ -934,7 +938,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                     </div>
                   )}
                   {todoTarget && (
-                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--app-colorPrimary)' }}>点击查看详情</div>
+                    <div style={{ marginTop: 6, fontSize: 12, color: 'var(--app-colorPrimary)' }}>{t('header.view_detail')}</div>
                   )}
                 </div>
                 <button
@@ -967,7 +971,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
     <div style={{ position: 'relative' }} ref={ref}>
       <Badge count={totalBadge} size="small" offset={[-6, 6]}>
         <span>
-          <IconButton title="通知" aria-label="通知" onClick={() => setOpen(s => !s)} themeMode={themeMode}>
+          <IconButton title={t('header.notifications')} aria-label={t('header.notifications')} onClick={() => setOpen(s => !s)} themeMode={themeMode}>
             <Bell />
           </IconButton>
         </span>
@@ -989,7 +993,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
           }}
         >
           <div style={{ padding: 12, borderBottom: '1px solid var(--app-colorSplit, rgba(0,0,0,.06))' }}>
-            <strong style={{ fontSize: 14 }}>通知中心</strong>
+            <strong style={{ fontSize: 14 }}>{t('header.notification_center')}</strong>
           </div>
 
           <div style={{ padding: '0 12px 12px' }}>
@@ -1001,7 +1005,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                   key: 'notice',
                   label: (
                     <span>
-                      通知 <Badge count={counts.notice} size="small" style={{ marginLeft: 6 }} />
+                      {t('header.tab_notice')} <Badge count={counts.notice} size="small" style={{ marginLeft: 6 }} />
                     </span>
                   ),
                   children: renderList('notice'),
@@ -1010,7 +1014,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                   key: 'message',
                   label: (
                     <span>
-                      消息 <Badge count={counts.message} size="small" style={{ marginLeft: 6 }} />
+                      {t('header.tab_message')} <Badge count={counts.message} size="small" style={{ marginLeft: 6 }} />
                     </span>
                   ),
                   children: renderList('message'),
@@ -1019,7 +1023,7 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
                   key: 'todo',
                   label: (
                     <span>
-                      待办 <Badge count={counts.todo} size="small" style={{ marginLeft: 6 }} />
+                      {t('header.tab_todo')} <Badge count={counts.todo} size="small" style={{ marginLeft: 6 }} />
                     </span>
                   ),
                   children: renderList('todo'),
@@ -1043,7 +1047,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
 
   const { mode, collapsed, showBrand } = useLayout()
   const { mode: themeMode, toggle } = useTheme()
-  const { language, setLanguage } = useLanguage()
+  const { language, setLanguage, t } = useLanguage()
 
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -1100,7 +1104,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       navigate('/login')
     } catch (error) {
       console.error('退出登录错误:', error)
-      message.error('退出登录失败')
+      message.error(t('header.logout_failed'))
     }
   }
 
@@ -1113,7 +1117,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
       key: 'zh-CN',
       label: (
         <span style={{ fontSize: 14, fontWeight: language === 'zh-CN' ? 600 : 400 }}>
-          {language === 'zh-CN' ? '✓ ' : ''}简体中文
+          {language === 'zh-CN' ? '✓ ' : ''}{t('language.zh-CN')}
         </span>
       ),
     },
@@ -1181,7 +1185,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                   ;(e.currentTarget as HTMLImageElement).style.display = 'none'
                 }}
               />
-              在线考试系统
+              {t('app.title')}
             </a>
           ) : null}
 
@@ -1196,8 +1200,8 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         <nav style={{ display: 'grid', gridAutoFlow: 'column', alignItems: 'center', gap: 12 }}>
           <IconButton
             themeMode={themeMode}
-            title="搜索 (Ctrl/⌘+K)"
-            aria-label="搜索"
+            title={t('header.search_tooltip')}
+            aria-label={t('app.search')}
             onClick={() => setSearchOpen(true)}
           >
             <SearchIcon />
@@ -1211,31 +1215,31 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
             }}
           >
             <span>
-              <IconButton themeMode={themeMode} title="语言 / Language" aria-label="语言切换">
+              <IconButton themeMode={themeMode} title={t('header.language')} aria-label={t('header.language')}>
                 <Languages />
               </IconButton>
             </span>
           </Dropdown>
           <IconButton
             themeMode={themeMode}
-            title={isFullscreen ? '退出全屏 (Esc)' : '全屏'}
-            aria-label={isFullscreen ? '退出全屏' : '全屏'}
+            title={isFullscreen ? t('header.exit_fullscreen_esc') : t('header.fullscreen')}
+            aria-label={isFullscreen ? t('header.exit_fullscreen') : t('header.fullscreen')}
             onClick={toggleFullscreen}
           >
             {isFullscreen ? <Minimize2 /> : <Maximize2 />}
           </IconButton>
           <IconButton
             themeMode={themeMode}
-            title={themeMode === 'dark' ? '切换到浅色' : '切换到深色'}
-            aria-label={themeMode === 'dark' ? '切换到浅色' : '切换到深色'}
+            title={themeMode === 'dark' ? t('header.theme_to_light') : t('header.theme_to_dark')}
+            aria-label={themeMode === 'dark' ? t('header.theme_to_light') : t('header.theme_to_dark')}
             onClick={toggle}
           >
             {themeMode === 'dark' ? <Sun /> : <Moon />}
           </IconButton>
           <IconButton
             themeMode={themeMode}
-            title="系统配置"
-            aria-label="系统配置"
+            title={t('layout.title')}
+            aria-label={t('layout.title')}
             onClick={() => setSettingsOpen(true)}
           >
             <Settings />
@@ -1253,7 +1257,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                 await signOut()
                 navigate('/login')
               } catch (e) {
-                message.error('退出登录失败')
+                message.error(t('header.logout_failed'))
               }
             }}
           />

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
+import { translate } from '@/shared/utils/i18n'
 
 export type ExamListParams = {
   page?: number
@@ -43,7 +44,7 @@ export function useExams(initial: ExamListParams = { page: 1, limit: 10, status:
         setLimit(Number(payload?.limit ?? params.limit ?? 10))
       } catch (e) {
         console.error(e)
-        message.error('加载考试列表失败')
+        message.error(translate('auto.bf50e95ceb'))
         setItems([])
         setTotal(0)
       } finally {

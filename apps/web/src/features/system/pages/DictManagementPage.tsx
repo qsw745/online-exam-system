@@ -15,6 +15,7 @@ import {
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { Dictionary, DictItem } from '@/shared/api/endpoints/dicts'
 import { dictsApi } from '@/shared/api/endpoints/dicts'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Title, Text } = Typography
 
@@ -31,6 +32,7 @@ type ItemModalState = {
 
 export default function DictManagementPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [data, setData] = useState<Dictionary[]>([])
   const [loading, setLoading] = useState(false)
   const [dictModal, setDictModal] = useState<DictModalState>({ open: false })
@@ -44,11 +46,11 @@ export default function DictManagementPage() {
       const list = await dictsApi.list()
       setData(list)
     } catch (e: any) {
-      message.error(e?.message || '加载字典失败')
+      message.error(e?.message || t('dict.load_failed'))
     } finally {
       setLoading(false)
     }
-  }, [message])
+  }, [message, t])
 
   useEffect(() => {
     fetchData()
@@ -59,16 +61,16 @@ export default function DictManagementPage() {
     try {
       if (dictModal.editing) {
         await dictsApi.update(dictModal.editing.id, values)
-        message.success('更新字典成功')
+        message.success(t('dict.update_success'))
       } else {
         await dictsApi.create(values as any)
-        message.success('创建字典成功')
+        message.success(t('dict.create_success'))
       }
       setDictModal({ open: false })
       dictForm.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('dict.save_failed'))
     }
   }
 
@@ -78,29 +80,29 @@ export default function DictManagementPage() {
     try {
       if (itemModal.editing) {
         await dictsApi.updateItem(itemModal.dict.id, itemModal.editing.id, values)
-        message.success('更新条目成功')
+        message.success(t('dict.item_update_success'))
       } else {
         await dictsApi.createItem(itemModal.dict.id, values)
-        message.success('创建条目成功')
+        message.success(t('dict.item_create_success'))
       }
       setItemModal({ open: false })
       itemForm.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('dict.save_failed'))
     }
   }
 
   const dictColumns = [
-    { title: '编码', dataIndex: 'code', key: 'code' },
-    { title: '名称', dataIndex: 'name', key: 'name' },
+    { title: t('dict.col_code'), dataIndex: 'code', key: 'code' },
+    { title: t('dict.col_name'), dataIndex: 'name', key: 'name' },
     {
-      title: '状态',
+      title: t('dict.col_status'),
       key: 'enabled',
-      render: (_: any, record: Dictionary) => (record.enabled ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag>),
+      render: (_: any, record: Dictionary) => (record.enabled ? <Tag color="green">{t('dict.enabled')}</Tag> : <Tag color="red">{t('dict.disabled')}</Tag>),
     },
     {
-      title: '操作',
+      title: t('dict.col_action'),
       key: 'actions',
       render: (_: any, record: Dictionary) => (
         <Space>
@@ -111,7 +113,7 @@ export default function DictManagementPage() {
               dictForm.setFieldsValue(record)
             }}
           >
-            编辑
+            {t('app.edit')}
           </Button>
           <Button
             type="link"
@@ -120,7 +122,7 @@ export default function DictManagementPage() {
               itemForm.setFieldsValue({})
             }}
           >
-            新增条目
+            {t('dict.add_item')}
           </Button>
         </Space>
       ),
@@ -133,9 +135,9 @@ export default function DictManagementPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              字典管理
+              {t('dict.title')}
             </Title>
-            <Text type="secondary">维护系统通用的字典及其条目</Text>
+            <Text type="secondary">{t('dict.description')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData} />
@@ -147,7 +149,7 @@ export default function DictManagementPage() {
                 dictForm.resetFields()
               }}
             >
-              新增字典
+              {t('dict.add_dict')}
             </Button>
           </Space>
         </Space>
@@ -164,16 +166,16 @@ export default function DictManagementPage() {
                 size="small"
                 rowKey="id"
                 columns={[
-                  { title: '标签', dataIndex: 'label', key: 'label' },
-                  { title: '值', dataIndex: 'value', key: 'value' },
+                  { title: t('dict.col_label'), dataIndex: 'label', key: 'label' },
+                  { title: t('dict.col_value'), dataIndex: 'value', key: 'value' },
                   {
-                    title: '状态',
+                    title: t('dict.col_status'),
                     dataIndex: 'enabled',
                     key: 'enabled',
-                    render: (enabled: boolean) => (enabled ? <Tag color="green">启用</Tag> : <Tag color="red">停用</Tag>),
+                    render: (enabled: boolean) => (enabled ? <Tag color="green">{t('dict.enabled')}</Tag> : <Tag color="red">{t('dict.disabled')}</Tag>),
                   },
                   {
-                    title: '操作',
+                    title: t('dict.col_action'),
                     key: 'action',
                     render: (_: any, record: DictItem) => (
                       <Button
@@ -183,7 +185,7 @@ export default function DictManagementPage() {
                           itemForm.setFieldsValue(record)
                         }}
                       >
-                        编辑
+                        {t('app.edit')}
                       </Button>
                     ),
                   },
@@ -197,46 +199,46 @@ export default function DictManagementPage() {
       </Card>
 
       <Modal
-        title={dictModal.editing ? '编辑字典' : '新增字典'}
+        title={dictModal.editing ? t('dict.edit_dict') : t('dict.add_dict')}
         open={dictModal.open}
         onCancel={() => setDictModal({ open: false })}
         onOk={handleSaveDict}
         destroyOnClose
       >
         <Form layout="vertical" form={dictForm} preserve={false}>
-          <Form.Item label="编码" name="code" rules={[{ required: true, message: '请输入编码' }]}>
-            <Input placeholder="例如 gender" maxLength={50} />
+          <Form.Item label={t('dict.code')} name="code" rules={[{ required: true, message: t('dict.code_required') }]}>
+            <Input placeholder={t('dict.code_placeholder')} maxLength={50} />
           </Form.Item>
-          <Form.Item label="名称" name="name" rules={[{ required: true, message: '请输入名称' }]}>
-            <Input placeholder="显示名称" />
+          <Form.Item label={t('dict.name')} name="name" rules={[{ required: true, message: t('dict.name_required') }]}>
+            <Input placeholder={t('dict.name_placeholder')} />
           </Form.Item>
-          <Form.Item label="描述" name="description">
+          <Form.Item label={t('dict.description_label')} name="description">
             <Input.TextArea rows={2} />
           </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+          <Form.Item label={t('dict.enabled')} name="enabled" valuePropName="checked" initialValue>
             <Switch />
           </Form.Item>
         </Form>
       </Modal>
 
       <Modal
-        title={itemModal.editing ? '编辑条目' : `新增条目 - ${itemModal.dict?.name || ''}`}
+        title={itemModal.editing ? t('dict.edit_item') : t('dict.add_item_for').replace('{name}', itemModal.dict?.name || '')}
         open={itemModal.open}
         onCancel={() => setItemModal({ open: false })}
         onOk={handleSaveItem}
         destroyOnClose
       >
         <Form layout="vertical" form={itemForm} preserve={false}>
-          <Form.Item label="标签" name="label" rules={[{ required: true, message: '请输入标签' }]}>
+          <Form.Item label={t('dict.label')} name="label" rules={[{ required: true, message: t('dict.label_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="值" name="value" rules={[{ required: true, message: '请输入值' }]}>
+          <Form.Item label={t('dict.value')} name="value" rules={[{ required: true, message: t('dict.value_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="标记" name="tag">
+          <Form.Item label={t('dict.tag')} name="tag">
             <Input />
           </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+          <Form.Item label={t('dict.enabled')} name="enabled" valuePropName="checked" initialValue>
             <Switch />
           </Form.Item>
         </Form>

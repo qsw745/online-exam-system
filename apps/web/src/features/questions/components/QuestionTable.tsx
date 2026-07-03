@@ -3,6 +3,8 @@ import { Button, Space, Table, Tag, Tooltip } from 'antd'
 import type { TablePaginationConfig } from 'antd/es/table'
 import { Edit, Eye, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 export type Question = {
   id: string
@@ -29,11 +31,12 @@ export default function QuestionTable({
   onDeleteClick: (q: Question) => void
 }) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
 
   const columns = useMemo(
     () => [
       {
-        title: '题目内容',
+        title: t('questions.col_content'),
         dataIndex: 'content',
         ellipsis: { showTitle: false },
         render: (text: string) => (
@@ -43,22 +46,22 @@ export default function QuestionTable({
         ),
       },
       {
-        title: '题目类型',
+        title: t('questions.col_type'),
         dataIndex: 'question_type',
         width: 120,
         render: (type: Question['question_type']) => {
           const map = {
-            single_choice: { color: 'blue', text: '单选题' },
-            multiple_choice: { color: 'green', text: '多选题' },
-            true_false: { color: 'orange', text: '判断题' },
-            short_answer: { color: 'purple', text: '简答题' },
+            single_choice: { color: 'blue', text: t('questions.type_single') },
+            multiple_choice: { color: 'green', text: t('questions.type_multiple') },
+            true_false: { color: 'orange', text: t('questions.type_true_false') },
+            short_answer: { color: 'purple', text: t('questions.type_short') },
           } as const
           const cfg = (map as any)[type] || { color: 'default', text: type }
           return <Tag color={cfg.color as any}>{cfg.text}</Tag>
         },
       },
       {
-        title: '标签',
+        title: t('questions.col_tags'),
         dataIndex: 'tags',
         width: 240,
         render: (tags: string[]) => (
@@ -81,7 +84,7 @@ export default function QuestionTable({
         ),
       },
       {
-        title: '知识点',
+        title: t('questions.col_knowledge'),
         dataIndex: 'knowledge_points',
         width: 220,
         render: (points: string[]) => (
@@ -104,13 +107,13 @@ export default function QuestionTable({
         ),
       },
       {
-        title: '创建时间',
+        title: t('questions.col_created_at'),
         dataIndex: 'created_at',
         width: 180,
-        render: (d: string | number | Date) => (d ? new Date(d).toLocaleString('zh-CN') : '-'),
+        render: (d: string | number | Date) => (d ? formatDateTime(d) : '-'),
       },
       {
-        title: '操作',
+        title: t('questions.col_actions'),
         width: 150,
         render: (_: any, record: Question) => (
           <Space size="small">
@@ -129,7 +132,7 @@ export default function QuestionTable({
         ),
       },
     ],
-    [navigate, onDeleteClick]
+    [navigate, onDeleteClick, t]
   )
 
   return (
@@ -143,7 +146,7 @@ export default function QuestionTable({
       locale={{
         emptyText: (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
-            <span style={{ color: '#999' }}>暂无题目</span>
+            <span style={{ color: '#999' }}>{t('questions.empty')}</span>
           </div>
         ),
       }}

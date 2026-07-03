@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Spin, Empty } from 'antd'
 import { useResultDetail } from '../hooks/useResultDetail'
 import ResultDetailView from '../components/ResultDetailView'
+import { translate } from '@/shared/utils/i18n'
 
 export default function ResultDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -11,13 +12,13 @@ export default function ResultDetailPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <Spin size="large" tip="加载详情..." />
+        <Spin size="large" tip={translate('visible.045f900a1b')} />
       </div>
     )
   }
 
   if (!data) {
-    return <Empty description="未找到该考试结果" />
+    return <Empty description={translate('auto.602c040cc7')} />
   }
 
   return <ResultDetailView data={data} onBack={() => navigate('/exam/results')} />

@@ -2,6 +2,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { smartPaperApi, type Question, type SmartPaperConfig } from '@/shared/api/endpoints/smartPaper'
+import { translate } from '@/shared/utils/i18n'
 
 export type Step = 'config' | 'preview'
 
@@ -122,14 +123,14 @@ export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
         setQuestions(result.questions || [])
         setStep('preview')
         if ((result.questions || []).length) {
-          message.success('智能组卷成功，已生成预览！')
+          message.success(translate('auto.136ceea504'))
         } else {
-          message.warning('没有生成题目，请调整筛选条件后重试')
+          message.warning(translate('auto.de14c58e63'))
         }
         return { status: 'ok', mode: 'preview' }
       } else {
         // 直接创建成功，由上层决定跳到详情页
-        message.success('智能组卷成功，试卷已创建！')
+        message.success(translate('auto.25482b413f'))
         return {
           status: 'ok',
           mode: 'created',
@@ -169,7 +170,7 @@ export function useSmartPaper(initial?: Partial<SmartPaperConfig>) {
         const resp = await smartPaperApi.createWithQuestions(payload)
         const ok = (resp as any)?.success ?? ((resp as any)?.status >= 200 && (resp as any)?.status < 300)
         if (!ok) throw new Error((resp as any)?.message || '创建试卷失败')
-        message.success('试卷创建成功！')
+        message.success(translate('auto.1463eb8757'))
         onOk?.()
       } catch (e: any) {
         const msg = e?.response?.data?.message || e?.response?.data?.error || e?.message || '创建试卷失败'

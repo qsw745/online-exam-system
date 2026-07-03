@@ -22,6 +22,7 @@ import { AlertTriangle, Clock, Flag, Send } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import dayjs from '@/shared/utils/dayjs'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import { useAiProctoring, type ProctoringConfig } from '@/features/exams/hooks/useAiProctoring'
@@ -60,11 +61,12 @@ type ExamPayload = {
 
 const { Title, Text, Paragraph } = Typography
 const { TextArea } = Input
-const antiCheatLabels: Record<AntiCheatConfig['level'], string> = {
-  none: '关闭',
-  basic: '基础',
-  strict: '严格',
-}
+type TranslateFn = (key: string, fallback?: string) => string
+
+const formatText = (template: string, values: Record<string, string | number | null | undefined> = {}) =>
+  Object.entries(values).reduce((next, [key, value]) => next.replaceAll(`{${key}}`, String(value ?? '')), template)
+
+const antiCheatLabel = (level: AntiCheatConfig['level'], t: TranslateFn) => t(`examPage.antiCheat.${level}`, level)
 
 const letter = (i: number) => String.fromCharCode(65 + i)
 const isSingle = (t: string) => ['single', 'single_choice'].includes(t?.toLowerCase())
@@ -72,8 +74,8 @@ const isMulti = (t: string) => ['multiple', 'multiple_choice'].includes(t?.toLow
 const isTF = (t: string) => ['true_false', 'judge', 'tf'].includes(t?.toLowerCase())
 const isShort = (t: string) => ['short', 'short_answer', 'essay', 'text', 'fill_blank'].includes(t?.toLowerCase())
 
-function ensureTfOptions(q: Question) {
-  if (isTF(q.type)) return ['正确', '错误']
+function ensureTfOptions(q: Question, t: TranslateFn) {
+  if (isTF(q.type)) return [t('examPage.true'), t('examPage.false')]
   return Array.isArray(q.options) ? q.options : []
 }
 
@@ -105,12 +107,13 @@ function buildAnswerValue(q: Question, val: any) {
 
 /** 题型显示标签 */
 function TypeTag({ type }: { type: string }) {
-  const t = type.toLowerCase()
-  if (isSingle(t)) return <Tag color="blue">单选题</Tag>
-  if (isMulti(t)) return <Tag color="purple">多选题</Tag>
-  if (isTF(t)) return <Tag color="green">判断题</Tag>
-  if (isShort(t)) return <Tag color="gold">主观题</Tag>
-  return <Tag>题目</Tag>
+  const { t } = useLanguage()
+  const normalized = type.toLowerCase()
+  if (isSingle(normalized)) return <Tag color="blue">{t('questions.type_single')}</Tag>
+  if (isMulti(normalized)) return <Tag color="purple">{t('questions.type_multiple')}</Tag>
+  if (isTF(normalized)) return <Tag color="green">{t('questions.type_true_false')}</Tag>
+  if (isShort(normalized)) return <Tag color="gold">{t('questions.type_short')}</Tag>
+  return <Tag>{t('examPage.question')}</Tag>
 }
 
 export default function ExamPage() {
@@ -119,6 +122,7 @@ export default function ExamPage() {
   const location = useLocation() as any
   const navigate = useNavigate()
   const { message } = App.useApp()
+  const { t } = useLanguage()
 
   const [loading, setLoading] = React.useState(true)
   const [submitting, setSubmitting] = React.useState(false)
@@ -127,7 +131,7 @@ export default function ExamPage() {
     if (s && typeof s === 'object' && Array.isArray(s.questions) && s.examId) {
       s.questions = (s.questions as Question[]).map(q => ({
         ...q,
-        options: isTF(q.type) ? ['正确', '错误'] : Array.isArray(q.options) ? q.options : q.options ?? [],
+        options: isTF(q.type) ? ensureTfOptions(q, t) : Array.isArray(q.options) ? q.options : q.options ?? [],
       }))
       return s as ExamPayload
     }
@@ -147,21 +151,21 @@ export default function ExamPage() {
         if (!exam) {
           const res: any = await tasksApi.startExam(id)
           if (!alive) return
-          if (!isSuccess(res)) throw new Error(res?.message || '加载试卷失败')
+          if (!isSuccess(res)) throw new Error(res?.message || t('examPage.messages.load_failed'))
           const data = (res.data ?? res) as ExamPayload
           data.questions = (data.questions || []).map(q => ({
             ...q,
-            options: isTF(q.type) ? ['正确', '错误'] : Array.isArray(q.options) ? q.options : q.options ?? null,
+            options: isTF(q.type) ? ensureTfOptions(q, t) : Array.isArray(q.options) ? q.options : q.options ?? null,
           }))
           setExam(data)
           if (data.status === 'submitted') {
-            message.info('本场考试已提交，正在打开成绩页…')
+            message.info(t('examPage.messages.already_submitted'))
             navigate(`/results/${data.examId}`, { replace: true })
             return
           }
         }
       } catch (e: any) {
-        message.error(e?.message || '加载试卷失败')
+        message.error(e?.message || t('examPage.messages.load_failed'))
       } finally {
         if (alive) setLoading(false)
       }
@@ -228,10 +232,10 @@ export default function ExamPage() {
       if (!auto) {
         const ok = await new Promise<boolean>(resolve => {
           Modal.confirm({
-            title: '确认提交',
-            content: `已作答 ${answeredCount}/${total} 题，确认提交吗？`,
-            okText: '提交',
-            cancelText: '再检查下',
+            title: t('examPage.submit_confirm.title'),
+            content: formatText(t('examPage.submit_confirm.content'), { answered: answeredCount, total }),
+            okText: t('app.submit'),
+            cancelText: t('examPage.submit_confirm.cancel'),
             onOk: () => resolve(true),
             onCancel: () => resolve(false),
           })
@@ -247,11 +251,11 @@ export default function ExamPage() {
         answers,
         time_spent: timeSpent,
       })
-      if (!isSuccess(res)) throw new Error(res?.message || '提交失败')
-      if (!auto) message.success('提交成功')
+      if (!isSuccess(res)) throw new Error(res?.message || t('examPage.messages.submit_failed'))
+      if (!auto) message.success(t('examPage.messages.submit_success'))
       navigate(`/results/${exam.examId}`)
     } catch (e: any) {
-      message.error(e?.message || '提交失败')
+      message.error(e?.message || t('examPage.messages.submit_failed'))
       if (auto) setTimeout(() => navigate('/dashboard'), 800)
     } finally {
       setSubmitting(false)
@@ -306,7 +310,7 @@ export default function ExamPage() {
       violationRef.current += 1
       setViolationCount(violationRef.current)
       const remaining = Math.max(0, limit - violationRef.current)
-      message.warning(`${reason}${remaining < Number.MAX_SAFE_INTEGER ? `（剩余 ${remaining} 次）` : ''}`)
+      message.warning(`${reason}${remaining < Number.MAX_SAFE_INTEGER ? formatText(t('examPage.violations.remaining'), { count: remaining }) : ''}`)
       reportProctorEvent({
         type,
         severity,
@@ -317,29 +321,29 @@ export default function ExamPage() {
         forcedRef.current = true
         if (antiCheat.autoSubmit) {
           Modal.warning({
-            title: '防作弊提醒',
-            content: '检测到多次离开考试页面，系统将自动提交试卷。',
-            okText: '立即提交',
+            title: t('examPage.antiCheat.warning_title'),
+            content: t('examPage.antiCheat.auto_submit_content'),
+            okText: t('examPage.submit_now'),
             centered: true,
             closable: false,
             maskClosable: false,
             onOk: () => doSubmitRef.current(true),
           })
         } else {
-          message.error('请立即回到考试页面，继续作答')
+          message.error(t('examPage.antiCheat.return_to_exam'))
         }
       }
     }
 
-    const handleBlur = () => handleViolation('检测到离开考试窗口', 'window_blur')
+    const handleBlur = () => handleViolation(t('examPage.violations.window_blur'), 'window_blur')
     const handleVisibility = () => {
-      if (document.hidden) handleViolation('检测到切换到其他标签', 'tab_hidden')
+      if (document.hidden) handleViolation(t('examPage.violations.tab_hidden'), 'tab_hidden')
     }
     const handleCopy = (e: ClipboardEvent) => {
       if (antiCheat.disableCopy) {
         e.preventDefault()
-        message.warning('考试期间禁止复制内容')
-        reportProctorEvent({ type: 'copy_blocked', severity: 'info', message: '检测到复制行为' })
+        message.warning(t('examPage.violations.copy_blocked'))
+        reportProctorEvent({ type: 'copy_blocked', severity: 'info', message: t('examPage.violations.copy_detected') })
       }
     }
     window.addEventListener('blur', handleBlur)
@@ -365,19 +369,19 @@ export default function ExamPage() {
   ])
 
   /** ---------------- UI 渲染 ---------------- */
-  if (loading) return <LoadingSpinner center="page" text="加载中…" />
+  if (loading) return <LoadingSpinner center="page" text={t('app.loading')} />
 
   if (!exam) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Result
           status="404"
-          title="试卷不存在"
-          subTitle="当前任务未找到试卷或数据无效。"
+          title={t('examPage.not_found.title')}
+          subTitle={t('examPage.not_found.subtitle')}
           icon={<AlertTriangle className="w-12 h-12 text-red-500" />}
           extra={
             <Button type="primary" onClick={() => navigate('/dashboard')}>
-              返回首页
+              {t('app.home')}
             </Button>
           }
         />
@@ -390,17 +394,17 @@ export default function ExamPage() {
   const percent = Math.max(0, Math.min(100, ((exam.duration * 60 - timeLeft) / (exam.duration * 60)) * 100))
   const statusLabel = (val: string) =>
     ({
-      init: '检测中',
-      ok: '正常',
-      off: '关闭',
-      denied: '未授权',
-      error: '异常',
-      unknown: '未知',
-      missing: '未检测到人脸',
-      multiple: '多人',
-      dark: '过暗',
-      quiet: '安静',
-      noisy: '有噪声',
+      init: t('examPage.proctor.status.init'),
+      ok: t('examPage.proctor.status.ok'),
+      off: t('examPage.proctor.status.off'),
+      denied: t('examPage.proctor.status.denied'),
+      error: t('examPage.proctor.status.error'),
+      unknown: t('examPage.proctor.status.unknown'),
+      missing: t('examPage.proctor.status.missing'),
+      multiple: t('examPage.proctor.status.multiple'),
+      dark: t('examPage.proctor.status.dark'),
+      quiet: t('examPage.proctor.status.quiet'),
+      noisy: t('examPage.proctor.status.noisy'),
     })[val] ?? val
   const statusColor = (val: string) => {
     if (val === 'ok' || val === 'quiet') return 'success'
@@ -424,10 +428,10 @@ export default function ExamPage() {
                 {exam.description ? <Text type="secondary">{exam.description}</Text> : null}
                 <Space size="small" wrap style={{ marginTop: 4 }}>
                   <Tag color={antiCheat.level === 'strict' ? 'red' : antiCheat.level === 'basic' ? 'orange' : 'default'}>
-                    防作弊：{antiCheatLabels[antiCheat.level]}
+                    {formatText(t('examPage.antiCheat.label'), { level: antiCheatLabel(antiCheat.level, t) })}
                   </Tag>
                   {antiCheat.level !== 'none' && Number.isFinite(antiCheat.maxSwitches) ? (
-                    <Text type="secondary">允许切换次数：{antiCheat.maxSwitches}</Text>
+                    <Text type="secondary">{formatText(t('examPage.antiCheat.allowed_switches'), { count: antiCheat.maxSwitches })}</Text>
                   ) : null}
                 </Space>
               </Space>
@@ -442,7 +446,7 @@ export default function ExamPage() {
                 </Space>
                 <Progress type="circle" size={44} percent={parseFloat(percent.toFixed(1))} />
                 <Button type="primary" icon={<Send size={16} />} onClick={() => doSubmit(false)} loading={submitting}>
-                  提交
+                  {t('app.submit')}
                 </Button>
               </Space>
             </Col>
@@ -456,13 +460,13 @@ export default function ExamPage() {
         {/* 左侧：题目列表 */}
         <Col xs={24} lg={17}>
           {exam.questions.length === 0 ? (
-            <Empty description="暂无题目" />
+            <Empty description={t('examPage.no_questions')} />
           ) : (
             <Space direction="vertical" size={16} style={{ width: '100%' }}>
               {exam.questions.map((q, idx) => {
                 const qno = idx + 1
                 const valueParsed = parseAnswerValue(q, answers[q.id])
-                const opts = isTF(q.type) ? ensureTfOptions(q) : Array.isArray(q.options) ? q.options : []
+                const opts = isTF(q.type) ? ensureTfOptions(q, t) : Array.isArray(q.options) ? q.options : []
 
                 return (
                   <Card
@@ -474,9 +478,9 @@ export default function ExamPage() {
                       <Row align="middle" justify="space-between">
                         <Col>
                           <Space size="small" wrap>
-                            <Text strong>第 {qno} 题</Text>
+                            <Text strong>{formatText(t('examPage.question_number'), { number: qno })}</Text>
                             <TypeTag type={q.type} />
-                            <Tag color="gold">{q.score} 分</Tag>
+                            <Tag color="gold">{formatText(t('examPage.score'), { score: q.score })}</Tag>
                           </Space>
                         </Col>
                         <Col>
@@ -486,7 +490,7 @@ export default function ExamPage() {
                             icon={<Flag size={16} color={flagged.has(q.id) ? '#faad14' : undefined} />}
                             onClick={() => toggleFlag(q.id)}
                           >
-                            {flagged.has(q.id) ? '已标记' : '标记'}
+                            {flagged.has(q.id) ? t('examPage.flagged') : t('examPage.flag')}
                           </Button>
                         </Col>
                       </Row>
@@ -501,7 +505,7 @@ export default function ExamPage() {
                       <TextArea
                         autoSize={{ minRows: 3, maxRows: 8 }}
                         value={valueParsed as string}
-                        placeholder="在此作答…"
+                        placeholder={t('examPage.answer_placeholder')}
                         onChange={e => setAnswer(q, e.target.value)}
                       />
                     ) : isMulti(q.type) ? (
@@ -556,7 +560,7 @@ export default function ExamPage() {
         <Col xs={24} lg={7} style={{ marginTop: 16 }}>
           <div style={{ position: 'sticky', top: 92 }}>
             {proctoring.enabled && (
-              <Card title="AI监管" style={{ borderRadius: 12, marginBottom: 16 }}>
+              <Card title={t('examPage.proctor.title')} style={{ borderRadius: 12, marginBottom: 16 }}>
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>
                   <div style={{ background: '#0f172a', borderRadius: 8, overflow: 'hidden' }}>
                     <video
@@ -565,21 +569,21 @@ export default function ExamPage() {
                     />
                   </div>
                   <Space size={[8, 8]} wrap>
-                    <Tag color={statusColor(proctorStatus.camera)}>摄像头：{statusLabel(proctorStatus.camera)}</Tag>
-                    <Tag color={statusColor(proctorStatus.mic)}>麦克风：{statusLabel(proctorStatus.mic)}</Tag>
-                    <Tag color={statusColor(proctorStatus.face)}>人脸：{statusLabel(proctorStatus.face)}</Tag>
-                    <Tag color={statusColor(proctorStatus.light)}>光线：{statusLabel(proctorStatus.light)}</Tag>
-                    <Tag color={statusColor(proctorStatus.audio)}>声音：{statusLabel(proctorStatus.audio)}</Tag>
+                    <Tag color={statusColor(proctorStatus.camera)}>{formatText(t('examPage.proctor.camera'), { status: statusLabel(proctorStatus.camera) })}</Tag>
+                    <Tag color={statusColor(proctorStatus.mic)}>{formatText(t('examPage.proctor.mic'), { status: statusLabel(proctorStatus.mic) })}</Tag>
+                    <Tag color={statusColor(proctorStatus.face)}>{formatText(t('examPage.proctor.face'), { status: statusLabel(proctorStatus.face) })}</Tag>
+                    <Tag color={statusColor(proctorStatus.light)}>{formatText(t('examPage.proctor.light'), { status: statusLabel(proctorStatus.light) })}</Tag>
+                    <Tag color={statusColor(proctorStatus.audio)}>{formatText(t('examPage.proctor.audio'), { status: statusLabel(proctorStatus.audio) })}</Tag>
                   </Space>
                   <Space size="small" wrap>
-                    <Text type="secondary">警告次数：{proctorStatus.warnings}</Text>
+                    <Text type="secondary">{formatText(t('examPage.proctor.warning_count'), { count: proctorStatus.warnings })}</Text>
                     <Button size="small" onClick={restartProctoring}>
-                      重新检测
+                      {t('examPage.proctor.restart')}
                     </Button>
                   </Space>
                   {proctorStatus.lastEvent && (
                     <Text type="secondary">
-                      最近：{proctorStatus.lastEvent.message || proctorStatus.lastEvent.type}
+                      {formatText(t('examPage.proctor.latest'), { event: proctorStatus.lastEvent.message || proctorStatus.lastEvent.type })}
                     </Text>
                   )}
                 </Space>
@@ -588,9 +592,9 @@ export default function ExamPage() {
             <Card
               title={
                 <Space>
-                  <Text strong>答题卡</Text>
+                  <Text strong>{t('examPage.answer_card')}</Text>
                   <Tag color="blue">
-                    已答 {answeredCount}/{total}
+                    {formatText(t('examPage.answered_count'), { answered: answeredCount, total })}
                   </Tag>
                 </Space>
               }
@@ -601,13 +605,14 @@ export default function ExamPage() {
                   type={antiCheat.level === 'strict' ? 'error' : 'warning'}
                   showIcon
                   style={{ marginBottom: 12 }}
-                  message={`防作弊模式：${antiCheatLabels[antiCheat.level]}`}
+                  message={formatText(t('examPage.antiCheat.mode'), { level: antiCheatLabel(antiCheat.level, t) })}
                   description={
                     Number.isFinite(antiCheat.maxSwitches)
-                      ? `已记录 ${violationCount} 次异常切换，达到 ${antiCheat.maxSwitches} 次${
-                          antiCheat.autoSubmit ? '将自动提交试卷' : '将被标记'
-                        }。`
-                      : '请保持考试窗口在最前，勿复制试题。'
+                      ? formatText(t(antiCheat.autoSubmit ? 'examPage.antiCheat.switch_auto_submit' : 'examPage.antiCheat.switch_marked'), {
+                          count: violationCount,
+                          limit: antiCheat.maxSwitches,
+                        })
+                      : t('examPage.antiCheat.keep_front')
                   }
                 />
               )}
@@ -625,7 +630,7 @@ export default function ExamPage() {
                         danger={mark}
                         onClick={() => scrollTo(q.id)}
                         style={{ borderRadius: 8, padding: 0, height: 32 }}
-                        title={mark ? '已标记' : undefined}
+                        title={mark ? t('examPage.flagged') : undefined}
                       >
                         {idx + 1}
                       </Button>
@@ -636,9 +641,9 @@ export default function ExamPage() {
 
               <Divider style={{ margin: '12px 0' }} />
               <Space wrap>
-                <Tag color="blue">已答</Tag>
-                <Tag>未答</Tag>
-                <Tag color="error">标记</Tag>
+                <Tag color="blue">{t('examPage.answered')}</Tag>
+                <Tag>{t('examPage.unanswered')}</Tag>
+                <Tag color="error">{t('examPage.flag')}</Tag>
               </Space>
 
               <Divider style={{ margin: '12px 0' }} />
@@ -649,7 +654,7 @@ export default function ExamPage() {
                 onClick={() => doSubmit(false)}
                 loading={submitting}
               >
-                提交答卷
+                {t('examPage.submit_paper')}
               </Button>
             </Card>
           </div>

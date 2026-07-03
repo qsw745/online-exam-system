@@ -1,5 +1,7 @@
 import { Card, Table, Tag } from 'antd'
 import React, { useMemo } from 'react'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 type Log = {
   id: number
@@ -19,7 +21,7 @@ export default function PushLogsPage() {
         channel: 'sms',
         target: '138****0001',
         status: 'failed',
-        message: '供应商限流',
+        message: translate('auto.846ef65a8b'),
         created_at: '2025-01-05 09:35',
       },
     ],
@@ -27,23 +29,23 @@ export default function PushLogsPage() {
   )
 
   return (
-    <Card title="推送日志">
+    <Card title={translate('menus.notify-log')}>
       <Table
         rowKey="id"
         dataSource={data}
         columns={[
           { title: 'ID', dataIndex: 'id', width: 80 },
-          { title: '渠道', dataIndex: 'channel', width: 120, render: v => <Tag>{String(v).toUpperCase()}</Tag> },
-          { title: '目标', dataIndex: 'target' },
+          { title: translate('auto.c152be9f50'), dataIndex: 'channel', width: 120, render: v => <Tag>{String(v).toUpperCase()}</Tag> },
+          { title: translate('auto.941f08313a'), dataIndex: 'target' },
           {
-            title: '状态',
+            title: translate('users.columns.status'),
             dataIndex: 'status',
             width: 120,
             render: (v: Log['status']) =>
-              v === 'success' ? <Tag color="green">成功</Tag> : <Tag color="red">失败</Tag>,
+              v === 'success' ? <Tag color="green">{translate('auto.51991a5d11')}</Tag> : <Tag color="red">{translate('auto.3e3c8068bb')}</Tag>,
           },
-          { title: '错误信息', dataIndex: 'message' },
-          { title: '时间', dataIndex: 'created_at', width: 200 },
+          { title: translate('auto.a38a81c9d5'), dataIndex: 'message' },
+          { title: translate('workflow.col_time'), dataIndex: 'created_at', width: 200, render: (v?: string) => (v ? formatDateTime(v) : '-') },
         ]}
       />
     </Card>

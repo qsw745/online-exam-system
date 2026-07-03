@@ -14,6 +14,10 @@ export const strongRulesSchema = z.object({
 export const settingsSchema = z.object({
   systemName: z.string().min(1).max(50),
   allowUserRegistration: z.boolean(),
+  dateTimeFormat: z.string().min(1).max(50).optional(),
+  requireEmailVerification: z.boolean().optional(),
+  loginLivenessLevel: z.enum(['none', 'silent', 'action']).optional(),
+  enrollLivenessLevel: z.enum(['none', 'silent', 'action']).optional(),
   maxLoginAttempts: z.number().min(1).max(20),
 
   // 可写不读
@@ -25,6 +29,17 @@ export const settingsSchema = z.object({
 
   enableStrongPassword: z.boolean(),
   strongPasswordRules: strongRulesSchema,
+
+  // ✅ 水印
+  watermarkEnabled: z.boolean(),
+  watermarkServerEnabled: z.boolean(),
+  watermarkScope: z.enum(['all', 'exam']),
+  watermarkContent: z.string().max(200),
+  watermarkOpacity: z.number().min(0.02).max(1),
+  watermarkFontSize: z.number().int().min(10).max(48),
+  watermarkRotate: z.number().int().min(-90).max(90),
+  watermarkGap: z.number().int().min(20).max(400),
+  watermarkColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
 
   aiEnabled: z.boolean(),
   aiProvider: z.enum(['deepseek', 'openai', 'custom', 'local']),

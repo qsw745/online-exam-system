@@ -1,5 +1,6 @@
 // features/smart-paper/components/ConfigForm/KnowledgePointsCard.tsx
 import { Card, Checkbox, Form } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 export default function KnowledgePointsCard({
   value,
@@ -11,9 +12,9 @@ export default function KnowledgePointsCard({
   onChange: (vals: string[]) => void
 }) {
   return (
-    <Card title="知识点筛选" className="mb-6">
+    <Card title={translate('auto.0324935683')} className="mb-6">
       <Form layout="vertical">
-        <Form.Item label="选择要包含的知识点（可选）">
+        <Form.Item label={translate('auto.7d8c568c06')}>
           <div className="max-h-40 overflow-y-auto">
             <Checkbox.Group value={value} onChange={v => onChange(v as string[])}>
               <div className="space-y-2">

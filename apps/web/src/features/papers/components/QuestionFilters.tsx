@@ -1,4 +1,5 @@
 import { Input, Select, Space } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 export default function QuestionFilters({
   keyword,
@@ -18,7 +19,7 @@ export default function QuestionFilters({
   return (
     <Space wrap style={{ width: '100%' }}>
       <Input
-        placeholder="搜索题目..."
+        placeholder={translate('auto.c144b25327')}
         value={keyword}
         onChange={e => onKeywordChange(e.target.value)}
         style={{ minWidth: 220 }}
@@ -28,10 +29,10 @@ export default function QuestionFilters({
         onChange={onTypeChange}
         style={{ width: 180 }}
         options={[
-          { label: '全部类型', value: 'all' },
-          { label: '单选题', value: 'single' },
-          { label: '多选题', value: 'multiple' },
-          { label: '判断题', value: 'judge' },
+          { label: translate('auto.fa6968d9f0'), value: 'all' },
+          { label: translate('questions.single_choice'), value: 'single' },
+          { label: translate('questions.multiple_choice'), value: 'multiple' },
+          { label: translate('questions.judge'), value: 'judge' },
         ]}
       />
       <Select
@@ -39,10 +40,10 @@ export default function QuestionFilters({
         onChange={onDifficultyChange}
         style={{ width: 180 }}
         options={[
-          { label: '全部难度', value: 'all' },
-          { label: '简单', value: 'easy' },
-          { label: '中等', value: 'medium' },
-          { label: '困难', value: 'hard' },
+          { label: translate('auto.0ab824ba71'), value: 'all' },
+          { label: translate('questions.easy'), value: 'easy' },
+          { label: translate('questions.medium'), value: 'medium' },
+          { label: translate('questions.hard'), value: 'hard' },
         ]}
       />
     </Space>

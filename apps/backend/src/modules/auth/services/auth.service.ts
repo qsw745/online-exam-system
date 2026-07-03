@@ -4,6 +4,8 @@ import { SessionStore } from '@/common/session/session.store'
 import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_MS, getJwtSecret, getRefreshJwtSecret } from '@/config/jwt'
 import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
 import { LogService } from '@/modules/logs/services/log.service'
+import { AdminSettingsService } from '@/modules/admin-settings/services/admin-settings.service'
+import { EmailVerificationService } from './email-verification.service'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
 import type { AuthResponseData, IUser } from '../domain/auth.model'
@@ -176,6 +178,25 @@ export class AuthService {
 
       const { roles, roleIds: ridList } = await UserRepository.rolesOfUser(ins.id)
 
+      // 若后台开启了"注册需邮箱验证"：发验证邮件、不自动登录
+      const settings = await AdminSettingsService.getSafe().catch(() => ({}) as any)
+      if ((settings as any).requireEmailVerification) {
+        await EmailVerificationService.issue(ins.id, email, nickname ?? email)
+        await LogService.log({
+          type: 'user',
+          status: 'success',
+          userId: ins.id,
+          action: '注册账号',
+          resourceType: 'user',
+          resourceId: ins.id,
+          details: { email, requireEmailVerification: true },
+          message: '用户注册成功，待邮箱验证',
+          ipAddress: reqMeta?.ip,
+          userAgent: reqMeta?.ua,
+        } as any)
+        return { needVerification: true as const, email }
+      }
+
       const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
       const absExp = new Date(Date.now() + REFRESH_JWT_EXPIRES_MS)
       const prst: 0 | 1 = options?.persist ? 1 : 0
@@ -281,7 +302,40 @@ export class AuthService {
       throw new HttpError('邮箱或密码错误')
     }
 
+    // 后台开启邮箱验证且该账号未验证 → 拦截登录
+    const settings = await AdminSettingsService.getSafe().catch(() => ({}) as any)
+    if ((settings as any).requireEmailVerification && !(user as any).email_verified) {
+      await LogService.log({
+        type: 'login',
+        status: 'failed',
+        userId: user.id,
+        action: '登录',
+        message: '登录失败：邮箱未验证',
+        details: { reason: '邮箱未验证', email: user.email },
+        ipAddress: reqMeta.ip,
+        userAgent: reqMeta.ua,
+      } as any)
+      throw new HttpError('邮箱未验证，请先到注册邮箱完成验证后再登录')
+    }
+
     return this.issueSession(user, reqMeta, { persist: !!options?.persist })
+  }
+
+  /** 人脸登录：身份已由人脸比对验证通过，这里只做账号有效性校验并签发会话 */
+  async loginByFace(
+    email: string,
+    reqMeta: { ip?: string; ua?: string },
+    options?: { persist?: boolean; similarity?: number }
+  ) {
+    await ensureJwtReady()
+    const user = await UserRepository.findByLogin(String(email || '').trim())
+    if (!user) throw new HttpError('用户不存在')
+    await this.ensureActiveUser(user, reqMeta, '人脸登录')
+    return this.issueSession(user, reqMeta, {
+      persist: !!options?.persist,
+      logAction: '人脸登录',
+      logDetails: { similarity: options?.similarity },
+    })
   }
 
   async loginWithOAuth(profile: OAuthProfile, reqMeta: { ip?: string; ua?: string }, options?: { persist?: boolean }) {

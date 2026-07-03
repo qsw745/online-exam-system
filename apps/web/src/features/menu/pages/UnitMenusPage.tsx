@@ -4,6 +4,7 @@ import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import { Card } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import MenuManagementPage from './MenuManagementPage'
+import { translate } from '@/shared/utils/i18n'
 
 type OrgNode = { id: number; name: string; children?: OrgNode[] }
 const toRaw = (nodes: OrgNode[] = []): OrgRawNode[] =>
@@ -33,13 +34,13 @@ export default function UnitMenusPage() {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: 16, height: '100%', padding: 24 }}>
       <Card
-        title="组织"
+        title={translate('auto.a3540e824b')}
         variant="outlined"
         style={{ height: '100%', minHeight: 520, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}
       >
         <div style={{ flex: 1, overflow: 'auto' }}>
           <OrgTreePanel
-            title="组织"
+            title={translate('auto.a3540e824b')}
             tree={rawTree}
             loading={loading}
             expandedKeys={expandedKeys}

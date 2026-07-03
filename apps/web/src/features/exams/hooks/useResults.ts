@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { App } from 'antd'
 import { resultsApi, type ResultItem, type ResultStatus } from '@/shared/api/endpoints/results'
+import { translate } from '@/shared/utils/i18n'
 
 export function useResults(initialPageSize = 12) {
   const { message } = App.useApp()
@@ -27,7 +28,7 @@ export function useResults(initialPageSize = 12) {
       setTotal(res.total || 0)
     } catch (e: any) {
       console.error('加载考试结果失败:', e)
-      message.error(e?.message || '加载考试结果失败')
+      message.error(e?.message || translate('auto.de79ab07e4'))
       setItems([])
       setTotal(0)
     } finally {

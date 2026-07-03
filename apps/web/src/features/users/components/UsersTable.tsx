@@ -2,6 +2,7 @@ import { Space, Table, Tag, Button, Dropdown, type MenuProps } from 'antd'
 import { EllipsisOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import React, { useMemo } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export interface User {
   id: number
@@ -51,10 +52,10 @@ export const UsersTable: React.FC<{
 
   const columns: ColumnsType<User> = useMemo(() => {
     const base: ColumnsType<User> = [
-      { title: '用户名', dataIndex: 'username', key: 'username' },
-      { title: '邮箱', dataIndex: 'email', key: 'email' },
+      { title: translate('auth.username'), dataIndex: 'username', key: 'username' },
+      { title: translate('auth.email'), dataIndex: 'email', key: 'email' },
       {
-        title: '部门',
+        title: translate('users.columns.department'),
         key: 'department',
         render: (_: any, r: User) => {
           // 优先使用返回里自带的 orgPath / department / orgName
@@ -70,10 +71,10 @@ export const UsersTable: React.FC<{
         ellipsis: true,
       },
       {
-        title: '状态',
+        title: translate('users.columns.status'),
         dataIndex: 'status',
         key: 'status',
-        render: s => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? '正常' : '禁用'}</Tag>,
+        render: s => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? translate('examPage.proctor.status.ok') : translate('users.status.disable')}</Tag>,
         width: 100,
       },
     ]
@@ -81,22 +82,21 @@ export const UsersTable: React.FC<{
     const hasAnyAction = onAssignRoles || onEdit || onResetPassword || onToggleStatus || onUnbind || onDelete
     if (hasAnyAction) {
       base.push({
-        title: '操作',
+        title: translate('users.columns.actions'),
         key: 'actions',
         width: 220,
         render: (_: any, r: any) => {
           const editBtn = onEdit ? (
             <Button size="small" onClick={() => onEdit(r)}>
-              编辑
-            </Button>
+              {translate('app.edit')}</Button>
           ) : null
 
           const items: MenuProps['items'] = []
-          if (onAssignRoles) items.push({ key: 'assign', label: '分配角色' })
-          if (onResetPassword) items.push({ key: 'reset', label: '重置密码' })
+          if (onAssignRoles) items.push({ key: 'assign', label: translate('users.action.assign_roles') })
+          if (onResetPassword) items.push({ key: 'reset', label: translate('users.action.reset_password') })
           if (onToggleStatus) items.push({ key: 'toggle', label: r.status === 'active' ? '禁用' : '启用' })
-          if (selectedOrgId && onUnbind) items.push({ key: 'unbind', label: '从机构移除' })
-          if (onDelete) items.push({ key: 'delete', danger: true, label: '删除' })
+          if (selectedOrgId && onUnbind) items.push({ key: 'unbind', label: translate('users.action.remove_from_org') })
+          if (onDelete) items.push({ key: 'delete', danger: true, label: translate('app.delete') })
 
           const hasMore = items.length > 0
           const onMenuClick: MenuProps['onClick'] = ({ key }) => {

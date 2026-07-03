@@ -38,6 +38,7 @@ import {
 import { createPortal } from 'react-dom'
 import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text } = Typography
 
@@ -235,7 +236,7 @@ export default function OrgManagementPage() {
         key: 'created_at',
         width: 180,
         align: 'center',
-        render: (t: any) => (t ? new Date(t).toLocaleString() : ''),
+        render: (t: any) => (t ? formatDateTime(t) : ''),
       },
       description: {
         title: labels.description,

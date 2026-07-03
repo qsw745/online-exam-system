@@ -2,6 +2,7 @@ import { Modal, Form, Input, Select, Switch } from 'antd'
 import type { MenuDTO } from '@/shared/api/endpoints/menu'
 import { useEffect, useState } from 'react'
 import type { MenuFormData } from '../hooks/useMenus'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export default function MenuFormModal({
   open,
@@ -16,6 +17,7 @@ export default function MenuFormModal({
   onCancel: () => void
   onSubmit: (values: MenuFormData) => Promise<void> | void
 }) {
+  const { t } = useLanguage()
   const [form] = Form.useForm<MenuFormData>()
   const [iconPreview, setIconPreview] = useState('')
 
@@ -42,7 +44,7 @@ export default function MenuFormModal({
   return (
     <Modal
       maskClosable={false}
-      title={editing ? '编辑菜单' : '新增菜单'}
+      title={editing ? t('menuForm.edit_title') : t('menuForm.create_title')}
       open={open}
       onOk={() => form.submit()}
       onCancel={onCancel}
@@ -51,54 +53,54 @@ export default function MenuFormModal({
       forceRender
     >
       <Form<MenuFormData> form={form} layout="vertical" onFinish={onSubmit}>
-        <Form.Item name="name" label="菜单名称" rules={[{ required: true, message: '请输入菜单名称' }]}>
-          <Input placeholder="请输入菜单名称" />
+        <Form.Item name="name" label={t('menuForm.name')} rules={[{ required: true, message: t('menuForm.name_required') }]}>
+          <Input placeholder={t('menuForm.name_placeholder')} />
         </Form.Item>
-        <Form.Item name="title" label="菜单标题" rules={[{ required: true, message: '请输入菜单标题' }]}>
-          <Input placeholder="请输入菜单标题" />
+        <Form.Item name="title" label={t('menuForm.title')} rules={[{ required: true, message: t('menuForm.title_required') }]}>
+          <Input placeholder={t('menuForm.title_placeholder')} />
         </Form.Item>
-        <Form.Item name="path" label="路由路径">
-          <Input placeholder="请输入路由路径" />
+        <Form.Item name="path" label={t('menuForm.path')}>
+          <Input placeholder={t('menuForm.path_placeholder')} />
         </Form.Item>
-        <Form.Item name="component" label="组件路径">
-          <Input placeholder="请输入组件路径" />
+        <Form.Item name="component" label={t('menuForm.component')}>
+          <Input placeholder={t('menuForm.component_placeholder')} />
         </Form.Item>
-        <Form.Item name="icon" label="图标">
+        <Form.Item name="icon" label={t('menuForm.icon')}>
           <Input
-            placeholder="如：user, setting, dashboard"
-            addonBefore={iconPreview ? <span className={`anticon anticon-${iconPreview}`} /> : <span>图标</span>}
+            placeholder={t('menuForm.icon_placeholder')}
+            addonBefore={iconPreview ? <span className={`anticon anticon-${iconPreview}`} /> : <span>{t('menuForm.icon')}</span>}
             onChange={e => setIconPreview(e.target.value)}
           />
         </Form.Item>
-        <Form.Item name="parent_id" label="父级菜单">
-          <Select placeholder="请选择父级菜单" allowClear options={parentOptions} />
+        <Form.Item name="parent_id" label={t('menuForm.parent')}>
+          <Select placeholder={t('menuForm.parent_placeholder')} allowClear options={parentOptions} />
         </Form.Item>
-        <Form.Item name="menu_type" label="菜单类型" rules={[{ required: true, message: '请选择菜单类型' }]}>
+        <Form.Item name="menu_type" label={t('menuForm.type')} rules={[{ required: true, message: t('menuForm.type_required') }]}>
           <Select
             options={[
-              { value: 'menu', label: '菜单' },
-              { value: 'button', label: '按钮' },
-              { value: 'page', label: '页面' },
+              { value: 'menu', label: t('menuForm.type_menu') },
+              { value: 'button', label: t('menuForm.type_button') },
+              { value: 'page', label: t('menuForm.type_page') },
             ]}
           />
         </Form.Item>
-        <Form.Item name="sort_order" label="排序号" tooltip="数值越小越靠前，留空则自动">
-          <Input type="number" placeholder="留空自动排序" min={0} step={1} />
+        <Form.Item name="sort_order" label={t('menuForm.sort_order')} tooltip={t('menuForm.sort_order_tooltip')}>
+          <Input type="number" placeholder={t('menuForm.sort_order_placeholder')} min={0} step={1} />
         </Form.Item>
-        <Form.Item name="permission_code" label="权限编码">
-          <Input placeholder="请输入权限编码" />
+        <Form.Item name="permission_code" label={t('menuForm.permission_code')}>
+          <Input placeholder={t('menuForm.permission_code_placeholder')} />
         </Form.Item>
-        <Form.Item name="redirect" label="重定向路径">
-          <Input placeholder="请输入重定向路径" />
+        <Form.Item name="redirect" label={t('menuForm.redirect')}>
+          <Input placeholder={t('menuForm.redirect_placeholder')} />
         </Form.Item>
-        <Form.Item name="meta" label="元数据(JSON)">
-          <Input.TextArea rows={3} placeholder="请输入 JSON" />
+        <Form.Item name="meta" label={t('menuForm.meta')}>
+          <Input.TextArea rows={3} placeholder={t('menuForm.meta_placeholder')} />
         </Form.Item>
         <Form.Item name="is_hidden" valuePropName="checked">
-          <Switch checkedChildren="隐藏" unCheckedChildren="显示" />
+          <Switch checkedChildren={t('menuForm.hidden')} unCheckedChildren={t('menuForm.visible')} />
         </Form.Item>
         <Form.Item name="is_disabled" valuePropName="checked">
-          <Switch checkedChildren="禁用" unCheckedChildren="启用" />
+          <Switch checkedChildren={t('menuForm.disabled')} unCheckedChildren={t('menuForm.enabled')} />
         </Form.Item>
       </Form>
     </Modal>

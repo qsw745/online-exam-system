@@ -2,6 +2,7 @@ import { orgsApi, type OrgNode } from '@/shared/api/endpoints/orgs'
 import { useOrgTree } from '@/shared/hooks/useOrgTree'
 import { App } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export function useOrgManage() {
   const { message } = App.useApp()
@@ -43,7 +44,7 @@ export function useOrgManage() {
         setDetail(data || null)
       } catch (e: any) {
         setDetail(null)
-        message.error(e?.message || '加载组织详情失败')
+        message.error(e?.message || translate('auto.f4fa9ebffa'))
       } finally {
         setDetailLoading(false)
       }

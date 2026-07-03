@@ -7,6 +7,7 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { api } from '@/shared/api/http'
 import { profileApi } from '@/shared/api/endpoints/profile'
+import { translate } from '@/shared/utils/i18n'
 
 export default function ProfileTab() {
   const { t } = useLanguage()
@@ -79,10 +80,10 @@ export default function ProfileTab() {
         phone: d.phone ?? form.phone ?? '',
         bio: d.bio ?? form.bio ?? '',
       })
-      message.success('已更新个人信息')
+      message.success(translate('auto.6bb7331a78'))
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '更新失败')
+      message.error(e?.message || translate('roles.message.update_failed'))
     } finally {
       setSaving(false)
     }
@@ -90,27 +91,27 @@ export default function ProfileTab() {
 
   return (
     <div style={{ maxWidth: 720 }}>
-      <h2 style={{ marginBottom: 16 }}>{t('profile.title') || '个人信息'}</h2>
+      <h2 style={{ marginBottom: 16 }}>{t('profile.title') || translate('nav.profile')}</h2>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
         <AvatarUploader
           src={(user as any)?.avatar_url || (user as any)?.avatar || undefined}
           email={user?.email}
-          subtitle={t('profile.avatar_tip') || '支持 PNG/JPG，建议 256×256'}
+          subtitle={t('profile.avatar_tip') || translate('visible.d519557cb7')}
           onPick={handlePickAvatar}
         />
       </div>
 
       {!form ? (
         <div style={{ color: 'var(--app-colorTextTertiary,#999)' }}>
-          {initialLoading || loading ? '加载中…' : '暂无数据'}
+          {initialLoading || loading ? translate('auto.300ee3dee4') : translate('common.no_data')}
         </div>
       ) : (
         <>
           <ProfileForm value={form} onChange={patchForm} />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
             <Button type="primary" loading={saving} icon={<Save size={18} />} onClick={handleSave}>
-              {saving ? '保存中…' : '更新信息'}
+              {saving ? translate('visible.6644f06197') : translate('visible.8ff18db8f9')}
             </Button>
           </div>
         </>

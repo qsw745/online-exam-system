@@ -8,6 +8,7 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import ConfigForm from '../components/ConfigForm'
 import PreviewList from '../components/PreviewList'
+import { translate } from '@/shared/utils/i18n'
 export default function SmartPaperCreatePage() {
   const nav = useNavigate()
   const h = useSmartPaper()
@@ -36,11 +37,10 @@ export default function SmartPaperCreatePage() {
   
         <div className="flex items-center gap-4">
           <Button type="text" onClick={onBackToList} className="flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" /> 返回
-          </Button>
+            <ArrowLeft className="w-4 h-4" /> {translate('app.back')}</Button>
           <div>
-            <h1 className="text-2xl font-bold">智能组卷</h1>
-            <p className="text-gray-500 mt-1">根据配置自动从题库中选择题目组成试卷</p>
+            <h1 className="text-2xl font-bold">{translate('menus.admin-papers-smart')}</h1>
+            <p className="text-gray-500 mt-1">{translate('auto.de0ba72e31')}</p>
           </div>
         </div>
 
@@ -53,7 +53,7 @@ export default function SmartPaperCreatePage() {
         />
 
         <div className="flex justify-end space-x-4">
-          <Button onClick={onBackToList}>取消</Button>
+          <Button onClick={onBackToList}>{translate('app.cancel')}</Button>
           <Button
             type="primary"
             onClick={onGenerate}
@@ -61,7 +61,7 @@ export default function SmartPaperCreatePage() {
             disabled={!!h.validationError}
             icon={!h.generating ? <Shuffle className="w-4 h-4" /> : undefined}
           >
-            {h.validationError ? '请先修正配置' : '开始组卷'}
+            {h.validationError ? translate('visible.782d627e6e') : translate('visible.7b0ed697d4')}
           </Button>
         </div>
       </div>
@@ -74,17 +74,16 @@ export default function SmartPaperCreatePage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Button type="text" onClick={() => h.setStep('config')} className="flex items-center gap-2">
-              <ArrowLeft className="w-4 h-4" /> 返回配置
-            </Button>
+              <ArrowLeft className="w-4 h-4" /> {translate('auto.8e1559df1e')}</Button>
             <div>
-              <h1 className="text-2xl font-bold">试卷预览</h1>
-              <p className="text-gray-500 mt-1">检查生成的试卷内容</p>
+              <h1 className="text-2xl font-bold">{translate('auto.688391a6c4')}</h1>
+              <p className="text-gray-500 mt-1">{translate('auto.7687b9e21b')}</p>
             </div>
           </div>
           <div className="flex gap-2">
             <Button type="default" onClick={onRegenerate} disabled={h.generating} className="flex items-center gap-2">
               {h.generating ? <Spin size="small" /> : <Shuffle className="w-4 h-4" />}{' '}
-              {h.generating ? '重新生成中…' : '重新生成'}
+              {h.generating ? translate('visible.7038c8e182') : translate('visible.2e19057052')}
             </Button>
             <Button
               type="primary"
@@ -92,8 +91,7 @@ export default function SmartPaperCreatePage() {
               loading={h.loading}
               icon={!h.loading ? <Save className="w-4 h-4" /> : undefined}
             >
-              保存试卷
-            </Button>
+              {translate('auto.ff7f570df2')}</Button>
           </div>
         </div>
 

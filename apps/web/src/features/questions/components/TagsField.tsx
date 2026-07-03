@@ -1,5 +1,6 @@
 import React from 'react'
 import { Select, Space, Tag } from 'antd'
+import { translate } from '@/shared/utils/i18n'
 
 export default function TagsField({
   value,
@@ -30,7 +31,7 @@ export default function TagsField({
       value={value}
       onChange={v => onChange(v as string[])}
       options={all.map(t => ({ label: t, value: t }))}
-      placeholder="选择或输入标签后回车"
+      placeholder={translate('questions.tags_ph')}
     />
   )
 }

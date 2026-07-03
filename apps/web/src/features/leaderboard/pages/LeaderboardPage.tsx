@@ -5,6 +5,7 @@ import { Trophy } from 'lucide-react'
 import LeaderboardFilters from '../components/LeaderboardFilters'
 import LeaderboardStatsCards from '../components/LeaderboardStatsCards'
 import LeaderboardTable from '../components/LeaderboardTable'
+import { translate } from '@/shared/utils/i18n'
 export default function LeaderboardPage() {
   const {
     // tabs
@@ -43,7 +44,7 @@ export default function LeaderboardPage() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-3">
           <Trophy className="w-6 h-6 text-yellow-500" />
-          <h1 className="text-2xl font-bold">排行榜</h1>
+          <h1 className="text-2xl font-bold">{translate('menus.learning-leaderboard')}</h1>
         </div>
 
         <LeaderboardFilters
@@ -72,7 +73,7 @@ export default function LeaderboardPage() {
           items={[
             {
               key: 'overall',
-              label: '综合排名',
+              label: translate('auto.51db7ac895'),
               children: (
                 <LeaderboardTable
                   data={pageData}
@@ -87,7 +88,7 @@ export default function LeaderboardPage() {
             },
             {
               key: 'study_time',
-              label: '学习时长',
+              label: translate('analytics.col_study_time'),
               children: (
                 <LeaderboardTable
                   data={pageData}
@@ -102,7 +103,7 @@ export default function LeaderboardPage() {
             },
             {
               key: 'accuracy',
-              label: '正确率',
+              label: translate('auto.8dc159502e'),
               children: (
                 <LeaderboardTable
                   data={pageData}

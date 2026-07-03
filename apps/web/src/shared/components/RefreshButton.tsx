@@ -4,6 +4,7 @@ import { ReloadOutlined } from '@ant-design/icons'
 import React from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 type Props = {
   /** 指定要失效的 queryKey 前缀（默认按当前路由路径作为命名空间） */
@@ -24,6 +25,7 @@ export const RefreshButton: React.FC<Props> = ({
   type = 'default',
 }) => {
   const qc = useQueryClient()
+  const { t } = useLanguage()
   const { pathname } = useLocation()
   const [loading, setLoading] = React.useState(false)
   const lastRef = React.useRef(0)
@@ -53,9 +55,9 @@ export const RefreshButton: React.FC<Props> = ({
   }
 
   return (
-    <Tooltip title="刷新当前页面数据">
+    <Tooltip title={t('refresh.tooltip')}>
       <Button icon={<ReloadOutlined />} loading={loading} onClick={invalidate} size={size} type={type}>
-        刷新
+        {t('app.refresh')}
       </Button>
     </Tooltip>
   )

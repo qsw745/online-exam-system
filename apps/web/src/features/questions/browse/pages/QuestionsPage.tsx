@@ -8,8 +8,9 @@ import { Link } from 'react-router-dom'
 import { PageHeader } from '../components/PageHeader'
 import GlobalPagination from '@/shared/components/GlobalPagination'
 import { QuestionGrid } from '../components/QuestionGrid'
-import { diffLabel as diffLbl, typeLabel as typeLbl } from '../utils/labelMaps'
+import { diffLabelKey, typeLabelKey } from '../utils/labelMaps'
 import { buildPracticeLink } from '../utils/practiceLink'
+import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 
 export default function QuestionsPage() {
@@ -23,7 +24,7 @@ export default function QuestionsPage() {
   if (authLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 400 }}>
-        <Spin size="large" tip="正在验证登录状态..." spinning>
+        <Spin size="large" tip={translate('visible.5f420a46b9')} spinning>
           <div style={{ width: 1, height: 1 }} />
         </Spin>
       </div>
@@ -41,10 +42,10 @@ export default function QuestionsPage() {
         }}
       >
         <Space direction="vertical" align="center" size="large">
-          <Title level={2}>请先登录</Title>
-          <Text type="secondary">您需要登录后才能查看题目列表</Text>
+          <Title level={2}>{translate('app.login_required')}</Title>
+          <Text type="secondary">{translate('auto.efc267c4d5')}</Text>
           <Link to="/login">
-            <span className="ant-btn ant-btn-primary ant-btn-lg">前往登录</span>
+            <span className="ant-btn ant-btn-primary ant-btn-lg">{translate('auto.c2ac8f1515')}</span>
           </Link>
         </Space>
       </div>
@@ -53,24 +54,24 @@ export default function QuestionsPage() {
 
   const title =
     q.viewType === 'favorites'
-      ? '收藏题目'
+      ? t('questions.favorites_title')
       : q.viewType === 'wrong'
-      ? '错题本'
+      ? t('questions.wrong_title')
       : q.viewType === 'browse'
-      ? '题目浏览'
+      ? t('questions.browse_title')
       : q.viewType === 'manage'
-      ? '题目管理'
+      ? t('questions.mgmt_title')
       : t('questions.title')
 
   const desc =
     q.viewType === 'favorites'
-      ? '查看您收藏的题目'
+      ? t('questions.favorites_desc')
       : q.viewType === 'wrong'
-      ? '查看您做错的题目'
+      ? t('questions.wrong_desc')
       : q.viewType === 'browse'
-      ? '浏览和练习题目'
+      ? t('questions.browse_desc')
       : q.viewType === 'manage'
-      ? '管理和维护题目'
+      ? t('questions.mgmt_desc')
       : t('questions.description')
 
   // ✅ 练习入口链接：只带筛选参数，不带题目 id
@@ -111,7 +112,7 @@ export default function QuestionsPage() {
                 style={{ width: '100%' }}
                 value={q.filters.type}
                 onChange={(v: string) => q.setFilter('type', v)}
-                options={Object.entries(typeLbl as Record<string, string>).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(typeLabelKey).map(([value, key]) => ({ value, label: t(key) }))}
               />
             </Col>
             <Col xs={12} md={7}>
@@ -119,7 +120,7 @@ export default function QuestionsPage() {
                 style={{ width: '100%' }}
                 value={q.filters.difficulty}
                 onChange={(v: string) => q.setFilter('difficulty', v)}
-                options={Object.entries(diffLbl as Record<string, string>).map(([value, label]) => ({ value, label }))}
+                options={Object.entries(diffLabelKey).map(([value, key]) => ({ value, label: t(key) }))}
               />
             </Col>
           </Row>

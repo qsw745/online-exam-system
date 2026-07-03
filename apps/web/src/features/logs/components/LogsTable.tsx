@@ -2,6 +2,8 @@ import { Table, Tag, Typography, Tooltip } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs from '@/shared/utils/dayjs'
 import type { LogEntry } from '@/shared/api/endpoints/logs'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Text, Paragraph } = Typography
 
@@ -52,15 +54,15 @@ function OneLine({ text, title, className }: { text?: React.ReactNode; title?: R
 export default function LogsTable({ data, loading, onRowDblClick }: Props) {
   const columns: ColumnsType<Row> = [
     {
-      title: '时间',
+      title: translate('workflow.col_time'),
       dataIndex: 'created_at',
       width: 180,
       ellipsis: true,
-      render: (t: string) => <OneLine text={dayjs(t).format('YYYY-MM-DD HH:mm:ss')} />,
+      render: (t: string) => <OneLine text={formatDateTime(t)} />,
     //   fixed: 'left',
     },
     {
-      title: '级别',
+      title: translate('auto.2548499200'),
       dataIndex: 'level',
       width: 92,
       ellipsis: true,
@@ -74,7 +76,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
     //   fixed: 'left',
     },
     {
-      title: '用户',
+      title: translate('users.tag.user'),
       dataIndex: 'username',
       width: 180,
       render: (username: string, r) =>
@@ -86,12 +88,12 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
             </Text>
           </div>
         ) : (
-          <Text type="secondary">系统</Text>
+          <Text type="secondary">{translate('auto.1a1f6dff78')}</Text>
         ),
       ellipsis: true,
     },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       dataIndex: 'action',
       width: 140,
       ellipsis: true,
@@ -123,7 +125,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
     //   responsive: ['md'],
     // },
     {
-      title: '详情',
+      title: translate('auto.4f55ee1e68'),
       key: 'details',
       width: 360,
       render: (_: unknown, r) => {
@@ -138,7 +140,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
       },
     },
     {
-      title: 'IP地址',
+      title: translate('auto.ae92a6d7a4'),
       dataIndex: 'ip_address',
       width: 140,
       ellipsis: true,
@@ -146,7 +148,7 @@ export default function LogsTable({ data, loading, onRowDblClick }: Props) {
       responsive: ['lg'],
     },
     {
-      title: '客户端',
+      title: translate('auto.09afbbcc9b'),
       dataIndex: 'client',
       width: 280,
       ellipsis: true,

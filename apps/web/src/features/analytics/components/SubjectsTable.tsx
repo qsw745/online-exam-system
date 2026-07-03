@@ -1,5 +1,6 @@
 import { Card, Progress, Table } from 'antd'
 import React, { useMemo } from 'react'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 export type SubjectRow = {
   subject: string
@@ -15,23 +16,24 @@ const getScoreColor = (score: number): string => {
 }
 
 export const SubjectsTable: React.FC<{ data: SubjectRow[] }> = ({ data }) => {
+  const { t } = useLanguage()
   const columns = useMemo(
     () => [
       {
-        title: '科目',
+        title: t('analytics.col_subject'),
         dataIndex: 'subject',
         key: 'subject',
         render: (s: string) => <div className="font-medium">{s}</div>,
       },
       {
-        title: '题目数量',
+        title: t('analytics.col_question_count'),
         dataIndex: 'questions_count',
         key: 'questions_count',
         sorter: (a: any, b: any) => b.questions_count - a.questions_count,
         render: (n: number) => <div className="text-center font-medium">{n}</div>,
       },
       {
-        title: '平均分',
+        title: t('analytics.avg_score'),
         dataIndex: 'avg_score',
         key: 'avg_score',
         sorter: (a: any, b: any) => b.avg_score - a.avg_score,
@@ -50,7 +52,7 @@ export const SubjectsTable: React.FC<{ data: SubjectRow[] }> = ({ data }) => {
         ),
       },
       {
-        title: '完成率',
+        title: t('analytics.completion_rate'),
         dataIndex: 'completion_rate',
         key: 'completion_rate',
         sorter: (a: any, b: any) => b.completion_rate - a.completion_rate,
@@ -67,11 +69,11 @@ export const SubjectsTable: React.FC<{ data: SubjectRow[] }> = ({ data }) => {
         ),
       },
     ],
-    []
+    [t]
   )
 
   return (
-    <Card title="科目统计" className="mb-6">
+    <Card title={t('analytics.subject_stats')} className="mb-6">
       <Table columns={columns as any} dataSource={data || []} rowKey="subject" pagination={false} size="small" />
     </Card>
   )

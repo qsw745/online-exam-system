@@ -1,6 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useEffect, useState } from 'react'
 import { notificationsApi, type NotificationDTO } from '@/shared/api/endpoints/notifications'
+import { translate } from '@/shared/utils/i18n'
 
 export function useUserNotifications() {
   const { message } = App.useApp()
@@ -16,7 +17,7 @@ export function useUserNotifications() {
       setUnread(count)
     } catch (e) {
       console.error(e)
-      message.error('获取通知失败')
+      message.error(translate('auto.9f31b87db7'))
       setNotifications([])
       setUnread(0)
     } finally {
@@ -33,9 +34,9 @@ export function useUserNotifications() {
       await notificationsApi.markRead(id)
       setNotifications(prev => prev.map(n => (n.id === id ? { ...n, is_read: true } : n)))
       setUnread(v => Math.max(0, v - 1))
-      message.success('标记为已读')
+      message.success(translate('auto.6cc55eb91b'))
     } catch {
-      message.error('标记已读失败')
+      message.error(translate('auto.b46ca948bf'))
     }
   }
 
@@ -44,9 +45,9 @@ export function useUserNotifications() {
       await notificationsApi.markAllRead()
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })))
       setUnread(0)
-      message.success('全部标记为已读')
+      message.success(translate('auto.60efec89e1'))
     } catch {
-      message.error('批量标记已读失败')
+      message.error(translate('auto.573581a323'))
     }
   }
 
@@ -54,9 +55,9 @@ export function useUserNotifications() {
     try {
       await notificationsApi.remove(id)
       setNotifications(prev => prev.filter(n => n.id !== id))
-      message.success('删除成功')
+      message.success(translate('users.message.delete_success'))
     } catch {
-      message.error('删除通知失败')
+      message.error(translate('auto.a432ce2a37'))
     }
   }
 

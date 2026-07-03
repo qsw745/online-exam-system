@@ -1,14 +1,15 @@
 // utils/labelMaps.ts
-export const typeLabel: Record<string, string> = {
-  single: '单选题',
-  multiple: '多选题',
-  judge: '判断题',
-  fill: '填空题',
-  essay: '问答题',
-  single_choice: '单选题',
-  multiple_choice: '多选题',
-  true_false: '判断题',
-  short_answer: '简答题',
+export const typeLabelKey: Record<string, string> = {
+  all: 'questions.all_types',
+  single: 'questions.single_choice',
+  multiple: 'questions.multiple_choice',
+  judge: 'questions.judge',
+  fill: 'questions.fill_blank',
+  essay: 'questions.essay',
+  single_choice: 'questions.single_choice',
+  multiple_choice: 'questions.multiple_choice',
+  true_false: 'questions.judge',
+  short_answer: 'questions.type_short',
 }
 export const typeColor: Record<string, string> = {
   single: 'blue',
@@ -21,7 +22,12 @@ export const typeColor: Record<string, string> = {
   true_false: 'green',
   short_answer: 'orange',
 }
-export const diffLabel: Record<string, string> = { easy: '简单', medium: '中等', hard: '困难' }
+export const diffLabelKey: Record<string, string> = {
+  all: 'questions.all_difficulties',
+  easy: 'questions.easy',
+  medium: 'questions.medium',
+  hard: 'questions.hard',
+}
 export const diffColor: Record<string, 'success' | 'warning' | 'error' | 'default'> = {
   easy: 'success',
   medium: 'warning',

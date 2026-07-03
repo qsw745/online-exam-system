@@ -28,6 +28,7 @@ import RoleManagementPage from '@/features/roles/pages/RoleManagementPage'
 
 import NotificationManagementPage from '@/features/notifications-manager/pages/NotificationManagementPage'
 import SettingsPage from '@/features/settings/pages/UserSettingsPage'
+import { translate } from '@/shared/utils/i18n'
 
 interface NavItem {
   name: string
@@ -55,15 +56,15 @@ export default function AdminPage() {
   }, [user])
 
   const navItems: NavItem[] = [
-    { name: '概览', path: '/admin', icon: <Home className="w-5 h-5" /> },
-    { name: '用户管理', path: '/admin/users', icon: <Users className="w-5 h-5" /> },
-    { name: '题目管理', path: '/admin/questions', icon: <FileQuestion className="w-5 h-5" /> },
-    { name: '试卷管理', path: '/admin/papers', icon: <BookMarked className="w-5 h-5" /> },
-    { name: '考试管理', path: '/admin/tasks', icon: <Clock className="w-5 h-5" /> },
-    { name: '菜单管理', path: '/admin/menus', icon: <Settings className="w-5 h-5" /> },
-    { name: '角色管理', path: '/admin/roles', icon: <UserOutlined style={{ fontSize: 20 }} /> },
-    { name: '数据分析', path: '/admin/analytics', icon: <BarChart3 className="w-5 h-5" /> },
-    { name: '系统设置', path: '/admin/settings', icon: <Settings className="w-5 h-5" /> },
+    { name: translate('auto.5060421d15'), path: '/admin', icon: <Home className="w-5 h-5" /> },
+    { name: translate('menus.admin-user'), path: '/admin/users', icon: <Users className="w-5 h-5" /> },
+    { name: translate('questions.mgmt_title'), path: '/admin/questions', icon: <FileQuestion className="w-5 h-5" /> },
+    { name: translate('menus.admin-papers'), path: '/admin/papers', icon: <BookMarked className="w-5 h-5" /> },
+    { name: translate('menus.exam-admin'), path: '/admin/tasks', icon: <Clock className="w-5 h-5" /> },
+    { name: translate('menus.system-menus'), path: '/admin/menus', icon: <Settings className="w-5 h-5" /> },
+    { name: translate('menus.admin-role'), path: '/admin/roles', icon: <UserOutlined style={{ fontSize: 20 }} /> },
+    { name: translate('menus.analytics'), path: '/admin/analytics', icon: <BarChart3 className="w-5 h-5" /> },
+    { name: translate('menus.system-settings'), path: '/admin/settings', icon: <Settings className="w-5 h-5" /> },
   ]
 
   if (loading) {

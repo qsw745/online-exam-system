@@ -1,6 +1,7 @@
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
 import { api } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 /** 试卷下拉：统一 value=string(id)，label=title/name */
 export function usePapersOptions() {
@@ -22,7 +23,7 @@ export function usePapersOptions() {
       )
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载试卷失败')
+      message.error(e?.message || translate('exam.load_error'))
       setOptions([])
     } finally {
       setLoading(false)

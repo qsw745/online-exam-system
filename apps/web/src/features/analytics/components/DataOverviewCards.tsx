@@ -1,6 +1,7 @@
 import React from 'react'
 import type { DataOverview } from '@/shared/hooks/useDataAnalytics'
 import { Users, TrendingUp, BookOpen, Target } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
 
 export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overview }) => {
   return (
@@ -8,7 +9,7 @@ export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overvi
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">总用户数</p>
+            <p className="text-sm font-medium text-gray-600">{translate('auto.5e50829d28')}</p>
             <p className="text-2xl font-bold text-gray-900 mt-2">{overview.totalUsers}</p>
           </div>
           <div className="p-3 bg-blue-50 rounded-lg">
@@ -20,7 +21,7 @@ export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overvi
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">活跃用户</p>
+            <p className="text-sm font-medium text-gray-600">{translate('auto.ef0369a594')}</p>
             <p className="text-2xl font-bold text-gray-900 mt-2">{overview.activeUsers}</p>
           </div>
           <div className="p-3 bg-green-50 rounded-lg">
@@ -32,7 +33,7 @@ export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overvi
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">总提交次数</p>
+            <p className="text-sm font-medium text-gray-600">{translate('auto.852af3e1bd')}</p>
             <p className="text-2xl font-bold text-gray-900 mt-2">{overview.totalSubmissions}</p>
           </div>
           <div className="p-3 bg-yellow-50 rounded-lg">
@@ -44,7 +45,7 @@ export const DataOverviewCards: React.FC<{ overview: DataOverview }> = ({ overvi
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-gray-600">平均分数</p>
+            <p className="text-sm font-medium text-gray-600">{translate('dashboard.average_score')}</p>
             <p className="text-2xl font-bold text-gray-900 mt-2">{overview.averageScore.toFixed(1)}</p>
           </div>
           <div className="p-3 bg-purple-50 rounded-lg">

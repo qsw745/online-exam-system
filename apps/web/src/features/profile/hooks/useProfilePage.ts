@@ -5,6 +5,7 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { App } from 'antd'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
+import { translate } from '@/shared/utils/i18n'
 
 export function useProfilePage() {
   const { message } = App.useApp() // ✅ 从 App 上下文取 message，避免静态方法警告
@@ -61,7 +62,7 @@ export function useProfilePage() {
         }))
       } catch (e) {
         console.error('load profile error', e)
-        message.error(t('profile.load_error') || '加载个人资料失败')
+        message.error(t('profile.load_error') || translate('auto.253f1fcbe7'))
       }
     })()
     return () => {
@@ -77,11 +78,11 @@ export function useProfilePage() {
   }, [])
   const onAvatarPick = (file: File) => {
     if (!/^image\//.test(file.type)) {
-      message.error(t('profile.image_only') || '仅支持图片文件')
+      message.error(t('profile.image_only') || translate('users.avatar.only_image'))
       return
     }
     if (file.size > 5 * 1024 * 1024) {
-      message.error(t('profile.image_too_large') || '图片不能超过 5MB')
+      message.error(t('profile.image_too_large') || translate('auto.d3d55cf710'))
       return
     }
     setAvatarFile(file)
@@ -121,10 +122,10 @@ export function useProfilePage() {
       // 3) 强制刷新服务端用户信息（会实际发请求）
       await refreshUser()
 
-      message.success(t('profile.update_success') || '资料已更新')
+      message.success(t('profile.update_success') || translate('auto.df6259d848'))
     } catch (e: any) {
       console.error('update profile error', e)
-      message.error(e?.message || t('profile.update_error') || '更新失败')
+      message.error(e?.message || t('profile.update_error') || translate('roles.message.update_failed'))
     } finally {
       setLoading(false)
     }

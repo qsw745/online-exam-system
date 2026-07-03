@@ -1,5 +1,7 @@
 import { Badge, Button, List, Space, Typography } from 'antd'
 import { Bell, Check, Trash2 } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 const { Text } = Typography
 
 export type Item = {
@@ -23,14 +25,14 @@ const typeColor = (t: string) =>
     : 'default'
 const typeText = (t: string) =>
   t === 'system'
-    ? '系统通知'
+    ? translate('notifications.type_system')
     : t === 'exam'
-    ? '考试通知'
+    ? translate('notifications.type_exam')
     : t === 'grade'
-    ? '成绩通知'
+    ? translate('notifications.type_grade')
     : t === 'announcement'
-    ? '公告'
-    : '通知'
+    ? translate('notifications.type_announcement')
+    : translate('notifications.type_default')
 
 export default function NotificationsList({
   data,
@@ -47,7 +49,7 @@ export default function NotificationsList({
     return (
       <div style={{ textAlign: 'center', padding: '48px 0' }}>
         <Bell style={{ width: 64, height: 64, color: '#d9d9d9', margin: '0 auto 16px' }} />
-        <Text type="secondary">暂无通知</Text>
+        <Text type="secondary">{translate('notifications.empty')}</Text>
       </div>
     )
   }
@@ -72,8 +74,7 @@ export default function NotificationsList({
                 icon={<Check style={{ width: 16, height: 16 }} />}
                 onClick={() => onMarkRead(n.id)}
               >
-                标记已读
-              </Button>
+                {translate('auto.504ecf732d')}</Button>
             ),
             <Button
               key="del"
@@ -83,8 +84,7 @@ export default function NotificationsList({
               icon={<Trash2 style={{ width: 16, height: 16 }} />}
               onClick={() => onRemove(n.id)}
             >
-              删除
-            </Button>,
+              {translate('app.delete')}</Button>,
           ].filter(Boolean)}
         >
           <List.Item.Meta
@@ -100,7 +100,7 @@ export default function NotificationsList({
                 <Text style={{ fontWeight: !n.is_read ? 500 : 'normal' }}>{n.content}</Text>
                 <br />
                 <Text type="secondary" style={{ fontSize: 14 }}>
-                  {new Date(n.created_at).toLocaleString()}
+                  {formatDateTime(n.created_at)}
                 </Text>
               </div>
             }

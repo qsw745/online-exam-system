@@ -1,98 +1,19 @@
-import { App, Modal, Space, Spin, Tag, Typography } from 'antd'
-import { useEffect, useMemo, useState } from 'react'
-import { Background, Controls, MiniMap, ReactFlow, MarkerType, Handle, Position, type Edge, type Node } from '@xyflow/react'
-import '@xyflow/react/dist/style.css'
-import { workflowsApi, type WorkflowInstanceDetail, type WorkflowTask } from '@/shared/api/endpoints/workflows'
+import { App, Modal, Segmented, Space, Spin, Tag, Typography } from 'antd'
+import { useEffect, useState } from 'react'
+import { workflowsApi, type WorkflowInstanceDetail } from '@/shared/api/endpoints/workflows'
 import { workflowStatusLabel } from '@/shared/utils/workflow'
+import WorkflowRuntimeView, { RuntimeSummary } from '@/features/workflows/components/WorkflowRuntimeView'
+import WorkflowProcessTable from '@/features/workflows/components/WorkflowProcessTable'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text, Title } = Typography
 
-type NodeType = 'start' | 'approval' | 'end'
-
-type FlowNodeData = {
-  label: string
-  nodeType: NodeType
-  status?: string
-  running?: boolean
-}
-
-type FlowNode = Node<FlowNodeData, 'workflow'>
-
-const statusColor = (status?: string) => {
-  if (status === 'rejected') return '#fee2e2'
-  if (status === 'approved') return '#dcfce7'
-  if (status === 'pending') return '#fef3c7'
-  if (status === 'running') return '#e0f2fe'
-  return '#f8fafc'
-}
-
-function FlowNodeView({ data }: { data: FlowNodeData }) {
-  return (
-    <div
-      style={{
-        padding: 10,
-        borderRadius: 8,
-        border: `1px solid ${data.running ? '#3b82f6' : '#e5e7eb'}`,
-        background: statusColor(data.running ? 'running' : data.status),
-        minWidth: 140,
-      }}
-    >
-      <Handle type="target" position={Position.Top} />
-      <div style={{ fontWeight: 600 }}>{data.label}</div>
-      <div style={{ fontSize: 12, color: '#6b7280' }}>{data.nodeType}</div>
-      <Handle type="source" position={Position.Bottom} />
-    </div>
-  )
-}
-
-const nodeTypes = { workflow: FlowNodeView }
-
-const normalizeDef = (def: any) => (def && Array.isArray(def.nodes) ? def : { nodes: [], edges: [] })
-
-const buildNodes = (detail: WorkflowInstanceDetail): FlowNode[] => {
-  const def = normalizeDef(detail.template?.definition)
-  const nodeList = def.nodes || []
-  const current = new Set<string>(detail.instance?.current_nodes || [])
-  const tasksByNode = new Map<string, WorkflowTask[]>()
-  for (const t of detail.tasks || []) {
-    if (!tasksByNode.has(t.node_id)) tasksByNode.set(t.node_id, [])
-    tasksByNode.get(t.node_id)!.push(t)
-  }
-  return nodeList.map((n: any, idx: number) => {
-    const position =
-      n.position && typeof n.position.x === 'number' && typeof n.position.y === 'number'
-        ? n.position
-        : { x: 80 + (idx % 3) * 220, y: 60 + Math.floor(idx / 3) * 160 }
-    const tasks = tasksByNode.get(n.id) || []
-    const status = tasks.some(t => t.status === 'rejected')
-      ? 'rejected'
-      : tasks.some(t => t.status === 'pending')
-        ? 'pending'
-        : tasks.some(t => t.status === 'approved')
-          ? 'approved'
-          : undefined
-    return {
-      id: n.id,
-      type: 'workflow',
-      position,
-      data: {
-        label: n.name || n.id,
-        nodeType: n.type as NodeType,
-        status,
-        running: current.has(n.id),
-      },
-    }
-  })
-}
-
-const buildEdges = (detail: WorkflowInstanceDetail): Edge[] => {
-  const def = normalizeDef(detail.template?.definition)
-  return (def.edges || []).map((e: any, idx: number) => ({
-    id: `e-${e.from}-${e.to}-${idx}`,
-    source: e.from,
-    target: e.to,
-    animated: false,
-  }))
+const instanceStatusColor = (s?: string) => {
+  if (s === 'approved') return 'success'
+  if (s === 'rejected') return 'error'
+  if (s === 'running') return 'processing'
+  if (s === 'canceled') return 'default'
+  return 'default'
 }
 
 export default function WorkflowInstanceModal({
@@ -107,6 +28,7 @@ export default function WorkflowInstanceModal({
   const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
   const [detail, setDetail] = useState<WorkflowInstanceDetail | null>(null)
+  const [view, setView] = useState<'table' | 'timeline'>('table')
 
   useEffect(() => {
     if (!open || !instanceId) return
@@ -114,80 +36,54 @@ export default function WorkflowInstanceModal({
     workflowsApi
       .getInstance(instanceId)
       .then(res => setDetail(res))
-      .catch(err => message.error(err?.message || '加载流程详情失败'))
+      .catch(err => message.error(err?.message || translate('papers.wf_load_detail_failed')))
       .finally(() => setLoading(false))
   }, [instanceId, message, open])
 
-  const nodes = useMemo(() => (detail ? buildNodes(detail) : []), [detail])
-  const edges = useMemo(() => (detail ? buildEdges(detail) : []), [detail])
+  useEffect(() => {
+    if (!open) setDetail(null)
+  }, [open])
 
   return (
-    <Modal open={open} onCancel={onClose} footer={null} width={900} title="流程详情">
+    <Modal open={open} onCancel={onClose} footer={null} width={760} title={translate('auto.d157b8ac50')}>
       {loading || !detail ? (
         <Spin />
       ) : (
         <Space direction="vertical" size="large" style={{ width: '100%' }}>
           <div>
-            <Title level={5} style={{ marginBottom: 4 }}>
-              {detail.template?.name || '流程'}
+            <Title level={5} style={{ marginBottom: 6 }}>
+              {detail.template?.name || translate('workflow.col_flow')}
             </Title>
-            <Space size="middle">
-              <Text>实例状态</Text>
-              <Tag>{workflowStatusLabel(detail.instance?.status)}</Tag>
-              <Text>实体</Text>
-              <Tag>{detail.instance?.entity_type}</Tag>
-              <Text>编号</Text>
-              <Tag>{detail.instance?.entity_id}</Tag>
+            <Space size="middle" wrap>
+              <Tag color={instanceStatusColor(detail.instance?.status)}>
+                {workflowStatusLabel(detail.instance?.status)}
+              </Tag>
+              <Text type="secondary">{translate('workflow.col_entity')}</Text>
+              <Tag bordered={false}>{detail.instance?.entity_type}</Tag>
+              <Text type="secondary">{translate('auto.9f42dac67e')}</Text>
+              <Tag bordered={false}>{detail.instance?.entity_id}</Tag>
             </Space>
           </div>
 
-          <div style={{ height: 320, border: '1px solid #e5e7eb', borderRadius: 8, overflow: 'hidden' }}>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              defaultEdgeOptions={{
-                markerEnd: { type: MarkerType.ArrowClosed },
-                style: { stroke: '#94a3b8', strokeWidth: 2 },
-              }}
-              fitView
-            >
-              <MiniMap />
-              <Controls />
-              <Background gap={16} />
-            </ReactFlow>
+          <RuntimeSummary detail={detail} />
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <Segmented
+              size="small"
+              value={view}
+              onChange={v => setView(v as 'table' | 'timeline')}
+              options={[
+                { label: translate('richTextEditor.table'), value: 'table' },
+                { label: translate('auto.4f8ef92599'), value: 'timeline' },
+              ]}
+            />
           </div>
 
-          <div>
-            <Title level={5}>处理过程</Title>
-            <Space direction="vertical" size="small" style={{ width: '100%' }}>
-              {(detail.tasks || []).map(task => (
-                <div
-                  key={task.id}
-                  style={{ border: '1px solid #e5e7eb', borderRadius: 6, padding: 8, background: '#fff' }}
-                >
-                  <Space size="middle">
-                    <Tag>{workflowStatusLabel(task.status)}</Tag>
-                    <Text strong>{task.node_name}</Text>
-                    <Text type="secondary">处理人：{task.assignee_name || task.assignee_id}</Text>
-                  </Space>
-                  {task.comment && (
-                    <div style={{ marginTop: 6, textAlign: 'right' }}>
-                      <Text type="secondary" style={{ whiteSpace: 'pre-line' }}>
-                        {task.comment}
-                      </Text>
-                    </div>
-                  )}
-                  {task.decided_at && (
-                    <div style={{ marginTop: 4 }}>
-                      <Text type="secondary">处理时间：{task.decided_at}</Text>
-                    </div>
-                  )}
-                </div>
-              ))}
-              {!detail.tasks?.length && <Text type="secondary">暂无处理记录</Text>}
-            </Space>
-          </div>
+          {view === 'table' ? (
+            <WorkflowProcessTable tasks={detail.tasks || []} />
+          ) : (
+            <WorkflowRuntimeView detail={detail} showSummary={false} />
+          )}
         </Space>
       )}
     </Modal>

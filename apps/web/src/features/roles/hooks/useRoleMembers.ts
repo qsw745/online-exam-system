@@ -3,6 +3,7 @@ import { rolesApi, type Role as ApiRole, type UserBrief as ApiUser, type RoleOrg
 import { api } from '@/shared/api/http'
 import { App } from 'antd'
 import { useCallback, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export type Role = { id: number; name: string }
 export type User = ApiUser & { status?: string }
@@ -83,7 +84,7 @@ export function useRoleMembers() {
         setMembers(ensureArray<RoleUser>(arr, []))
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载角色用户失败')
+        message.error(e?.message || translate('auto.9494494565'))
       } finally {
         setLoading(false)
       }
@@ -100,7 +101,7 @@ export function useRoleMembers() {
         setRoleOrgs(ensureArray<RoleOrg>(arr, []))
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '加载角色机构失败')
+        message.error(e?.message || translate('auto.66954e3187'))
       } finally {
         setOrgsLoading(false)
       }
@@ -151,7 +152,7 @@ export function useRoleMembers() {
       setUserOpen(true)
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载用户失败')
+      message.error(e?.message || translate('workflowTemplates.errors.load_users_failed'))
     } finally {
       setUserLoading(false)
     }

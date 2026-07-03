@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { App } from 'antd'
 import dayjs, { Dayjs } from 'dayjs'
 import { leaderboardApi, type LeaderboardEntry, type LeaderboardStats } from '@/shared/api/endpoints/leaderboard'
+import { translate } from '@/shared/utils/i18n'
 
 export type LeaderboardTab = 'overall' | 'study_time' | 'accuracy'
 
@@ -49,7 +50,7 @@ export function useLeaderboard() {
       setBoards(list)
       if (list.length > 0 && !boardId) setBoardId(list[0].id)
     } catch (e) {
-      message.error('获取排行榜列表失败')
+      message.error(translate('auto.3d25cb133e'))
       setBoards([])
     } finally {
       setLoading(false)
@@ -69,7 +70,7 @@ export function useLeaderboard() {
       setTotalItems(total)
       setPage(1) // 每次筛选切回第1页
     } catch (e) {
-      message.error('获取排行榜数据失败，已使用兜底数据')
+      message.error(translate('auto.357bbf3f5c'))
       setEntries([
         {
           id: 1,

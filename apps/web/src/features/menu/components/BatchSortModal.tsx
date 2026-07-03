@@ -3,6 +3,7 @@ import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, us
 import { SortableContext, arrayMove, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import SortableMenuItem from './SortableMenuItem'
 import type { MenuDTO } from '@/shared/api/endpoints/menu'
+import { translate } from '@/shared/utils/i18n'
 
 export default function BatchSortModal({
   open,
@@ -34,7 +35,7 @@ export default function BatchSortModal({
   return (
     <Modal
       maskClosable={false}
-      title="批量调整菜单排序"
+      title={translate('auto.346e081165')}
       open={open}
       onOk={onOk}
       onCancel={onCancel}
@@ -43,8 +44,7 @@ export default function BatchSortModal({
     >
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Typography.Paragraph style={{ color: '#4b5563', marginBottom: 0 }}>
-          拖拽下方列表项来调整菜单排序，或直接修改“当前位置”：
-        </Typography.Paragraph>
+          {translate('auto.6452e430c9')}</Typography.Paragraph>
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={items.map(m => m.id)} strategy={verticalListSortingStrategy}>
             <Space direction="vertical" size={8} style={{ width: '100%' }}>

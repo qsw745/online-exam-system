@@ -53,6 +53,20 @@ export type WorkflowInstanceDetail = {
   tasks: WorkflowTask[]
 }
 
+export type WorkflowInstance = {
+  id: number
+  template_id: number
+  template_name?: string
+  entity_type: string
+  entity_id: number
+  status: string
+  current_nodes?: string[]
+  payload?: any
+  created_by?: number
+  created_at?: string
+  updated_at?: string
+}
+
 export type WorkflowList<T> = {
   items: T[]
   total: number
@@ -115,6 +129,22 @@ export const workflowsApi = {
     api.post(`/workflows/tasks/${id}/approve`, payload),
   rejectTask: (id: number, payload?: { comment?: string; form_values?: Record<string, any> }) =>
     api.post(`/workflows/tasks/${id}/reject`, payload),
+  transferTask: (id: number, toUserId: number, comment?: string) =>
+    api.post(`/workflows/tasks/${id}/transfer`, { to_user_id: toUserId, comment }),
+  addSignTask: (id: number, userId: number, comment?: string) =>
+    api.post(`/workflows/tasks/${id}/add-sign`, { user_id: userId, comment }),
+  withdrawInstance: (id: number) => api.post(`/workflows/instances/${id}/withdraw`),
+  async listMyInstances(params?: { page?: number; limit?: number; status?: string }): Promise<WorkflowList<WorkflowInstance>> {
+    const res = await api.get('/workflows/instances/mine', { params })
+    const payload = unwrap(res)
+    const items = payload?.items ?? payload?.list ?? []
+    return {
+      items,
+      total: Number(payload?.total ?? items.length ?? 0),
+      page: Number(payload?.page ?? 1),
+      limit: Number(payload?.limit ?? items.length ?? 20),
+    }
+  },
 }
 
 export default workflowsApi

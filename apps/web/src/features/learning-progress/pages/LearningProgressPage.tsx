@@ -6,6 +6,7 @@ import LearningFilters from '../components/LearningFilters'
 import LearningOverview from '../components/LearningOverview'
 import LearningStatsCards from '../components/LearningStatsCards'
 import LearningTimeline from '../components/LearningTimeline'
+import { translate } from '@/shared/utils/i18n'
 const { Title } = Typography
 
 export default function LearningProgressPage() {
@@ -29,8 +30,7 @@ export default function LearningProgressPage() {
         <Space>
           <TrendingUp style={{ width: 24, height: 24, color: '#1890ff' }} />
           <Title level={2} style={{ margin: 0 }}>
-            学习进度
-          </Title>
+            {translate('menus.learning-progress')}</Title>
         </Space>
         <LearningFilters
           subject={subject}

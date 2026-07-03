@@ -4,6 +4,8 @@ import { DeleteOutlined, EditOutlined, MoreOutlined, SettingOutlined, TeamOutlin
 import type { ColumnsType } from 'antd/es/table'
 import React from 'react'
 import type { Role } from '@/shared/api/endpoints/roles'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 export function RolesTable({
   data,
@@ -22,36 +24,36 @@ export function RolesTable({
 }) {
   const columns: ColumnsType<Role> = [
     {
-      title: '角色名称',
+      title: translate('roles.columns.name'),
       dataIndex: 'name',
       render: (t, r) => (
         <Space>
           {t}
-          {r.is_system && <Tag color="blue">系统角色</Tag>}
-          {r.is_disabled && <Tag color="red">已禁用</Tag>}
+          {r.is_system && <Tag color="blue">{translate('auto.97946d6335')}</Tag>}
+          {r.is_disabled && <Tag color="red">{translate('users.status.disabled')}</Tag>}
         </Space>
       ),
     },
-    { title: '角色编码', dataIndex: 'code' },
-    { title: '描述', dataIndex: 'description', ellipsis: true },
-    { title: '创建时间', dataIndex: 'created_at', render: t => new Date(t).toLocaleString() },
+    { title: translate('auto.c12ace673d'), dataIndex: 'code' },
+    { title: translate('papers.desc2'), dataIndex: 'description', ellipsis: true },
+    { title: translate('users.columns.created_at'), dataIndex: 'created_at', render: t => (t ? formatDateTime(t) : '-') },
     {
-      title: '操作',
+      title: translate('users.columns.actions'),
       width: 140,
       render: (_, record) => {
         const items = [
-          { key: 'edit', icon: <EditOutlined />, label: '编辑', onClick: () => onEdit(record) },
-          { key: 'perm', icon: <SettingOutlined />, label: '权限设置', onClick: () => onPermission(record) },
-          { key: 'members', icon: <TeamOutlined />, label: '添加用户', onClick: () => onMembers(record) },
+          { key: 'edit', icon: <EditOutlined />, label: translate('app.edit'), onClick: () => onEdit(record) },
+          { key: 'perm', icon: <SettingOutlined />, label: translate('auto.6a05416758'), onClick: () => onPermission(record) },
+          { key: 'members', icon: <TeamOutlined />, label: translate('auto.4f965d4969'), onClick: () => onMembers(record) },
           !record.is_system && {
             key: 'del',
             danger: true,
             icon: <DeleteOutlined />,
-            label: '删除',
+            label: translate('app.delete'),
             onClick: () =>
               Modal.confirm({
-                title: '确定要删除这个角色吗？',
-                content: '删除后将无法恢复',
+                title: translate('roles.confirm.delete_title'),
+                content: translate('roles.confirm.delete_content'),
                 onOk: () => onDelete(record),
               }),
           },

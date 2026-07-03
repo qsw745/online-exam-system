@@ -1,6 +1,8 @@
 import { App, Button, Card, Form, Input, Modal, Space, Table, Tag } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import { announcementsApi, type Announcement } from '@/shared/api/endpoints/announcements'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 export default function AnnouncementManagementPage() {
   const { message } = App.useApp()
@@ -16,7 +18,7 @@ export default function AnnouncementManagementPage() {
       const list = await announcementsApi.adminList()
       setRows(list)
     } catch (e: any) {
-      message.error(e?.message || '加载公告失败')
+      message.error(e?.message || translate('auto.a55cbaa016'))
       setRows([])
     } finally {
       setLoading(false)
@@ -31,44 +33,44 @@ export default function AnnouncementManagementPage() {
     try {
       if (editing) {
         await announcementsApi.update(editing.id, { title: values.title, content: values.content })
-        message.success('更新成功')
+        message.success(translate('roles.message.update_success'))
       } else {
         await announcementsApi.create({ title: values.title, content: values.content, status: 'draft' })
-        message.success('创建成功')
+        message.success(translate('orgs.message.create_success'))
       }
       setOpen(false)
       setEditing(null)
       form.resetFields()
       load()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || translate('roles.message.save_failed'))
     }
   }
 
   const handlePublish = async (record: Announcement) => {
     try {
       await announcementsApi.publish(record.id)
-      message.success('发布成功')
+      message.success(translate('auto.ec00233618'))
       load()
     } catch (e: any) {
-      message.error(e?.message || '发布失败')
+      message.error(e?.message || translate('auto.7e7f5d44c4'))
     }
   }
 
   const handleDelete = async (record: Announcement) => {
     try {
       await announcementsApi.remove(record.id)
-      message.success('删除成功')
+      message.success(translate('users.message.delete_success'))
       load()
     } catch (e: any) {
-      message.error(e?.message || '删除失败')
+      message.error(e?.message || translate('orgs.message.delete_failed'))
     }
   }
 
   return (
     <Space direction="vertical" style={{ width: '100%' }} size={12}>
       <Card
-        title="公告管理"
+        title={translate('menus.notify-announce-manage')}
         extra={
           <Button
             type="primary"
@@ -78,8 +80,7 @@ export default function AnnouncementManagementPage() {
               setOpen(true)
             }}
           >
-            新建公告
-          </Button>
+            {translate('auto.5ae1741c4b')}</Button>
         }
       >
         <Table
@@ -88,22 +89,22 @@ export default function AnnouncementManagementPage() {
           dataSource={rows}
           columns={[
             { title: 'ID', dataIndex: 'id', width: 80 },
-            { title: '标题', dataIndex: 'title' },
+            { title: translate('papers.field_title'), dataIndex: 'title' },
             {
-              title: '状态',
+              title: translate('users.columns.status'),
               dataIndex: 'status',
               width: 120,
               render: (v: Announcement['status']) =>
-                v === 'published' ? <Tag color="green">已发布</Tag> : <Tag>草稿</Tag>,
+                v === 'published' ? <Tag color="green">{translate('auto.176a2eb4eb')}</Tag> : <Tag>{translate('auto.0f436818c0')}</Tag>,
             },
             {
-              title: '发布时间',
+              title: translate('auto.b410c24122'),
               dataIndex: 'published_at',
               width: 200,
-              render: (v: string | null) => v || '-',
+              render: (v: string | null) => (v ? formatDateTime(v) : '-'),
             },
             {
-              title: '操作',
+              title: translate('users.columns.actions'),
               width: 260,
               render: (_, record) => (
                 <Space>
@@ -115,19 +116,16 @@ export default function AnnouncementManagementPage() {
                       setOpen(true)
                     }}
                   >
-                    编辑
-                  </Button>
+                    {translate('app.edit')}</Button>
                   <Button
                     size="small"
                     type="primary"
                     disabled={record.status === 'published'}
                     onClick={() => handlePublish(record)}
                   >
-                    发布
-                  </Button>
+                    {translate('auto.94f172d02f')}</Button>
                   <Button size="small" danger onClick={() => handleDelete(record)}>
-                    删除
-                  </Button>
+                    {translate('app.delete')}</Button>
                 </Space>
               ),
             },
@@ -136,7 +134,7 @@ export default function AnnouncementManagementPage() {
       </Card>
 
       <Modal
-        title={editing ? '编辑公告' : '新建公告'}
+        title={editing ? translate('visible.0d7fef7db2') : translate('auto.5ae1741c4b')}
         open={open}
         onCancel={() => {
           setOpen(false)
@@ -146,11 +144,11 @@ export default function AnnouncementManagementPage() {
         onOk={() => form.submit()}
       >
         <Form form={form} layout="vertical" onFinish={handleSubmit}>
-          <Form.Item name="title" label="标题" rules={[{ required: true, message: '请输入标题' }]}>
-            <Input placeholder="例如：系统维护公告" />
+          <Form.Item name="title" label={translate('papers.field_title')} rules={[{ required: true, message: translate('auto.901722e5f3') }]}>
+            <Input placeholder={translate('auto.896fd7dbf3')} />
           </Form.Item>
-          <Form.Item name="content" label="内容" rules={[{ required: true, message: '请输入内容' }]}>
-            <Input.TextArea rows={6} placeholder="支持 Markdown / 富文本（后续接编辑器）" />
+          <Form.Item name="content" label={translate('auto.163aec9194')} rules={[{ required: true, message: translate('auto.ac962cb9a6') }]}>
+            <Input.TextArea rows={6} placeholder={translate('auto.927b94adc0')} />
           </Form.Item>
         </Form>
       </Modal>

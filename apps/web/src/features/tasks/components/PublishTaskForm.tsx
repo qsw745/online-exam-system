@@ -1,7 +1,8 @@
 // features/tasks/components/PublishTaskForm.tsx
 import { DatePicker, Form, Input, Radio, Select, Space, Button } from 'antd'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
 import React from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export interface PublishForm {
   title: string
@@ -26,7 +27,7 @@ export const PublishTaskForm: React.FC<{
       onFinish={vals => {
         // 基本校验：结束时间不得早于开始时间
         if (vals.start_time && vals.end_time && vals.end_time.isBefore(vals.start_time)) {
-          return form.setFields([{ name: 'end_time', errors: ['结束时间需晚于开始时间'] }])
+          return form.setFields([{ name: 'end_time', errors: [translate('taskForm.validation.end_after_start')] }])
         }
         onSubmit({
           title: vals.title,
@@ -38,36 +39,36 @@ export const PublishTaskForm: React.FC<{
         })
       }}
     >
-      <Form.Item name="title" label="任务标题" rules={[{ required: true, message: '请输入任务标题' }, { max: 80 }]}>
-        <Input placeholder="例如：期中考试 - 数学（高一）" />
+      <Form.Item name="title" label={translate('auto.6eae640bc4')} rules={[{ required: true, message: translate('auto.edd729f7f2') }, { max: 80 }]}>
+        <Input placeholder={translate('auto.6d2355a6e9')} />
       </Form.Item>
 
-      <Form.Item name="description" label="任务描述" rules={[{ max: 500 }]}>
-        <Input.TextArea rows={3} placeholder="补充说明..." />
+      <Form.Item name="description" label={translate('auto.5c0193ae42')} rules={[{ max: 500 }]}>
+        <Input.TextArea rows={3} placeholder={translate('auto.e36bd12007')} />
       </Form.Item>
 
       <Space size="large" wrap>
-        <Form.Item name="type" label="任务类型" initialValue="exam">
+        <Form.Item name="type" label={translate('auto.4a6f4156fc')} initialValue="exam">
           <Radio.Group>
-            <Radio.Button value="exam">考试</Radio.Button>
-            <Radio.Button value="practice">练习</Radio.Button>
+            <Radio.Button value="exam">{translate('nav.exams')}</Radio.Button>
+            <Radio.Button value="practice">{translate('menus.exam-practice')}</Radio.Button>
           </Radio.Group>
         </Form.Item>
 
-        <Form.Item name="start_time" label="开始时间" rules={[{ required: true, message: '请选择开始时间' }]}>
+        <Form.Item name="start_time" label={translate('dashboard.start_time')} rules={[{ required: true, message: translate('auto.96870563bb') }]}>
           <DatePicker showTime />
         </Form.Item>
 
-        <Form.Item name="end_time" label="结束时间" rules={[{ required: true, message: '请选择结束时间' }]}>
+        <Form.Item name="end_time" label={translate('auto.a0bb9f49ab')} rules={[{ required: true, message: translate('auto.53579ed9bf') }]}>
           <DatePicker showTime />
         </Form.Item>
       </Space>
 
-      <Form.Item name="assignees" label="指定用户（可选）">
+      <Form.Item name="assignees" label={translate('auto.73486c2813')}>
         <Select
           mode="multiple"
           allowClear
-          placeholder="不选表示走表格勾选"
+          placeholder={translate('auto.2bbfd02e22')}
           options={usersForSelect}
           maxTagCount="responsive"
         />
@@ -75,9 +76,8 @@ export const PublishTaskForm: React.FC<{
 
       <Space>
         <Button type="primary" htmlType="submit" loading={loading}>
-          发布
-        </Button>
-        <Button onClick={() => form.resetFields()}>清空</Button>
+          {translate('auto.94f172d02f')}</Button>
+        <Button onClick={() => form.resetFields()}>{translate('auto.84fcd70d42')}</Button>
       </Space>
     </Form>
   )

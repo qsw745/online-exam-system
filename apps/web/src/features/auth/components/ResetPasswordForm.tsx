@@ -3,6 +3,7 @@ import { Form, Input, Button } from 'antd'
 import { LockOutlined, EyeInvisibleOutlined, EyeTwoTone } from '@ant-design/icons'
 import type { ResetValues } from '../hooks/useResetPassword'
 import { PasswordStrengthBar } from './PasswordStrengthBar' // 可选：如果已存在
+import { translate } from '@/shared/utils/i18n'
 
 type Props = {
   loading: boolean
@@ -17,16 +18,16 @@ export const ResetPasswordForm: React.FC<Props> = ({ loading, onSubmit }) => {
     <Form<ResetValues> form={form} layout="vertical" onFinish={onSubmit} size="large">
       <Form.Item
         name="password"
-        label="新密码"
+        label={translate('account.new_password')}
         rules={[
-          { required: true, message: '请输入新密码' },
-          { min: 6, message: '密码长度至少6位' },
-          { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: '密码必须包含字母和数字' },
+          { required: true, message: translate('users.reset_password.label') },
+          { min: 6, message: translate('auto.3bbd0a8411') },
+          { pattern: /^(?=.*[A-Za-z])(?=.*\d).+$/, message: translate('auto.3df8bab8d1') },
         ]}
       >
         <Input.Password
           prefix={<LockOutlined />}
-          placeholder="请输入新密码（至少6位，包含字母和数字）"
+          placeholder={translate('auto.f4e626e7d0')}
           iconRender={v => (v ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
         />
       </Form.Item>
@@ -36,28 +37,28 @@ export const ResetPasswordForm: React.FC<Props> = ({ loading, onSubmit }) => {
 
       <Form.Item
         name="confirmPassword"
-        label="确认密码"
+        label={translate('auth.confirm_password')}
         dependencies={['password']}
         rules={[
-          { required: true, message: '请确认新密码' },
+          { required: true, message: translate('auto.c2d891d87f') },
           ({ getFieldValue }) => ({
             validator(_, value) {
               if (!value || getFieldValue('password') === value) return Promise.resolve()
-              return Promise.reject(new Error('两次输入的密码不一致'))
+              return Promise.reject(new Error(translate('auto.3e2b222d98')))
             },
           }),
         ]}
       >
         <Input.Password
           prefix={<LockOutlined />}
-          placeholder="请再次输入新密码"
+          placeholder={translate('account.confirm_new_password_required')}
           iconRender={v => (v ? <EyeTwoTone /> : <EyeInvisibleOutlined />)}
         />
       </Form.Item>
 
       <Form.Item style={{ marginBottom: 16 }}>
         <Button type="primary" htmlType="submit" loading={loading} block size="large" style={{ height: 48 }}>
-          {loading ? '重置中…' : '重置密码'}
+          {loading ? translate('visible.2c826f08e6') : translate('users.action.reset_password')}
         </Button>
       </Form.Item>
     </Form>

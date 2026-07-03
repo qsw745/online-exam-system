@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react'
 import { Modal, Tree, Input, Spin, Empty } from 'antd'
 import type { DataNode } from 'antd/es/tree'
+import { translate } from '@/shared/utils/i18n'
 
 type Props = {
   open: boolean
@@ -78,7 +79,7 @@ export default function PickSystemMenuModal({ open, loading, treeData, onOk, onC
   return (
     <Modal
       maskClosable={false}
-      title="选择系统菜单作为单位覆盖（可多选）"
+      title={translate('auto.523c09a2be')}
       open={open}
       onOk={handleOk}
       okButtonProps={{ disabled: !checkedKeys.length }}
@@ -87,7 +88,7 @@ export default function PickSystemMenuModal({ open, loading, treeData, onOk, onC
       destroyOnHidden
     >
       <Input.Search
-        placeholder="输入名称筛选"
+        placeholder={translate('auto.494c887c45')}
         value={keyword}
         onChange={e => setKeyword(e.target.value)}
         allowClear
@@ -109,7 +110,7 @@ export default function PickSystemMenuModal({ open, loading, treeData, onOk, onC
             onCheck={keys => setCheckedKeys(keys as React.Key[])}
           />
         ) : (
-          <Empty description="没有可选的系统菜单（可能已全部覆盖）" />
+          <Empty description={translate('auto.9ef9ad31a4')} />
         )}
       </div>
     </Modal>

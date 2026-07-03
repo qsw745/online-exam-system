@@ -3,6 +3,7 @@ import { api, isSuccess, getErr, type ApiResult } from '@/shared/api/http'
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 
 // 最小类型
 type Difficulty = 'easy' | 'medium' | 'hard'
@@ -56,7 +57,7 @@ export function useManualPaper() {
       setQuestions(list)
     } catch (e: any) {
       console.error(e)
-      message.error(e?.message || '加载题目失败，请重试')
+      message.error(e?.message || translate('auto.1192ad1d2e'))
       setQuestions([])
     } finally {
       setLoading(false)
@@ -82,8 +83,8 @@ export function useManualPaper() {
 
   // 提交创建
   const createPaper = async () => {
-    if (!title.trim()) return message.error('请输入试卷标题')
-    if (!selectedIds.size) return message.error('请至少选择一道题目')
+    if (!title.trim()) return message.error(translate('papers.title_required'))
+    if (!selectedIds.size) return message.error(translate('auto.8073dc86a9'))
 
     try {
       setLoading(true)
@@ -96,11 +97,11 @@ export function useManualPaper() {
         question_ids: Array.from(selectedIds),
       })
       if (!isSuccess(r)) throw new Error(getErr(r, '创建试卷失败'))
-      message.success('试卷创建成功')
+      message.success(translate('auto.d61aa5c104'))
       navigate('/admin/papers')
     } catch (e: any) {
       console.error(e)
-      message.error(e?.response?.data?.message || e?.message || '创建试卷失败，请重试')
+      message.error(e?.response?.data?.message || e?.message || translate('auto.1531013f68'))
     } finally {
       setLoading(false)
     }

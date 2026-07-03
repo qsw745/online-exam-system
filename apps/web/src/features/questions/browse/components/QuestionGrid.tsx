@@ -4,6 +4,7 @@ import React from 'react'
 import { BookmarkPlus } from 'lucide-react'
 import type { Question } from '@/shared/api/endpoints/questions'
 import { QuestionCard } from './QuestionCard'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -22,8 +23,8 @@ export function QuestionGrid({
         image={<BookmarkPlus width={48} height={48} color="#d9d9d9" />}
         description={
           <Space direction="vertical">
-            <Text strong>暂无题目</Text>
-            <Text type="secondary">当前筛选条件下没有找到任何题目</Text>
+            <Text strong>{translate('questions.empty')}</Text>
+            <Text type="secondary">{translate('auto.c07eddd7a1')}</Text>
           </Space>
         }
       />

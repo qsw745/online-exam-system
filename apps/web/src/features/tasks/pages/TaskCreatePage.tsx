@@ -5,6 +5,7 @@ import { TaskForm } from '../components/TaskForm'
 import { useTaskById } from '../hooks/useTaskById'
 import { useTaskSubmit } from '../hooks/useTaskSubmit'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
 
 const TaskCreatePage: React.FC = () => {
   const { id } = useParams<{ id?: string }>()
@@ -40,7 +41,7 @@ const TaskCreatePage: React.FC = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card
-        title={mode === 'view' ? '查看任务' : mode === 'edit' ? '编辑任务' : '创建任务'}
+        title={mode === 'view' ? translate('visible.ec20beb2c4') : mode === 'edit' ? translate('jobs.edit_job') : translate('menus.task-create')}
         variant="outlined"
         loading={loading}
       >

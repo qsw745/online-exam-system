@@ -35,9 +35,11 @@ import {
   Tooltip,
 } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import dayjs from 'dayjs'
+import dayjs from '@/shared/utils/dayjs'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 /** 后端真实类型用于筛选等 */
 type Query = { keyword?: string; type?: MenuDTO['menu_type'] }
@@ -68,40 +70,42 @@ function TableToolbar({
   full,
   onToggleFull,
 }: ToolbarProps) {
+  const { t } = useLanguage()
   const densityMenu: MenuProps['items'] = [
-    { key: 'large', label: '宽松', onClick: () => onSizeChange('large') },
-    { key: 'middle', label: '默认', onClick: () => onSizeChange('middle') },
-    { key: 'small', label: '紧凑', onClick: () => onSizeChange('small') },
+    { key: 'large', label: t('table.density.loose'), onClick: () => onSizeChange('large') },
+    { key: 'middle', label: t('table.density.default'), onClick: () => onSizeChange('middle') },
+    { key: 'small', label: t('table.density.compact'), onClick: () => onSizeChange('small') },
   ]
+  const densityLabel = size === 'large' ? t('table.density.loose') : size === 'small' ? t('table.density.compact') : t('table.density.default')
   return (
     <Space>
       <Button type="primary" icon={<PlusOutlined />} onClick={onCreate}>
-        新增菜单
+        {t('menuList.add_menu')}
       </Button>
 
       {/* 展开/折叠：单按钮图标切换 */}
-      <Tooltip title={expanded ? '折叠全部' : '展开全部'}>
+      <Tooltip title={expanded ? t('table.toolbar.collapse_all') : t('table.toolbar.expand_all')}>
         <Button icon={expanded ? <DownOutlined /> : <RightOutlined />} onClick={onToggleExpand} />
       </Tooltip>
 
-      <Tooltip title="刷新">
+      <Tooltip title={t('app.refresh')}>
         <Button icon={<ReloadOutlined />} onClick={onRefresh} />
       </Tooltip>
 
       <Dropdown menu={{ items: densityMenu }}>
-        <Tooltip title={`密度：${size === 'large' ? '宽松' : size === 'small' ? '紧凑' : '默认'}`}>
+        <Tooltip title={`${t('table.toolbar.density')}: ${densityLabel}`}>
           <Button icon={<ColumnHeightOutlined />} />
         </Tooltip>
       </Dropdown>
 
       {/* v5.19 用 dropdownRender（没有 popupRender） */}
       <Dropdown dropdownRender={() => columnSettingPanel} trigger={['click']}>
-        <Tooltip title="列设置">
+        <Tooltip title={t('table.toolbar.column_settings')}>
           <Button icon={<SettingOutlined />} />
         </Tooltip>
       </Dropdown>
 
-      <Tooltip title={full ? '退出全屏' : '全屏'}>
+      <Tooltip title={full ? t('table.toolbar.exit_fullscreen') : t('table.toolbar.fullscreen')}>
         <Button icon={full ? <CompressOutlined /> : <ExpandOutlined />} onClick={onToggleFull} />
       </Tooltip>
     </Space>
@@ -109,15 +113,16 @@ function TableToolbar({
 }
 
 /** ===================== 组件主体 ===================== */
-function TypeTag({ t }: { t: MenuDTO['menu_type'] }) {
+function TypeTag({ type }: { type: MenuDTO['menu_type'] }) {
+  const { t } = useLanguage()
   const map: Record<string, string> = {
-    menu: '菜单',
-    link: '外链',
-    button: '按钮',
+    menu: t('menuList.type.menu'),
+    link: t('menuList.type.link'),
+    button: t('menuList.type.button'),
     iframe: 'iframe',
-    dir: '目录',
+    dir: t('menuList.type.dir'),
   } as any
-  return <Tag>{map[t] ?? t}</Tag>
+  return <Tag>{map[type] ?? type}</Tag>
 }
 
 /** 扁平 -> 树 */
@@ -163,6 +168,7 @@ function collectKeys(tree: TreeMenu[]): React.Key[] {
 
 export default function MenusListPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
 
   /** 搜索表单（常驻） */
   const [searchForm] = Form.useForm<Query>()
@@ -216,7 +222,7 @@ export default function MenusListPage() {
       const list = await menuApi.list({ scope: 'system' })
       setFlat(list || [])
     } catch {
-      message.error('加载菜单失败')
+      message.error(t('menuList.messages.load_failed'))
     } finally {
       setLoading(false)
     }
@@ -277,8 +283,8 @@ export default function MenusListPage() {
 
   const handleSave = async () => {
     const v = await editorForm.validateFields()
-    const t = (v.menu_type as UIType) || 'menu'
-    const backendType = (t === 'iframe' ? 'menu' : t) as MenuDTO['menu_type']
+    const uiType = (v.menu_type as UIType) || 'menu'
+    const backendType = (uiType === 'iframe' ? 'menu' : uiType) as MenuDTO['menu_type']
 
     let payload: Partial<Omit<MenuCreateInput & MenuUpdateInput, 'id'>> = {
       parent_id: v.parent_id ?? null,
@@ -290,7 +296,7 @@ export default function MenusListPage() {
       is_disabled: v.is_disabled,
     }
 
-    if (t === 'menu') {
+    if (uiType === 'menu') {
       payload = {
         ...payload,
         name: v.name,
@@ -299,7 +305,7 @@ export default function MenusListPage() {
         redirect: v.redirect,
         permission_code: v.permission_code,
       }
-    } else if (t === 'iframe') {
+    } else if (uiType === 'iframe') {
       payload = {
         ...payload,
         name: v.name,
@@ -307,13 +313,13 @@ export default function MenusListPage() {
         component: v.component,
         redirect: v.iframe_src,
       }
-    } else if (t === 'link') {
+    } else if (uiType === 'link') {
       payload = {
         ...payload,
         name: v.name,
         redirect: v.iframe_src,
       }
-    } else if (t === 'button') {
+    } else if (uiType === 'button') {
       payload = {
         ...payload,
         permission_code: v.permission_code,
@@ -323,11 +329,11 @@ export default function MenusListPage() {
     try {
       if (v.id) await menuApi.update(v.id, payload as MenuUpdateInput, { scope: 'system' })
       else await menuApi.create(payload as MenuCreateInput, { scope: 'system' })
-      message.success('已保存')
+      message.success(t('menuList.messages.saved'))
       setEditorOpen(false)
       await fetchData()
     } catch {
-      message.error('保存失败')
+      message.error(t('menuList.messages.save_failed'))
     }
   }
 
@@ -337,10 +343,10 @@ export default function MenusListPage() {
   const onDelete = async (row: MenuDTO) => {
     try {
       await menuApi.remove(row.id, { scope: 'system' })
-      message.success('删除成功')
+      message.success(t('menuList.messages.delete_success'))
       await fetchData()
     } catch (e: any) {
-      message.error(e?.message || '删除失败（可能存在子菜单）')
+      message.error(e?.message || t('menuList.messages.delete_failed'))
     }
   }
 
@@ -372,7 +378,7 @@ export default function MenusListPage() {
   // —— 列定义（全量）
   const allColumns: Record<ColKey, any> = {
     title: {
-      title: '菜单名称',
+      title: t('menuList.columns.title'),
       dataIndex: 'title',
       key: 'title',
       width: 260,
@@ -395,24 +401,24 @@ export default function MenusListPage() {
           >
             {v}
           </span>
-          {r.is_hidden ? <Tag>隐藏</Tag> : null}
-          {r.is_disabled ? <Tag color="red">禁用</Tag> : null}
+          {r.is_hidden ? <Tag>{t('menuList.hidden')}</Tag> : null}
+          {r.is_disabled ? <Tag color="red">{t('menuList.disabled')}</Tag> : null}
         </Space>
       ),
     },
-    menu_type: { title: '菜单类型', dataIndex: 'menu_type', width: 100, render: (v: any) => <TypeTag t={v as any} /> },
-    path: { title: '路由路径', dataIndex: 'path', width: 220, ellipsis: true },
-    component: { title: '组件路径', dataIndex: 'component', width: 220, ellipsis: true },
-    permission_code: { title: '权限标识', dataIndex: 'permission_code', width: 180, ellipsis: true },
-    sort_order: { title: '排序', dataIndex: 'sort_order', width: 90 },
+    menu_type: { title: t('menuList.columns.menu_type'), dataIndex: 'menu_type', width: 100, render: (v: any) => <TypeTag type={v as any} /> },
+    path: { title: t('menuList.columns.path'), dataIndex: 'path', width: 220, ellipsis: true },
+    component: { title: t('menuList.columns.component'), dataIndex: 'component', width: 220, ellipsis: true },
+    permission_code: { title: t('menuList.columns.permission_code'), dataIndex: 'permission_code', width: 180, ellipsis: true },
+    sort_order: { title: t('menuList.columns.sort_order'), dataIndex: 'sort_order', width: 90 },
     updated_at: {
-      title: '更新时间',
+      title: t('menuList.columns.updated_at'),
       dataIndex: 'updated_at',
       width: 170,
-      render: (v: any) => (v ? dayjs(v).format('YYYY-MM-DD HH:mm') : '-'),
+      render: (v: any) => (v ? formatDateTime(v) : '-'),
     },
     actions: {
-      title: '操作',
+      title: t('menuList.columns.actions'),
       key: 'actions',
       fixed: 'right' as const,
       width: 220,
@@ -421,14 +427,14 @@ export default function MenusListPage() {
       render: (_: any, r: TreeMenu) => (
         <Space size="small">
           <Button type="link" onClick={() => onEdit(r)}>
-            修改
+            {t('app.edit')}
           </Button>
           <Button type="link" onClick={() => onCreateChild(r)}>
-            新增
+            {t('app.add')}
           </Button>
-          <Popconfirm title="确定删除该菜单？" onConfirm={() => onDelete(r)}>
+          <Popconfirm title={t('menuList.confirm_delete')} onConfirm={() => onDelete(r)}>
             <Button type="link" danger>
-              删除
+              {t('app.delete')}
             </Button>
           </Popconfirm>
         </Space>
@@ -443,7 +449,7 @@ export default function MenusListPage() {
         .filter(k => visibleCols.includes(k))
         .map(k => allColumns[k])
         .filter(Boolean),
-    [orderCols, visibleCols]
+    [orderCols, visibleCols, t]
   )
 
   // 搜索
@@ -462,14 +468,14 @@ export default function MenusListPage() {
   }
 
   const labelMap: Record<ColKey, string> = {
-    title: '菜单名称',
-    menu_type: '菜单类型',
-    path: '路由路径',
-    component: '组件路径',
-    permission_code: '权限标识',
-    sort_order: '排序',
-    updated_at: '更新时间',
-    actions: '操作',
+    title: t('menuList.columns.title'),
+    menu_type: t('menuList.columns.menu_type'),
+    path: t('menuList.columns.path'),
+    component: t('menuList.columns.component'),
+    permission_code: t('menuList.columns.permission_code'),
+    sort_order: t('menuList.columns.sort_order'),
+    updated_at: t('menuList.columns.updated_at'),
+    actions: t('menuList.columns.actions'),
   }
 
   const ColumnSetting = (
@@ -495,10 +501,10 @@ export default function MenusListPage() {
         }}
       >
         <Checkbox checked={allChecked} onChange={e => onToggleAll(e.target.checked)}>
-          列展示
+          {t('table.columns.title')}
         </Checkbox>
         <Button type="link" size="small" onClick={resetCols} style={{ padding: 0 }}>
-          重置
+          {t('app.reset')}
         </Button>
       </div>
 
@@ -552,7 +558,7 @@ export default function MenusListPage() {
   // 主卡片块（可被 Portal 包裹进全屏）
   const TableBlock = (
     <Card
-      title="菜单管理"
+      title={t('menuList.title')}
       styles={{ body: { paddingTop: 12 } }}
       extra={
         <TableToolbar
@@ -639,24 +645,24 @@ export default function MenusListPage() {
       {/* 搜索面板 */}
       <Card size="small" style={{ marginBottom: 12 }} styles={{ body: { paddingBottom: 4 } }}>
         <Form form={searchForm} layout="inline" onFinish={doSearch}>
-          <Form.Item name="keyword" label="菜单名称">
+          <Form.Item name="keyword" label={t('menuList.columns.title')}>
             <Input
               allowClear
-              placeholder="请输入菜单名称"
+              placeholder={t('menuList.placeholders.menu_title')}
               style={{ width: 320 }}
               onPressEnter={() => searchForm.submit()}
             />
           </Form.Item>
-          <Form.Item name="type" label="类型">
+          <Form.Item name="type" label={t('menuList.type_label')}>
             <Select
               allowClear
-              placeholder="菜单类型"
+              placeholder={t('menuList.placeholders.menu_type')}
               style={{ width: 160 }}
               options={
                 [
-                  { value: 'menu', label: '菜单' },
-                  { value: 'link', label: '外链' },
-                  { value: 'button', label: '按钮' },
+                  { value: 'menu', label: t('menuList.type.menu') },
+                  { value: 'link', label: t('menuList.type.link') },
+                  { value: 'button', label: t('menuList.type.button') },
                 ] as any
               }
             />
@@ -664,10 +670,10 @@ export default function MenusListPage() {
           <Form.Item>
             <Space>
               <Button type="primary" htmlType="submit" icon={<SearchOutlined />}>
-                搜索
+                {t('app.search')}
               </Button>
               <Button icon={<RedoOutlined />} onClick={doReset}>
-                重置
+                {t('app.reset')}
               </Button>
             </Space>
           </Form.Item>
@@ -693,14 +699,14 @@ export default function MenusListPage() {
 
       <Modal
         open={editorOpen}
-        title={editorInitRef.current?.id ? '修改菜单' : '新增菜单'}
+        title={editorInitRef.current?.id ? t('menuList.edit_menu') : t('menuList.add_menu')}
         onCancel={closeEditor}
         onOk={handleSave}
         width={940}
         destroyOnClose
         maskClosable={false}
-        okText="确定"
-        cancelText="取消"
+        okText={t('app.confirm')}
+        cancelText={t('app.cancel')}
         styles={{ body: { padding: 12 } }}
         afterOpenChange={opened => {
           if (opened) {
@@ -721,10 +727,10 @@ export default function MenusListPage() {
             editorForm.setFieldsValue({ menu_type: k })
           }}
           items={[
-            { key: 'menu', label: '菜单' },
+            { key: 'menu', label: t('menuList.type.menu') },
             { key: 'iframe', label: 'iframe' },
-            { key: 'link', label: '外链' },
-            { key: 'button', label: '按钮' },
+            { key: 'link', label: t('menuList.type.link') },
+            { key: 'button', label: t('menuList.type.button') },
           ]}
         />
 
@@ -740,19 +746,19 @@ export default function MenusListPage() {
             {(() => {
               const CommonTop = (
                 <>
-                  <Form.Item name="parent_id" label="上级菜单">
+                  <Form.Item name="parent_id" label={t('menuList.parent_menu')}>
                     <Select
                       allowClear
-                      placeholder="顶级留空"
+                      placeholder={t('menuList.placeholders.parent_menu')}
                       options={flat.map(m => ({ value: m.id, label: m.title }))}
                       size="small"
                     />
                   </Form.Item>
-                  <Form.Item name="sort_order" label="菜单排序" rules={[{ type: 'number' }]}>
+                  <Form.Item name="sort_order" label={t('menuList.columns.sort_order')} rules={[{ type: 'number' }]}>
                     <InputNumber min={0} style={{ width: '100%' }} size="small" />
                   </Form.Item>
-                  <Form.Item name="title" label="菜单名称" rules={[{ required: true, message: '必填' }]}>
-                    <Input placeholder="请输入菜单名称" size="small" />
+                  <Form.Item name="title" label={t('menuList.columns.title')} rules={[{ required: true, message: t('menuList.required') }]}>
+                    <Input placeholder={t('menuList.placeholders.menu_title')} size="small" />
                   </Form.Item>
                 </>
               )
@@ -771,47 +777,47 @@ export default function MenusListPage() {
                 return (
                   <>
                     {CommonTop}
-                    <Form.Item name="name" label="路由名称" rules={[{ required: true, message: '必填' }]}>
-                      <Input placeholder="唯一 name" size="small" />
+                    <Form.Item name="name" label={t('menuList.route_name')} rules={[{ required: true, message: t('menuList.required') }]}>
+                      <Input placeholder={t('menuList.placeholders.route_name')} size="small" />
                     </Form.Item>
-                    <Form.Item name="path" label="路由路径">
+                    <Form.Item name="path" label={t('menuList.columns.path')}>
                       <Input placeholder="/system/menu/index" size="small" />
                     </Form.Item>
-                    <Form.Item name="component" label="组件路径/Key">
-                      <Input placeholder="views/system/menu/index 或 component key" size="small" />
+                    <Form.Item name="component" label={t('menuList.component_key')}>
+                      <Input placeholder={t('menuList.placeholders.component_menu')} size="small" />
                     </Form.Item>
-                    <Form.Item name="icon" label="菜单图标">
+                    <Form.Item name="icon" label={t('menuList.icon')}>
                       <Input placeholder="menu / setting / ..." size="small" />
                     </Form.Item>
-                    <Form.Item name="redirect" label="重定向">
+                    <Form.Item name="redirect" label={t('menuList.redirect')}>
                       <Input placeholder="/system/menu/index" size="small" />
                     </Form.Item>
-                    <Form.Item name="permission_code" label="权限标识">
+                    <Form.Item name="permission_code" label={t('menuList.columns.permission_code')}>
                       <Input placeholder="system:menu:list" size="small" />
                     </Form.Item>
 
-                    <Form.Item label="菜单显示" name="is_hidden">
+                    <Form.Item label={t('menuList.menu_visibility')} name="is_hidden">
                       {BoolButtons([
-                        ['显示', false],
-                        ['隐藏', true],
+                        [t('menuList.visible'), false],
+                        [t('menuList.hidden'), true],
                       ])}
                     </Form.Item>
-                    <Form.Item label="禁用" name="is_disabled">
+                    <Form.Item label={t('menuList.disabled')} name="is_disabled">
                       {BoolButtons([
-                        ['启用', false],
-                        ['禁用', true],
+                        [t('menuList.enabled'), false],
+                        [t('menuList.disabled'), true],
                       ])}
                     </Form.Item>
-                    <Form.Item label="页面缓存(前端)" name="keep_alive">
+                    <Form.Item label={t('menuList.keep_alive')} name="keep_alive">
                       {BoolButtons([
-                        ['缓存', true],
-                        ['不缓存', false],
+                        [t('menuList.cache'), true],
+                        [t('menuList.no_cache'), false],
                       ])}
                     </Form.Item>
-                    <Form.Item label="固定标签(前端)" name="affix">
+                    <Form.Item label={t('menuList.affix')} name="affix">
                       {BoolButtons([
-                        ['固定', true],
-                        ['不固定', false],
+                        [t('menuList.fixed'), true],
+                        [t('menuList.not_fixed'), false],
                       ])}
                     </Form.Item>
                   </>
@@ -822,31 +828,31 @@ export default function MenusListPage() {
                 return (
                   <>
                     {CommonTop}
-                    <Form.Item name="name" label="路由名称" rules={[{ required: true, message: '必填' }]}>
-                      <Input placeholder="唯一 name" size="small" />
+                    <Form.Item name="name" label={t('menuList.route_name')} rules={[{ required: true, message: t('menuList.required') }]}>
+                      <Input placeholder={t('menuList.placeholders.route_name')} size="small" />
                     </Form.Item>
-                    <Form.Item name="path" label="路由路径">
+                    <Form.Item name="path" label={t('menuList.columns.path')}>
                       <Input placeholder="/iframe/example" size="small" />
                     </Form.Item>
-                    <Form.Item name="component" label="组件路径/Key">
-                      <Input placeholder="iframe/embed 或组件 key" size="small" />
+                    <Form.Item name="component" label={t('menuList.component_key')}>
+                      <Input placeholder={t('menuList.placeholders.component_iframe')} size="small" />
                     </Form.Item>
-                    <Form.Item name="icon" label="菜单图标">
+                    <Form.Item name="icon" label={t('menuList.icon')}>
                       <Input placeholder="menu / setting / ..." size="small" />
                     </Form.Item>
-                    <Form.Item name="iframe_src" label="iframe 连接地址" rules={[{ required: true, message: '必填' }]}>
+                    <Form.Item name="iframe_src" label={t('menuList.iframe_url')} rules={[{ required: true, message: t('menuList.required') }]}>
                       <Input placeholder="https://example.com" size="small" />
                     </Form.Item>
-                    <Form.Item label="菜单显示" name="is_hidden">
+                    <Form.Item label={t('menuList.menu_visibility')} name="is_hidden">
                       {BoolButtons([
-                        ['显示', false],
-                        ['隐藏', true],
+                        [t('menuList.visible'), false],
+                        [t('menuList.hidden'), true],
                       ])}
                     </Form.Item>
-                    <Form.Item label="禁用" name="is_disabled">
+                    <Form.Item label={t('menuList.disabled')} name="is_disabled">
                       {BoolButtons([
-                        ['启用', false],
-                        ['禁用', true],
+                        [t('menuList.enabled'), false],
+                        [t('menuList.disabled'), true],
                       ])}
                     </Form.Item>
                   </>
@@ -857,16 +863,16 @@ export default function MenusListPage() {
                 return (
                   <>
                     {CommonTop}
-                    <Form.Item name="name" label="名称" rules={[{ required: true, message: '必填' }]}>
-                      <Input placeholder="外链名称" size="small" />
+                    <Form.Item name="name" label={t('menuList.name')} rules={[{ required: true, message: t('menuList.required') }]}>
+                      <Input placeholder={t('menuList.placeholders.link_name')} size="small" />
                     </Form.Item>
-                    <Form.Item name="iframe_src" label="外链地址" rules={[{ required: true, message: '必填' }]}>
+                    <Form.Item name="iframe_src" label={t('menuList.link_url')} rules={[{ required: true, message: t('menuList.required') }]}>
                       <Input placeholder="https://example.com" size="small" />
                     </Form.Item>
-                    <Form.Item label="菜单显示" name="is_hidden">
+                    <Form.Item label={t('menuList.menu_visibility')} name="is_hidden">
                       {BoolButtons([
-                        ['显示', false],
-                        ['隐藏', true],
+                        [t('menuList.visible'), false],
+                        [t('menuList.hidden'), true],
                       ])}
                     </Form.Item>
                   </>
@@ -877,7 +883,7 @@ export default function MenusListPage() {
               return (
                 <>
                   {CommonTop}
-                  <Form.Item name="permission_code" label="权限标识" rules={[{ required: true, message: '必填' }]}>
+                  <Form.Item name="permission_code" label={t('menuList.columns.permission_code')} rules={[{ required: true, message: t('menuList.required') }]}>
                     <Input placeholder="system:xxx:action" size="small" />
                   </Form.Item>
                 </>

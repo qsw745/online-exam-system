@@ -1,5 +1,6 @@
 import { DatePicker, Input, Select, Button, Space } from 'antd'
 import { Search } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
 const { RangePicker } = DatePicker
 
 export default function LoginLogsFilters({
@@ -15,7 +16,7 @@ export default function LoginLogsFilters({
     <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
       <Input
         allowClear
-        placeholder="用户名"
+        placeholder={translate('auth.username')}
         value={filters.username}
         onChange={e => onChange({ username: e.target.value })}
         prefix={<Search size={16} style={{ color: '#bfbfbf' }} />}
@@ -26,19 +27,18 @@ export default function LoginLogsFilters({
         value={filters.status || 'all'}
         onChange={v => onChange({ status: v === 'all' ? undefined : v })}
         options={[
-          { value: 'all', label: '登录状态(全部)' },
-          { value: '成功', label: '成功' },
-          { value: '失败', label: '失败' },
+          { value: 'all', label: translate('auto.e499db6d35') },
+          { value: translate('auto.51991a5d11'), label: translate('auto.51991a5d11') },
+          { value: translate('auto.3e3c8068bb'), label: translate('auto.3e3c8068bb') },
         ]}
       />
       <RangePicker
         value={filters.dateRange}
         onChange={v => onChange({ dateRange: v })}
-        placeholder={['开始日期', '结束日期']}
+        placeholder={[translate('visible.1f29196891'), translate('visible.f4b9b2b5de')]}
       />
       <Button type="primary" icon={<Search size={16} />} onClick={onApply}>
-        搜索
-      </Button>
+        {translate('app.search')}</Button>
     </Space>
   )
 }

@@ -5,6 +5,7 @@ import { OrgTreePanel } from '@/shared/components/OrgTreePanel'
 import { useOrgTree } from '@/shared/hooks'
 import { usersApi } from '@/shared/api/endpoints/users'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { Sider, Content } = Layout
 const { Text } = Typography
@@ -53,7 +54,7 @@ export const BindUserModal: React.FC<{
       .split(/[\s,;]+/)
       .map(s => s.trim().toLowerCase())
       .filter(Boolean)
-    if (!list.length) return message.warning('请输入至少一个邮箱')
+    if (!list.length) return message.warning(translate('auto.f550320a54'))
     await onSubmit({ emails: Array.from(new Set(list)) })
   }
 
@@ -134,7 +135,7 @@ export const BindUserModal: React.FC<{
 
   const handleSubmitPick = async () => {
     const ids = (selectedRowKeys as number[]) || []
-    if (!ids.length) return message.warning('请先勾选要添加的用户')
+    if (!ids.length) return message.warning(translate('auto.8317b899a8'))
     await onSubmit({ userIds: ids })
   }
 
@@ -157,14 +158,14 @@ export const BindUserModal: React.FC<{
   const okDisabled = active === 'email' ? emailList.length === 0 : selectedRowKeys.length === 0
 
   const columns = [
-    { title: '用户名', dataIndex: 'username' },
-    { title: '邮箱', dataIndex: 'email' },
-    { title: '角色', dataIndex: 'role', width: 120 },
+    { title: translate('auth.username'), dataIndex: 'username' },
+    { title: translate('auth.email'), dataIndex: 'email' },
+    { title: translate('auth.role'), dataIndex: 'role', width: 120 },
     {
-      title: '状态',
+      title: translate('users.columns.status'),
       dataIndex: 'status',
       width: 100,
-      render: (s: any) => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? '正常' : '禁用'}</Tag>,
+      render: (s: any) => <Tag color={s === 'active' ? 'green' : 'red'}>{s === 'active' ? translate('examPage.proctor.status.ok') : translate('users.status.disable')}</Tag>,
     },
   ]
 
@@ -180,8 +181,8 @@ export const BindUserModal: React.FC<{
       title={
         <Space>
           <ApartmentOutlined />
-          <Text strong>新增用户到该机构</Text>
-          <Text type="secondary">目标机构ID：{targetOrgId}</Text>
+          <Text strong>{translate('auto.6d16273ff8')}</Text>
+          <Text type="secondary">{translate('auto.0d84858463')}{targetOrgId}</Text>
         </Space>
       }
       width={1000}
@@ -195,14 +196,14 @@ export const BindUserModal: React.FC<{
         items={[
           {
             key: 'email',
-            label: '按邮箱添加',
+            label: translate('auto.342eef4b5e'),
             children: (
               <div style={{ padding: 16 }}>
                 <Form form={form} layout="vertical" preserve={false}>
                   <Form.Item
-                    label="用户邮箱（可多个，逗号/空格/分号分隔）"
+                    label={translate('auto.782b1a1d5b')}
                     name="emails"
-                    rules={[{ required: true, message: '请输入邮箱' }]}
+                    rules={[{ required: true, message: translate('users.form.email_placeholder') }]}
                     extra={`已输入 ${emailList.length} 个邮箱`}
                   >
                     <Input.TextArea
@@ -219,7 +220,7 @@ export const BindUserModal: React.FC<{
           },
           {
             key: 'pick',
-            label: '从列表选择',
+            label: translate('auto.91c67ac82e'),
             children: (
               <Layout style={{ height: 560 }}>
                 <Sider width={280} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
@@ -241,7 +242,7 @@ export const BindUserModal: React.FC<{
                       setExpandedKeys(init != null ? [init] : [])
                       setBrowseOrgId(init)
                     }}
-                    title="浏览机构（用于过滤右侧列表）"
+                    title={translate('auto.01612ca69a')}
                   />
                 </Sider>
                 <Content style={{ padding: 16, overflow: 'auto' }}>
@@ -253,12 +254,12 @@ export const BindUserModal: React.FC<{
                         setBPage(1)
                       }}
                       prefix={<SearchOutlined />}
-                      placeholder="按邮箱或用户名搜索"
+                      placeholder={translate('auto.960c78b16d')}
                       allowClear
                       style={{ width: 340 }}
                     />
                     <Space>
-                      <Text type="secondary">含子部门</Text>
+                      <Text type="secondary">{translate('users.filters.include_children')}</Text>
                       <Switch
                         checked={bIncludeChildren}
                         onChange={v => {
@@ -266,7 +267,7 @@ export const BindUserModal: React.FC<{
                           setBPage(1)
                         }}
                       />
-                      <Button onClick={() => fetchUsers()}>刷新</Button>
+                      <Button onClick={() => fetchUsers()}>{translate('app.refresh')}</Button>
                     </Space>
                   </Space>
 

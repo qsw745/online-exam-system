@@ -10,10 +10,12 @@ import PapersToolbar from '../components/PapersToolbar'
 import GlobalPagination from '@/shared/components/GlobalPagination'
 import PaperWorkflowModal from '../components/PaperWorkflowModal'
 import { papersApi, type Paper } from '@/shared/api/endpoints/papers'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 const { Title, Text } = Typography
 
 export default function PaperManagementPage() {
   const nav = useNavigate()
+  const { t } = useLanguage()
   const { message } = App.useApp()
   const h = usePapersList()
 
@@ -33,7 +35,7 @@ export default function PaperManagementPage() {
         ok++
       } catch {}
     }
-    message.success(`批量删除完成，成功 ${ok}/${ids.length}`)
+    message.success(t('papers.batch_delete_done').replace('{ok}', String(ok)).replace('{total}', String(ids.length)))
   }, [selectedKeys, h, message, canBatch])
 
   const onReviewToggle = useCallback(
@@ -48,16 +50,16 @@ export default function PaperManagementPage() {
           template_id: null,
           form_values: null,
         })
-        message.success('已关闭审批')
+        message.success(t('papers.approval_closed'))
         await h.reload()
       } catch (e: any) {
-        message.error(e?.response?.data?.message || e?.message || '关闭审批失败')
+        message.error(e?.response?.data?.message || e?.message || t('papers.approval_close_failed'))
       }
     },
     [h, message]
   )
 
-  if (h.loading) return <LoadingSpinner text="加载试卷列表..." center="page" />
+  if (h.loading) return <LoadingSpinner text={t('papers.loading')} center="page" />
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
@@ -66,26 +68,26 @@ export default function PaperManagementPage() {
         title={
           <Space direction="vertical" size={4} style={{ width: '100%' }}>
             <Title level={3} style={{ margin: 0 }}>
-              试卷管理
+              {t('papers.title')}
             </Title>
-            <Text type="secondary">管理所有考试试卷</Text>
+            <Text type="secondary">{t('papers.subtitle')}</Text>
           </Space>
         }
         extra={
           <Space wrap>
             <Button type="primary" onClick={() => nav('/admin/papers/create/smart')}>
-              智能组卷
+              {t('papers.smart_create')}
             </Button>
-            <Button onClick={() => nav('/admin/papers/create/manual')}>手动创建</Button>
+            <Button onClick={() => nav('/admin/papers/create/manual')}>{t('papers.manual_create')}</Button>
             <Popconfirm
-              title={`确认删除选中的 ${selectedKeys.length} 条试卷？`}
-              okText="删除"
+              title={t('papers.confirm_delete_selected').replace('{n}', String(selectedKeys.length))}
+              okText={t('app.delete')}
               okButtonProps={{ danger: true }}
               disabled={!canBatch}
               onConfirm={onBatchDelete}
             >
               <Button danger disabled={!canBatch}>
-                批量删除
+                {t('papers.batch_delete')}
               </Button>
             </Popconfirm>
           </Space>
@@ -129,8 +131,8 @@ export default function PaperManagementPage() {
       </Card>
       <ConfirmDialog
         open={!!confirmId}
-        title="确认删除"
-        content="删除后将无法恢复，确定要删除该试卷吗？"
+        title={t('papers.confirm_delete')}
+        content={t('papers.delete_warning')}
         onCancel={() => setConfirmId(null)}
         onOk={() => {
           if (confirmId != null) h.onDelete(String(confirmId))

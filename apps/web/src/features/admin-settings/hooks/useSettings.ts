@@ -4,10 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { SystemSettings } from '@/shared/types/admin-settings'
 import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { settingsSchema } from '../validation/settings.schema'
+import { translate } from '@/shared/utils/i18n'
 
 const DEFAULTS: SystemSettings = {
   systemName: '在线考试系统',
   allowUserRegistration: true,
+  requireEmailVerification: false,
+  loginLivenessLevel: 'silent',
+  enrollLivenessLevel: 'silent',
   maxLoginAttempts: 5,
 
   enableCaptcha: true,
@@ -23,6 +27,16 @@ const DEFAULTS: SystemSettings = {
     forbidRepeated: true,
     forbidCommon: true,
   },
+
+  watermarkEnabled: false,
+  watermarkServerEnabled: false,
+  watermarkScope: 'all',
+  watermarkContent: '{name} {time}',
+  watermarkOpacity: 0.12,
+  watermarkFontSize: 14,
+  watermarkRotate: -22,
+  watermarkGap: 100,
+  watermarkColor: '#000000',
 
   aiEnabled: false,
   aiProvider: 'deepseek',
@@ -52,7 +66,7 @@ export function useSettings() {
       setCurrent(merged)
     } catch (e) {
       console.error(e)
-      message.error('加载系统设置失败')
+      message.error(translate('auto.b3e48e946e'))
       setInitial(DEFAULTS)
       setCurrent(DEFAULTS)
     } finally {
@@ -76,10 +90,10 @@ export function useSettings() {
 
         setInitial(prev => ({ ...(prev as SystemSettings), ...sanitized }))
         setCurrent(prev => ({ ...(prev as SystemSettings), ...sanitized }))
-        message.success('系统设置保存成功')
+        message.success(translate('auto.862d5c6236'))
       } catch (e: any) {
         console.error(e)
-        message.error(e?.message || '保存系统设置失败')
+        message.error(e?.message || translate('auto.695c9d3810'))
         throw e
       } finally {
         setLoading(false)

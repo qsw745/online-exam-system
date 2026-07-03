@@ -6,6 +6,8 @@ import { workflowStatusLabel } from '@/shared/utils/workflow'
 import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import WorkflowInstanceModal from '@/features/workflows/components/WorkflowInstanceModal'
 import WorkflowTaskDecisionModal from '@/features/workflows/components/WorkflowTaskDecisionModal'
+import { translate } from '@/shared/utils/i18n'
+import { formatDateTime } from '@/shared/utils/datetime'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
@@ -62,7 +64,7 @@ export default function ExamReviewPage() {
       setItems(nextItems)
       setTotal(nextItems.length)
     } catch (e: any) {
-      message.error(e?.message || '加载审批列表失败')
+      message.error(e?.message || translate('auto.3b25d6fdee'))
     } finally {
       setLoading(false)
     }
@@ -79,8 +81,8 @@ export default function ExamReviewPage() {
   }
 
   const getEntityPath = (row: WorkflowTask) => {
-    if (row.entity_type === 'paper') return { label: '试卷', path: `/admin/paper-detail/${row.entity_id}` }
-    if (row.entity_type === 'exam') return { label: '考试', path: `/exam/${row.entity_id}` }
+    if (row.entity_type === 'paper') return { label: translate('papers.col_paper'), path: `/admin/paper-detail/${row.entity_id}` }
+    if (row.entity_type === 'exam') return { label: translate('nav.exams'), path: `/exam/${row.entity_id}` }
     return null
   }
 
@@ -103,49 +105,49 @@ export default function ExamReviewPage() {
 
   const columns = useMemo(
     () => [
-      { title: '考试ID', dataIndex: 'entity_id', key: 'entity_id', width: 90 },
-      { title: '节点', dataIndex: 'node_name', key: 'node_name' },
+      { title: translate('auto.2514f93ebe'), dataIndex: 'entity_id', key: 'entity_id', width: 90 },
+      { title: translate('workflow.col_node'), dataIndex: 'node_name', key: 'node_name' },
       {
-        title: '状态',
+        title: translate('users.columns.status'),
         dataIndex: 'status',
         key: 'status',
         width: 110,
         render: (val: string) => <Tag color={statusColor(val)}>{workflowStatusLabel(val)}</Tag>,
       },
       {
-        title: '进度',
+        title: translate('auto.acf014bff8'),
         key: 'progress',
         width: 140,
         render: (_: any, row: WorkflowTask) => <Text>{workflowStatusLabel(row.instance_status)}</Text>,
       },
       {
-        title: '我的状态',
+        title: translate('auto.048be7bd78'),
         dataIndex: 'status',
         key: 'my_status',
         width: 120,
         render: (val: string) => <Tag>{workflowStatusLabel(val)}</Tag>,
       },
       {
-        title: '表单',
+        title: translate('workflowTemplates.columns.form'),
         key: 'form_values',
         width: 140,
         render: (_: any, row: WorkflowTask) =>
           row.payload?.form_values ? (
             <Button type="link" onClick={() => setFormPayload(row.payload?.form_values)}>
-              查看表单
-            </Button>
+              {translate('auto.48f5186ee3')}</Button>
           ) : (
-            <Text type="secondary">无</Text>
+            <Text type="secondary">{translate('auto.72077749f7')}</Text>
           ),
       },
       {
-        title: '创建时间',
+        title: translate('users.columns.created_at'),
         dataIndex: 'created_at',
         key: 'created_at',
         width: 180,
+        render: (v?: string) => (v ? formatDateTime(v) : '-'),
       },
       {
-        title: '操作',
+        title: translate('users.columns.actions'),
         key: 'actions',
         width: 320,
         render: (_: any, row: WorkflowTask) => {
@@ -161,18 +163,16 @@ export default function ExamReviewPage() {
                   if (pendingTask) {
                     setDecisionTask(pendingTask)
                   } else {
-                    message.info('当前没有待处理任务')
+                    message.info(translate('auto.7e4d308ee1'))
                   }
                 }}
               >
-                处理
-              </Button>
+                {translate('workflow.btn_process')}</Button>
               <Button type="link" onClick={() => setInstanceId(row.instance_id)}>
-                查看流程
-              </Button>
+                {translate('workflow.btn_view_flow')}</Button>
               {entity?.path && (
                 <Button type="link" onClick={() => navigate(entity.path)}>
-                  查看{entity.label}
+                  {translate('workflow.btn_view')}{entity.label}
                 </Button>
               )}
             </Space>
@@ -187,9 +187,8 @@ export default function ExamReviewPage() {
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
       <Card>
         <Title level={4} style={{ marginBottom: 0 }}>
-          考试审核
-        </Title>
-        <Text type="secondary">需要你审核的考试审批流</Text>
+          {translate('auto.c0a3816969')}</Title>
+        <Text type="secondary">{translate('auto.d61a77515a')}</Text>
       </Card>
       <Card>
         <Table
@@ -207,12 +206,11 @@ export default function ExamReviewPage() {
       </Card>
       <Modal
         open={Boolean(formPayload)}
-        title="审批表单"
+        title={translate('papers.wf_form')}
         onCancel={() => setFormPayload(null)}
         footer={[
           <Button key="close" onClick={() => setFormPayload(null)}>
-            关闭
-          </Button>,
+            {translate('app.close')}</Button>,
         ]}
       >
         {formPayload ? (
@@ -224,7 +222,7 @@ export default function ExamReviewPage() {
             ))}
           </Descriptions>
         ) : (
-          <Text type="secondary">无表单数据</Text>
+          <Text type="secondary">{translate('auto.47e6d7378a')}</Text>
         )}
       </Modal>
       <WorkflowInstanceModal open={Boolean(instanceId)} instanceId={instanceId} onClose={() => setInstanceId(null)} />

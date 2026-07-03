@@ -1,6 +1,7 @@
 import React from 'react'
 import { Drawer, Divider, Switch, Tooltip } from 'antd'
 import { useLayout } from '@/shared/contexts/LayoutContext'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { Info } from 'lucide-react'
 
 type Props = { open: boolean; onClose: () => void }
@@ -140,6 +141,7 @@ export default function LayoutSwitchDrawer({ open, onClose }: Props) {
     persistTabs,
     setPersistTabs,
   } = useLayout()
+  const { t } = useLanguage()
 
   const ModeItem = ({ m, title, label }: { m: 'side' | 'top' | 'mix'; title: string; label: string }) => (
     <div style={{ display: 'grid', justifyItems: 'center', gap: 6 }}>
@@ -155,17 +157,17 @@ export default function LayoutSwitchDrawer({ open, onClose }: Props) {
       open={open}
       onClose={onClose}
       width={280}
-      title="系统配置"
+      title={t('layout.title')}
       destroyOnHidden
       styles={{ body: { paddingBottom: 24 } }}
     >
       {/* 导航模式 */}
       <div>
-        <div style={{ fontWeight: 600, marginBottom: 12 }}>导航模式</div>
+        <div style={{ fontWeight: 600, marginBottom: 12 }}>{t('layout.nav_mode')}</div>
         <div style={{ display: 'grid', gridAutoFlow: 'column', gap: 14, width: 'max-content' }}>
-          <ModeItem m="side" title="左侧菜单" label="左侧菜单" />
-          <ModeItem m="top" title="顶部菜单" label="顶部菜单" />
-          <ModeItem m="mix" title="混合菜单" label="混合菜单" />
+          <ModeItem m="side" title={t('layout.nav_side')} label={t('layout.nav_side')} />
+          <ModeItem m="top" title={t('layout.nav_top')} label={t('layout.nav_top')} />
+          <ModeItem m="mix" title={t('layout.nav_mix')} label={t('layout.nav_mix')} />
         </div>
       </div>
 
@@ -175,20 +177,20 @@ export default function LayoutSwitchDrawer({ open, onClose }: Props) {
       {mode !== 'top' && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div>
-            <div style={{ fontWeight: 600 }}>侧栏折叠</div>
-            <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>控制左侧菜单的展开/收起</div>
+            <div style={{ fontWeight: 600 }}>{t('layout.sidebar_collapse')}</div>
+            <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>{t('layout.sidebar_collapse_desc')}</div>
           </div>
-          <Switch checkedChildren="开启" unCheckedChildren="关闭" checked={collapsed} onChange={toggleCollapsed} />
+          <Switch checkedChildren={t('common.on')} unCheckedChildren={t('common.off')} checked={collapsed} onChange={toggleCollapsed} />
         </div>
       )}
 
       {/* 显示 Logo & 项目名 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 }}>
         <div>
-          <div style={{ fontWeight: 600 }}>显示 Logo 与项目名称</div>
-          <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>Header 左侧同时显示/隐藏 Logo 与标题</div>
+          <div style={{ fontWeight: 600 }}>{t('layout.show_brand')}</div>
+          <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>{t('layout.show_brand_desc')}</div>
         </div>
-        <Switch checkedChildren="开启" unCheckedChildren="关闭" checked={showBrand} onChange={setShowBrand} />
+        <Switch checkedChildren={t('common.on')} unCheckedChildren={t('common.off')} checked={showBrand} onChange={setShowBrand} />
       </div>
 
       <Divider />
@@ -196,24 +198,24 @@ export default function LayoutSwitchDrawer({ open, onClose }: Props) {
       {/* 标签页显示 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
-          <div style={{ fontWeight: 600 }}>显示标签页</div>
-          <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>关闭后隐藏顶部标签栏</div>
+          <div style={{ fontWeight: 600 }}>{t('layout.tabs_display')}</div>
+          <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>{t('layout.tabs_display_desc')}</div>
         </div>
-        <Switch checkedChildren="开启" unCheckedChildren="关闭" checked={showTabs} onChange={setShowTabs} />
+        <Switch checkedChildren={t('common.on')} unCheckedChildren={t('common.off')} checked={showTabs} onChange={setShowTabs} />
       </div>
 
       {/* 标签页持久化 */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <div>
-            <div style={{ fontWeight: 600 }}>标签页持久化</div>
-            <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>刷新页面后是否保留已打开的标签</div>
+            <div style={{ fontWeight: 600 }}>{t('layout.persist_tabs')}</div>
+            <div style={{ color: 'rgba(0,0,0,.45)', fontSize: 12 }}>{t('layout.persist_tabs_desc')}</div>
           </div>
-          <Tooltip title="关闭后不再往本地缓存标签页数据（不会影响当前会话内的标签使用）">
+          <Tooltip title={t('layout.persist_tabs_tip')}>
             <Info size={16} color="rgba(0,0,0,.45)" />
           </Tooltip>
         </div>
-        <Switch checkedChildren="开启" unCheckedChildren="关闭" checked={persistTabs} onChange={setPersistTabs} />
+        <Switch checkedChildren={t('common.on')} unCheckedChildren={t('common.off')} checked={persistTabs} onChange={setPersistTabs} />
       </div>
     </Drawer>
   )

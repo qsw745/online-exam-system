@@ -6,6 +6,7 @@ import { useTasksQuery, type TaskFilters, type Task } from '../hooks/useTasksQue
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import GlobalPagination from '@/shared/components/GlobalPagination'
+import { translate } from '@/shared/utils/i18n'
 
 const { RangePicker } = DatePicker
 
@@ -67,7 +68,7 @@ const TaskListPage: React.FC = () => {
     try {
       const r: any =
         (tasksApi as any).publish?.(id) ?? (tasksApi as any).update?.(id, { status: 'published' }) ?? null
-      if (!r) throw new Error('未找到可用的发布接口')
+      if (!r) throw new Error(translate('auto.2dae2f9d6e'))
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '发布失败')
       overrideStatus(idStr, 'published')
@@ -86,7 +87,7 @@ const TaskListPage: React.FC = () => {
         (tasksApi as any).update?.(id, { status: 'unpublished' }) ??
         (tasksApi as any).update?.(id, { status: 'draft' }) ??
         null
-      if (!r) throw new Error('未找到可用的下线接口')
+      if (!r) throw new Error(translate('auto.a6cbe101e5'))
       const ret = await r
       if (!isSuccess(ret)) throw new Error(ret?.error || ret?.message || '下线失败')
       overrideStatus(idStr, 'unpublished')
@@ -123,10 +124,10 @@ const TaskListPage: React.FC = () => {
       {/* ✅ 公共面包屑：默认自动根据菜单生成 */}
     
 
-      <Card title="任务列表" variant="outlined">
+      <Card title={translate('menus.task-list')} variant="outlined">
         <Space wrap>
           <Input
-            placeholder="关键词"
+            placeholder={translate('aiLogs.keyword')}
             allowClear
             value={kw}
             onChange={e => setKw(e.target.value)}
@@ -138,18 +139,17 @@ const TaskListPage: React.FC = () => {
             value={st}
             onChange={setSt}
             options={[
-              { value: 'all', label: '全部状态' },
-              { value: 'draft', label: '草稿（可发布）' },
-              { value: 'published', label: '已发布（可下线）' },
-              { value: 'in_progress', label: '进行中' },
-              { value: 'completed', label: '已完成' },
-              { value: 'archived', label: '已归档' },
+              { value: 'all', label: translate('auto.1a4c26d92d') },
+              { value: 'draft', label: translate('auto.ce31ef5e32') },
+              { value: 'published', label: translate('auto.39c964cb0f') },
+              { value: 'in_progress', label: translate('dashboard.status_in_progress') },
+              { value: 'completed', label: translate('dashboard.status_completed') },
+              { value: 'archived', label: translate('auto.5cfbea2b76') },
             ]}
           />
           <RangePicker value={rg as any} onChange={v => setRg((v as any) || null)} showTime />
           <Button type="primary" onClick={applySearch}>
-            查询
-          </Button>
+            {translate('auto.711363c424')}</Button>
           <Button
             onClick={() => {
               setKw('')
@@ -158,8 +158,7 @@ const TaskListPage: React.FC = () => {
               reset()
             }}
           >
-            重置
-          </Button>
+            {translate('app.reset')}</Button>
         </Space>
       </Card>
 

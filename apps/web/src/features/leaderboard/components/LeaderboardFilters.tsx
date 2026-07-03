@@ -1,5 +1,6 @@
 import { DatePicker, Select } from 'antd'
 import type { Dayjs } from 'dayjs'
+import { translate } from '@/shared/utils/i18n'
 const { RangePicker } = DatePicker
 const { Option } = Select
 
@@ -30,7 +31,7 @@ export default function LeaderboardFilters({
 }: Props) {
   return (
     <div className="flex items-center space-x-4">
-      <Select value={boardId ?? undefined} onChange={onBoardChange} style={{ width: 200 }} placeholder="选择排行榜">
+      <Select value={boardId ?? undefined} onChange={onBoardChange} style={{ width: 200 }} placeholder={translate('auto.68ffcaadbd')}>
         {boards.map(b => (
           <Option key={b.id} value={b.id}>
             {b.name ?? `榜单 #${b.id}`}
@@ -39,7 +40,7 @@ export default function LeaderboardFilters({
       </Select>
 
       <Select value={subject} onChange={onSubjectChange} style={{ width: 140 }}>
-        <Option value="all">全部科目</Option>
+        <Option value="all">{translate('analytics.all_subjects')}</Option>
         {subjects.map(s => (
           <Option key={s} value={s}>
             {s}

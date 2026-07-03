@@ -4,6 +4,7 @@ import { Button, DatePicker, Input, Space, Typography } from 'antd'
 import { Clock } from 'lucide-react'
 import type { Dayjs } from 'dayjs'
 import dayjs from '@/shared/utils/dayjs'
+import { translate } from '@/shared/utils/i18n'
 
 const { Text } = Typography
 
@@ -39,11 +40,10 @@ export default function SystemFiltersBar({
       {/* 所属模块 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 72, textAlign: 'right' }}>
-          所属模块
-        </Text>
+          {translate('auto.27713f242f')}</Text>
         <Input
           allowClear
-          placeholder="请输入所属模块"
+          placeholder={translate('auto.a64200fdbc')}
           value={filters.module}
           onChange={e => onChange({ module: e.target.value })}
         />
@@ -52,25 +52,24 @@ export default function SystemFiltersBar({
       {/* 请求时间：开始 至 结束 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <Text strong style={{ width: 72, textAlign: 'right' }}>
-          请求时间
-        </Text>
+          {translate('auto.e8b5eda03a')}</Text>
 
         <Space.Compact style={{ width: '100%' }}>
           <DatePicker
             value={start || undefined}
             onChange={v => onChange({ dateRange: (v && end ? [v, end] : v ? [v, null] : null) as any })}
-            placeholder="开始日期时间"
+            placeholder={translate('auto.88ab31c323')}
             showTime={false}
             format="YYYY-MM-DD"
             style={{ width: '48%' }}
             allowClear
             suffixIcon={<Clock size={16} />}
           />
-          <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', color: '#999' }}>至</div>
+          <div style={{ display: 'flex', alignItems: 'center', padding: '0 8px', color: '#999' }}>{translate('auto.43401e739e')}</div>
           <DatePicker
             value={end || undefined}
             onChange={v => onChange({ dateRange: (start && v ? [start, v] : v ? [null, v] : null) as any })}
-            placeholder="结束日期时间"
+            placeholder={translate('auto.e1a17a6d26')}
             showTime={false}
             format="YYYY-MM-DD"
             style={{ width: '48%' }}
@@ -82,11 +81,9 @@ export default function SystemFiltersBar({
       </div>
 
       <Button type="primary" onClick={onSearch} loading={loading}>
-        搜索
-      </Button>
+        {translate('app.search')}</Button>
       <Button onClick={onReset} disabled={loading}>
-        重置
-      </Button>
+        {translate('app.reset')}</Button>
     </div>
   )
 }

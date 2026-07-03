@@ -1,5 +1,6 @@
 import { DatePicker, Input, Button, Space } from 'antd'
 import { Search } from 'lucide-react'
+import { translate } from '@/shared/utils/i18n'
 const { RangePicker } = DatePicker
 
 export default function SystemLogsFilters({
@@ -15,7 +16,7 @@ export default function SystemLogsFilters({
     <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
       <Input
         allowClear
-        placeholder="所属模块"
+        placeholder={translate('auto.27713f242f')}
         value={filters.module}
         onChange={e => onChange({ module: e.target.value })}
         prefix={<Search size={16} style={{ color: '#bfbfbf' }} />}
@@ -23,7 +24,7 @@ export default function SystemLogsFilters({
       />
       <Input
         allowClear
-        placeholder="请求接口"
+        placeholder={translate('auto.4a30b04730')}
         value={filters.action}
         onChange={e => onChange({ action: e.target.value })}
         prefix={<Search size={16} style={{ color: '#bfbfbf' }} />}
@@ -31,8 +32,7 @@ export default function SystemLogsFilters({
       />
       <RangePicker value={filters.dateRange} onChange={v => onChange({ dateRange: v })} />
       <Button type="primary" icon={<Search size={16} />} onClick={onApply}>
-        搜索
-      </Button>
+        {translate('app.search')}</Button>
     </Space>
   )
 }

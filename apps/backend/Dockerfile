@@ -60,6 +60,9 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# 服务端图片水印（sharp/librsvg 渲染 SVG 文字）需要字体：无字体时中英文都渲染不出来
+RUN apk add --no-cache fontconfig font-noto-cjk
+
 # 拷贝可运行产物（含 node_modules）
 COPY --from=build /out /app
 

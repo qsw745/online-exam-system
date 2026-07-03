@@ -1,6 +1,7 @@
 import { Avatar, Modal, Tooltip } from 'antd'
 import { Upload, User as UserIcon, Maximize2 } from 'lucide-react'
 import React, { useId, useState } from 'react'
+import { translate } from '@/shared/utils/i18n'
 
 export default function AvatarUploader({
   src,
@@ -20,7 +21,7 @@ export default function AvatarUploader({
   return (
     <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
       <div style={{ position: 'relative' }}>
-        <Tooltip title={safeSrc ? '点击查看大图' : undefined}>
+        <Tooltip title={safeSrc ? translate('visible.d730178fef') : undefined}>
           <Avatar
             size={96}
             src={safeSrc}
@@ -48,7 +49,7 @@ export default function AvatarUploader({
             alignItems: 'center',
             justifyContent: 'center',
           }}
-          title="上传头像"
+          title={translate('users.action.upload_avatar')}
         >
           <Upload style={{ width: 16, height: 16 }} />
           <input
@@ -68,7 +69,7 @@ export default function AvatarUploader({
           <button
             type="button"
             onClick={() => setPreviewOpen(true)}
-            title="查看大图"
+            title={translate('auto.c09b520714')}
             style={{
               position: 'absolute',
               top: 0,

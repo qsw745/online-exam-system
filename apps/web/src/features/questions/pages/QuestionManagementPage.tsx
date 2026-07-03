@@ -5,6 +5,7 @@ import React from 'react'
 import { useQuestionSelection } from '@/features/questions/hooks/useQuestionSelection'
 import { createTablePaginationConfig, resolvePaginationChange } from '@/shared/constants/pagination'
 import { useQuestionsQuery } from '../hooks/useQuestionsQuery'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 import AddQuestionModal from '../components/AddQuestionModal'
 import ExportModal from '../components/ExportModal'
@@ -15,6 +16,7 @@ import QuestionToolbar from '../components/QuestionToolbar'
 const { Title, Paragraph } = Typography
 
 export default function QuestionManagementPage() {
+  const { t } = useLanguage()
   const q = useQuestionsQuery()
   const sel = useQuestionSelection(
     q.list.map(i => i.id),
@@ -36,10 +38,10 @@ export default function QuestionManagementPage() {
     <div>
       <div style={{ marginBottom: 24 }}>
         <Title level={2} style={{ margin: 0 }}>
-          题目管理
+          {t('questions.mgmt_title')}
         </Title>
         <Paragraph type="secondary" style={{ margin: '8px 0 0' }}>
-          管理考试题库中的所有题目
+          {t('questions.subtitle')}
         </Paragraph>
       </div>
 
@@ -91,7 +93,7 @@ export default function QuestionManagementPage() {
             current: q.page,
             total: q.total, // 分组模式：这里是“组总数”
             pageSize: q.pageSize,
-            unit: q.isGrouped ? '组' : '条',
+            unit: q.isGrouped ? t('questions.unit_group') : t('questions.unit_item'),
             onChange: handlePaginationChange,
           })}
         />
@@ -100,9 +102,9 @@ export default function QuestionManagementPage() {
       {/* 批量删除 */}
       <ConfirmDialog
         open={sel.deleteModalVisible}
-        title="确认删除"
-        content={`确定要删除选中的 ${sel.selected.length} 道题目吗？此操作无法撤销。`}
-        okText="确认删除"
+        title={t('questions.confirm_delete')}
+        content={t('questions.confirm_delete_batch').replace('{n}', String(sel.selected.length))}
+        okText={t('questions.delete_ok')}
         okDanger
         onCancel={() => sel.setDeleteModalVisible(false)}
         onOk={sel.batchDelete}
@@ -111,9 +113,9 @@ export default function QuestionManagementPage() {
       {/* 单个删除 */}
       <ConfirmDialog
         open={!!single}
-        title="确认删除"
-        content={`确定要删除题目 ${single?.content ?? ''}？此操作无法撤销。`}
-        okText="确认删除"
+        title={t('questions.confirm_delete')}
+        content={t('questions.confirm_delete_single').replace('{content}', single?.content ?? '')}
+        okText={t('questions.delete_ok')}
         okDanger
         onCancel={() => setSingle(null)}
         onOk={async () => {
@@ -121,10 +123,10 @@ export default function QuestionManagementPage() {
           const { questionsApi } = await import('@/shared/api/http')
           const r = await questionsApi.remove(single.id)
           if ((r as any)?.success) {
-            message.success('题目删除成功')
+            message.success(t('questions.delete_success'))
             q.reload()
           } else {
-            message.error('删除题目失败')
+            message.error(t('questions.delete_failed'))
           }
           setSingle(null)
         }}

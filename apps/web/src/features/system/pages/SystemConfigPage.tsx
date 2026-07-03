@@ -5,6 +5,7 @@ import type { Breakpoint } from 'antd/es/_util/responsiveObserver'
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons'
 import type { SystemConfig } from '@/shared/api/endpoints/systemConfigs'
 import { systemConfigsApi } from '@/shared/api/endpoints/systemConfigs'
+import { useLanguage } from '@/shared/contexts/LanguageContext'
 
 const { Title, Text } = Typography
 
@@ -15,6 +16,7 @@ type ModalState = {
 
 export default function SystemConfigPage() {
   const { message } = App.useApp()
+  const { t } = useLanguage()
   const [rows, setRows] = useState<SystemConfig[]>([])
   const [loading, setLoading] = useState(false)
   const [modal, setModal] = useState<ModalState>({ open: false })
@@ -31,11 +33,11 @@ export default function SystemConfigPage() {
       const list = await systemConfigsApi.list()
       setRows(list)
     } catch (e: any) {
-      message.error(e?.message || '加载配置失败')
+      message.error(e?.message || t('systemConfig.load_failed'))
     } finally {
       setLoading(false)
     }
-  }, [message])
+  }, [message, t])
 
   useEffect(() => {
     fetchData()
@@ -59,16 +61,16 @@ export default function SystemConfigPage() {
       } else {
         await systemConfigsApi.create({
           config_key: 'exam.anticheat.level',
-          config_name: '考试防作弊等级',
+          config_name: t('systemConfig.anti_cheat_name'),
           config_value: value,
           value_type: 'select',
           enabled: true,
         })
       }
-      message.success('防作弊等级已更新')
+      message.success(t('systemConfig.anti_cheat_updated'))
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '更新失败')
+      message.error(e?.message || t('systemConfig.update_failed'))
     } finally {
       setAntiCheatLoading(false)
     }
@@ -82,16 +84,16 @@ export default function SystemConfigPage() {
       } else {
         await systemConfigsApi.create({
           config_key: 'exam.proctoring.level',
-          config_name: '考试AI监管等级',
+          config_name: t('systemConfig.proctoring_name'),
           config_value: value,
           value_type: 'select',
           enabled: true,
         })
       }
-      message.success('AI监管等级已更新')
+      message.success(t('systemConfig.proctoring_updated'))
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '更新失败')
+      message.error(e?.message || t('systemConfig.update_failed'))
     } finally {
       setProctoringLoading(false)
     }
@@ -104,7 +106,7 @@ export default function SystemConfigPage() {
       else
         await systemConfigsApi.create({
           config_key: 'notify.attach.maxSizeMB',
-          config_name: '通知附件最大大小(MB)',
+          config_name: t('systemConfig.attach_size_name'),
           config_value: attachSize,
           value_type: 'number',
           enabled: true,
@@ -114,15 +116,15 @@ export default function SystemConfigPage() {
       else
         await systemConfigsApi.create({
           config_key: 'notify.attach.allowedTypes',
-          config_name: '通知附件允许的后缀',
+          config_name: t('systemConfig.attach_types_name'),
           config_value: attachTypes,
           value_type: 'text',
           enabled: true,
         })
-      message.success('附件上传限制已更新')
+      message.success(t('systemConfig.attach_updated'))
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '更新失败')
+      message.error(e?.message || t('systemConfig.update_failed'))
     } finally {
       setAttachLoading(false)
     }
@@ -133,37 +135,37 @@ export default function SystemConfigPage() {
     try {
       if (modal.editing) {
         await systemConfigsApi.update(modal.editing.id, values)
-        message.success('更新成功')
+        message.success(t('systemConfig.update_success'))
       } else {
         await systemConfigsApi.create(values)
-        message.success('创建成功')
+        message.success(t('systemConfig.create_success'))
       }
       setModal({ open: false })
       form.resetFields()
       fetchData()
     } catch (e: any) {
-      message.error(e?.message || '保存失败')
+      message.error(e?.message || t('systemConfig.save_failed'))
     }
   }
 
   const columns: ColumnsType<SystemConfig> = [
-    { title: '键', dataIndex: 'config_key', key: 'config_key', ellipsis: true },
-    { title: '名称', dataIndex: 'config_name', key: 'config_name', ellipsis: true },
-    { title: '值', dataIndex: 'config_value', key: 'config_value', ellipsis: true },
+    { title: t('systemConfig.col_key'), dataIndex: 'config_key', key: 'config_key', ellipsis: true },
+    { title: t('systemConfig.col_name'), dataIndex: 'config_name', key: 'config_name', ellipsis: true },
+    { title: t('systemConfig.col_value'), dataIndex: 'config_value', key: 'config_value', ellipsis: true },
     {
-      title: '类型',
+      title: t('systemConfig.col_type'),
       dataIndex: 'value_type',
       key: 'value_type',
       responsive: ['md'] as Breakpoint[],
     },
     {
-      title: '启用',
+      title: t('systemConfig.col_enabled'),
       dataIndex: 'enabled',
       key: 'enabled',
-      render: (enabled: boolean) => (enabled ? '是' : '否'),
+      render: (enabled: boolean) => (enabled ? t('systemConfig.yes') : t('systemConfig.no')),
     },
     {
-      title: '操作',
+      title: t('systemConfig.col_action'),
       key: 'actions',
       render: (_: any, record: SystemConfig) => (
         <Button
@@ -173,7 +175,7 @@ export default function SystemConfigPage() {
             form.setFieldsValue(record)
           }}
         >
-          编辑
+          {t('app.edit')}
         </Button>
       ),
     },
@@ -185,9 +187,9 @@ export default function SystemConfigPage() {
         <Space style={{ width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
           <div>
             <Title level={4} style={{ marginBottom: 0 }}>
-              参数设置
+              {t('systemConfig.title')}
             </Title>
-            <Text type="secondary">全局配置项，可即时修改</Text>
+            <Text type="secondary">{t('systemConfig.description')}</Text>
           </div>
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData} />
@@ -199,48 +201,48 @@ export default function SystemConfigPage() {
                 form.resetFields()
               }}
             >
-              新增配置
+              {t('systemConfig.add_config')}
             </Button>
           </Space>
         </Space>
       </Card>
-      <Card title="考试防作弊" extra={antiCheatConfig?.description}>
+      <Card title={t('systemConfig.anti_cheat')} extra={antiCheatConfig?.description}>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary">选择不同级别，可控制考试过程中对切屏、复制等行为的限制。</Text>
+          <Text type="secondary">{t('systemConfig.anti_cheat_desc')}</Text>
           <Select
             value={antiCheatConfig?.config_value || 'basic'}
             onChange={handleAntiCheatChange}
             loading={antiCheatLoading}
             style={{ width: 240 }}
             options={[
-              { label: '关闭 - 不启用防作弊', value: 'none' },
-              { label: '基础 - 提醒并禁止复制', value: 'basic' },
-              { label: '严格 - 切屏一次即自动提交', value: 'strict' },
+              { label: t('systemConfig.anti_cheat_none'), value: 'none' },
+              { label: t('systemConfig.anti_cheat_basic'), value: 'basic' },
+              { label: t('systemConfig.anti_cheat_strict'), value: 'strict' },
             ]}
           />
         </Space>
       </Card>
-      <Card title="考试AI监管" extra={proctoringConfig?.description}>
+      <Card title={t('systemConfig.proctoring')} extra={proctoringConfig?.description}>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary">开启后将启用摄像头/麦克风检测与异常行为记录。</Text>
+          <Text type="secondary">{t('systemConfig.proctoring_desc')}</Text>
           <Select
             value={proctoringConfig?.config_value || 'basic'}
             onChange={handleProctoringChange}
             loading={proctoringLoading}
             style={{ width: 240 }}
             options={[
-              { label: '关闭 - 不启用AI监管', value: 'off' },
-              { label: '基础 - 摄像头检测+记录', value: 'basic' },
-              { label: '严格 - 摄像头+麦克风检测', value: 'strict' },
+              { label: t('systemConfig.proctoring_off'), value: 'off' },
+              { label: t('systemConfig.proctoring_basic'), value: 'basic' },
+              { label: t('systemConfig.proctoring_strict'), value: 'strict' },
             ]}
           />
         </Space>
       </Card>
-      <Card title="通知附件上传">
+      <Card title={t('systemConfig.attach_upload')}>
         <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary">控制通知发送时可上传附件的大小和格式。</Text>
+          <Text type="secondary">{t('systemConfig.attach_desc')}</Text>
           <Space align="baseline">
-            <span>最大大小(MB)：</span>
+            <span>{t('systemConfig.max_size_mb')}</span>
             <Input
               style={{ width: 120 }}
               value={attachSize}
@@ -248,16 +250,16 @@ export default function SystemConfigPage() {
             />
           </Space>
           <Space align="baseline">
-            <span>允许格式：</span>
+            <span>{t('systemConfig.allowed_types')}</span>
             <Input
               style={{ width: 360 }}
               value={attachTypes}
               onChange={e => setAttachTypes(e.target.value)}
-              placeholder="例如：pdf,docx,zip"
+              placeholder={t('systemConfig.allowed_types_placeholder')}
             />
           </Space>
           <Button type="primary" onClick={handleAttachSave} loading={attachLoading} style={{ width: 160 }}>
-            保存设置
+            {t('settings.save')}
           </Button>
         </Space>
       </Card>
@@ -274,25 +276,25 @@ export default function SystemConfigPage() {
       </Card>
       <Modal
         open={modal.open}
-        title={modal.editing ? '编辑配置' : '新增配置'}
+        title={modal.editing ? t('systemConfig.edit_config') : t('systemConfig.add_config')}
         onCancel={() => setModal({ open: false })}
         onOk={handleSave}
         destroyOnClose
       >
         <Form layout="vertical" form={form} preserve={false}>
-          <Form.Item label="配置键" name="config_key" rules={[{ required: true, message: '请输入配置键' }]}>
+          <Form.Item label={t('systemConfig.config_key')} name="config_key" rules={[{ required: true, message: t('systemConfig.config_key_required') }]}>
             <Input disabled={!!modal.editing} />
           </Form.Item>
-          <Form.Item label="名称" name="config_name" rules={[{ required: true, message: '请输入名称' }]}>
+          <Form.Item label={t('systemConfig.config_name')} name="config_name" rules={[{ required: true, message: t('systemConfig.config_name_required') }]}>
             <Input />
           </Form.Item>
-          <Form.Item label="值" name="config_value">
+          <Form.Item label={t('systemConfig.config_value')} name="config_value">
             <Input.TextArea rows={3} />
           </Form.Item>
-          <Form.Item label="类型" name="value_type" initialValue="text">
+          <Form.Item label={t('systemConfig.value_type')} name="value_type" initialValue="text">
             <Input placeholder="text/json/number" />
           </Form.Item>
-          <Form.Item label="启用" name="enabled" valuePropName="checked" initialValue>
+          <Form.Item label={t('systemConfig.enabled')} name="enabled" valuePropName="checked" initialValue>
             <Switch />
           </Form.Item>
         </Form>

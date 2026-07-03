@@ -2,6 +2,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { message } from 'antd'
 import { favoritesApi as rawFavoritesApi, isSuccess, questionsApi, wrongQuestions } from '@/shared/api/http'
+import { translate } from '@/shared/utils/i18n'
 
 const favoritesApi: any = rawFavoritesApi as any
 
@@ -72,7 +73,7 @@ export function usePracticeController() {
       if (f.search) params.search = f.search
 
       const res = await questionsApi.list(params)
-      if (!isSuccess(res as any)) throw new Error('获取题目失败')
+      if (!isSuccess(res as any)) throw new Error(translate('auto.c1c65b92dc'))
       const raw = (res as any).data as any
       const all = Array.isArray(raw) ? raw : raw?.questions ?? []
       const pool = (all.length ? all : []).filter((q: any) => !practiced.includes(+q.id)).map((q: any) => String(q.id))
@@ -84,7 +85,7 @@ export function usePracticeController() {
       return startId
     } catch (e: any) {
       setError(e?.message || '初始化练习失败')
-      message.error('初始化练习失败')
+      message.error(translate('auto.506fe6687b'))
       setIds([])
       setIndex(0)
       return undefined
@@ -124,16 +125,16 @@ export function usePracticeController() {
         const r = await (favoritesApi?.remove?.(question.id) ?? Promise.resolve({ success: true }))
         if (!isSuccess(r as any)) throw new Error((r as any).error || '取消收藏失败')
         setFavorited(false)
-        message.success('已取消收藏')
+        message.success(translate('auto.0fc87e8309'))
       } else {
         const r = await (favoritesApi?.add?.(question.id, (question.content || '').slice(0, 100)) ??
           Promise.resolve({ success: true }))
         if (!isSuccess(r as any)) throw new Error((r as any).error || '收藏失败')
         setFavorited(true)
-        message.success('已添加到收藏')
+        message.success(translate('auto.143a521b56'))
       }
     } catch (e: any) {
-      message.error(e?.message || '操作失败')
+      message.error(e?.message || translate('app.operation_failed'))
     }
   }, [question, favorited])
 
