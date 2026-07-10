@@ -59,6 +59,9 @@ export default function MobileFaceAuthPage() {
         } else if (isSuccess(res) && res.data.reason === 'multiple_matches' && Array.isArray(res.data.candidates)) {
           setCandidates(res.data.candidates)
           setPhase('ready')
+        } else if (isSuccess(res) && res.data.reason === 'expired') {
+          // 票据已被 PC 端作废/过期，重试无意义，直接进入过期页提示重新扫码
+          setPhase('expired')
         } else {
           const msg = isSuccess(res) ? res.data.message || '人脸认证未通过' : getErr(res, '人脸认证失败')
           message.error(msg)
@@ -80,6 +83,10 @@ export default function MobileFaceAuthPage() {
         const res = await authApi.qrSelect({ ticket, choiceId })
         if (isSuccess(res) && res.data.ok) {
           setPhase('success')
+          return
+        }
+        if (isSuccess(res) && res.data.reason === 'expired') {
+          setPhase('expired')
           return
         }
         const msg = isSuccess(res) ? res.data.message || '人脸认证未通过' : getErr(res, '人脸认证失败')

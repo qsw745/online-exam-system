@@ -70,6 +70,11 @@ router.post(
   wrap(QrLoginController.authorize)
 )
 router.post(
+  '/qr/cancel',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:cancel`, limit: 20, windowSec: 60 }),
+  wrap(QrLoginController.cancel)
+)
+router.post(
   '/qr/select',
   rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:select`, limit: 15, windowSec: 60 }),
   wrap(QrLoginController.select)

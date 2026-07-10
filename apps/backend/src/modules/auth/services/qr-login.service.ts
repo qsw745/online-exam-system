@@ -142,6 +142,16 @@ export class QrLoginService {
   }
 
   /**
+   * PC 主动作废票据（重新生成二维码/关闭弹窗时调用），校验 pollToken 防止他人作废。
+   * 作废后手机端在旧页面重试会得到 expired，避免"手机显示成功但 PC 已换票"的错位。
+   */
+  static async cancel(ticketId: string, pollToken: string): Promise<void> {
+    const ticket = await read(ticketId)
+    if (!ticket || ticket.pollToken !== pollToken) return
+    await redis.del(keyOf(ticketId))
+  }
+
+  /**
    * PC 轮询：校验 pollToken。confirmed 时返回识别到的邮箱并消费票据（单次），
    * 由控制器据此签发会话。
    */

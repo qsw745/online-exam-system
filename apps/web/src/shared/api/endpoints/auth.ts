@@ -96,6 +96,11 @@ export const auth = {
     }>('/auth/qr/poll', { params: { ticket: ticketId, pollToken } })
   },
 
+  /** PC：作废旧票据（重新生成二维码/关闭弹窗时），避免手机在旧页面上"成功"却无人认领 */
+  qrCancel(payload: { ticket: string; pollToken: string }) {
+    return api.post<{ ok: boolean }>('/auth/qr/cancel', payload)
+  },
+
   /** 手机：打开二维码页（标记已扫描） */
   qrInfo(ticketId: string) {
     return api.get<{ status: 'pending' | 'scanned' | 'confirmed' | 'expired' }>(

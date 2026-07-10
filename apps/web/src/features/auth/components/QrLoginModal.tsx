@@ -36,6 +36,16 @@ export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
     }
   }, [])
 
+  // 作废当前票据：重新生成二维码/关闭弹窗时调用，让手机端旧页面重试时得到"已过期"而非假成功
+  const cancelTicket = useCallback(() => {
+    const ticketId = ticketRef.current
+    const pollToken = pollTokenRef.current
+    ticketRef.current = ''
+    pollTokenRef.current = ''
+    if (!ticketId || !pollToken) return
+    void authApi.qrCancel({ ticket: ticketId, pollToken })
+  }, [])
+
   const poll = useCallback(async () => {
     const ticketId = ticketRef.current
     const pollToken = pollTokenRef.current
@@ -45,6 +55,9 @@ export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
     const { status, token, user } = res.data
     if (status === 'confirmed' && token && user) {
       stopPolling()
+      // 票据已被后端消费，清空引用避免关闭弹窗时再发无谓的 cancel
+      ticketRef.current = ''
+      pollTokenRef.current = ''
       await signInWithSession(token, user, keep7Days)
       message.success(translate('auto.04de61deee'))
       onClose()
@@ -58,6 +71,7 @@ export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
 
   const start = useCallback(async () => {
     stopPolling()
+    cancelTicket()
     setPhase('loading')
     const res = await authApi.qrCreate({ keep7Days })
     if (!isSuccess(res)) {
@@ -70,11 +84,14 @@ export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
     setQrUrl(`${window.location.origin}${withAppBasePath(`/m/face-auth?ticket=${res.data.ticketId}`)}`)
     setPhase('waiting')
     pollRef.current = window.setInterval(poll, POLL_INTERVAL_MS)
-  }, [keep7Days, poll, stopPolling])
+  }, [keep7Days, poll, stopPolling, cancelTicket])
 
   useEffect(() => {
     if (open) start()
-    return () => stopPolling()
+    return () => {
+      stopPolling()
+      cancelTicket()
+    }
     // 仅在打开时初始化一次
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])

@@ -1,6 +1,7 @@
 # 人脸引擎（FastAPI + InsightFace + Silent-Face 活体），CPU 推理。
 # buffalo_l 识别模型不打进镜像，运行时挂载到 /root/.insightface（见 docker-compose.prod.yml）。
-FROM python:3.11-slim
+# 与开发环境对齐（Python 3.13 / numpy 2.5 / torch 2.12.1）
+FROM python:3.13-slim
 
 # 国内构建：apt 换腾讯云源；libgl1/libglib2.0 是 insightface 连带安装的 opencv-python 运行所需
 RUN sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/debian.sources \
@@ -10,8 +11,11 @@ RUN sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.
 
 WORKDIR /srv/face-engine
 
-# CPU 版 torch 必须单独走 PyTorch 官方 cpu 索引；PyPI 默认 wheel 会附带数 GB 的 CUDA 依赖
-RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "torch==2.12.1"
+# CPU 版 torch 走阿里云 pytorch-wheels 镜像（官方 cpu 索引国内超时）；
+# PyPI 默认 wheel 会附带数 GB 的 CUDA 依赖，必须显式指定 +cpu 版本
+RUN pip install --no-cache-dir "torch==2.12.1+cpu" \
+      -f https://mirrors.aliyun.com/pytorch-wheels/cpu/ \
+      -i https://mirrors.cloud.tencent.com/pypi/simple
 
 COPY requirements.txt ./
 # 先锁定与开发环境一致的已验证版本组合，再补齐其余依赖

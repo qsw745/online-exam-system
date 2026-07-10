@@ -95,6 +95,16 @@ export class QrLoginController {
     )
   }
 
+  /** PC：作废旧票据（重新生成二维码/关闭弹窗时） */
+  static async cancel(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    const { ticket, pollToken } = (req.body || {}) as any
+    const ticketId = typeof ticket === 'string' ? ticket : ''
+    const token = typeof pollToken === 'string' ? pollToken : ''
+    if (!ticketId || !token) return (res as any).badRequest('缺少 ticket 或 pollToken')
+    await QrLoginService.cancel(ticketId, token)
+    return (res as any).ok({ ok: true }, 'OK')
+  }
+
   /** PC：轮询票据状态，confirmed 则签发会话并自动登录 */
   static async poll(req: AuthRequest, res: Response<ApiResponse<any>>) {
     const ticketId = String((req.query?.ticket as string) || '')
