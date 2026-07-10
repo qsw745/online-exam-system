@@ -5,6 +5,7 @@ import { RefreshCw } from 'lucide-react'
 import { auth as authApi } from '@/shared/api/endpoints/auth'
 import { isSuccess } from '@/shared/api/core/types'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { withAppBasePath } from '@/shared/router/basePath'
 import { translate } from '@/shared/utils/i18n'
 
 const { Text, Paragraph } = Typography
@@ -66,7 +67,7 @@ export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
     ticketRef.current = res.data.ticketId
     pollTokenRef.current = res.data.pollToken
     // 二维码指向本前端的手机页；手机需能访问该地址（生产为域名，局域网需用本机 IP 访问）
-    setQrUrl(`${window.location.origin}/m/face-auth?ticket=${res.data.ticketId}`)
+    setQrUrl(`${window.location.origin}${withAppBasePath(`/m/face-auth?ticket=${res.data.ticketId}`)}`)
     setPhase('waiting')
     pollRef.current = window.setInterval(poll, POLL_INTERVAL_MS)
   }, [keep7Days, poll, stopPolling])
