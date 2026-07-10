@@ -50,6 +50,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       UPLOADS_DIR: /app/uploads
       SECRETS_DIR: /app/secrets
+      FACE_ENGINE_URL: http://face-engine:8077
     volumes:
       - uploads:/app/uploads
       - backend-logs:/app/logs
@@ -118,6 +119,27 @@ services:
       timeout: 5s
       retries: 20
       start_period: 10s
+    restart: unless-stopped
+
+  face-engine:
+    build:
+      context: ./apps/face-engine
+      dockerfile: Dockerfile
+    container_name: online-exam-face-engine
+    env_file:
+      - ${OES_ENV_FILE:-./.env.production}
+    environment:
+      FACE_ENGINE_HOST: 0.0.0.0
+      FACE_ENGINE_PORT: 8077
+    volumes:
+      # buffalo_l 识别模型放宿主机（./data 不进 git/rsync），避免容器启动时从 GitHub 下载
+      - ./data/insightface:/root/.insightface
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request;urllib.request.urlopen('http://127.0.0.1:8077/healthz', timeout=4)\" || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 10
+      start_period: 180s
     restart: unless-stopped
 
   migrate:
