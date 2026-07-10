@@ -11,6 +11,26 @@ import type {
 } from '../domain/paper.model.js'
 
 export class PaperRepository {
+  private static readonly completedStatuses = ['completed', 'submitted', 'graded']
+
+  private static completedResultCondition(alias = 'er') {
+    const statuses = PaperRepository.completedStatuses.map(s => `'${s}'`).join(', ')
+    return `(LOWER(COALESCE(${alias}.status, '')) IN (${statuses}) OR ${alias}.submit_time IS NOT NULL)`
+  }
+
+  /** 该试卷已交卷/已判分的作答数（直接 paper_id 或经由 exams 关联） */
+  static async countSubmissions(paperId: number): Promise<number> {
+    const [rows] = await pool.query<RowDataPacket[]>(
+        `SELECT COUNT(*) AS cnt
+         FROM exam_results er
+                LEFT JOIN exams e ON e.id = er.exam_id
+         WHERE (er.paper_id = ? OR e.paper_id = ?)
+           AND ${this.completedResultCondition('er')}`,
+        [paperId, paperId]
+    )
+    return Number((rows[0] as any)?.cnt || 0)
+  }
+
   static async addQuestion(paperId: number, data: { questionId: number; score: number; order: number }) {
     const [rs] = await pool.query<ResultSetHeader>(
         'INSERT INTO paper_questions (paper_id, question_id, score, `order`) VALUES (?, ?, ?, ?)',
@@ -67,22 +87,36 @@ export class PaperRepository {
     const conds: string[] = []
     const vals: any[] = []
     if (difficulty) {
-      conds.push('difficulty = ?')
+      conds.push('p.difficulty = ?')
       vals.push(difficulty)
     }
     const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
     const [papers] = await pool.query<RowDataPacket[]>(
-        `SELECT * FROM papers ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        `SELECT p.*,
+                (
+                  SELECT COUNT(*)
+                  FROM exam_results er
+                         LEFT JOIN exams e ON e.id = er.exam_id
+                  WHERE (er.paper_id = p.id OR e.paper_id = p.id)
+                    AND ${this.completedResultCondition('er')}
+                ) AS submission_count
+         FROM papers p
+                ${where}
+         ORDER BY p.created_at DESC
+            LIMIT ? OFFSET ?`,
         [...vals, limit, offset]
     )
-    const [totalRows] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) as total FROM papers ${where}`, vals)
+    const [totalRows] = await pool.query<RowDataPacket[]>(`SELECT COUNT(*) as total FROM papers p ${where}`, vals)
     return { papers: papers as IPaper[], total: Number((totalRows[0] as any)?.total || 0) }
   }
 
   static async findById(paperId: number): Promise<PaperData> {
     const [rows] = await pool.query<RowDataPacket[]>('SELECT * FROM papers WHERE id = ?', [paperId])
     if (!rows.length) throw new Error('试卷不存在')
-    return { paper: (rows as IPaper[])[0] }
+    const paper = (rows as IPaper[])[0]
+    // 附带交卷计数：>0 时前端锁定题目结构编辑
+    ;(paper as any).submission_count = await this.countSubmissions(paperId)
+    return { paper }
   }
 
   static async create(body: {

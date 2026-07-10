@@ -144,6 +144,32 @@ public class WorkflowRepository {
     return jdbc.update("UPDATE workflow_templates SET " + String.join(", ", sets) + ", updated_at = NOW() WHERE id = ?", values.toArray());
   }
 
+  public int deleteTemplate(long id) {
+    return jdbc.update("DELETE FROM workflow_templates WHERE id = ?", id);
+  }
+
+  public long countInstancesByTemplate(long templateId) {
+    Long count = jdbc.queryForObject(
+        "SELECT COUNT(*) FROM workflow_instances WHERE template_id = ?", Long.class, templateId);
+    return count == null ? 0 : count;
+  }
+
+  /** 模板关联实例（近 N 条）+ 各状态数量，用于删除前查看关联数据 */
+  public List<Map<String, Object>> listInstancesByTemplate(long templateId, int limit) {
+    return jdbc.queryForList(
+        """
+        SELECT id, entity_type, entity_id, status, created_by, created_at, updated_at
+        FROM workflow_instances WHERE template_id = ? ORDER BY id DESC LIMIT ?
+        """,
+        templateId, limit);
+  }
+
+  public List<Map<String, Object>> countInstancesByTemplateStatus(long templateId) {
+    return jdbc.queryForList(
+        "SELECT status, COUNT(*) AS count FROM workflow_instances WHERE template_id = ? GROUP BY status",
+        templateId);
+  }
+
   public long createInstance(Map<String, Object> input) {
     KeyHolder key = new GeneratedKeyHolder();
     jdbc.update(connection -> {

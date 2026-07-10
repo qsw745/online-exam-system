@@ -41,6 +41,10 @@ const DashboardPage: React.FC = () => {
     async (task: any) => {
       if (!task) return
       try {
+        if (task.my_result_id && ['completed', 'submitted', 'graded'].includes(String(task.my_result_status || '').toLowerCase())) {
+          nav(`/results/${task.my_result_id}`)
+          return
+        }
         if (task.type !== 'exam') {
           nav(`/learning/practice/${task.id}`)
           return

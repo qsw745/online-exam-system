@@ -99,8 +99,22 @@ async function processJob(job: Job<JobPayload>) {
 
     const generated = await AiService.generateQuestions({ ...input, count })
     const questions = (generated?.data as any)?.questions
+    const rejected = Array.isArray((generated?.data as any)?.rejected_questions)
+      ? (generated?.data as any).rejected_questions
+      : []
     const list = Array.isArray(questions) ? questions : []
+    for (const item of rejected) {
+      errors.push({
+        error: Array.isArray(item?.issues) ? item.issues.join('；') : 'question_quality_failed',
+        item: item?.item,
+      })
+    }
     generatedTotal += list.length
+    // 模型输出没解析出题目：显式记错，不再静默"无进展"结束
+    if (!list.length) {
+      const rawPreview = String((generated as any)?.raw || '').slice(0, 120)
+      errors.push({ error: `ai_output_unparsable_or_empty: ${rawPreview}` })
+    }
 
     let createdThisRun = 0
     let duplicateThisRun = 0

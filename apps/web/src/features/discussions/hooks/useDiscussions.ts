@@ -134,7 +134,8 @@ export function useDiscussions() {
     async (values: CreateDiscussionDto) => {
       const created = await discussionsApi.create(values)
       if (created) {
-        setDiscussions(prev => [created, ...prev])
+        // 后端返回字段不全（缺作者/分类名），重新拉取列表保证展示完整
+        await fetchDiscussions()
         setCreateOpen(false)
         createForm.resetFields()
         message.success(translate('auto.ce58397b82'))
@@ -142,7 +143,7 @@ export function useDiscussions() {
         message.error(translate('auto.412bb6e431'))
       }
     },
-    [createForm, message]
+    [createForm, fetchDiscussions, message]
   )
 
   const createReply = useCallback(

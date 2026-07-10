@@ -34,13 +34,18 @@ export class UserFaceController {
     const id = targetUserId(req)
     if (!id) return (res as any).badRequest('用户 ID 无效')
 
-    const { images, consent } = (req.body || {}) as any
+    const { images, consent, mode } = (req.body || {}) as any
     // 合规：代录同样需要本人同意，由管理员在采集现场确认
     if (consent !== true) {
       return (res as any).badRequest('请先确认已获得该用户本人对人脸采集的同意')
     }
+    const enrollMode: 'capture' | 'photo' = mode === 'photo' ? 'photo' : 'capture'
     const valid = validateFaceFrames(images)
-    if (!valid) return (res as any).badRequest('采集数据无效，请重新采集（1-8 帧画面）')
+    if (!valid) {
+      return (res as any).badRequest(
+        enrollMode === 'photo' ? '照片数据无效，请上传 1-8 张清晰的人脸照片' : '采集数据无效，请重新采集（1-8 帧画面）'
+      )
+    }
 
     const adminId = req.user?.id ?? null
     const ip = getClientIp(req) || req.ip || ''
@@ -51,14 +56,15 @@ export class UserFaceController {
         images: valid,
         source: 'admin',
         createdBy: adminId,
+        mode: enrollMode,
       })
       await LogService.log({
         type: 'audit',
         status: 'success',
         userId: adminId ?? undefined,
-        action: '人脸录入(代录)',
-        message: `管理员为用户 #${id} 录入人脸凭据`,
-        details: { targetUserId: id, samples: result.samples, source: 'admin' },
+        action: enrollMode === 'photo' ? '人脸录入(照片代录)' : '人脸录入(代录)',
+        message: `管理员为用户 #${id} 录入人脸凭据${enrollMode === 'photo' ? '（照片上传，跳过活体）' : ''}`,
+        details: { targetUserId: id, samples: result.samples, source: 'admin', mode: enrollMode },
         ipAddress: ip,
         userAgent: ua,
       } as any)

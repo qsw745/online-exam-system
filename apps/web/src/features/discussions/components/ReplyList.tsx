@@ -25,7 +25,7 @@ const toVM = (r: any): ReplyVM => ({
   id: Number(r.id),
   content: r.content ?? '',
   author_name: r.author_name ?? r.username ?? translate('common.anonymous_user'),
-  author_avatar: r.author_avatar ?? r.avatar ?? undefined,
+  author_avatar: r.author_avatar || r.avatar || undefined,
   created_at: r.created_at ?? r.createdAt ?? undefined,
   is_liked: !!(r.is_liked ?? 0),
   likes_count: Number(r.likes_count ?? 0),
@@ -54,7 +54,7 @@ export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
                 <Button
                   size="small"
                   type={item.is_liked ? 'primary' : 'default'}
-                  icon={<ThumbsUp className="w-4 h-4" />}
+                  icon={<ThumbsUp size={13} />}
                   onClick={() => onLike(item.id)}
                 >
                   {item.likes_count}
@@ -64,19 +64,19 @@ export const ReplyList: React.FC<Props> = ({ loading, replies, onLike }) => {
           >
             <List.Item.Meta
               avatar={
-                <Avatar src={item.author_avatar} className="bg-blue-500">
+                <Avatar src={item.author_avatar}>
                   {(item.author_name ?? translate('visible.4e0a3caa22')).charAt(0)}
                 </Avatar>
               }
               title={
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{item.author_name}</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ fontWeight: 500 }}>{item.author_name}</span>
                   {item.created_at && (
-                    <span className="text-xs text-gray-500">{formatDateTime(item.created_at)}</span>
+                    <span className="disc-detail__author-time">{formatDateTime(item.created_at)}</span>
                   )}
-                </div>
+                </span>
               }
-              description={<div className="whitespace-pre-wrap">{item.content}</div>}
+              description={<div className="disc-prewrap">{item.content}</div>}
             />
           </List.Item>
         )

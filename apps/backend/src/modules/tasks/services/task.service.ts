@@ -11,6 +11,7 @@ import type {
 } from '../domain/task.model.js'
 import { TaskRepository } from '../repositories/task.repository.js'
 import { ConfigRepository } from '@/modules/configs/repositories/config.repository'
+import { ExamRepository } from '@/modules/exams/repositories/exam.repository'
 import { PaperRepository } from '@/modules/exams/repositories/paper.repository'
 
 let RC: any = null,
@@ -207,8 +208,20 @@ export class TaskService {
     userScope: { userId: number; role: 'admin' | 'teacher' | 'student' },
     patch: UpdateTaskInput & { assigned_user_ids?: number[]; assigned_department_ids?: number[] }
   ): Promise<TaskWithAssigned> {
+    if (userScope.role !== 'admin' && userScope.role !== 'teacher') {
+      throw new Error('权限不足，只有管理员和教师可以修改任务')
+    }
+
     const existing = await this.repo.getForAccess(taskId, userScope.userId, userScope.role)
     if (!existing) throw new Error('任务不存在或无权限修改')
+
+    const existingExamId = Number((existing as any).exam_id || 0)
+    if (existingExamId) {
+      const submissionCount = await ExamRepository.countCompletedResults(existingExamId)
+      if (submissionCount > 0) {
+        throw new Error(`该任务关联的考试已有 ${submissionCount} 条交卷记录，不能修改，避免破坏历史成绩。`)
+      }
+    }
 
     let targetExamId = patch.exam_id ?? (existing as any).exam_id ?? null
     const targetType = (patch.type as any) || (existing as any).type || 'practice'
@@ -268,12 +281,37 @@ export class TaskService {
     return task
   }
 
+  /** 任务发布联动：关联考试自动置为 published（失败不阻断任务发布），并清理考试详情缓存 */
+  private async syncExamPublished(taskId: number, examId?: number | null): Promise<void> {
+    try {
+      await this.repo.publishLinkedExam(taskId)
+      if (examId) await cdel(`exam:${examId}`)
+    } catch (e) {
+      log.error('任务发布联动考试状态失败:', e)
+    }
+  }
+
   private async ensurePaperExists(paperId: number) {
     const { paper } = await PaperRepository.findById(paperId)
     if (!paper) throw new Error(`试卷不存在（ID: ${paperId}）`)
   }
 
   async remove(taskId: number, userScope: { userId: number; role: 'admin' | 'teacher' | 'student' }): Promise<void> {
+    if (userScope.role !== 'admin' && userScope.role !== 'teacher') {
+      throw new Error('权限不足，只有管理员和教师可以删除任务')
+    }
+
+    const task = await this.repo.getForAccess(taskId, userScope.userId, userScope.role)
+    if (!task) throw new Error('任务不存在或无权限删除')
+
+    const examId = Number((task as any).exam_id || 0)
+    if (examId) {
+      const submissionCount = await ExamRepository.countCompletedResults(examId)
+      if (submissionCount > 0) {
+        throw new Error(`该任务关联的考试已有 ${submissionCount} 条交卷记录，不能删除，避免破坏历史成绩。`)
+      }
+    }
+
     const ok = await this.repo.deleteTask(taskId, userScope)
     if (!ok) throw new Error('任务不存在或无权限删除')
   }
@@ -291,6 +329,7 @@ export class TaskService {
     if (new Date(task.end_time!) <= now) throw new Error('结束时间不能早于当前时间')
 
     await this.repo.setStatus(taskId, 'published')
+    await this.syncExamPublished(taskId, task.exam_id)
 
     const assignees = await this.repo.getAssignedUserIds(taskId)
     const msg = `任务「${task.title}」已发布，请及时完成。开始时间：${new Date(
@@ -341,6 +380,7 @@ export class TaskService {
           continue
         }
         await this.repo.setStatus(taskId, 'published')
+        await this.syncExamPublished(taskId, task.exam_id)
         results.push({ taskId, status: 'success' })
       } catch (e: any) {
         errors.push({ taskId, error: e?.message || '发布失败' })

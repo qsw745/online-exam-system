@@ -53,7 +53,7 @@ function errMeta(e: any) {
 }
 
 export class ExamService {
-  async list(params: { page: number; limit: number; status?: string; search?: string }) {
+  async list(params: { page: number; limit: number; status?: string; search?: string; userId?: number }) {
     return ExamRepository.list(params)
   }
 

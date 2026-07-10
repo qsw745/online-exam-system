@@ -15,6 +15,13 @@ export interface TaskDTO extends RowDataPacket {
   start_time: Date | null
   end_time: Date | null
   exam_id: number | null
+  duration?: number | null
+  total_score?: number | null
+  paper_id?: number | null
+  paper_title?: string | null
+  my_result_id?: number | null
+  my_result_status?: string | null
+  my_result_score?: number | null
   created_at: Date
   updated_at: Date
   /** 来自聚合字段，仅查询时有值 */

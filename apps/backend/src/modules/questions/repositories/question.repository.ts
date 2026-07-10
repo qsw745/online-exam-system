@@ -84,6 +84,13 @@ export const QuestionRepository = {
     return ret.affectedRows
   },
 
+  /** 题目被引用情况：试卷引用数 + 作答记录数（删除前校验用） */
+  async countReferences(id: number): Promise<{ papers: number; answers: number }> {
+    const [p] = await db.query<RowDataPacket[]>('SELECT COUNT(*) AS c FROM paper_questions WHERE question_id = ?', [id])
+    const [a] = await db.query<RowDataPacket[]>('SELECT COUNT(*) AS c FROM answer_records WHERE question_id = ?', [id])
+    return { papers: Number((p as any)?.[0]?.c || 0), answers: Number((a as any)?.[0]?.c || 0) }
+  },
+
   async findDupByContentHash(hash: string, type: string, excludeId?: number): Promise<number | null> {
     if (!hash) return null
     let sql = 'SELECT id FROM questions WHERE question_type = ? AND content_hash = ?'

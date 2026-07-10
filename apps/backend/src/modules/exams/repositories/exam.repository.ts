@@ -1,11 +1,30 @@
 // apps/backend/src/modules/exams/repositories/exam.repository.ts
 import { pool } from '@/config/database.js'
+import { isAnswerCorrect } from '../utils/grade.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IExam, IQuestionRow, ExamListData, ExamDetailData } from '../domain/exam.model.js'
 
 export class ExamRepository {
-  static async list(params: { page: number; limit: number; status?: string; search?: string }): Promise<ExamListData> {
-    const { page, limit, status, search } = params
+  private static readonly completedResultStatuses = ['completed', 'submitted', 'graded']
+
+  private static completedResultCondition(alias = 'er') {
+    const statuses = ExamRepository.completedResultStatuses.map(s => `'${s}'`).join(', ')
+    return `(LOWER(COALESCE(${alias}.status, '')) IN (${statuses}) OR ${alias}.submit_time IS NOT NULL)`
+  }
+
+  static async countCompletedResults(examId: number, executor: { query: (sql: string, params?: any[]) => Promise<any> } = pool): Promise<number> {
+    const [rows] = await executor.query(
+        `SELECT COUNT(*) AS cnt
+         FROM exam_results er
+         WHERE er.exam_id = ?
+           AND ${this.completedResultCondition('er')}`,
+        [examId]
+    )
+    return Number((rows?.[0] as any)?.cnt || 0)
+  }
+
+  static async list(params: { page: number; limit: number; status?: string; search?: string; userId?: number }): Promise<ExamListData> {
+    const { page, limit, status, search, userId } = params
     const offset = (page - 1) * limit
     const conds: string[] = []
     const vals: any[] = []
@@ -21,13 +40,34 @@ export class ExamRepository {
     }
     const where = conds.length ? `WHERE ${conds.join(' AND ')}` : ''
 
+    // my_status：当前用户对该考试的作答状态（同一考试可能有多条记录时取"最完成"的一条）
+    const completedResultExpr = this.completedResultCondition('er')
+    const normalizedResultStatusExpr = `CASE
+              WHEN LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') THEN er.status
+              WHEN er.submit_time IS NOT NULL THEN 'completed'
+              ELSE er.status
+            END`
+    const myStatusSelect = userId
+      ? `, (SELECT ${normalizedResultStatusExpr} FROM exam_results er
+            WHERE er.exam_id = exams.id AND er.user_id = ?
+            ORDER BY ${completedResultExpr} DESC, er.id DESC
+            LIMIT 1) AS my_status,
+          (SELECT er.score FROM exam_results er
+            WHERE er.exam_id = exams.id AND er.user_id = ? AND ${completedResultExpr}
+            ORDER BY er.submit_time DESC, er.id DESC LIMIT 1) AS my_score,
+          (SELECT er.id FROM exam_results er
+            WHERE er.exam_id = exams.id AND er.user_id = ? AND ${completedResultExpr}
+            ORDER BY er.submit_time DESC, er.id DESC LIMIT 1) AS my_result_id`
+      : ''
+    const myStatusVals = userId ? [userId, userId, userId] : []
+
     const [exams] = await pool.query<RowDataPacket[]>(
-        `SELECT *
+        `SELECT exams.* ${myStatusSelect}
          FROM exams
                 ${where}
          ORDER BY created_at DESC
            LIMIT ? OFFSET ?`,
-        [...vals, limit, offset]
+        [...myStatusVals, ...vals, limit, offset]
     )
 
     const [tot] = await pool.query<RowDataPacket[]>(
@@ -257,6 +297,11 @@ export class ExamRepository {
       )
       if (!(existed as IExam[]).length) throw new Error('考试不存在或无权限删除')
 
+      const submissionCount = await this.countCompletedResults(examId, conn)
+      if (submissionCount > 0) {
+        throw new Error(`该考试已有 ${submissionCount} 条交卷记录，不能删除，避免破坏历史成绩。`)
+      }
+
       await conn.query('DELETE FROM exam_questions WHERE exam_id = ?', [examId])
       await conn.query('DELETE FROM exams WHERE id = ?', [examId])
 
@@ -311,23 +356,34 @@ export class ExamRepository {
       if (!results.length) throw new Error('未找到进行中的考试')
       const resultId = (results[0] as any).id as number
 
+      // 经试卷取题判分：exam_questions 表并不存在，考试题目走 exams.paper_id → paper_questions
       const [qRows] = await conn.query<RowDataPacket[]>(
-          `SELECT q.id, q.answer, q.score
-           FROM questions q
-                  JOIN exam_questions eq ON q.id = eq.question_id
-           WHERE eq.exam_id = ?`,
+          `SELECT q.id, q.question_type, q.correct_answer, q.options, pq.score AS pq_score
+           FROM exams e
+                  JOIN paper_questions pq ON pq.paper_id = e.paper_id
+                  JOIN questions q ON q.id = pq.question_id
+           WHERE e.id = ?
+           ORDER BY pq.\`order\` ASC`,
           [examId]
       )
-      const questions = (qRows as any[]).map(r => ({ id: r.id as number, answer: r.answer, score: r.score as number }))
+      const questions = (qRows as any[]).map(r => ({
+        id: r.id as number,
+        question_type: String(r.question_type ?? ''),
+        correct_answer: String(r.correct_answer ?? ''),
+        options: r.options,
+        answer: r.correct_answer,
+        score: Number(r.pq_score || 0),
+      }))
 
       let totalScore = 0
       for (const q of questions) {
         const ua = answers[q.id]
-        const correct = ua === q.answer
+        // 统一判分：兼容 字母/内容/数组/判断题 等提交与存储格式
+        const correct = isAnswerCorrect(q, ua)
         if (correct) totalScore += q.score
         await conn.query(
-            'INSERT INTO answer_records (exam_result_id, question_id, user_answer, is_correct) VALUES (?, ?, ?, ?)',
-            [resultId, q.id, ua, correct]
+            'INSERT INTO answer_records (exam_result_id, exam_id, user_id, question_id, user_answer, is_correct) VALUES (?, ?, ?, ?, ?, ?)',
+            [resultId, examId, userId, q.id, ua ?? '', correct]
         )
       }
 

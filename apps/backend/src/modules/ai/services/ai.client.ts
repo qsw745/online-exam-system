@@ -117,6 +117,123 @@ export async function chatCompletion(opts: ChatOptions): Promise<ChatResponse> {
   return { content, usage: json?.usage, raw: json }
 }
 
+/**
+ * 流式对话：逐段回调 onDelta，返回完整内容。
+ * OpenAI 兼容（deepseek/openai/custom）走 SSE；Ollama 走 NDJSON。
+ */
+export async function chatCompletionStream(
+  opts: ChatOptions,
+  onDelta: (text: string) => void
+): Promise<ChatResponse> {
+  if (typeof fetch !== 'function') throw new Error('fetch is not available in current runtime')
+
+  const settings = await getAiRuntimeSettings(opts.model)
+  const isLocal = settings.provider === 'local'
+  const isOllama = isLocal && settings.localProvider === 'ollama'
+  if (!settings.enabled) throw new Error('AI feature is disabled')
+  if (!settings.apiKey && !isLocal) throw new Error('AI_API_KEY is not set')
+
+  const timeoutMs = typeof opts.timeoutMs === 'number' ? opts.timeoutMs : settings.timeoutMs
+
+  const url = isOllama ? `${settings.baseUrl}/api/chat` : `${settings.baseUrl}/chat/completions`
+  const payload: any = isOllama
+    ? {
+        model: settings.model,
+        messages: opts.messages,
+        stream: true,
+        options: {
+          temperature: typeof opts.temperature === 'number' ? opts.temperature : settings.temperature,
+          num_predict: typeof opts.maxTokens === 'number' ? opts.maxTokens : settings.maxTokens,
+        },
+      }
+    : {
+        model: settings.model,
+        messages: opts.messages,
+        temperature: typeof opts.temperature === 'number' ? opts.temperature : settings.temperature,
+        max_tokens: typeof opts.maxTokens === 'number' ? opts.maxTokens : settings.maxTokens,
+        stream: true,
+      }
+  if (!isOllama && settings.provider === 'deepseek' && settings.thinkingMode) {
+    payload.thinking = { type: settings.thinkingMode }
+  }
+
+  return withTimeout(async signal => {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(!isOllama && settings.apiKey ? { Authorization: `Bearer ${settings.apiKey}` } : {}),
+      },
+      body: JSON.stringify(payload),
+      signal,
+    })
+    if (!resp.ok || !resp.body) {
+      const text = await resp.text().catch(() => '')
+      if (resp.status === 401 || resp.status === 403) {
+        throw new Error(
+          `AI 服务认证失败（${resp.status}）：API Key 无效或所选模型无权限，请在后台「系统设置 → AI」检查密钥/接口地址/模型`
+        )
+      }
+      throw new Error(`AI 服务调用失败（${resp.status} ${resp.statusText}）：${String(text).slice(0, 200)}`)
+    }
+
+    const reader = (resp.body as any).getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let content = ''
+    let usage: any
+
+    const handleLine = (line: string) => {
+      const trimmed = line.trim()
+      if (!trimmed) return
+      if (isOllama) {
+        try {
+          const json = JSON.parse(trimmed)
+          const piece = json?.message?.content
+          if (piece) {
+            content += piece
+            onDelta(piece)
+          }
+          if (json?.done) {
+            usage = {
+              prompt_eval_count: json?.prompt_eval_count,
+              eval_count: json?.eval_count,
+              total_duration: json?.total_duration,
+            }
+          }
+        } catch {}
+        return
+      }
+      if (!trimmed.startsWith('data:')) return
+      const dataStr = trimmed.slice(5).trim()
+      if (dataStr === '[DONE]') return
+      try {
+        const json = JSON.parse(dataStr)
+        const piece = json?.choices?.[0]?.delta?.content
+        if (piece) {
+          content += piece
+          onDelta(piece)
+        }
+        if (json?.usage) usage = json.usage
+      } catch {}
+    }
+
+    for (;;) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      let idx: number
+      while ((idx = buffer.indexOf('\n')) !== -1) {
+        handleLine(buffer.slice(0, idx))
+        buffer = buffer.slice(idx + 1)
+      }
+    }
+    if (buffer) handleLine(buffer)
+
+    return { content, usage, raw: null }
+  }, timeoutMs)
+}
+
 export async function embedTexts(texts: string[], model?: string): Promise<number[][]> {
   if (typeof fetch !== 'function') throw new Error('fetch is not available in current runtime')
   const settings = await getAiRuntimeSettings(model)

@@ -133,7 +133,7 @@ export const usersApi = {
     api.get<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
       `/users/${id}/face`
     ),
-  faceEnroll: (id: string | number, payload: { images: string[]; consent: boolean }) =>
+  faceEnroll: (id: string | number, payload: { images: string[]; consent: boolean; mode?: 'capture' | 'photo' }) =>
     api.post<{ enrolled: boolean; samples: number; model: string | null; updatedAt: string | null }>(
       `/users/${id}/face/enroll`,
       payload,

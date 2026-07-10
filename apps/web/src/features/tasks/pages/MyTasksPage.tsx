@@ -35,6 +35,10 @@ const MyTasksPage: React.FC = () => {
 
   const handleStart = async (r: any) => {
     try {
+      if (r.my_result_id && ['completed', 'submitted', 'graded'].includes(String(r.my_result_status || '').toLowerCase())) {
+        nav(`/results/${r.my_result_id}`)
+        return
+      }
       if (r.type !== 'exam') {
         nav(`/learning/practice/${r.id}`)
         return
@@ -99,6 +103,9 @@ const MyTasksPage: React.FC = () => {
           showPublishActions={false}
           showStartAction
           onStart={handleStart}
+          onViewResult={(task: any) => {
+            if (task.my_result_id) nav(`/results/${task.my_result_id}`)
+          }}
         />
 
         <GlobalPagination

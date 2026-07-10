@@ -162,7 +162,7 @@ export class QuestionController {
       })
       return res.created(data, '创建成功')
     } catch (e: any) {
-      if (/无效|缺少|选择题/.test(e?.message)) return res.badRequest(e?.message || '参数校验失败')
+      if (/无效|缺少|选择题|题目质量|题干/.test(e?.message)) return res.badRequest(e?.message || '参数校验失败')
       return res.internal(e?.message || '创建问题失败', { code: CODES.INTERNAL_ERROR })
     }
   }
@@ -178,7 +178,7 @@ export class QuestionController {
       })
       return res.ok(data, '更新成功')
     } catch (e: any) {
-      if (/不存在|没有需要更新/.test(e?.message)) {
+      if (/不存在|没有需要更新|题目质量|题干/.test(e?.message)) {
         return res.fail(CODES.VALIDATION_ERROR, 400, e?.message || '不可更新')
       }
       return res.internal(e?.message || '更新问题失败', { code: CODES.INTERNAL_ERROR })

@@ -14,6 +14,7 @@ export type Paper = {
   workflow_requires_review?: boolean | 0 | 1
   workflow_template_id?: number | null
   workflow_form_data?: Record<string, any> | string | null
+  submission_count?: number
 }
 
 export type PaperQuestion = {

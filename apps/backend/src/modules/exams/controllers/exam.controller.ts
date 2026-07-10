@@ -16,7 +16,8 @@ export class ExamController {
       const limit = Math.max(parseInt(req.query.limit as string) || 10, 1)
       const status = (req.query.status as string | undefined)?.toLowerCase()
       const search = (req.query.search as string) || ''
-      const data = await svc.list({ page, limit, status, search })
+      const userId = Number(req.user?.id) || undefined
+      const data = await svc.list({ page, limit, status, search, userId })
       return (res as any).ok(data, '获取考试列表成功')
     } catch (e: any) {
       return (res as any).internal(e?.message || '获取考试列表失败', { code: CODES.INTERNAL_ERROR })
@@ -87,9 +88,11 @@ export class ExamController {
       await svc.remove(userId, examId)
       return (res as any).ok(null, '删除考试成功')
     } catch (e: any) {
-      const notFound = /不存在|权限/.test(e?.message)
-      if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, e?.message || '考试不存在或无权限')
-      return (res as any).internal(e?.message || '删除考试失败', { code: CODES.INTERNAL_ERROR })
+      const msg = e?.message || ''
+      const notFound = /不存在|权限/.test(msg)
+      if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, msg || '考试不存在或无权限')
+      if (/交卷记录|不能删除/.test(msg)) return (res as any).badRequest(msg, { code: CODES.VALIDATION_ERROR })
+      return (res as any).internal(msg || '删除考试失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 

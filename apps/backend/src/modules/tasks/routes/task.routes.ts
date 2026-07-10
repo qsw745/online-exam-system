@@ -24,8 +24,8 @@ router.get('/:id/exam', wrap(TaskController.getExam))
 
 router.get('/:id', wrap(TaskController.get))
 router.post('/', requireRoleByIds([ROLE_IDS.TEACHER, ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(TaskController.create))
-router.put('/:id', wrap(TaskController.update))
-router.delete('/:id', wrap(TaskController.delete))
+router.put('/:id', requireRoleByIds([ROLE_IDS.TEACHER, ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(TaskController.update))
+router.delete('/:id', requireRoleByIds([ROLE_IDS.TEACHER, ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(TaskController.delete))
 
 router.post('/:id/submit', wrap(TaskController.submit))
 router.post('/:id/publish', requireRoleByIds([ROLE_IDS.TEACHER, ROLE_IDS.ADMIN, ROLE_IDS.SUPER_ADMIN]), wrap(TaskController.publish))

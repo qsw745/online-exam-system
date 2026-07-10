@@ -18,6 +18,8 @@ export interface RecentTask {
   start_time?: string | null
   type: TaskType
   status: UiStatus | string
+  my_result_id?: number | string | null
+  my_result_status?: string | null
 }
 
 type Props = {
@@ -52,6 +54,8 @@ function toUiStatus(s: string): UiStatus {
 }
 
 const canStartStatus = (status: UiStatus) => status === 'not_started' || status === 'in_progress'
+const isDoneResult = (task: RecentTask) =>
+  task.type === 'exam' && ['completed', 'submitted', 'graded'].includes(String(task.my_result_status || '').toLowerCase())
 
 export const RecentTasksList: React.FC<Props> = ({
   title,
@@ -77,14 +81,15 @@ export const RecentTasksList: React.FC<Props> = ({
         <List
           dataSource={tasks}
           renderItem={task => {
-            const ui = toUiStatus(String(task.status))
+            const done = isDoneResult(task)
+            const ui = done ? 'completed' : toUiStatus(String(task.status))
             let start = '-'
             if (task.start_time) {
               const d = dayjs(task.start_time)
               if (d.isValid()) start = formatDateTime(task.start_time) || '-'
             }
-            const clickable = Boolean(onStartTask)
-            const canStart = onStartTask && canStartStatus(ui)
+            const canStart = onStartTask && (done ? task.my_result_id != null : canStartStatus(ui))
+            const clickable = Boolean(canStart)
             return (
               <List.Item
                 actions={
@@ -102,7 +107,7 @@ export const RecentTasksList: React.FC<Props> = ({
                           }}
                           disabled={!canStart}
                         >
-                          {task.type === 'exam' ? translate('visible.d5b9caf5ec') : translate('auto.5c007a10e6')}
+                          {done ? translate('exam.view_result') : task.type === 'exam' ? translate('visible.d5b9caf5ec') : translate('auto.5c007a10e6')}
                         </Button>,
                       ]
                     : undefined

@@ -4,7 +4,7 @@ import type { ApiResponse } from '@/types/response'
 import { CODES } from '@/types/response'
 import { AuthService } from '../services/auth.service'
 import { QrLoginService } from '../services/qr-login.service'
-import type { FaceVerifyReason } from '../services/face-login.service'
+import type { FaceVerifyFailureReason } from '../services/face-login.service'
 import { getClientIp } from '@/common/utils/request-ip'
 import Geo from '@/common/utils/geo'
 import { validateFaceFrames } from '../utils/face-frames'
@@ -12,22 +12,23 @@ import { LogService } from '@/modules/logs/services/log.service'
 
 const svc = new AuthService()
 
-const REASON_MESSAGES: Record<FaceVerifyReason | 'expired', string> = {
+const REASON_MESSAGES: Record<FaceVerifyFailureReason | 'multiple_matches' | 'expired' | 'invalid_choice', string> = {
   no_face: '未检测到人脸，请正对摄像头后重试',
   multiple_faces: '检测到多张人脸，请保持画面中只有本人',
   liveness_failed: '活体检测未通过，请使用真人正脸',
   action_failed: '请按提示缓慢左右转动头部以完成活体检测',
-  not_enrolled: '该账号未录入人脸凭据，请改用密码登录',
+  not_enrolled: '没有匹配到已录入的人脸凭据，请改用密码登录',
   verification_failed: '人脸验证未通过，请重试',
+  multiple_matches: '此人脸关联了多个账号，请选择要登录的账号',
   expired: '二维码已过期，请在电脑端重新生成',
+  invalid_choice: '无效的登录账号选择，请重新刷脸',
 }
 
 export class QrLoginController {
   /** PC：生成二维码票据 */
   static async create(req: AuthRequest, res: Response<ApiResponse<any>>) {
-    const { email, keep7Days } = (req.body || {}) as any
-    const loginEmail = typeof email === 'string' ? email.trim() : ''
-    const data = await QrLoginService.create(loginEmail, !!keep7Days)
+    const { keep7Days } = (req.body || {}) as any
+    const data = await QrLoginService.create(!!keep7Days)
     return (res as any).ok(data, 'OK')
   }
 
@@ -62,7 +63,12 @@ export class QrLoginController {
       } as any)
       if (result.ok) return (res as any).ok({ ok: true }, '认证成功')
       return (res as any).ok(
-        { ok: false, reason: result.reason, message: REASON_MESSAGES[result.reason] },
+        {
+          ok: false,
+          reason: result.reason,
+          message: REASON_MESSAGES[result.reason],
+          candidates: 'candidates' in result ? result.candidates : undefined,
+        },
         '认证未通过'
       )
     } catch (error: any) {
@@ -72,6 +78,21 @@ export class QrLoginController {
       if (status === 503) return (res as any).fail(CODES.INTERNAL_ERROR, 503, message)
       return (res as any).internal(message)
     }
+  }
+
+  /** 手机：多账号命中时选择要授权登录的账号 */
+  static async select(req: AuthRequest, res: Response<ApiResponse<any>>) {
+    const { ticket, choiceId } = (req.body || {}) as any
+    const ticketId = typeof ticket === 'string' ? ticket : ''
+    const selectedChoiceId = typeof choiceId === 'string' ? choiceId : ''
+    if (!ticketId || !selectedChoiceId) return (res as any).badRequest('请选择要登录的账号')
+
+    const result = await QrLoginService.select(ticketId, selectedChoiceId)
+    if (result.ok) return (res as any).ok({ ok: true }, '认证成功')
+    return (res as any).ok(
+      { ok: false, reason: result.reason, message: REASON_MESSAGES[result.reason] },
+      '认证未通过'
+    )
   }
 
   /** PC：轮询票据状态，confirmed 则签发会话并自动登录 */

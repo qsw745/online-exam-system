@@ -1,20 +1,20 @@
-import { App, Badge, Button, Drawer, Input, List, Modal, Select, Space, Tag, Tooltip, Typography } from 'antd'
+import { App, Badge, Button, Drawer, Input, List, Modal, Popover, Select, Space, Tag, Tooltip, Typography } from 'antd'
 import { Sparkles } from 'lucide-react'
 import {
   AudioOutlined,
-  CheckCircleOutlined,
   ClearOutlined,
   CopyOutlined,
   DeleteOutlined,
   EditOutlined,
   HistoryOutlined,
-  MessageOutlined,
   PaperClipOutlined,
   PlusOutlined,
   RobotOutlined,
   SendOutlined,
+  SettingOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  UserOutlined,
 } from '@ant-design/icons'
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -29,6 +29,7 @@ import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { api, getErr, isSuccess } from '@/shared/api/http'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { redirectToLogin } from '@/shared/router/basePath'
 import './AiAssistantWidget.css'
@@ -38,7 +39,7 @@ const { TextArea } = Input
 
 type ChatRole = 'user' | 'assistant' | 'system'
 type AgentAction = { type: string; payload?: any }
-type ChatItem = { id: string; role: ChatRole; content: string; action?: AgentAction }
+type ChatItem = { id: string; role: ChatRole; content: string; action?: AgentAction; pending?: boolean; stage?: string }
 type ChatSession = { id: string; title: string; items: ChatItem[]; createdAt: number; updatedAt: number }
 type ExecutionMode = 'request' | 'review' | 'auto'
 type ExecuteOptions = { confirmation?: 'ask' | 'skip'; automated?: boolean }
@@ -80,12 +81,15 @@ const createSession = (t: TranslateFn): ChatSession => {
 }
 
 const normalizeItems = (items: any[]): ChatItem[] =>
-  items.map((i: any) => ({
-    id: String(i.id || Date.now()),
-    role: i.role === 'assistant' || i.role === 'system' ? i.role : 'user',
-    content: String(i.content || ''),
-    action: i.action,
-  }))
+  items
+    // 历史恢复时丢弃悬空的"思考中"占位（刷新页面后无法续接）
+    .filter((i: any) => !(i?.pending && !String(i?.content || '').trim()))
+    .map((i: any) => ({
+      id: String(i.id || Date.now()),
+      role: i.role === 'assistant' || i.role === 'system' ? i.role : 'user',
+      content: String(i.content || ''),
+      action: i.action,
+    }))
 
 const normalizeSession = (s: any, t: TranslateFn): ChatSession => {
   const now = Date.now()
@@ -163,6 +167,24 @@ const HIGH_IMPACT_ACTIONS = new Set([
   'reset_password',
   'run_test',
 ])
+
+// —— 多步自动循环（超级智能体）：自动执行模式下执行完动作把结果喂回模型继续下一步 ——
+const AGENT_LOOP_MAX = 5
+// 这些动作是终点/交互态/长任务，执行后不自动续跑
+const AGENT_LOOP_STOP_ACTIONS = new Set([
+  'navigate',
+  'open_url',
+  'generate_questions',
+  'change_password',
+  'reset_password',
+  'explain_question',
+  'summarize_exam',
+  'study_plan',
+  'suggest_paper',
+  'run_test',
+])
+const AGENT_LOOP_CONTINUE_PROMPT =
+  '[系统自动继续] 上一步动作已执行，执行结果见上面的对话。请继续完成我最初需求的下一步；若已全部完成，请简短总结成果并且不要再返回 action；不要重复已成功的动作。'
 
 const MODEL_PROVIDER_OPTIONS = [
   { label: 'OpenAI · gpt-4o-mini', value: 'gpt-4o-mini' },
@@ -311,6 +333,36 @@ function needsConfirm(action: AgentAction): boolean {
   return HIGH_IMPACT_ACTIONS.has(action.type)
 }
 
+const UNSAFE_MODEL_COMPLETION_LINE =
+  /(题目已补充完成|试卷已(?:创建|生成)成功|任务已(?:创建|发布|下发)|全部完成|本次操作的总结|以下是本次操作的总结)/
+
+type CompletionEvidence = { questions?: boolean; paper?: boolean; task?: boolean }
+
+const stripUnsafeModelCompletionClaims = (text: string, evidence: CompletionEvidence = {}) => {
+  const raw = String(text || '')
+  if (!raw) return raw
+  const mentionsPaperOrTask = /(试卷|组卷|任务|发布|下发)/.test(raw)
+  const lines = raw.split('\n')
+  let removed = false
+  const kept = lines.filter(line => {
+    const claimsQuestions = /题目已补充完成/.test(line)
+    const claimsPaper = /试卷已(?:创建|生成)成功/.test(line)
+    const claimsTask = /任务已(?:创建|发布|下发)/.test(line)
+    const claimsAllDone = /(全部完成|本次操作的总结|以下是本次操作的总结)/.test(line)
+    const shouldRemove =
+      UNSAFE_MODEL_COMPLETION_LINE.test(line) &&
+      ((claimsQuestions && !evidence.questions) ||
+        (claimsPaper && !evidence.paper) ||
+        (claimsTask && !evidence.task) ||
+        (claimsAllDone && mentionsPaperOrTask && !(evidence.paper && evidence.task)))
+    if (shouldRemove) removed = true
+    return !shouldRemove
+  })
+  const next = kept.join('\n').replace(/\n{3,}/g, '\n\n').trim()
+  if (next) return next
+  return removed ? '我还没有拿到对应动作的执行结果，不能标记为完成。' : raw
+}
+
 export default function AiAssistantWidget() {
   const { message } = App.useApp()
   const { language, t } = useLanguage()
@@ -322,6 +374,9 @@ export default function AiAssistantWidget() {
   const [loading, setLoading] = useState(false)
   const [model, setModel] = useState<string>('')
   const [customModel, setCustomModel] = useState<string>('')
+  // 后台配置的默认模型名与允许模型列表（让"默认模型"不再是黑盒）
+  const [defaultModelName, setDefaultModelName] = useState<string>('')
+  const [allowedModels, setAllowedModels] = useState<string[]>([])
   const [executionMode, setExecutionMode] = useState<ExecutionMode>(() => readExecutionMode())
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeId, setActiveId] = useState<string>('')
@@ -425,6 +480,24 @@ export default function AiAssistantWidget() {
     () => items.map(i => ({ role: i.role, content: i.content })),
     [items]
   )
+  // 多步循环里延迟发起的续跑需要拿到"执行结果已入列"后的最新上下文，避免闭包里的旧值
+  const trimmedItemsRef = useRef(trimmedItems)
+  useEffect(() => {
+    trimmedItemsRef.current = trimmedItems
+  }, [trimmedItems])
+  // 连续两轮返回同一动作 → 熔断，防止模型死循环
+  const lastLoopActionSigRef = useRef('')
+  // 题目生成等后台任务完成后需要接续多步循环时，在这里登记
+  const pendingJobLoopRef = useRef<{ loopStep: number } | null>(null)
+
+  const getCompletionEvidence = (): CompletionEvidence => {
+    const text = trimmedItemsRef.current.map(i => String(i.content || '')).join('\n')
+    return {
+      questions: /^✅ 完成：已(?:创建|生成).*题目/m.test(text),
+      paper: /^✅ 试卷已生成/m.test(text),
+      task: /^✅ 任务已创建/m.test(text),
+    }
+  }
 
   const sessionOptions = useMemo(
     () =>
@@ -438,7 +511,45 @@ export default function AiAssistantWidget() {
   const lastAction = useMemo(() => [...items].reverse().find(i => !!i.action)?.action, [items])
   const actionLabels = useMemo(() => getActionLabels(t), [t])
   const quickCommands = useMemo(() => getQuickCommands(t), [t])
-  const modelOptions = useMemo(() => getModelOptions(t), [t])
+  // 打开抽屉时拉取后台 AI 配置：默认模型名 + 允许的模型列表（登录用户可读）
+  useEffect(() => {
+    if (!open || defaultModelName) return
+    adminSettingsApi
+      .get()
+      .then((s: any) => {
+        if (typeof s?.aiModel === 'string' && s.aiModel) setDefaultModelName(s.aiModel)
+        const allowed = String(s?.aiAllowedModels || '')
+          .split(/[,，\s]+/)
+          .map((m: string) => m.trim())
+          .filter(Boolean)
+        if (allowed.length) setAllowedModels(allowed)
+      })
+      .catch(() => {})
+  }, [open, defaultModelName])
+
+  const modelOptions = useMemo(() => {
+    const opts: Array<{ label: string; value: string }> = [
+      {
+        label: defaultModelName
+          ? `${t('aiAssistant.default_model')}（${defaultModelName}）`
+          : t('aiAssistant.default_model'),
+        value: '',
+      },
+    ]
+    const seen = new Set<string>([''])
+    // 后台允许的模型优先展示（通常是当前厂商真正可用的）
+    for (const m of allowedModels) {
+      if (seen.has(m)) continue
+      seen.add(m)
+      opts.push({ label: m, value: m })
+    }
+    for (const o of MODEL_PROVIDER_OPTIONS) {
+      if (seen.has(o.value)) continue
+      seen.add(o.value)
+      opts.push(o)
+    }
+    return opts
+  }, [t, defaultModelName, allowedModels])
   const executionModeMetaMap = useMemo(() => getExecutionModeMeta(t), [t])
   const executionModeOptions = useMemo(() => getExecutionModeOptions(executionModeMetaMap), [executionModeMetaMap])
   const currentModelLabel = customModel.trim() || model || t('aiAssistant.default_model')
@@ -460,6 +571,39 @@ export default function AiAssistantWidget() {
     )
     if (activeSession?.id) setLastTouchedId(activeSession.id)
     setTimeout(() => scrollToBottom(false), 0)
+  }
+
+  // 按消息 ID 原地更新（跨会话查找，轮询/动画回调里也安全）
+  const updateItem = (itemId: string, patch: Partial<ChatItem>) => {
+    setSessions(prev =>
+      prev.map(s =>
+        s.items.some(it => it.id === itemId)
+          ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, ...patch } : it)), updatedAt: Date.now() }
+          : s
+      )
+    )
+  }
+
+  // 打字机渐显：把完整回复分帧写入气泡，整体时长约 1.2-3.5s
+  const revealReply = (itemId: string, fullText: string, action?: AgentAction) => {
+    const text = String(fullText || '')
+    if (!text) {
+      updateItem(itemId, { content: '', action, pending: false })
+      return
+    }
+    const step = Math.max(2, Math.ceil(text.length / 90))
+    let pos = 0
+    const tick = () => {
+      pos = Math.min(text.length, pos + step)
+      const doneNow = pos >= text.length
+      updateItem(itemId, {
+        content: text.slice(0, pos),
+        ...(doneNow ? { action, pending: false } : {}),
+      })
+      if (!doneNow) window.setTimeout(tick, 28)
+      else setTimeout(() => scrollToBottom(false), 0)
+    }
+    tick()
   }
 
   const isAuthExpired = (err: any) => {
@@ -716,10 +860,11 @@ export default function AiAssistantWidget() {
     return filtered.length ? filtered : roles
   }
 
-  const pollQuestionJob = async (jobId: string, payload: any) => {
+  const pollQuestionJob = async (jobId: string, payload: any, progressItemId: string) => {
     const startAt = Date.now()
     const total = Number(payload?.count ?? 0)
     const persist = !!payload?.persist
+    const elapsed = () => Math.round((Date.now() - startAt) / 1000)
     const poll = async () => {
       try {
         const res: any = await aiApi.getQuestionJob(jobId)
@@ -731,10 +876,19 @@ export default function AiAssistantWidget() {
           const generatedCount = Number(result?.generatedCount ?? 0)
           const createdCount = Number(result?.createdCount ?? 0)
           const errors = Array.isArray(result?.errors) ? result.errors : []
-          const msg = persist
-            ? `已创建 ${createdCount} / ${total} 道题目。`
-            : `已生成 ${generatedCount} / ${total} 道题目。`
-          append({ id: String(Date.now() + 9), role: 'assistant', content: msg })
+          // 措辞必须如实：0 道是失败、不足量是部分完成——历史消息会进入模型上下文，
+          // 把失败写成"✅ 完成"会让模型误判任务已成功而拒绝重试
+          const okCount = persist ? createdCount : generatedCount
+          const verb = persist ? '创建' : '生成'
+          const expectedTotal = total > 0 ? total : okCount
+          const fulfilled = expectedTotal > 0 ? okCount >= expectedTotal : okCount > 0
+          const msg =
+            okCount <= 0
+              ? `❌ 任务结束，但没有成功${verb}任何题目（0 / ${total}，用时 ${elapsed()} 秒），需要重试。`
+              : !fulfilled
+                ? `⚠️ 部分完成：已${verb} ${okCount} / ${total} 道题目（用时 ${elapsed()} 秒）。`
+                : `✅ 完成：已${verb} ${okCount} / ${total} 道题目（用时 ${elapsed()} 秒）。`
+          updateItem(progressItemId, { content: msg, pending: false })
           if (errors.length) {
             const detail = errors
               .slice(0, 3)
@@ -743,33 +897,69 @@ export default function AiAssistantWidget() {
             append({
               id: String(Date.now() + 10),
               role: 'assistant',
-              content: `部分题目创建失败：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`,
+              content: fulfilled
+                ? `补充说明：生成过程中跳过了重复或无效候选：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`
+                : `⚠️ 未完成原因：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`,
+            })
+          }
+          // 多步任务里的生成步骤：任务完成后接续下一步（如生成完题目再组卷）
+          const jobLoop = pendingJobLoopRef.current
+          pendingJobLoopRef.current = null
+          if (jobLoop && fulfilled) {
+            continueAgentLoop(jobLoop.loopStep)
+          } else if (jobLoop && persist && okCount > 0 && expectedTotal > okCount) {
+            const remaining = Math.max(0, expectedTotal - okCount)
+            append({
+              id: String(Date.now() + 11),
+              role: 'assistant',
+              content: `⚠️ 题目入库未达标，还差 ${remaining} 道。已停止后续组卷和发布，避免用不足量题库创建试卷。`,
+              action: { type: 'generate_questions', payload: { ...payload, count: remaining, persist: true } },
             })
           }
           return
         }
         if (state === 'failed') {
-          append({
-            id: String(Date.now() + 9),
-            role: 'assistant',
-            content: `后台任务失败：${data?.failedReason || '未知原因'}`,
+          updateItem(progressItemId, {
+            content: `❌ 后台任务失败：${data?.failedReason || '未知原因'}`,
+            pending: false,
           })
+          // 生成失败不自动续跑（避免盲目重试烧配额），交还给用户决定
+          pendingJobLoopRef.current = null
           return
         }
+        // 进行中：用队列上报的进度实时刷新同一条气泡
+        const progress = data?.progress && typeof data.progress === 'object' ? data.progress : null
+        if (progress) {
+          const cur = Number(progress.current ?? 0)
+          const totalBatches = Number(progress.total ?? 0)
+          const generated = Number(progress.generated ?? 0)
+          const created = Number(progress.created ?? 0)
+          const batchText = totalBatches > 0 ? `第 ${Math.min(cur + 1, totalBatches)}/${totalBatches} 批` : '处理中'
+          const persistText = persist ? `，已入库 ${created} 题` : ''
+          updateItem(progressItemId, {
+            content: `⏳ 正在生成题目（任务 ${jobId}）：${batchText}，已生成 ${generated}/${total} 题${persistText} · 已用时 ${elapsed()} 秒`,
+          })
+        } else {
+          updateItem(progressItemId, {
+            content: `⏳ 任务 ${jobId} 排队/执行中 · 已用时 ${elapsed()} 秒`,
+          })
+        }
         if (Date.now() - startAt > 15 * 60 * 1000) {
-          append({ id: String(Date.now() + 9), role: 'assistant', content: t('aiAssistant.jobs.still_processing') })
+          updateItem(progressItemId, { content: t('aiAssistant.jobs.still_processing'), pending: false })
           return
         }
         setTimeout(poll, 2000)
       } catch (e: any) {
+        updateItem(progressItemId, { pending: false })
         message.error(e?.message || t('aiAssistant.jobs.query_failed'))
       }
     }
     setTimeout(poll, 1200)
   }
 
-  const pollSystemTestJob = async (jobId: string) => {
+  const pollSystemTestJob = async (jobId: string, progressItemId: string) => {
     const startAt = Date.now()
+    const elapsed = () => Math.round((Date.now() - startAt) / 1000)
     const poll = async () => {
       try {
         const res: any = await systemTestsApi.job(jobId)
@@ -780,13 +970,12 @@ export default function AiAssistantWidget() {
           const result = data?.result || {}
           const summary = result?.summary
           if (summary) {
-            append({
-              id: String(Date.now() + 12),
-              role: 'assistant',
-              content: `测速完成：通过 ${summary.passed}/${summary.total}，失败 ${summary.failed}，耗时 ${summary.durationMs}ms。`,
+            updateItem(progressItemId, {
+              content: `✅ 测速完成：通过 ${summary.passed}/${summary.total}，失败 ${summary.failed}，耗时 ${summary.durationMs}ms。`,
+              pending: false,
             })
           } else {
-            append({ id: String(Date.now() + 12), role: 'assistant', content: t('aiAssistant.tests.completed') })
+            updateItem(progressItemId, { content: t('aiAssistant.tests.completed'), pending: false })
           }
           const failures = Array.isArray(result?.results)
             ? result.results.filter((r: any) => r && r.ok === false)
@@ -812,19 +1001,22 @@ export default function AiAssistantWidget() {
           return
         }
         if (state === 'failed') {
-          append({
-            id: String(Date.now() + 12),
-            role: 'assistant',
-            content: `测速任务失败：${data?.failedReason || '未知原因'}`,
+          updateItem(progressItemId, {
+            content: `❌ 测速任务失败：${data?.failedReason || '未知原因'}`,
+            pending: false,
           })
           return
         }
+        updateItem(progressItemId, {
+          content: `⏳ 系统测速执行中（任务 ${jobId}）· 已用时 ${elapsed()} 秒`,
+        })
         if (Date.now() - startAt > 20 * 60 * 1000) {
-          append({ id: String(Date.now() + 12), role: 'assistant', content: t('aiAssistant.jobs.still_processing') })
+          updateItem(progressItemId, { content: t('aiAssistant.jobs.still_processing'), pending: false })
           return
         }
         setTimeout(poll, 2000)
       } catch (e: any) {
+        updateItem(progressItemId, { pending: false })
         message.error(e?.message || t('aiAssistant.jobs.query_failed'))
       }
     }
@@ -936,15 +1128,150 @@ export default function AiAssistantWidget() {
     }
   }
 
-  const scheduleActionByMode = (action?: AgentAction) => {
-    if (!action || executionMode === 'request') return
-    const run = () => {
-      void executeAction(action, {
-        automated: true,
-        confirmation: executionMode === 'auto' ? 'skip' : 'ask',
+  // 循环续跑（下一轮 agent）：给执行结果消息一点入列时间，再带最新上下文发起
+  const continueAgentLoop = (loopStep: number) => {
+    if (loopStep + 1 >= AGENT_LOOP_MAX) {
+      append({
+        id: `loop-max-${Date.now()}`,
+        role: 'assistant',
+        content: `已连续执行 ${AGENT_LOOP_MAX} 步，暂停续跑。需要继续请直接说"继续"。`,
       })
+      return
     }
-    window.setTimeout(run, 0)
+    window.setTimeout(() => {
+      void runAgentTurn(AGENT_LOOP_CONTINUE_PROMPT, { loopStep: loopStep + 1, silent: true })
+    }, 400)
+  }
+
+  const scheduleActionByMode = (action?: AgentAction, loopStep = 0) => {
+    if (!action || executionMode === 'request') return
+    const isAuto = executionMode === 'auto'
+
+    // 熔断：循环中连续两轮同一动作（模型没意识到已成功），停下来交还给用户
+    const sig = JSON.stringify({ t: action.type, p: action.payload ?? null })
+    if (loopStep > 0 && sig === lastLoopActionSigRef.current) {
+      append({
+        id: `loop-dup-${Date.now()}`,
+        role: 'assistant',
+        content: '⚠️ 检测到重复动作，已停止自动续跑。请确认结果或换个说法继续。',
+      })
+      return
+    }
+    lastLoopActionSigRef.current = sig
+
+    const run = async () => {
+      // 题目生成是后台任务：预先登记"任务完成后续跑"，由 pollQuestionJob 完成时接棒
+      if (action.type === 'generate_questions') {
+        pendingJobLoopRef.current = { loopStep }
+      }
+      const executed = await executeAction(action, {
+        automated: true,
+        confirmation: isAuto ? 'skip' : 'ask',
+      })
+      // 用户取消（审核模式点了取消）→ 不续跑，同时撤销任务挂钩
+      if (!executed) {
+        pendingJobLoopRef.current = null
+        return
+      }
+      // 终点/长任务动作不在这里续跑（generate_questions 由轮询完成时续跑）
+      if (AGENT_LOOP_STOP_ACTIONS.has(action.type)) return
+      continueAgentLoop(loopStep)
+    }
+    window.setTimeout(() => {
+      void run()
+    }, 0)
+  }
+
+  /**
+   * 发起一轮 agent 对话（流式优先）。
+   * silent=true 时不追加用户气泡（多步循环的系统续跑指令），loopStep 传递循环深度。
+   */
+  const runAgentTurn = async (modelText: string, opts: { loopStep?: number; silent?: boolean; internal?: boolean } = {}) => {
+    const loopStep = opts.loopStep ?? 0
+    // 立刻放一个"思考中"占位气泡，让用户看到助手已经在处理
+    const placeholderId = `pending-${Date.now()}`
+    append({ id: placeholderId, role: 'assistant', content: '', pending: true, stage: loopStep > 0 ? `第 ${loopStep + 1} 步 · 正在分析…` : undefined })
+    setLoading(true)
+    try {
+      const modelToUse = customModel.trim() || model || undefined
+      const payload = {
+        messages: [...trimmedItemsRef.current, { role: 'user', content: modelText }],
+        model: modelToUse,
+        sessionId: activeSession?.id,
+        // 循环续跑指令：后端跳过规则路由与缓存，直达大模型规划（否则会被"总结"等关键词误吞）
+        ...(opts.silent || opts.internal ? { internal: true } : {}),
+      }
+
+      // 优先走 SSE 流式：阶段提示 + 逐字回复；失败且未产出内容时回退非流式
+      let streamed = ''
+      let streamedAction: AgentAction | undefined
+      let finished = false
+      const finalizeStream = () => {
+        if (finished) return
+        finished = true
+        // trim 判空：模型正文只有空白时也要兜底，否则渲染成"空白气泡"
+        const safeStreamed = stripUnsafeModelCompletionClaims(streamed, getCompletionEvidence())
+        const finalText =
+          safeStreamed.trim() ||
+          (streamedAction ? actionSummary(streamedAction, t) : t('aiAssistant.reply.processed'))
+        updateItem(placeholderId, {
+          content: finalText,
+          action: streamedAction,
+          pending: false,
+          stage: undefined,
+        })
+        setTimeout(() => scrollToBottom(false), 0)
+        scheduleActionByMode(streamedAction, loopStep)
+      }
+      try {
+        await aiApi.agentStream(payload, {
+          onStage: s => updateItem(placeholderId, { stage: s.label || s.key }),
+          onDelta: text => {
+            streamed += text
+            updateItem(placeholderId, {
+              content: stripUnsafeModelCompletionClaims(streamed, getCompletionEvidence()),
+              stage: undefined,
+            })
+          },
+          onAction: a => {
+            streamedAction = a && typeof a === 'object' ? a : undefined
+          },
+          onDone: finalizeStream,
+        })
+        if (!finished) {
+          if (streamed) finalizeStream()
+          else throw new Error(t('aiAssistant.errors.request_failed'))
+        }
+      } catch (streamErr: any) {
+        // 已经流出内容：直接把错误抛给外层展示，不再回退（避免重复回复）
+        if (streamed || finished) throw streamErr
+        // 未产出任何内容：回退到非流式接口
+        const res: any = await aiApi.agent(payload)
+        if (!res?.success) throw new Error(res?.error || 'AI 请求失败')
+        const root = res?.data ?? {}
+        const resultPayload = root?.data ?? root
+        const reply = String(resultPayload?.reply || '')
+        const action =
+          resultPayload?.action && typeof resultPayload.action === 'object' ? resultPayload.action : undefined
+        updateItem(placeholderId, { stage: undefined })
+        revealReply(
+          placeholderId,
+          stripUnsafeModelCompletionClaims(reply, getCompletionEvidence()) || t('aiAssistant.reply.processed'),
+          action
+        )
+        scheduleActionByMode(action, loopStep)
+      }
+    } catch (e: any) {
+      if (isAuthExpired(e)) {
+        updateItem(placeholderId, { content: t('aiAssistant.relogin.retry_after_login'), pending: false })
+        promptReLogin()
+        return
+      }
+      updateItem(placeholderId, { content: e?.message || t('aiAssistant.errors.request_failed'), pending: false })
+      message.error(e?.message || t('aiAssistant.errors.request_failed'))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const send = async () => {
@@ -962,37 +1289,11 @@ export default function AiAssistantWidget() {
       : text
     setInput('')
     setAttachments(prev => prev.filter(item => item.status === 'error'))
+    lastLoopActionSigRef.current = ''
     append({ id: String(Date.now()), role: 'user', content: displayText })
-    setLoading(true)
-    try {
-      const modelToUse = customModel.trim() || model || undefined
-      const res: any = await aiApi.agent({
-        messages: [...trimmedItems, { role: 'user', content: modelText }],
-        model: modelToUse,
-        sessionId: activeSession?.id,
-      })
-      if (!res?.success) throw new Error(res?.error || 'AI 请求失败')
-      const root = res?.data ?? {}
-      const payload = root?.data ?? root
-      const reply = String(payload?.reply || '')
-      const action = payload?.action && typeof payload.action === 'object' ? payload.action : undefined
-      append({
-        id: String(Date.now() + 1),
-        role: 'assistant',
-        content: reply || t('aiAssistant.reply.processed'),
-        action,
-      })
-      scheduleActionByMode(action)
-    } catch (e: any) {
-      if (isAuthExpired(e)) {
-        append({ id: String(Date.now() + 2), role: 'assistant', content: t('aiAssistant.relogin.retry_after_login') })
-        promptReLogin()
-        return
-      }
-      message.error(e?.message || t('aiAssistant.errors.request_failed'))
-    } finally {
-      setLoading(false)
-    }
+    // 光杆"继续"：改写为结构化续跑指令并直达大模型，避免小模型对模糊指令产生幻觉
+    const isBareContinue = /^(继续|请继续|接着来?|go on|continue)$/i.test(text)
+    await runAgentTurn(isBareContinue ? AGENT_LOOP_CONTINUE_PROMPT : modelText, { internal: isBareContinue })
   }
 
   const handleCopy = async (content: string) => {
@@ -1029,6 +1330,7 @@ export default function AiAssistantWidget() {
   }
 
   const executeAction = async (action: AgentAction, options: ExecuteOptions = {}) => {
+    let actionFailed = false
     const run = async () => {
       const actionKey = `${action.type}:${actionSummary(action, t)}`
       setExecutingActionKey(actionKey)
@@ -1064,12 +1366,14 @@ export default function AiAssistantWidget() {
               if (!res?.success) throw new Error(res?.error || '后台任务创建失败')
               const jobId = String(res?.data?.jobId || res?.data?.id || '')
               if (!jobId) throw new Error(t('aiAssistant.jobs.missing_id'))
+              const progressItemId = `job-${jobId}-${Date.now()}`
               append({
-                id: String(Date.now() + 4),
+                id: progressItemId,
                 role: 'assistant',
-                content: `已提交后台任务（任务ID ${jobId}），正在生成中。`,
+                content: `⏳ 已提交后台任务（任务 ${jobId}），正在排队…`,
+                pending: true,
               })
-              void pollQuestionJob(jobId, { ...rawPayload, count: total, persist })
+              void pollQuestionJob(jobId, { ...rawPayload, count: total, persist }, progressItemId)
               return
             }
 
@@ -1095,9 +1399,14 @@ export default function AiAssistantWidget() {
               if (Array.isArray(errs) && errs.length) errors.push(...errs)
             }
 
-            const msg = persist
-              ? `已创建 ${createdTotal} / ${total} 道题目。`
-              : `已生成 ${generatedTotal} / ${total} 道题目。`
+            const okTotal = persist ? createdTotal : generatedTotal
+            const verbSync = persist ? '创建' : '生成'
+            const msg =
+              okTotal <= 0
+                ? `❌ 没有成功${verbSync}任何题目（0 / ${total}），需要重试。`
+                : okTotal < total
+                  ? `⚠️ 部分完成：已${verbSync} ${okTotal} / ${total} 道题目。`
+                  : `✅ 完成：已${verbSync} ${okTotal} / ${total} 道题目。`
             append({ id: String(Date.now() + 4), role: 'assistant', content: msg })
             if (errors.length) {
               const detail = errors
@@ -1107,7 +1416,10 @@ export default function AiAssistantWidget() {
               append({
                 id: String(Date.now() + 5),
                 role: 'assistant',
-                content: `部分题目创建失败：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`,
+                content:
+                  okTotal >= total
+                    ? `补充说明：生成过程中跳过了重复或无效候选：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`
+                    : `⚠️ 未完成原因：${detail}${errors.length > 3 ? ` 等共 ${errors.length} 条` : ''}`,
               })
             }
             if (persist && createdTotal < total) {
@@ -1158,10 +1470,18 @@ export default function AiAssistantWidget() {
             const d: any = (res as any)?.data?.data ?? (res as any)?.data ?? res
             const paperId = Number(d?.paperId ?? d?.paper_id ?? 0)
             if (paperId) {
+              let actualQuestionCount = Number(d?.count ?? reqPayload.target_count ?? 0)
+              try {
+                const attachedQuestions = await papersApi.getQuestions(paperId)
+                if (attachedQuestions.length) actualQuestionCount = attachedQuestions.length
+              } catch {}
+              if (reqPayload.target_count && actualQuestionCount < reqPayload.target_count) {
+                throw new Error(`试卷题目数量不足：需要 ${reqPayload.target_count} 题，实际 ${actualQuestionCount} 题`)
+              }
               append({
                 id: String(Date.now() + 6),
                 role: 'assistant',
-                content: `试卷已生成：${d?.title || title}（${d?.count ?? reqPayload.target_count} 题）。`,
+                content: `✅ 试卷已生成：${d?.title || title}（${actualQuestionCount || reqPayload.target_count} 题）。`,
               })
               const enableReview = payload.enable_review === true || payload.enableReview === true
               if (enableReview) {
@@ -1306,7 +1626,6 @@ export default function AiAssistantWidget() {
             const payload = action.payload || {}
             const title = String(payload.title || '新任务').trim()
             const description = String(payload.description || '')
-            const type = payload.type === 'exam' ? 'exam' : 'practice'
             const paperId = Number(payload.paper_id ?? payload.paperId ?? 0)
             const examId = Number(payload.exam_id ?? payload.examId ?? 0)
             const assignAll = payload.assign_all === true || payload.assignAll === true
@@ -1316,6 +1635,7 @@ export default function AiAssistantWidget() {
               payload.use_latest === true ||
               payload.latest === true ||
               String(payload.paper_id ?? payload.paperId ?? '').toLowerCase() === 'latest'
+            const type = payload.type === 'exam' || paperId > 0 || examId > 0 || wantsLatestPaper ? 'exam' : 'practice'
 
             const fetchLatestPaper = async (): Promise<{ id: number; title?: string } | null> => {
               const list = await papersApi.list({ page: 1, limit: 1 })
@@ -1336,7 +1656,9 @@ export default function AiAssistantWidget() {
             }
 
             let resolvedPaper: { id: number; title?: string } | null = null
-            if (type === 'exam' && !examId) {
+            // 考试任务必须绑卷；练习任务在明确引用试卷（指定ID或"最新试卷"）时也绑
+            const needPaper = (type === 'exam' && !examId) || (type === 'practice' && (paperId > 0 || wantsLatestPaper))
+            if (needPaper) {
               if (paperId) {
                 resolvedPaper = await validatePaper(paperId)
                 if (!resolvedPaper && !wantsLatestPaper) {
@@ -1417,7 +1739,7 @@ export default function AiAssistantWidget() {
             append({
               id: String(Date.now() + 10),
               role: 'assistant',
-              content: publish ? `任务已创建并下发：${title}` : `任务已创建：${title}`,
+              content: publish ? `✅ 任务已创建并下发：${title}` : `✅ 任务已创建：${title}`,
             })
             if (taskId) navigate(`/admin/tasks/detail/${taskId}`)
             return
@@ -1794,12 +2116,14 @@ export default function AiAssistantWidget() {
             if (!res?.success) throw new Error(res?.error || '创建测速任务失败')
             const jobId = String(res?.data?.jobId || '')
             if (!jobId) throw new Error(t('aiAssistant.jobs.missing_id'))
+            const testProgressId = `systest-${jobId}-${Date.now()}`
             append({
-              id: String(Date.now() + 12),
+              id: testProgressId,
               role: 'assistant',
-              content: `已提交系统测速任务（任务ID ${jobId}），后台执行中。`,
+              content: `⏳ 已提交系统测速任务（任务 ${jobId}），后台执行中…`,
+              pending: true,
             })
-            void pollSystemTestJob(jobId)
+            void pollSystemTestJob(jobId, testProgressId)
             return
           }
           case 'change_password': {
@@ -1908,12 +2232,19 @@ export default function AiAssistantWidget() {
             message.warning(t('aiAssistant.actions.unsupported'))
         }
       } catch (e: any) {
+        actionFailed = true
         if (isAuthExpired(e)) {
           append({ id: String(Date.now() + 9), role: 'assistant', content: t('aiAssistant.relogin.retry_before_execute') })
           promptReLogin()
           return
         }
         message.error(e?.message || t('app.operation_failed'))
+        // 失败也写进对话：多步循环里模型能看到失败原因并自行调整
+        append({
+          id: `act-fail-${Date.now()}`,
+          role: 'assistant',
+          content: `❌ 动作执行失败：${e?.message || t('app.operation_failed')}`,
+        })
       } finally {
         setExecutingActionKey(null)
       }
@@ -1921,16 +2252,23 @@ export default function AiAssistantWidget() {
 
     const shouldConfirm = options.confirmation === 'skip' ? false : needsConfirm(action)
     if (shouldConfirm) {
-      Modal.confirm({
-        title: options.automated ? t('aiAssistant.confirm.review_title') : t('aiAssistant.confirm.title'),
-        content: actionSummary(action, t),
-        okText: options.automated ? t('aiAssistant.confirm.approve_and_execute') : t('aiAssistant.execute'),
-        cancelText: t('app.cancel'),
-        onOk: run,
+      // 用 Promise 等待用户决定：审核模式的多步循环需要知道"批准并执行完"才能续跑下一步
+      const approved = await new Promise<boolean>(resolve => {
+        Modal.confirm({
+          title: options.automated ? t('aiAssistant.confirm.review_title') : t('aiAssistant.confirm.title'),
+          content: actionSummary(action, t),
+          okText: options.automated ? t('aiAssistant.confirm.approve_and_execute') : t('aiAssistant.execute'),
+          cancelText: t('app.cancel'),
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        })
       })
-    } else {
+      if (!approved) return false
       await run()
+      return !actionFailed
     }
+    await run()
+    return !actionFailed
   }
 
   return (
@@ -2029,141 +2367,111 @@ export default function AiAssistantWidget() {
         }
       >
         <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%' }}>
-          <div style={{ padding: 16, borderBottom: '1px solid #e5e7eb', background: '#ffffff' }}>
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'minmax(0, 1.1fr) minmax(180px, 0.9fr)',
-                gap: 12,
-                alignItems: 'start',
-              }}
-            >
-              <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                <Space wrap size={8}>
-                  <Tag icon={<HistoryOutlined />} color="default">
-                    {formatText(t('aiAssistant.stats.sessions'), { count: sessions.length })}
-                  </Tag>
-                  <Tag icon={<ToolOutlined />} color={actionCount ? 'blue' : 'default'}>
-                    {formatText(t('aiAssistant.stats.actions'), { count: actionCount })}
-                  </Tag>
-                  <Tag icon={<CheckCircleOutlined />} color={lastAction ? 'green' : 'default'}>
-                    {lastAction ? actionLabels[lastAction.type] || lastAction.type : t('aiAssistant.no_pending_action')}
-                  </Tag>
-                  <Tooltip title={executionModeMeta.description}>
-                    <Tag color={executionModeMeta.color}>{formatText(t('aiAssistant.execution.label_with_value'), { value: executionModeMeta.shortLabel })}</Tag>
-                  </Tooltip>
-                </Space>
-                <Space wrap size={8}>
-                  {quickCommands.map(item => (
-                    <Button key={item.label} size="small" icon={<ThunderboltOutlined />} onClick={() => fillQuickCommand(item.prompt)}>
-                      {item.label}
-                    </Button>
-                  ))}
-                </Space>
-              </Space>
-              <Space direction="vertical" size={8} style={{ width: '100%' }}>
-                <Select
-                  size="middle"
-                  style={{ width: '100%' }}
-                  value={activeSession?.id}
-                  onChange={val => setActiveId(val)}
-                  options={sessionOptions}
-                  placeholder={t('aiAssistant.history_placeholder')}
-                  showSearch
-                />
-                <Select
-                  size="middle"
-                  style={{ width: '100%' }}
-                  value={model}
-                  onChange={val => setModel(val)}
-                  options={modelOptions}
-                  placeholder={t('aiAssistant.model_placeholder')}
-                  showSearch
-                  allowClear
-                />
-                <Select
-                  size="middle"
-                  style={{ width: '100%' }}
-                  value={executionMode}
-                  onChange={val => setExecutionMode(normalizeExecutionMode(val))}
-                  options={executionModeOptions}
-                  placeholder={t('aiAssistant.execution_placeholder')}
-                />
-                <Input
-                  size="middle"
-                  value={customModel}
-                  onChange={e => setCustomModel(e.target.value)}
-                  placeholder={t('aiAssistant.custom_model_placeholder')}
-                />
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {formatText(t('aiAssistant.current_model'), { model: currentModelLabel })}
-                </Text>
-              </Space>
+          <div className="ai-config">
+            <div className="ai-config__row">
+              <Select
+                className="ai-config__session"
+                size="middle"
+                value={activeSession?.id}
+                onChange={val => setActiveId(val)}
+                options={sessionOptions}
+                placeholder={t('aiAssistant.history_placeholder')}
+                showSearch
+                suffixIcon={<HistoryOutlined />}
+              />
+              <Tooltip title={executionModeMeta.description}>
+                <Tag color={executionModeMeta.color} style={{ marginInlineEnd: 0 }}>
+                  {formatText(t('aiAssistant.execution.label_with_value'), { value: executionModeMeta.shortLabel })}
+                </Tag>
+              </Tooltip>
+              {actionCount > 0 && (
+                <Tag icon={<ToolOutlined />} color="blue" style={{ marginInlineEnd: 0 }}>
+                  {formatText(t('aiAssistant.stats.actions'), { count: actionCount })}
+                </Tag>
+              )}
+              <Popover
+                trigger="click"
+                placement="bottomRight"
+                content={
+                  <Space direction="vertical" size={10} style={{ width: 260 }}>
+                    <Input
+                      size="middle"
+                      value={customModel}
+                      onChange={e => setCustomModel(e.target.value)}
+                      placeholder={t('aiAssistant.custom_model_placeholder')}
+                      allowClear
+                    />
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {formatText(t('aiAssistant.current_model'), { model: currentModelLabel })}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {formatText(t('aiAssistant.stats.sessions'), { count: sessions.length })}
+                      {lastAction ? ` · ${actionLabels[lastAction.type] || lastAction.type}` : ''}
+                    </Text>
+                  </Space>
+                }
+              >
+                <Tooltip title={t('aiAssistant.model_placeholder')}>
+                  <Button icon={<SettingOutlined />} />
+                </Tooltip>
+              </Popover>
+            </div>
+            <div className="ai-config__chips">
+              {quickCommands.map(item => (
+                <span key={item.label} className="ai-chip" onClick={() => fillQuickCommand(item.prompt)}>
+                  <ThunderboltOutlined />
+                  {item.label}
+                </span>
+              ))}
             </div>
           </div>
 
-          <div ref={listRef} style={{ overflow: 'auto', padding: '16px 18px' }}>
+          <div ref={listRef} className="ai-messages">
             <List
               split={false}
               dataSource={items}
+              rowKey={it => it.id}
               locale={{ emptyText: t('aiAssistant.empty_messages') }}
               renderItem={item => {
                 const isUser = item.role === 'user'
                 const displayContent = item.id === 'hello' ? t('aiAssistant.hello') : item.content
                 const actionKey = item.action ? `${item.action.type}:${actionSummary(item.action, t)}` : ''
+                const roleLabel = isUser ? t('aiAssistant.role.user') : t('aiAssistant.role.assistant')
                 return (
-                  <List.Item style={{ justifyContent: isUser ? 'flex-end' : 'flex-start', padding: '7px 0' }}>
-                    <div style={{ maxWidth: '92%', minWidth: item.action ? 'min(460px, 100%)' : undefined }}>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: isUser ? 'flex-end' : 'flex-start',
-                          marginBottom: 4,
-                        }}
-                      >
-                        <Tag color={isUser ? 'processing' : 'success'}>{isUser ? t('aiAssistant.role.user') : t('aiAssistant.role.assistant')}</Tag>
+                  <div className={`ai-msg ${isUser ? 'ai-msg--user' : 'ai-msg--assistant'}`}>
+                    <Tooltip title={roleLabel}>
+                      <div className={`ai-msg__avatar ${isUser ? 'ai-msg__avatar--user' : 'ai-msg__avatar--assistant'}`}>
+                        {isUser ? <UserOutlined /> : <RobotOutlined />}
                       </div>
-                      <div
-                        style={{
-                          background: isUser ? '#e6f4ff' : '#ffffff',
-                          border: isUser ? '1px solid #91caff' : '1px solid #e5e7eb',
-                          boxShadow: isUser ? 'none' : '0 8px 24px rgba(15, 23, 42, 0.06)',
-                          padding: '10px 12px',
-                          borderRadius: 8,
-                          whiteSpace: 'pre-wrap',
-                          lineHeight: 1.65,
-                        }}
-                      >
-                        <Text>{displayContent}</Text>
+                    </Tooltip>
+                    <div className="ai-msg__body" style={item.action ? { minWidth: 'min(460px, 100%)' } : undefined}>
+                      <div className="ai-msg__bubble">
+                        {item.pending && !displayContent ? (
+                          <span className="ai-typing">
+                            <span className="ai-typing__dot" />
+                            <span className="ai-typing__dot" />
+                            <span className="ai-typing__dot" />
+                            {item.stage && <span className="ai-typing__stage">{item.stage}</span>}
+                          </span>
+                        ) : (
+                          <>
+                            {displayContent}
+                            {item.pending && <span className="ai-typing__cursor" />}
+                          </>
+                        )}
                       </div>
-                      <div
-                        style={{
-                          display: 'flex',
-                          justifyContent: isUser ? 'flex-end' : 'flex-start',
-                          marginTop: 4,
-                        }}
-                      >
-                        <Space size={4}>
-                          <Tooltip title={t('aiAssistant.copy.tooltip')}>
-                            <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(displayContent)} />
+                      <div className="ai-msg__actions">
+                        <Tooltip title={t('aiAssistant.copy.tooltip')}>
+                          <Button type="text" size="small" icon={<CopyOutlined />} onClick={() => handleCopy(displayContent)} />
+                        </Tooltip>
+                        {isUser && (
+                          <Tooltip title={t('app.edit')}>
+                            <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(displayContent)} />
                           </Tooltip>
-                          {isUser && (
-                            <Tooltip title={t('app.edit')}>
-                              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEdit(displayContent)} />
-                            </Tooltip>
-                          )}
-                        </Space>
+                        )}
                       </div>
                       {item.action && (
-                        <div
-                          style={{
-                            marginTop: 8,
-                            padding: 10,
-                            borderRadius: 8,
-                            border: '1px solid #dbeafe',
-                            background: '#f8fbff',
-                          }}
-                        >
+                        <div className="ai-msg__action-card">
                           <Space direction="vertical" size={8} style={{ width: '100%' }}>
                             <Space wrap>
                               <Tag color="blue">{actionLabels[item.action.type] || item.action.type}</Tag>
@@ -2198,33 +2506,56 @@ export default function AiAssistantWidget() {
                         </div>
                       )}
                     </div>
-                  </List.Item>
+                  </div>
                 )
               }}
             />
           </div>
 
-          <div style={{ padding: 16, borderTop: '1px solid #e5e7eb', background: '#ffffff' }}>
-            <Space direction="vertical" size={10} style={{ width: '100%' }}>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*,.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.htm,.yaml,.yml"
-                style={{ display: 'none' }}
-                onChange={e => {
-                  handleAttachmentFiles(e.target.files)
-                  e.currentTarget.value = ''
-                }}
-              />
+          <div className="ai-composer">
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept="image/*,.txt,.md,.markdown,.csv,.json,.log,.xml,.html,.htm,.yaml,.yml"
+              style={{ display: 'none' }}
+              onChange={e => {
+                handleAttachmentFiles(e.target.files)
+                e.currentTarget.value = ''
+              }}
+            />
+            <div className="ai-composer__box">
+              {attachments.length > 0 && (
+                <div className="ai-composer__attachments">
+                  <Space wrap size={6}>
+                    {attachments.map(file => (
+                      <Tooltip key={file.id} title={file.error || (file.text ? formatText(t('aiAssistant.attachments.char_count'), { count: file.text.length }) : t('aiAssistant.attachments.processing'))}>
+                        <Tag
+                          color={file.status === 'ready' ? 'green' : file.status === 'error' ? 'red' : 'processing'}
+                          closable
+                          onClose={() => removeAttachment(file.id)}
+                        >
+                          {file.status === 'processing'
+                            ? t('aiAssistant.attachments.processing_prefix')
+                            : file.status === 'error'
+                              ? t('aiAssistant.attachments.failed_prefix')
+                              : t('aiAssistant.attachments.ready_prefix')}
+                          {file.name}
+                        </Tag>
+                      </Tooltip>
+                    ))}
+                  </Space>
+                </div>
+              )}
               <TextArea
-                rows={4}
+                autoSize={{ minRows: 2, maxRows: 6 }}
+                variant="borderless"
                 value={input}
                 onChange={e => setInput(e.target.value)}
                 placeholder={t('aiAssistant.input_placeholder')}
                 ref={inputRef}
                 onPaste={e => {
-                  const files = Array.from(e.clipboardData?.files || [])
+                  const files = Array.from(e.clipboardData?.files || []) as File[]
                   if (files.length) {
                     e.preventDefault()
                     handleAttachmentFiles(files)
@@ -2237,50 +2568,66 @@ export default function AiAssistantWidget() {
                   }
                 }}
               />
-              {attachments.length > 0 && (
-                <Space wrap size={6}>
-                  {attachments.map(file => (
-                    <Tooltip key={file.id} title={file.error || (file.text ? formatText(t('aiAssistant.attachments.char_count'), { count: file.text.length }) : t('aiAssistant.attachments.processing'))}>
-                      <Tag
-                        color={file.status === 'ready' ? 'green' : file.status === 'error' ? 'red' : 'processing'}
-                        closable
-                        onClose={() => removeAttachment(file.id)}
-                      >
-                        {file.status === 'processing'
-                          ? t('aiAssistant.attachments.processing_prefix')
-                          : file.status === 'error'
-                            ? t('aiAssistant.attachments.failed_prefix')
-                            : t('aiAssistant.attachments.ready_prefix')}
-                        {file.name}
-                      </Tag>
-                    </Tooltip>
-                  ))}
-                </Space>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
-                <Text type="secondary" style={{ fontSize: 12 }}>
-                  {attachmentBusy
-                    ? t('aiAssistant.attachments.busy_short')
-                    : listening
-                      ? t('aiAssistant.voice.listening')
-                      : hydrating
-                        ? t('aiAssistant.history_loading')
-                        : activeSession?.title || t('aiAssistant.new_conversation')}
-                </Text>
-                <Space size={8}>
+              <div className="ai-composer__toolbar">
+                <div className="ai-composer__meta">
+                  <Tooltip title={t('aiAssistant.model_placeholder')}>
+                    <Select
+                      className="ai-chip-select"
+                      size="small"
+                      variant="borderless"
+                      popupMatchSelectWidth={false}
+                      value={customModel.trim() ? '__custom__' : model}
+                      options={
+                        customModel.trim()
+                          ? [
+                              { label: `${customModel.trim()}${t('aiAssistant.custom_suffix')}`, value: '__custom__' },
+                              ...modelOptions,
+                            ]
+                          : modelOptions
+                      }
+                      onChange={val => {
+                        if (val === '__custom__') return
+                        setCustomModel('')
+                        setModel(String(val))
+                      }}
+                    />
+                  </Tooltip>
+                  <Tooltip title={executionModeMeta.description}>
+                    <Select
+                      className="ai-chip-select"
+                      size="small"
+                      variant="borderless"
+                      popupMatchSelectWidth={false}
+                      value={executionMode}
+                      options={executionModeOptions}
+                      onChange={val => setExecutionMode(normalizeExecutionMode(val))}
+                    />
+                  </Tooltip>
+                  <span className="ai-composer__hint">
+                    {attachmentBusy
+                      ? t('aiAssistant.attachments.busy_short')
+                      : listening
+                        ? t('aiAssistant.voice.listening')
+                        : hydrating
+                          ? t('aiAssistant.history_loading')
+                          : activeSession?.title || t('aiAssistant.new_conversation')}
+                  </span>
+                </div>
+                <Space size={6}>
                   <Tooltip title={t('aiAssistant.attachments.upload_tooltip')}>
-                    <Button icon={<PaperClipOutlined />} onClick={() => fileInputRef.current?.click()} />
+                    <Button type="text" icon={<PaperClipOutlined />} onClick={() => fileInputRef.current?.click()} />
                   </Tooltip>
                   <Tooltip title={listening ? t('aiAssistant.voice.stop') : t('aiAssistant.voice.start')}>
                     <Button
+                      type="text"
                       icon={<AudioOutlined />}
-                      type={listening ? 'primary' : 'default'}
                       danger={listening}
                       onClick={toggleVoiceInput}
                     />
                   </Tooltip>
                   <Button
                     type="primary"
+                    shape="round"
                     icon={<SendOutlined />}
                     loading={loading}
                     disabled={attachmentBusy}
@@ -2290,7 +2637,7 @@ export default function AiAssistantWidget() {
                   </Button>
                 </Space>
               </div>
-            </Space>
+            </div>
           </div>
         </div>
       </Drawer>

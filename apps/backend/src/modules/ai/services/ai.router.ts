@@ -127,6 +127,47 @@ const questionIntent = (text: string) => /生成|出题|题目|试题/.test(text
 
 const paperIntent = (text: string) => /组卷|试卷|套卷/.test(text) && /生成|创建|推荐|建议|智能|自动/.test(text)
 
+// 复合指令（既要生成题目又要组卷/建任务等多步需求）：规则模板做不了规划，放行给大模型
+const compoundIntent = (text: string) => {
+  const wantsQuestions = /(生成|出|创建).{0,12}(题目|试题|道题)/.test(text)
+  const wantsPaper = /(试卷|组卷|套卷)/.test(text)
+  const wantsTask = /(任务|下发|发布考试)/.test(text)
+  const parts = [wantsQuestions, wantsPaper, wantsTask].filter(Boolean).length
+  if (parts >= 2) return true
+  // 显式的多步连接词 + 任一动作意图
+  return parts >= 1 && /(然后|接着|之后|再(生成|创建|建|下发|发布))/.test(text)
+}
+
+// 任务下发意图：创建/下发/发布任务，且引用"现有"试卷（最新/刚生成/使用xx试卷），无需大模型规划
+const taskIntent = (text: string) =>
+  /(下发|发布|布置|创建|新建).{0,8}(任务)/.test(text) || /任务.{0,8}(下发|发布|布置)/.test(text)
+
+const usesExistingPaper = (text: string) =>
+  /(使用|用|基于|按照).{0,10}试卷/.test(text) || /最新(生成|创建)?的?试卷/.test(text)
+
+const wantsNewQuestions = (text: string) => /(生成|出|创建).{0,12}(题目|试题|道题)/.test(text)
+
+const buildTaskAction = (text: string) => {
+  const isExam = /考试/.test(text) && !/练习/.test(text)
+  const type = /练习/.test(text) ? 'practice' : isExam ? 'exam' : 'exam'
+  const title =
+    extractAfter(text, ['标题为', '名称为', '叫做']) || (type === 'exam' ? '考试任务' : '练习任务')
+  const assignAll = /所有(学生|用户|人员?)|全部(学生|用户)|全员/.test(text)
+  return {
+    reply: `我会创建${type === 'exam' ? '考试' : '练习'}任务（使用最新试卷${assignAll ? '，下发给所有用户' : ''}），执行前会先让你确认。`,
+    action: {
+      type: 'create_task',
+      payload: {
+        title,
+        type,
+        use_latest_paper: true,
+        assign_all: assignAll,
+        publish: /下发|发布|布置/.test(text) || assignAll,
+      },
+    },
+  }
+}
+
 const studyPlanIntent = (text: string) => /学习计划|复习计划|训练计划|薄弱|提分/.test(text)
 
 const workflowIntent = (text: string) => /审批|流程|待处理/.test(text)
@@ -260,6 +301,14 @@ export async function routeAgent(input: {
       action: { type: 'navigate', payload: { path: '/admin/workflows/tasks' } },
     }
   }
+
+  // 任务下发 + 引用现有试卷：确定性场景直接出模板（大模型对此常"只描述不行动"）
+  if (taskIntent(text) && usesExistingPaper(text) && !wantsNewQuestions(text)) {
+    return buildTaskAction(text)
+  }
+
+  // 复合/多步指令交给大模型规划（如"生成100道题目并组卷"需要先出题入库再组卷）
+  if (compoundIntent(text)) return null
 
   if (questionIntent(text)) return buildQuestionAction(text)
 

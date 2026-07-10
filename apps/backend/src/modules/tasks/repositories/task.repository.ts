@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { pool as basePool } from '@/config/database.js'
+import { isAnswerCorrect } from '@/modules/exams/utils/grade.js'
 import type { TaskDTO, TaskListQuery, TaskListResult, TaskWithAssigned, UpdateTaskInput } from '../domain/task.model.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
@@ -205,13 +206,40 @@ export class TaskRepository {
     // 统一转为安全数字后内联，避免 ER_WRONG_ARGUMENTS
     const safeLimit = Math.max(1, Math.min(1000, Number(q.limit) || 10))
     const safeOffset = Math.max(0, Number((q.page - 1) * q.limit) || 0)
+    const resultSelect = `
+         (SELECT er.id
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_id,
+         (SELECT CASE
+                   WHEN LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') THEN er.status
+                   WHEN er.submit_time IS NOT NULL THEN 'completed'
+                   ELSE er.status
+                 END
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_status,
+         (SELECT er.score
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_score,`
+    const resultParams = [q.userId, q.userId, q.userId]
 
     const sql = `
       SELECT
          t.*,
          e.id        AS exam_id,
+         e.duration  AS duration,
+         e.total_score AS total_score,
          e.paper_id  AS paper_id,
          p.title     AS paper_title,
+         ${resultSelect}
          GROUP_CONCAT(DISTINCT CONCAT(u.id, ':', u.username, ':', u.email) SEPARATOR '|') AS assigned_users_info,
          GROUP_CONCAT(DISTINCT CONCAT(o.id, ':', o.name) SEPARATOR '|') AS assigned_departments_info
        FROM tasks t
@@ -227,7 +255,7 @@ export class TaskRepository {
        LIMIT ${safeLimit} OFFSET ${safeOffset}
     `
 
-    const [rows] = await this.db.execute<(TaskDTO & RowDataPacket)[]>(sql, params)
+    const [rows] = await this.db.execute<(TaskDTO & RowDataPacket)[]>(sql, [...resultParams, ...params])
 
     const total = await this.countForList(q)
     const tasks: TaskWithAssigned[] = rows.map(r => this.hydrateAssigned(r as any))
@@ -251,8 +279,32 @@ export class TaskRepository {
       `SELECT
          t.*,
          e.id        AS exam_id,
+         e.duration  AS duration,
+         e.total_score AS total_score,
          e.paper_id  AS paper_id,
          p.title     AS paper_title,
+         (SELECT er.id
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_id,
+         (SELECT CASE
+                   WHEN LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') THEN er.status
+                   WHEN er.submit_time IS NOT NULL THEN 'completed'
+                   ELSE er.status
+                 END
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_status,
+         (SELECT er.score
+            FROM exam_results er
+           WHERE er.exam_id = e.id AND er.user_id = ?
+           ORDER BY (LOWER(COALESCE(er.status, '')) IN ('completed','submitted','graded') OR er.submit_time IS NOT NULL) DESC,
+                    er.id DESC
+           LIMIT 1) AS my_result_score,
          GROUP_CONCAT(DISTINCT CONCAT(u.id, ':', u.username, ':', u.email) SEPARATOR '|') AS assigned_users_info,
          GROUP_CONCAT(DISTINCT CONCAT(o.id, ':', o.name) SEPARATOR '|') AS assigned_departments_info
        FROM tasks t
@@ -264,7 +316,7 @@ export class TaskRepository {
        LEFT JOIN organizations o ON o.id = tda.department_id
        ${where}
        GROUP BY t.id`,
-      params
+      [userId, userId, userId, ...params]
     )
     if (!rows.length) return null
     return this.hydrateAssigned(rows[0] as any)
@@ -407,6 +459,17 @@ export class TaskRepository {
 
   async setStatus(taskId: number, status: 'published' | 'unpublished'): Promise<void> {
     await this.db.execute('UPDATE tasks SET status = ?, updated_at = NOW() WHERE id = ?', [status, taskId])
+  }
+
+  /** 任务发布时联动：把关联考试置为 published（已发布/已关闭的不动） */
+  async publishLinkedExam(taskId: number): Promise<void> {
+    await this.db.execute(
+      `UPDATE exams e
+       JOIN tasks t ON t.exam_id = e.id
+       SET e.status = 'published', e.updated_at = NOW()
+       WHERE t.id = ? AND e.status IN ('draft', 'reviewing', 'approved')`,
+      [taskId]
+    )
   }
 
   async getAssignedUserIds(taskId: number): Promise<number[]> {
@@ -623,6 +686,16 @@ export class TaskRepository {
       // 2) 确保 exam_results 存在
       const examResultId = await this.ensureExamResult(args.examId, args.userId, conn)
 
+      // 2.5) 已交卷/已判分的不允许重复提交，防止覆盖历史成绩（空答案重复交卷曾把 55 分刷成 0）
+      const [cur] = await conn.execute<RowDataPacket[]>(
+        'SELECT status FROM exam_results WHERE id = ? FOR UPDATE',
+        [examResultId]
+      )
+      const curStatus = String((cur[0] as any)?.status || '')
+      if (curStatus === 'submitted' || curStatus === 'graded') {
+        throw new Error('该考试已交卷，不能重复提交')
+      }
+
       // 3) 判分用题目（只要 id / correct_answer / score）
       const questions = await this.getQuestionsForGradingByPaperId(paperId, conn)
 
@@ -635,7 +708,8 @@ export class TaskRepository {
         const qid = Number(row.id)
         const qScore = Number(row.score || 0)
         const ua = (args.answers as any)?.[qid]
-        const ok = ua === row.correct_answer
+        // 统一判分：兼容 字母/内容/数组/判断题 等提交与存储格式（此前 ua === correct_answer 恒为假 → 全员 0 分）
+        const ok = isAnswerCorrect(row, ua)
         if (ok) {
           totalScore += qScore
           correctCount += 1
@@ -692,10 +766,12 @@ export class TaskRepository {
   private async getQuestionsForGradingByPaperId(
     paperId: number,
     conn: DBConn
-  ): Promise<Array<{ id: number; correct_answer: string; score: number }>> {
+  ): Promise<Array<{ id: number; question_type: string; correct_answer: string; options: string; score: number }>> {
     const sql = `
       SELECT q.id             AS q_id,
+             q.question_type  AS question_type,
              q.correct_answer AS correct_answer,
+             q.options        AS options,
              pq.score         AS pq_score
         FROM paper_questions pq
         JOIN questions q ON q.id = pq.question_id
@@ -705,7 +781,9 @@ export class TaskRepository {
     const [qs] = await conn.execute<RowDataPacket[]>(sql, [paperId])
     return (qs as any[]).map(r => ({
       id: Number(r.q_id),
+      question_type: String(r.question_type ?? ''),
       correct_answer: String(r.correct_answer ?? ''),
+      options: typeof r.options === 'string' ? r.options : JSON.stringify(r.options ?? []),
       score: Number(r.pq_score || 0),
     }))
   }

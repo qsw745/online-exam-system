@@ -16,6 +16,11 @@ export interface Task {
   start_time?: string
   end_time?: string
   status?: string
+  type?: string
+  exam_id?: string | number | null
+  my_result_id?: string | number | null
+  my_result_status?: string | null
+  my_result_score?: number | null
   assigned_users?: Array<{ id: string | number; name: string }>
   created_at?: string
 }

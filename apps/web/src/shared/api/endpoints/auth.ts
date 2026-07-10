@@ -3,6 +3,13 @@ import { API_URL, api } from '../core/httpClient'
 import { clearTokenAll } from '../core/storage'
 import type { ApiResult } from '../core/types' // ✅ 仅使用这里的 ApiResult，去掉本文件重复声明
 
+export type FaceLoginCandidate = {
+  choiceId: string
+  displayName: string
+  maskedEmail: string
+  role?: string | null
+}
+
 export const auth = {
   /** 登录：如有 enc/alg（前端已加密）优先发加密字段；否则发明文（兼容旧后端） */
   login(
@@ -33,47 +40,36 @@ export const auth = {
     return api.post<ApiResult<{ token: string; user: any }>>('/auth/login', body, { headers })
   },
 
-  reportFaceLoginFailure(payload: {
-    email: string
-    reason:
-      | 'unsupported'
-      | 'detector_unavailable'
-      | 'camera_denied'
-      | 'camera_unavailable'
-      | 'no_face'
-      | 'multiple_faces'
-      | 'liveness_failed'
-      | 'action_failed'
-      | 'verification_failed'
-      | 'not_enrolled'
-      | 'unknown'
-    stage?: string
-    detector?: Record<string, any>
-  }) {
-    return api.post<{
-      counted: boolean
-      reason: string
-      reasonLabel: string
-      failedAttempts: number
-      remainingBeforeLock: number | null
-      captchaRequired: boolean
-      locked: boolean
-      unlockAt?: number
-      remainingSec?: number
-      lockMinutes?: number
-    }>('/auth/face-login/failure', payload)
-  },
-
-  /** 人脸登录：采集帧 → 服务端活体 + (有邮箱)1:1 或 (无邮箱)1:N 识别 → 命中返回 token/user。超时 60s */
-  faceLoginVerify(payload: { email?: string; images: string[]; keep7Days?: boolean }) {
+  /** 人脸登录：采集帧 → 服务端活体 + 1:N 人脸识别 → 命中返回 token/user。超时 60s */
+  faceLoginVerify(payload: { images: string[]; keep7Days?: boolean }) {
     return api.post<{
       matched: boolean
-      reason?: 'no_face' | 'multiple_faces' | 'liveness_failed' | 'not_enrolled' | 'verification_failed'
+      reason?:
+        | 'no_face'
+        | 'multiple_faces'
+        | 'liveness_failed'
+        | 'not_enrolled'
+        | 'verification_failed'
+        | 'multiple_matches'
       message?: string
       token?: string
       user?: any
       similarity?: number
+      selectionRequired?: boolean
+      ticket?: string
+      candidates?: FaceLoginCandidate[]
+      expiresIn?: number
     }>('/auth/face-login', payload, { timeout: 60000 })
+  },
+
+  /** 多账号人脸命中后，使用后端一次性票据选择要进入的账号 */
+  faceLoginSelect(payload: { ticket: string; choiceId: string }) {
+    return api.post<{
+      matched: boolean
+      token?: string
+      user?: any
+      similarity?: number
+    }>('/auth/face-login/select', payload, { timeout: 15000 })
   },
 
   /** 校验注册邮箱验证 token */
@@ -86,8 +82,8 @@ export const auth = {
     return api.post<{ sent: boolean }>('/auth/verify-email/resend', { email })
   },
 
-  /** PC：生成扫码登录二维码票据（email 可选，不填则手机端 1:N 识别） */
-  qrCreate(payload: { email?: string; keep7Days?: boolean }) {
+  /** PC：生成扫码登录二维码票据，手机端刷脸后按识别到的用户登录 */
+  qrCreate(payload: { keep7Days?: boolean }) {
     return api.post<{ ticketId: string; pollToken: string; expiresIn: number }>('/auth/qr/create', payload)
   },
 
@@ -100,9 +96,9 @@ export const auth = {
     }>('/auth/qr/poll', { params: { ticket: ticketId, pollToken } })
   },
 
-  /** 手机：打开二维码页（标记已扫描，返回脱敏账号） */
+  /** 手机：打开二维码页（标记已扫描） */
   qrInfo(ticketId: string) {
-    return api.get<{ status: 'pending' | 'scanned' | 'confirmed' | 'expired'; emailHint?: string }>(
+    return api.get<{ status: 'pending' | 'scanned' | 'confirmed' | 'expired' }>(
       '/auth/qr/info',
       { params: { ticket: ticketId } }
     )
@@ -110,7 +106,18 @@ export const auth = {
 
   /** 手机：刷脸授权 */
   qrAuthorize(payload: { ticket: string; images: string[] }) {
-    return api.post<{ ok: boolean; reason?: string; message?: string }>('/auth/qr/authorize', payload, {
+    return api.post<{ ok: boolean; reason?: string; message?: string; candidates?: FaceLoginCandidate[] }>(
+      '/auth/qr/authorize',
+      payload,
+      {
+        timeout: 60000,
+      }
+    )
+  },
+
+  /** 手机：多账号命中时选择要授权登录的账号 */
+  qrSelect(payload: { ticket: string; choiceId: string }) {
+    return api.post<{ ok: boolean; reason?: string; message?: string }>('/auth/qr/select', payload, {
       timeout: 60000,
     })
   },

@@ -36,13 +36,25 @@ async function cdel(...ks: string[]) {
 }
 
 export class PaperService {
+  /** 已有考生交卷的试卷锁定结构：禁止增删题、调分值顺序、删卷，保护历史成绩可追溯 */
+  private async assertNotLocked(paperId: number, action: string): Promise<void> {
+    const cnt = await PaperRepository.countSubmissions(paperId)
+    if (cnt > 0) {
+      const err: any = new Error(`该试卷已有 ${cnt} 条交卷记录，不能${action}，避免破坏历史成绩。如需调整请复制试卷后修改。`)
+      err.code = 'BAD_REQUEST'
+      throw err
+    }
+  }
+
   async addQuestion(paperId: number, body: any) {
+    await this.assertNotLocked(paperId, '添加题目')
     const { questionId, score, order } = body
     await cdel(kPaper(paperId), kQOfPaper(paperId))
     return PaperRepository.addQuestion(paperId, { questionId, score, order })
   }
 
   async removeQuestion(paperId: number, questionId: number) {
+    await this.assertNotLocked(paperId, '删除题目')
     await cdel(kPaper(paperId), kQOfPaper(paperId))
     return PaperRepository.removeQuestion(paperId, questionId)
   }
@@ -57,6 +69,7 @@ export class PaperService {
   }
 
   async updateOrder(paperId: number, orders: Array<{ questionId: number; order: number }>) {
+    await this.assertNotLocked(paperId, '调整题目顺序')
     await cdel(kPaper(paperId), kQOfPaper(paperId))
     await PaperRepository.updateOrder(paperId, orders)
   }
@@ -143,6 +156,7 @@ export class PaperService {
   async remove(paperId: number) {
     const data = await PaperRepository.findById(paperId)
     if (!data?.paper) throw new Error('试卷不存在')
+    await this.assertNotLocked(paperId, '删除试卷')
     await workflowSvc.deleteEntityWorkflows('paper', paperId)
     const r = await PaperRepository.remove(paperId)
     await cdel(kPaper(paperId), kQOfPaper(paperId))
@@ -243,6 +257,8 @@ export class PaperService {
       order: number
     }
   ) {
+    await this.assertNotLocked(paperId, '添加题目')
+    await cdel(kPaper(paperId), kQOfPaper(paperId))
     return PaperRepository.addCustomQuestionSnapshot(paperId, body)
   }
 }

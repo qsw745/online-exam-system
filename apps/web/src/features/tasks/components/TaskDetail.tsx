@@ -13,9 +13,10 @@ export const TaskDetail: React.FC<{
   task: Task | null
   loading?: boolean
   onStart?: (task: Task) => void
+  onViewResult?: (task: Task) => void
   onBack?: () => void
   onEdit?: (task: Task) => void
-}> = ({ task, loading, onStart, onBack, onEdit }) => {
+}> = ({ task, loading, onStart, onViewResult, onBack, onEdit }) => {
   if (loading) {
     return (
       <Card loading variant="outlined">
@@ -27,9 +28,14 @@ export const TaskDetail: React.FC<{
   }
 
   const assigned: any[] = (task as any).assigned_users ?? (task as any).assignedUsers ?? []
+  const resultStatus = String((task as any).my_result_status || '').toLowerCase()
+  const hasDoneResult = task.type === 'exam' && ['completed', 'submitted', 'graded'].includes(resultStatus)
+  const hasResultDetail = hasDoneResult && (task as any).my_result_id != null
+  const visibleStatus = hasDoneResult ? 'completed' : resultStatus === 'in_progress' ? 'in_progress' : task.status
 
   // ✅ “可开始”支持 published；时间窗口仍需满足
   const canStart = (() => {
+    if (hasDoneResult) return false
     const now = new Date()
     const s = task.start_time ? new Date(task.start_time) : undefined
     const e = task.end_time ? new Date(task.end_time) : undefined
@@ -52,7 +58,13 @@ export const TaskDetail: React.FC<{
               <Button type="primary" ghost onClick={() => onEdit(task)}>
                 {translate('app.edit')}</Button>
             )}
-            <StatusTag status={task.status as any} />
+            <StatusTag status={visibleStatus as any} />
+            {hasResultDetail && (
+              <Button onClick={() => onViewResult?.(task)}>
+                {translate('exam.view_result')}
+              </Button>
+            )}
+            {hasDoneResult && !hasResultDetail && <Button disabled>{translate('dashboard.status_completed')}</Button>}
             {onStart && canStart && (
               <Button type="primary" onClick={() => onStart(task)}>
                 {task.type === 'exam' ? translate('visible.d5b9caf5ec') : translate('auto.5c007a10e6')}
@@ -65,7 +77,7 @@ export const TaskDetail: React.FC<{
         <Descriptions column={1} bordered size="middle">
           <Descriptions.Item label={translate('papers.desc2')}>{task.description || '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('systemConfig.col_type')}>{task.type === 'exam' ? translate('nav.exams') : translate('menus.exam-practice')}</Descriptions.Item>
-          <Descriptions.Item label={translate('auto.045859e792')}>{getTaskStatusLabel(task.status as any)}</Descriptions.Item>
+          <Descriptions.Item label={translate('auto.045859e792')}>{getTaskStatusLabel(visibleStatus as any)}</Descriptions.Item>
           <Descriptions.Item label={translate('dashboard.start_time')}>
             {task.start_time ? formatDateTime(task.start_time) : '-'}
           </Descriptions.Item>

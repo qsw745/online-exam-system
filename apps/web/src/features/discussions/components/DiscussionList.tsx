@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react'
-import { Card, Empty, List, Spin, Tag, Avatar, Badge, Tooltip } from 'antd'
-import { MessageCircle, ThumbsUp, Eye, Clock } from 'lucide-react'
+import { Card, Empty, Spin, Tag, Avatar, Tooltip } from 'antd'
+import { MessageCircle, ThumbsUp, Eye, Clock, Pin } from 'lucide-react'
 import { translate } from '@/shared/utils/i18n'
 import { formatDateTime } from '@/shared/utils/datetime'
 
@@ -27,7 +27,7 @@ export const DiscussionList: React.FC<Props> = ({ loading, data, categories, sel
 
   const toVM = (d: any) => {
     const author_name = d.author_name ?? d.username ?? translate('common.anonymous_user')
-    const author_avatar = d.author_avatar ?? d.avatar ?? undefined
+    const author_avatar = d.author_avatar || d.avatar || undefined
     const cid = String(d.category_id ?? d.categoryId ?? d.category ?? '')
     const catNameRaw = d.category_name
     const category_name = typeof catNameRaw === 'string' && catNameRaw.trim() ? catNameRaw : cMap[cid]?.name || translate('common.uncategorized')
@@ -50,91 +50,81 @@ export const DiscussionList: React.FC<Props> = ({ loading, data, categories, sel
   }
 
   return (
-    <Card
-      title={<div className="font-semibold">{translate('auto.6457cc30b3')}</div>}
-      className="h-full border bg-white shadow-sm rounded-2xl overflow-hidden"
-      // ↓↓↓ 修复：使用 styles.body 替代 bodyStyle
-      styles={{ body: { padding: 0 } }}
-    >
+    <Card title={translate('auto.6457cc30b3')} styles={{ body: { padding: 0 } }}>
       <Spin spinning={loading}>
         {data.length === 0 ? (
-          <div className="p-8">
+          <div style={{ padding: 32 }}>
             <Empty description={translate('auto.c2eeb5feff')} />
           </div>
         ) : (
-          <List
-            dataSource={data}
-            renderItem={raw => {
+          <div>
+            {data.map(raw => {
               const d = toVM(raw)
               const initial = (d.author_name || '').charAt(0).toUpperCase() || translate('visible.4e0a3caa22')
               const createdText = d.created_at ? formatDateTime(d.created_at) : '-'
               const isActive = selectedId === d.id
               return (
-                <List.Item className="px-4 py-3">
-                  <button
-                    className={[
-                      'w-full text-left rounded-xl border transition-all',
-                      'bg-white hover:bg-gray-50',
-                      isActive ? 'border-blue-300 ring-2 ring-blue-100' : 'border-gray-200',
-                      'shadow-xs hover:shadow-sm px-4 py-3',
-                    ].join(' ')}
-                    onClick={() => onSelect(raw)}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          {d.is_pinned && <Badge color="red" text={<span className="text-red-500">{translate('auto.7bcf18641f')}</span>} />}
-                          <Tag color={getCategoryColor(d.category_color)}>{d.category_name}</Tag>
-                          <span className="text-xs text-gray-400 flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
-                            {createdText}
-                          </span>
-                        </div>
+                <button
+                  key={d.id}
+                  type="button"
+                  className={`disc-item${isActive ? ' disc-item--active' : ''}`}
+                  onClick={() => onSelect(raw)}
+                >
+                  <div className="disc-item__meta">
+                    {d.is_pinned && (
+                      <Tag color="red" icon={<Pin size={12} />}>
+                        {translate('auto.7bcf18641f')}
+                      </Tag>
+                    )}
+                    <Tag color={getCategoryColor(d.category_color)}>{d.category_name}</Tag>
+                    <span className="disc-item__time">
+                      <Clock size={12} />
+                      {createdText}
+                    </span>
+                  </div>
 
-                        <div className="text-base font-semibold text-gray-900 mb-1 line-clamp-2">
-                          {d.title || translate('header.untitled')}
-                        </div>
+                  <div className="disc-item__title">{d.title || translate('header.untitled')}</div>
 
-                        {d.question_title && (
-                          <div className="text-xs text-blue-600 mb-1">{translate('auto.e79035ba92')}{d.question_title}</div>
-                        )}
-
-                        <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center gap-2 text-sm text-gray-600 min-w-0">
-                            <Avatar src={d.author_avatar} size={24} className="bg-blue-500 shrink-0">
-                              {initial}
-                            </Avatar>
-                            <span className="truncate">{d.author_name}</span>
-                          </div>
-
-                          <div className="flex items-center gap-3 text-gray-600">
-                            <Tooltip title={translate('auto.e07f300d0c')}>
-                              <span className="flex items-center gap-1">
-                                <ThumbsUp className="w-4 h-4" />
-                                <span className="tabular-nums">{d.likes}</span>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title={translate('auto.089f60a9bf')}>
-                              <span className="flex items-center gap-1">
-                                <MessageCircle className="w-4 h-4" />
-                                <span className="tabular-nums">{d.replies}</span>
-                              </span>
-                            </Tooltip>
-                            <Tooltip title={translate('auto.362b49c2b1')}>
-                              <span className="flex items-center gap-1">
-                                <Eye className="w-4 h-4" />
-                                <span className="tabular-nums">{d.views}</span>
-                              </span>
-                            </Tooltip>
-                          </div>
-                        </div>
-                      </div>
+                  {d.question_title && (
+                    <div className="disc-item__question">
+                      {translate('auto.e79035ba92')}
+                      {d.question_title}
                     </div>
-                  </button>
-                </List.Item>
+                  )}
+
+                  <div className="disc-item__footer">
+                    <span className="disc-item__author">
+                      <Avatar src={d.author_avatar} size={22} style={{ flexShrink: 0 }}>
+                        {initial}
+                      </Avatar>
+                      <span className="disc-item__author-name">{d.author_name}</span>
+                    </span>
+
+                    <span className="disc-item__stats">
+                      <Tooltip title={translate('auto.e07f300d0c')}>
+                        <span className="disc-stat">
+                          <ThumbsUp size={14} />
+                          {d.likes}
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={translate('auto.089f60a9bf')}>
+                        <span className="disc-stat">
+                          <MessageCircle size={14} />
+                          {d.replies}
+                        </span>
+                      </Tooltip>
+                      <Tooltip title={translate('auto.362b49c2b1')}>
+                        <span className="disc-stat">
+                          <Eye size={14} />
+                          {d.views}
+                        </span>
+                      </Tooltip>
+                    </span>
+                  </div>
+                </button>
               )
-            }}
-          />
+            })}
+          </div>
         )}
       </Spin>
     </Card>

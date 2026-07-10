@@ -16,9 +16,11 @@ import {
   InputNumber,
   Input,
   Select,
+  Tooltip,
   message as antdMessage,
 } from 'antd'
-import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons'
+import { ArrowUpOutlined, ArrowDownOutlined, PlusOutlined, DeleteOutlined, EditOutlined, PrinterOutlined, LockOutlined } from '@ant-design/icons'
+import { printHtml, escapeHtml, parseOptionContents, optionLetter } from '@/shared/utils/print'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { formatDateTime } from '@/shared/utils/datetime'
@@ -34,6 +36,7 @@ type Paper = {
   duration?: number
   created_at?: string
   updated_at?: string
+  submission_count?: number
   [k: string]: any
 }
 
@@ -85,6 +88,39 @@ const PaperDetailPage: React.FC = () => {
   }>()
 
   const [form] = Form.useForm<{ questionId: number; score: number; order?: number }>()
+
+  // 已有考生交卷 → 题目结构锁定（后端同样拦截，这里提前禁用入口）
+  const locked = Number(paper?.submission_count || 0) > 0
+
+  // 打印试卷：withAnswers 时附标准答案（教师存档用），否则为学生作答版
+  const handlePrint = (withAnswers: boolean) => {
+    if (!paper) return
+    const typeLabel = (qt?: string) => (typeKey[qt || ''] ? t(typeKey[qt || '']) : qt || '')
+    const body = [
+      `<h1>${escapeHtml(paper.title)}</h1>`,
+      `<div class="meta">`,
+      `<span>${escapeHtml(t('papers.col_total_score'))}：${escapeHtml(paper.total_score ?? '')}</span>`,
+      `<span>${escapeHtml(t('papers.col_duration'))}：${escapeHtml(paper.duration ?? '')} ${escapeHtml(t('papers.minutes_unit'))}</span>`,
+      `<span>${escapeHtml(t('papers.col_question_count'))}：${rows.length}</span>`,
+      `</div>`,
+      ...rows.map((r: any, idx) => {
+        const opts = parseOptionContents(r.question_options)
+        const optHtml = opts.length
+          ? `<ul class="q-opts">${opts.map((o, i) => `<li>${optionLetter(i)}. ${escapeHtml(o)}</li>`).join('')}</ul>`
+          : ''
+        const ansHtml = withAnswers
+          ? `<div class="q-ans">${escapeHtml(t('papers.print_answer_label'))}：${escapeHtml(
+              parseOptionContents(r.question_answer).join('、') || r.question_answer || ''
+            )}</div>`
+          : ''
+        return `<div class="q"><div class="q-head">${idx + 1}. ${escapeHtml(
+          r.question_content || r.question_title || ''
+        )}<span class="q-type">（${escapeHtml(typeLabel(r.question_type))} · ${escapeHtml(String(r.score))}${escapeHtml(t('papers.print_score_unit'))}）</span></div>${optHtml}${ansHtml}</div>`
+      }),
+      `<div class="footer">${escapeHtml(formatDateTime(new Date()))}</div>`,
+    ].join('')
+    printHtml(paper.title, body)
+  }
 
   const fetchAll = useCallback(async () => {
     if (!id) return
@@ -243,7 +279,7 @@ const PaperDetailPage: React.FC = () => {
               size="small"
               icon={<ArrowUpOutlined />}
               onClick={() => move(r.question_id, 'up')}
-              disabled={idx === 0}
+              disabled={locked || idx === 0}
             >
               {t('papers.move_up')}
             </Button>
@@ -251,7 +287,7 @@ const PaperDetailPage: React.FC = () => {
               size="small"
               icon={<ArrowDownOutlined />}
               onClick={() => move(r.question_id, 'down')}
-              disabled={idx === rows.length - 1}
+              disabled={locked || idx === rows.length - 1}
             >
               {t('papers.move_down')}
             </Button>
@@ -260,8 +296,9 @@ const PaperDetailPage: React.FC = () => {
               okText={t('app.delete')}
               okButtonProps={{ danger: true }}
               onConfirm={() => remove(r.question_id)}
+              disabled={locked}
             >
-              <Button size="small" danger icon={<DeleteOutlined />}>
+              <Button size="small" danger icon={<DeleteOutlined />} disabled={locked}>
                 {t('app.delete')}
               </Button>
             </Popconfirm>
@@ -269,7 +306,7 @@ const PaperDetailPage: React.FC = () => {
         ),
       },
     ],
-    [move, remove, rows.length, t]
+    [move, remove, rows.length, t, locked]
   )
 
   if (loading) return <LoadingSpinner center="page" text={t('papers.loading_detail')} />
@@ -305,6 +342,12 @@ const PaperDetailPage: React.FC = () => {
         extra={
           <Space wrap>
             <Button onClick={() => nav('/admin/papers')}>{t('papers.back_to_list')}</Button>
+            <Button icon={<PrinterOutlined />} onClick={() => handlePrint(false)}>
+              {t('papers.print')}
+            </Button>
+            <Button icon={<PrinterOutlined />} onClick={() => handlePrint(true)}>
+              {t('papers.print_with_answers')}
+            </Button>
             {/* 在当前页编辑，不跳转 */}
             <Button type="primary" icon={<EditOutlined />} onClick={openEditModal}>
               {t('papers.edit_basic')}
@@ -335,10 +378,17 @@ const PaperDetailPage: React.FC = () => {
         title={t('papers.q_list_title').replace('{n}', String(rows.length)).replace('{score}', String(totalScore))}
         extra={
           <Space wrap>
-            <Button onClick={() => setAddOpen(true)} type="primary" icon={<PlusOutlined />}>
+            {locked && (
+              <Tooltip title={t('papers.locked_tip').replace('{n}', String(paper.submission_count))}>
+                <Tag color="warning" icon={<LockOutlined />} style={{ margin: 0 }}>
+                  {t('papers.locked')}
+                </Tag>
+              </Tooltip>
+            )}
+            <Button onClick={() => setAddOpen(true)} type="primary" icon={<PlusOutlined />} disabled={locked}>
               {t('papers.add_question')}
             </Button>
-            <Button onClick={saveOrder} loading={savingOrder}>
+            <Button onClick={saveOrder} loading={savingOrder} disabled={locked}>
               {t('papers.save_order')}
             </Button>
           </Space>

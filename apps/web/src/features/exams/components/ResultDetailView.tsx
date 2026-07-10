@@ -6,6 +6,7 @@ import { aiApi } from '@/shared/api/endpoints/ai'
 import { proctoringApi, type ProctoringList } from '@/shared/api/endpoints/proctoring'
 import { translate } from '@/shared/utils/i18n'
 import { formatDateTime } from '@/shared/utils/datetime'
+import { printHtml, escapeHtml, optionLetter } from '@/shared/utils/print'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -154,6 +155,53 @@ export default function ResultDetailView({ data, onBack }: Props) {
     }
   }, [data.exam_id])
 
+  // 打印成绩单：成绩概要表 + 逐题作答与判定
+  const handlePrintResult = () => {
+    const answerText = (type: string, value: string | null, options: string[] | null): string => {
+      if (value == null || value === '') return translate('auto.1516d7b39e')
+      if (type === 'true_false') {
+        const b = asBool(value)
+        return b === null ? String(value) : b ? translate('questions.tf_true') : translate('questions.tf_false')
+      }
+      if (type === 'multiple_choice' || type === 'single_choice') {
+        const letters = type === 'single_choice' ? toArray(value).slice(0, 1) : toArray(value)
+        return formatOptionLettersToText(letters, options).join('，') || String(value)
+      }
+      return String(value)
+    }
+    const questions = [...(data.questions || [])].sort((a, b) => a.order - b.order)
+    const correctCount = questions.filter(q => q.is_correct === 1).length
+    const body = [
+      `<h1>${escapeHtml(data.paper_title || translate('visible.701efbdcb5'))}</h1>`,
+      `<div class="meta">`,
+      `<span>${escapeHtml(translate('nav.results'))}：${escapeHtml(scoreLine)}</span>`,
+      `<span>${escapeHtml(translate('auto.8dc159502e'))}：${data.percentage != null ? `${data.percentage}%` : '-'}</span>`,
+      `<span>${escapeHtml(translate('results.print_correct_count'))}：${correctCount} / ${questions.length}</span>`,
+      `</div>`,
+      `<table><tbody>`,
+      `<tr><th>${escapeHtml(translate('dashboard.start_time'))}</th><td>${escapeHtml(formatDateTime(data.start_time) || '-')}</td>`,
+      `<th>${escapeHtml(translate('dashboard.submit_time'))}</th><td>${escapeHtml(formatDateTime(data.end_time) || '-')}</td></tr>`,
+      `</tbody></table>`,
+      `<div class="sec-title">${escapeHtml(translate('auto.76884ec560'))}</div>`,
+      ...questions.map((q, idx) => {
+        const ok = q.is_correct === 1
+        const judge =
+          q.is_correct == null
+            ? `<span>${escapeHtml(translate('visible.565b60c565'))}</span>`
+            : ok
+              ? `<span class="ok">✓ ${escapeHtml(translate('questions.tf_true'))}</span>`
+              : `<span class="bad">✗ ${escapeHtml(translate('questions.tf_false'))}</span>`
+        const optHtml =
+          Array.isArray(q.options) && q.options.length
+            ? `<ul class="q-opts">${q.options.map((o, i) => `<li>${optionLetter(i)}. ${escapeHtml(o)}</li>`).join('')}</ul>`
+            : ''
+        return `<div class="q"><div class="q-head">Q${idx + 1}. (${escapeHtml(String(q.score))}分) ${escapeHtml(q.content || '')} ${judge}</div>${optHtml}<div class="q-ans">${escapeHtml(translate('auto.758722bee9'))}${escapeHtml(answerText(q.type, q.user_answer, q.options))}</div><div class="q-ans">${escapeHtml(translate('auto.b767475397'))}${escapeHtml(answerText(q.type, q.correct_answer, q.options))}</div></div>`
+      }),
+      `<div class="footer">${escapeHtml(formatDateTime(new Date()))}</div>`,
+    ].join('')
+    printHtml(data.paper_title || translate('results.print_report'), body)
+  }
+
   const sevColor = (s: string) => (s === 'critical' ? 'error' : s === 'warn' ? 'warning' : 'default')
   const sevLabel = (s: string) => (s === 'critical' ? '严重' : s === 'warn' ? '警告' : '提示')
   const proctorSummary = proctoring?.summary ?? { total: 0, info: 0, warn: 0, critical: 0 }
@@ -171,6 +219,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
           </Tag>
           <Button onClick={requestAiSummary} loading={aiLoading}>
             {translate('auto.3c756fd702')}</Button>
+          <Button onClick={handlePrintResult}>{translate('results.print_report')}</Button>
           {onBack && <Button onClick={onBack}>{translate('papers.back_to_list')}</Button>}
         </Space>
       </div>

@@ -27,6 +27,15 @@ export type FaceCredentialInsert = {
   consentVersion: string | null
 }
 
+export type FaceCredentialWithUser = {
+  userId: number
+  email: string
+  username: string | null
+  nickname: string | null
+  role: string | null
+  embedding: number[]
+}
+
 // JSON 列在不同 mysql2 配置下可能回传字符串或已解析数组，这里统一成 number[]
 function parseEmbedding(raw: unknown): number[] {
   if (Array.isArray(raw)) return raw as number[]
@@ -53,15 +62,19 @@ export class FaceCredentialRepository {
   }
 
   // 1:N 识别用：取全部凭据（含所属用户邮箱），在内存里做余弦比对
-  static async listAllWithUser(): Promise<{ userId: number; email: string; embedding: number[] }[]> {
+  static async listAllWithUser(): Promise<FaceCredentialWithUser[]> {
     const [rows] = await pool.query<RowDataPacket[]>(
-      `SELECT fc.user_id, u.email, fc.embedding
+      `SELECT fc.user_id, u.email, u.username, u.nickname, u.role, fc.embedding
          FROM face_credentials fc
-         JOIN users u ON u.id = fc.user_id`
+         JOIN users u ON u.id = fc.user_id
+        WHERE u.email IS NOT NULL AND u.email <> ''`
     )
     return (rows as any[]).map(r => ({
       userId: Number(r.user_id),
       email: String(r.email),
+      username: r.username ? String(r.username) : null,
+      nickname: r.nickname ? String(r.nickname) : null,
+      role: r.role ? String(r.role) : null,
       embedding: parseEmbedding(r.embedding),
     }))
   }

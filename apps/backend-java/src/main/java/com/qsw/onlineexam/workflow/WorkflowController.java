@@ -7,6 +7,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -73,6 +74,24 @@ public class WorkflowController {
   public ResponseEntity<Map<String, Object>> publishTemplate(HttpServletRequest request, @PathVariable long id) {
     AuthUser user = authService.requireUser(request);
     return ResponseEntity.ok(ApiEnvelope.ok(workflowService.publishTemplate(user, id), "发布模板成功"));
+  }
+
+  @DeleteMapping("/templates/{id}")
+  public ResponseEntity<Map<String, Object>> deleteTemplate(HttpServletRequest request, @PathVariable long id) {
+    AuthUser user = authService.requireUser(request);
+    return ResponseEntity.ok(ApiEnvelope.ok(workflowService.deleteTemplate(user, id), "删除模板成功"));
+  }
+
+  @PostMapping("/templates/{id}/copy")
+  public ResponseEntity<Map<String, Object>> copyTemplate(HttpServletRequest request, @PathVariable long id) {
+    AuthUser user = authService.requireUser(request);
+    return ResponseEntity.ok(ApiEnvelope.ok(workflowService.copyTemplate(user, id), "复制模板成功"));
+  }
+
+  @GetMapping("/templates/{id}/related")
+  public ResponseEntity<Map<String, Object>> templateRelated(HttpServletRequest request, @PathVariable long id) {
+    AuthUser user = authService.requireUser(request);
+    return ResponseEntity.ok(ApiEnvelope.ok(workflowService.templateRelated(user, id), "获取关联数据成功"));
   }
 
   @PostMapping("/instances")

@@ -150,7 +150,13 @@ export class AiController {
       if (!persist || !Array.isArray(questions)) return res.ok(generated, 'OK')
 
       const created: any[] = []
-      const errors: any[] = []
+      const rejected = Array.isArray((generated?.data as any)?.rejected_questions)
+        ? (generated?.data as any).rejected_questions
+        : []
+      const errors: any[] = rejected.map((item: any) => ({
+        error: Array.isArray(item?.issues) ? item.issues.join('；') : 'question_quality_failed',
+        item: item?.item,
+      }))
       for (const item of questions) {
         try {
           const payload = {
@@ -313,16 +319,31 @@ export class AiController {
           content: String(m.content).slice(0, 4000),
         }))
       const lastUser = [...safeMessages].reverse().find(m => m.role === 'user')
-      const routed = await routeAgent({ user: pickUser(req.user), message: lastUser?.content || '' })
+      // 多步循环的系统续跑指令直达大模型（同 agentStream 的 internal 语义）
+      const isInternalReq = req.body?.internal === true
+      const routed = isInternalReq ? null : await routeAgent({ user: pickUser(req.user), message: lastUser?.content || '' })
       if (routed) {
+        // 规则路由命中的对话同样记入 AI 问答日志（model 标记 rule-router 以便区分）
+        if (req.user?.id && routed.reply) {
+          const routedSessionId = String(req.body?.sessionId || '').trim() || undefined
+          await AiLogService.recordAgentTurn({
+            userId: req.user.id,
+            sessionId: routedSessionId,
+            model: 'rule-router',
+            messages: [...safeMessages, { role: 'assistant', content: routed.reply }],
+            action: routed.action,
+          }).catch(() => {})
+        }
         return res.ok({ data: routed, usage: { cached: true, routed: true } }, 'OK')
       }
       const context = {
         user: req.user ? { id: req.user.id, role: req.user.role, email: req.user.email } : null,
         orgId: (req as any).auth?.orgId ?? null,
+        // 当前时间：模型不知道"今天"，缺了会把任务时间写成过去的年份
+        now: new Date().toISOString(),
       }
       const model = typeof req.body?.model === 'string' ? req.body.model.trim() : undefined
-      const nocache = String(req.body?.nocache || '').toLowerCase() === 'true'
+      const nocache = isInternalReq || String(req.body?.nocache || '').toLowerCase() === 'true'
       const cacheKey = buildCacheKey('agent', {
         userId: req.user?.id || null,
         model: model || '',
@@ -359,6 +380,144 @@ export class AiController {
         errorMessage: e?.message || String(e),
       })
       return res.internal(e?.message || 'AI 助手失败', { code: CODES.INTERNAL_ERROR })
+    }
+  }
+
+  /**
+   * SSE 版 agent：把处理过程实时推给前端。
+   * 事件：stage {key,label} 阶段提示 → delta {text} 回复增量 → action {..} 建议动作 → done {usage} / error {message}
+   */
+  static async agentStream(req: AuthRequest, res: Res) {
+    const raw = res as any
+    let closed = false
+    req.on?.('close', () => {
+      closed = true
+    })
+
+    raw.writeHead(200, {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    })
+    raw.flushHeaders?.()
+
+    const emit = (event: string, data: unknown) => {
+      if (closed) return
+      raw.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+    }
+    const finish = () => {
+      if (!closed) raw.end()
+      closed = true
+    }
+    const sleep = (ms: number) => new Promise(r => setTimeout(r, ms))
+    // 逐字下发回复（分片 + 微延迟，前端呈现打字效果；连接断开立即停）
+    const emitReplyChunks = async (reply: string) => {
+      const text = String(reply || '')
+      const chunk = Math.max(4, Math.ceil(text.length / 60))
+      for (let pos = 0; pos < text.length && !closed; pos += chunk) {
+        emit('delta', { text: text.slice(pos, pos + chunk) })
+        await sleep(16)
+      }
+    }
+
+    const STAGE_LABELS: Record<string, string> = {
+      analyze: '正在分析请求…',
+      route_hit: '命中快捷指令，直接处理',
+      knowledge: '正在检索知识库…',
+      cache_hit: '命中缓存结果',
+      llm: '正在调用大模型…',
+      parse: '正在解析动作…',
+    }
+    const stage = (key: string) => emit('stage', { key, label: STAGE_LABELS[key] || key })
+
+    try {
+      const messages = Array.isArray(req.body?.messages) ? req.body.messages : []
+      const safeMessages = messages
+        .filter((m: any) => m && typeof m.content === 'string')
+        .map((m: any) => ({
+          role: m.role === 'assistant' ? 'assistant' : m.role === 'system' ? 'system' : 'user',
+          content: String(m.content).slice(0, 4000),
+        }))
+      const lastUser = [...safeMessages].reverse().find(m => m.role === 'user')
+      const sessionId = String(req.body?.sessionId || '').trim() || undefined
+      // 多步循环的系统续跑指令：必须直达大模型做规划，不能被规则路由的关键词误吞，也不能命中旧缓存
+      const isInternal = req.body?.internal === true
+
+      stage('analyze')
+
+      // 1) 规则路由（快捷指令等确定性场景；内部续跑指令跳过）
+      const routed = isInternal ? null : await routeAgent({ user: pickUser(req.user), message: lastUser?.content || '' })
+      if (routed) {
+        stage('route_hit')
+        if (req.user?.id && routed.reply) {
+          await AiLogService.recordAgentTurn({
+            userId: req.user.id,
+            sessionId,
+            model: 'rule-router',
+            messages: [...safeMessages, { role: 'assistant', content: routed.reply }],
+            action: routed.action,
+          }).catch(() => {})
+        }
+        await emitReplyChunks(routed.reply || '')
+        if (routed.action) emit('action', routed.action)
+        emit('done', { usage: { cached: true, routed: true } })
+        return finish()
+      }
+
+      // 2) 大模型
+      const context = {
+        user: req.user ? { id: req.user.id, role: req.user.role, email: req.user.email } : null,
+        orgId: (req as any).auth?.orgId ?? null,
+        // 当前时间：模型不知道"今天"，缺了会把任务时间写成过去的年份
+        now: new Date().toISOString(),
+      }
+      const model = typeof req.body?.model === 'string' ? req.body.model.trim() : undefined
+      const nocache = isInternal || String(req.body?.nocache || '').toLowerCase() === 'true'
+      const cacheKey = buildCacheKey('agent', {
+        userId: req.user?.id || null,
+        model: model || '',
+        messages: safeMessages,
+      })
+      // token 级透传：模型可见文本边生成边下发；围栏动作块在服务端截住解析
+      const result = await AiService.agentStream(
+        safeMessages,
+        context,
+        model,
+        { key: cacheKey, nocache },
+        stage,
+        text => emit('delta', { text })
+      )
+
+      const payload = result?.data ?? ({} as any)
+      const reply = typeof payload?.reply === 'string' ? payload.reply : String(payload?.reply || '')
+      const rawAction = payload?.action && typeof payload.action === 'object' ? payload.action : undefined
+      const adjustedAction = rawAction ? adjustAgentAction(rawAction, lastUser?.content || '') : undefined
+
+      if (req.user?.id && reply) {
+        await AiLogService.recordAgentTurn({
+          userId: req.user.id,
+          sessionId,
+          model: model || undefined,
+          messages: [...safeMessages, { role: 'assistant', content: reply }],
+          action: adjustedAction,
+        }).catch(logErr => {
+          getReqLogger(req, { module: 'ai', action: 'agent.stream' }).warn('ai.agent.stream log failed', { error: logErr })
+        })
+      }
+
+      // 缓存命中或模型回退纯 JSON 时没有 token 透传，补发全文（打字机分片）
+      if (!result.visibleEmitted) await emitReplyChunks(reply)
+      if (adjustedAction) emit('action', adjustedAction)
+      emit('done', { usage: result?.usage, cached: !!result?.cached })
+      return finish()
+    } catch (e: any) {
+      getReqLogger(req, { module: 'ai', action: 'agent.stream' }).error('ai.agent.stream failed', {
+        error: e,
+        errorMessage: e?.message || String(e),
+      })
+      emit('error', { message: e?.message || 'AI 助手失败' })
+      return finish()
     }
   }
 

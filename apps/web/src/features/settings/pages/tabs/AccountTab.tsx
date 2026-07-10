@@ -1,12 +1,69 @@
 // src/features/settings/pages/tabs/AccountTab.tsx
+import { DeleteOutlined, PlusOutlined } from '@ant-design/icons'
 import { api } from '@/shared/api/http'
 import { useAuth } from '@/shared/contexts/AuthContext'
-import { App, Button, Card, Form, Input, Modal, Space, Typography } from 'antd'
+import { App, Button, Card, Form, Input, Modal, Select, Space, Typography } from 'antd'
 import React, { useEffect, useMemo, useState } from 'react'
 import { isSuccess, getErr, type ApiResult } from '@/shared/api/core/types'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import type { UserSettings } from '@/shared/types/settings'
 
 const { Title, Text } = Typography
+
+const SECURITY_QUESTION_KEYS = [
+  'account.security_questions.primary_school',
+  'account.security_questions.birth_city',
+  'account.security_questions.childhood_friend',
+  'account.security_questions.first_teacher',
+  'account.security_questions.favorite_book',
+  'account.security_questions.first_pet',
+]
+
+const MAX_SECURITY_QUESTIONS = 3
+
+const DEFAULT_USER_SETTINGS: UserSettings = {
+  notifications: { email: true, push: true, sound: true },
+  privacy: { profile_visibility: 'public', show_activity: true, show_results: true },
+  appearance: { language: 'zh-CN' },
+}
+
+type SecurityQuestionItem = {
+  question: string
+  answer: string
+}
+
+type AccountSecuritySettings = NonNullable<UserSettings['security']>
+
+const emptyQuestion = (): SecurityQuestionItem => ({ question: '', answer: '' })
+
+const getSecuritySettings = (settings?: UserSettings | null): AccountSecuritySettings => {
+  const security = settings?.security
+  return security && typeof security === 'object' ? security : {}
+}
+
+const normalizeSettings = (settings?: Partial<UserSettings> | null): UserSettings => ({
+  ...DEFAULT_USER_SETTINGS,
+  ...(settings ?? {}),
+  notifications: { ...DEFAULT_USER_SETTINGS.notifications, ...(settings?.notifications ?? {}) },
+  privacy: { ...DEFAULT_USER_SETTINGS.privacy, ...(settings?.privacy ?? {}) },
+  appearance: { ...DEFAULT_USER_SETTINGS.appearance, ...(settings?.appearance ?? {}) },
+})
+
+const normalizeSecurityQuestions = (security?: AccountSecuritySettings | null): SecurityQuestionItem[] => {
+  const fromList = Array.isArray(security?.questions) ? security.questions : []
+  const normalized = fromList
+    .map(item => ({
+      question: String(item?.question ?? '').trim(),
+      answer: String(item?.answer ?? '').trim(),
+    }))
+    .filter(item => item.question && item.answer)
+
+  if (normalized.length) return normalized.slice(0, MAX_SECURITY_QUESTIONS)
+
+  const legacyQuestion = String(security?.question ?? '').trim()
+  const legacyAnswer = String(security?.answer ?? '').trim()
+  return legacyQuestion && legacyAnswer ? [{ question: legacyQuestion, answer: legacyAnswer }] : []
+}
 
 /* ---------- 小工具 ---------- */
 const maskPhone = (v?: string | null, fallback = '') => {
@@ -70,10 +127,58 @@ export default function AccountTab() {
   const { t } = useLanguage()
 
   // 这些值来源两处：1) user_settings（推荐），2) user 兜底
-  // 为减少额外查询，这里先用 user 兜底，保存时写 user_settings
+  // 初始先用 user 兜底，随后从 user_settings 回填
+  const [settings, setSettings] = useState<UserSettings>(DEFAULT_USER_SETTINGS)
   const [boundPhone, setBoundPhone] = useState<string | undefined>((user as any)?.phone)
-  const [securitySet, setSecuritySet] = useState<boolean>((user as any)?.security_set ?? false)
+  const [securityQuestions, setSecurityQuestions] = useState<SecurityQuestionItem[]>([])
   const [backupEmail, setBackupEmail] = useState<string | undefined>((user as any)?.backup_email)
+
+  const applySecuritySettings = (nextSettings: UserSettings) => {
+    const security = getSecuritySettings(nextSettings)
+    setSettings(nextSettings)
+    setBoundPhone(security.phone || (user as any)?.phone)
+    setBackupEmail(security.backup_email || (user as any)?.backup_email)
+    setSecurityQuestions(normalizeSecurityQuestions(security))
+  }
+
+  const loadSettings = async () => {
+    try {
+      const r = await api.get<UserSettings>('/users/settings')
+      if (!isSuccess(r)) throw new Error(getErr(r, t('settings.error')))
+      applySecuritySettings(normalizeSettings(r.data))
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
+  const saveSecuritySettings = async (patch: AccountSecuritySettings) => {
+    let baseSettings = settings
+    try {
+      const latest = await api.get<UserSettings>('/users/settings')
+      if (isSuccess(latest)) baseSettings = normalizeSettings(latest.data)
+    } catch {
+      /* fall back to current state */
+    }
+
+    const nextSettings: UserSettings = {
+      ...baseSettings,
+      security: {
+        ...getSecuritySettings(baseSettings),
+        ...patch,
+      },
+    }
+    const r = await api.post<UserSettings>('/users/settings', nextSettings)
+    if (!isSuccess(r)) throw new Error(getErr(r, t('settings.error')))
+    const saved = ((r.data ?? nextSettings) as UserSettings) || nextSettings
+    applySecuritySettings(saved)
+    return saved
+  }
+
+  useEffect(() => {
+    if (!user?.id) return
+    loadSettings()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id])
 
   /* ======= 修改密码 ======= */
   const [pwdOpen, setPwdOpen] = useState(false)
@@ -117,9 +222,7 @@ export default function AccountTab() {
   const submitPhone = async () => {
     const values = await phoneForm.validateFields()
     try {
-      await api.post('/users/settings', {
-        security: { phone: values.phone }, // 建议放 user_settings.security 下
-      })
+      await saveSecuritySettings({ phone: values.phone })
       setBoundPhone(values.phone)
       Modal.success({ title: t('account.phone_updated') })
       setPhoneOpen(false)
@@ -130,14 +233,37 @@ export default function AccountTab() {
 
   /* ======= 密保问题 ======= */
   const [qaOpen, setQaOpen] = useState(false)
-  const [qaForm] = Form.useForm<{ q: string; a: string }>()
+  const [qaForm] = Form.useForm<{ questions: SecurityQuestionItem[] }>()
+  const securityQuestionOptions = useMemo(
+    () =>
+      SECURITY_QUESTION_KEYS.map(key => {
+        const label = t(key)
+        return { label, value: label }
+      }),
+    [t]
+  )
   const submitQA = async () => {
     const values = await qaForm.validateFields()
+    const questions = (values.questions || [])
+      .map(item => ({
+        question: String(item?.question ?? '').trim(),
+        answer: String(item?.answer ?? '').trim(),
+      }))
+      .filter(item => item.question && item.answer)
+
+    const uniqueQuestions = new Set(questions.map(item => item.question))
+    if (uniqueQuestions.size !== questions.length) {
+      message.error(t('account.question_duplicate'))
+      return
+    }
+
     try {
-      await api.post('/users/settings', {
-        security: { question: values.q, answer: values.a },
+      await saveSecuritySettings({
+        questions,
+        question: questions[0]?.question,
+        answer: questions[0]?.answer,
       })
-      setSecuritySet(true)
+      setSecurityQuestions(questions)
       Modal.success({ title: t('account.qa_updated') })
       setQaOpen(false)
     } catch (e: any) {
@@ -168,9 +294,7 @@ export default function AccountTab() {
   const submitEmail = async () => {
     const values = await emailForm.validateFields()
     try {
-      await api.post('/users/settings', {
-        security: { backup_email: values.email },
-      })
+      await saveSecuritySettings({ backup_email: values.email })
       setBackupEmail(values.email)
       Modal.success({ title: t('account.email_updated') })
       setEmailOpen(false)
@@ -213,8 +337,17 @@ export default function AccountTab() {
 
         <RowItem
           title={t('account.security_question')}
-          desc={securitySet ? t('account.qa_set') : t('account.qa_unset_desc')}
-          onEdit={() => setQaOpen(true)}
+          desc={
+            securityQuestions.length
+              ? t('account.qa_set_count').replace('{count}', String(securityQuestions.length))
+              : t('account.qa_unset_desc')
+          }
+          onEdit={() => {
+            qaForm.setFieldsValue({
+              questions: securityQuestions.length ? securityQuestions : [emptyQuestion()],
+            })
+            setQaOpen(true)
+          }}
         />
 
         <RowItem
@@ -333,16 +466,83 @@ export default function AccountTab() {
         destroyOnHidden
       >
         <Form form={qaForm} layout="vertical">
-          <Form.Item
-            name="q"
-            label={t('account.question')}
-            rules={[{ required: true, message: t('account.question_required') }]}
+          <Form.List
+            name="questions"
+            rules={[
+              {
+                validator: async (_, value) => {
+                  const list = Array.isArray(value) ? value : []
+                  if (!list.length) return Promise.reject(new Error(t('account.question_required')))
+                  const selected = list.map((item: SecurityQuestionItem) => item?.question).filter(Boolean)
+                  if (new Set(selected).size !== selected.length) {
+                    return Promise.reject(new Error(t('account.question_duplicate')))
+                  }
+                },
+              },
+            ]}
           >
-            <Input placeholder={t('account.question_placeholder')} maxLength={64} />
-          </Form.Item>
-          <Form.Item name="a" label={t('account.answer')} rules={[{ required: true, message: t('account.answer_required') }]}>
-            <Input.Password placeholder={t('account.answer_placeholder')} maxLength={64} />
-          </Form.Item>
+            {(fields, { add, remove }, { errors }) => (
+              <>
+                {fields.map((field, idx) => (
+                  <div
+                    key={field.key}
+                    style={{
+                      borderBottom: idx === fields.length - 1 ? 'none' : '1px solid var(--app-colorSplit, rgba(0,0,0,.06))',
+                      marginBottom: 16,
+                      paddingBottom: 12,
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                      <Text strong>{`${t('account.security_question')} ${idx + 1}`}</Text>
+                      <Button
+                        type="text"
+                        danger
+                        icon={<DeleteOutlined />}
+                        onClick={() => remove(field.name)}
+                        disabled={fields.length <= 1}
+                      >
+                        {t('app.delete')}
+                      </Button>
+                    </div>
+
+                    <Form.Item
+                      name={[field.name, 'question']}
+                      label={t('account.question')}
+                      rules={[{ required: true, message: t('account.question_required') }]}
+                    >
+                      <Select
+                        placeholder={t('account.question_placeholder')}
+                        options={securityQuestionOptions}
+                        optionFilterProp="label"
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name={[field.name, 'answer']}
+                      label={t('account.answer')}
+                      rules={[{ required: true, message: t('account.answer_required') }]}
+                    >
+                      <Input placeholder={t('account.answer_placeholder')} maxLength={64} />
+                    </Form.Item>
+                  </div>
+                ))}
+
+                <Form.ErrorList errors={errors} />
+
+                <Button
+                  block
+                  type="dashed"
+                  icon={<PlusOutlined />}
+                  disabled={fields.length >= MAX_SECURITY_QUESTIONS}
+                  onClick={() => add(emptyQuestion())}
+                >
+                  {t('account.add_security_question')}
+                </Button>
+                <Text type="secondary" style={{ display: 'block', marginTop: 8, fontSize: 12 }}>
+                  {t('account.max_security_questions').replace('{count}', String(MAX_SECURITY_QUESTIONS))}
+                </Text>
+              </>
+            )}
+          </Form.List>
         </Form>
       </Modal>
 

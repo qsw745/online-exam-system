@@ -133,6 +133,10 @@ export default function TaskDetailPage() {
 
   const onStart = (t: any) => {
     if (!t) return
+    if (t.my_result_id && ['completed', 'submitted', 'graded'].includes(String(t.my_result_status || '').toLowerCase())) {
+      nav(`/results/${t.my_result_id}`)
+      return
+    }
     if (t.type === 'exam') {
       const examId = toNum(t.exam_id ?? t.examId)
       if (examId) nav(`/exam/${examId}`)
@@ -163,6 +167,9 @@ export default function TaskDetailPage() {
           task={task as any}
           loading={loading}
           onStart={onStart as any}
+          onViewResult={(t: any) => {
+            if (t?.my_result_id) nav(`/results/${t.my_result_id}`)
+          }}
           onBack={() => nav(-1)}
           onEdit={() => enterEdit()}
         />

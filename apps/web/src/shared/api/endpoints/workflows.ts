@@ -105,6 +105,25 @@ export const workflowsApi = {
   createTemplate: (payload: any) => api.post('/workflows/templates', payload),
   updateTemplate: (id: number, payload: any) => api.put(`/workflows/templates/${id}`, payload),
   publishTemplate: (id: number) => api.post(`/workflows/templates/${id}/publish`),
+  deleteTemplate: (id: number) => api.delete(`/workflows/templates/${id}`),
+  copyTemplate: (id: number) => api.post(`/workflows/templates/${id}/copy`),
+  async templateRelated(id: number): Promise<{
+    template: WorkflowTemplate
+    instanceCount: number
+    statusCounts: Array<{ status: string; count: number }>
+    instances: Array<{
+      id: number
+      entity_type: string
+      entity_id: number
+      status: string
+      created_by: number
+      created_at: string
+      updated_at: string
+    }>
+  }> {
+    const res = await api.get(`/workflows/templates/${id}/related`)
+    return unwrap(res)
+  },
   async getTemplate(id: number) {
     const res = await api.get(`/workflows/templates/${id}`)
     return unwrap(res)

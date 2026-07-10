@@ -23,6 +23,9 @@ export type Task = {
     | string
   type?: 'exam' | 'practice'
   exam_id?: number | null
+  my_result_id?: number | string | null
+  my_result_status?: string | null
+  my_result_score?: number | null
   start_time?: string | null
   end_time?: string | null
   created_at?: string | null

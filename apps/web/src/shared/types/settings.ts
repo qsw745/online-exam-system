@@ -17,8 +17,22 @@ export interface AppearanceSettings {
   language: 'zh-CN' | 'en-US'
 }
 
+export interface SecurityQuestionSettings {
+  question: string
+  answer: string
+}
+
+export interface AccountSecuritySettings {
+  phone?: string
+  backup_email?: string
+  question?: string
+  answer?: string
+  questions?: SecurityQuestionSettings[]
+}
+
 export interface UserSettings {
   notifications: NotificationSettings
   privacy: PrivacySettings
   appearance: AppearanceSettings
+  security?: AccountSecuritySettings
 }

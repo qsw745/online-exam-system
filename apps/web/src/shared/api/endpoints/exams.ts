@@ -26,6 +26,9 @@ export interface ExamSummary {
   end_time?: string
   question_count?: number
   participant_count?: number
+  my_status?: 'in_progress' | 'completed' | 'submitted' | 'graded' | string | null
+  my_score?: number | null
+  my_result_id?: number | string | null
   created_at?: string
   updated_at?: string
 }

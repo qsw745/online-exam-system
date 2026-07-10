@@ -17,6 +17,10 @@ export interface IExam extends RowDataPacket {
   workflow_requires_review: 0 | 1
   workflow_template_id?: number | null
   workflow_form_data?: string | null
+  // 列表附加：当前登录用户对该考试的作答状态与得分（无记录为 null）
+  my_status?: 'in_progress' | 'completed' | 'submitted' | 'graded' | null
+  my_score?: number | null
+  my_result_id?: number | null
 }
 
 export interface IQuestionRow extends RowDataPacket {

@@ -237,6 +237,8 @@ export class TaskController {
     } catch (e: any) {
       log.error('更新任务错误:', e)
       const msg = e?.message || ''
+      if (/权限不足/.test(msg)) return res.forbidden(msg)
+      if (/交卷记录|不能修改/.test(msg)) return res.badRequest(msg)
       if (/试卷|考试任务必须|无效的试卷ID/i.test(msg)) return res.badRequest(msg)
       return res.internal(msg || '更新任务失败')
     }
@@ -255,7 +257,11 @@ export class TaskController {
       return res.ok(null, '删除成功')
     } catch (e: any) {
       log.error('删除任务错误:', e)
-      return res.internal(e?.message || '删除任务失败')
+      const msg = e?.message || ''
+      if (/权限不足/.test(msg)) return res.forbidden(msg)
+      if (/交卷记录|不能删除/.test(msg)) return res.badRequest(msg)
+      if (/不存在|无权限/.test(msg)) return res.notFound(msg)
+      return res.internal(msg || '删除任务失败')
     }
   }
 

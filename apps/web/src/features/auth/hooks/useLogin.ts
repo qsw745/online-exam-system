@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
-import { auth as authApi } from '@/shared/api/endpoints/auth'
+import { auth as authApi, type FaceLoginCandidate } from '@/shared/api/endpoints/auth'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { resetRemoteCryptoCache, tryEncryptRemote } from '@/shared/utils/cryptoLocal'
 import { App } from 'antd'
@@ -94,26 +94,13 @@ const looksLikeBadCreds = (msg?: string) =>
   !!msg && /(用户名|邮箱|账号).*(密码).*(错误)|密码错误|credentials/i.test(msg || '')
 const looksLikeNeedCaptcha = (msg?: string) => !!msg && /(请先完成验证码|验证码(错误|过期)|captcha)/i.test(msg || '')
 
-type FaceFailureReason =
-  | 'unsupported'
-  | 'detector_unavailable'
-  | 'camera_denied'
-  | 'camera_unavailable'
-  | 'no_face'
-  | 'multiple_faces'
-  | 'liveness_failed'
-  | 'action_failed'
-  | 'verification_failed'
-  | 'not_enrolled'
-  | 'unknown'
-
 // 人脸失败原因 → 具体、可操作的提示（避免笼统的“核验失败”）
 const FACE_FAIL_MESSAGE: Record<string, string> = {
   liveness_failed: '活体检测未通过：请在光线充足处正对摄像头，摘掉口罩/帽子，避免用照片或屏幕翻拍',
   action_failed: '未检测到转头动作：请按屏幕提示缓慢左右转动头部完成活体检测',
   no_face: '未检测到人脸：请让面部完整、清晰地出现在画面中央',
   multiple_faces: '画面中不止一张人脸：请确保只有本人出现在镜头前',
-  not_enrolled: '该账号尚未录入人脸：请改用密码登录，或先在个人中心录入人脸',
+  not_enrolled: '没有匹配到已录入的人脸：请改用密码登录，或先在个人中心录入人脸',
   verification_failed: '人脸比对未通过：可能受光线或角度影响，请重试或改用密码登录',
 }
 
@@ -140,6 +127,9 @@ export function useLogin() {
   const [loading, setLoading] = useState(false)
   const [faceLoginLoading, setFaceLoginLoading] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
+  const [faceCandidates, setFaceCandidates] = useState<FaceLoginCandidate[]>([])
+  const [faceSelectionTicket, setFaceSelectionTicket] = useState('')
+  const [faceSelectionLoading, setFaceSelectionLoading] = useState(false)
   const [prefsReady, setPrefsReady] = useState(false)
 
   // 设置
@@ -344,73 +334,6 @@ export function useLogin() {
     return () => window.clearTimeout(tid)
   }, [email, rememberMe, saveRemember, prefsReady])
 
-  const applyFaceFailurePolicy = useCallback(
-    async (data: any, fallbackMessage: string) => {
-      if (data?.locked) {
-        const unlockAt =
-          typeof data.unlockAt === 'number' && data.unlockAt > Date.now()
-            ? data.unlockAt
-            : typeof data.remainingSec === 'number' && data.remainingSec > 0
-            ? Date.now() + data.remainingSec * 1000
-            : 0
-
-        if (unlockAt > Date.now()) {
-          setLockUntil(unlockAt)
-          try {
-            localStorage.setItem(lockKey(email), String(unlockAt))
-          } catch {}
-          const nextTry = Date.now() + 10_000
-          setLockedNextTryAt(nextTry)
-          try {
-            localStorage.setItem(lockTryKey(email), String(nextTry))
-          } catch {}
-          const secs = Math.max(1, Math.ceil((unlockAt - Date.now()) / 1000))
-          message.error(`人脸登录失败次数过多，账号已临时锁定 ${secs} 秒`)
-        } else {
-          message.error(translate('auto.9a28fb0669'))
-        }
-        return
-      }
-
-      if (data?.captchaRequired) {
-        setCaptchaByServer(true)
-        try {
-          localStorage.setItem(SERVER_CAPTCHA_FLAG, '1')
-        } catch {}
-        setCaptcha('')
-        await loadCaptcha()
-        message.error(translate('auto.c85a13301e'))
-        return
-      }
-
-      message.error(fallbackMessage)
-    },
-    [email, loadCaptcha, message]
-  )
-
-  const reportFaceLoginFailure = useCallback(
-    async (
-      reason: FaceFailureReason,
-      stage: string,
-      detector: Record<string, any> | undefined,
-      fallbackMessage: string
-    ) => {
-      const loginEmail = email.trim()
-      if (!loginEmail) {
-        message.error(translate('auto.e435dc0a34'))
-        return
-      }
-
-      const resp = await authApi.reportFaceLoginFailure({ email: loginEmail, reason, stage, detector })
-      if (!(resp as any)?.success) {
-        message.error((resp as any)?.error || translate('auto.a2fc9559a0'))
-        return
-      }
-      await applyFaceFailurePolicy((resp as any).data, fallbackMessage)
-    },
-    [applyFaceFailurePolicy, email, message]
-  )
-
   // 点「人脸登录」：直接打开采集弹窗（1:N 刷脸，无需先填邮箱）
   const faceLogin = useCallback(() => {
     if (isLocked && lockTryRemainSec > 0) return
@@ -418,12 +341,23 @@ export function useLogin() {
       message.error(translate('auto.7df64c2a8f'))
       return
     }
+    setFaceCandidates([])
+    setFaceSelectionTicket('')
     setFaceModalOpen(true)
   }, [isLocked, lockTryRemainSec, message])
 
-  const closeFaceModal = useCallback(() => setFaceModalOpen(false), [])
+  const closeFaceModal = useCallback(() => {
+    setFaceModalOpen(false)
+    setFaceCandidates([])
+    setFaceSelectionTicket('')
+  }, [])
 
-  // 采集弹窗回传帧 → 服务端活体+1:1 比对 → 命中则登录
+  const resetFaceSelection = useCallback(() => {
+    setFaceCandidates([])
+    setFaceSelectionTicket('')
+  }, [])
+
+  // 采集弹窗回传帧 → 服务端活体 + 1:N 人脸识别 → 命中则登录
   const faceCaptureSubmit = useCallback(
     async (images: string[]) => {
       if (!images.length) {
@@ -432,8 +366,7 @@ export function useLogin() {
       }
       setFaceLoginLoading(true)
       try {
-        // 填了邮箱走 1:1，否则走 1:N 直接刷脸识别
-        const resp = await authApi.faceLoginVerify({ email: email.trim() || undefined, images, keep7Days })
+        const resp = await authApi.faceLoginVerify({ images, keep7Days })
         if ((resp as any)?.success === false) {
           message.error((resp as any)?.error || translate('auto.437bf3c418'))
           return
@@ -442,35 +375,59 @@ export function useLogin() {
         const data = (resp as any).data
         if (data?.matched && data?.token && data?.user) {
           setFaceModalOpen(false)
+          setFaceCandidates([])
+          setFaceSelectionTicket('')
           await signInWithSession(data.token, data.user, keep7Days)
           message.success(translate('auto.9579e9ee6a'))
+          return
+        }
+
+        if (data?.selectionRequired && data?.ticket && Array.isArray(data?.candidates)) {
+          setFaceSelectionTicket(data.ticket)
+          setFaceCandidates(data.candidates)
           return
         }
 
         const reason = (data?.reason as string) || 'verification_failed'
         const specificMsg =
           FACE_FAIL_MESSAGE[reason] || data?.message || '人脸验证未通过，请重试或使用密码登录'
-        // 1:N 刷脸（未填邮箱）：reportFaceLoginFailure 需要邮箱做锁定计数，会吞掉真实原因，
-        // 因此直接展示具体提示；仅 1:1（填了邮箱）才走失败计数策略。
-        if (email.trim()) {
-          // 上报真实原因，由服务端按 NOT_COUNTED 决定是否计入锁定
-          // （活体/无脸/多脸等不计入，只有真正的人脸不匹配才计入）
-          await reportFaceLoginFailure(
-            reason as any,
-            'verify',
-            { api: 'server', similarity: data?.similarity },
-            specificMsg
-          )
-        } else {
-          message.error(specificMsg)
-        }
+        message.error(specificMsg)
       } catch (e: any) {
         message.error(e?.message || translate('auto.437bf3c418'))
       } finally {
         setFaceLoginLoading(false)
       }
     },
-    [email, keep7Days, message, reportFaceLoginFailure, signInWithSession]
+    [keep7Days, message, signInWithSession]
+  )
+
+  const selectFaceLoginCandidate = useCallback(
+    async (choiceId: string) => {
+      if (!faceSelectionTicket || !choiceId) return
+      setFaceSelectionLoading(true)
+      try {
+        const resp = await authApi.faceLoginSelect({ ticket: faceSelectionTicket, choiceId })
+        if ((resp as any)?.success === false) {
+          message.error((resp as any)?.error || translate('auto.437bf3c418'))
+          return
+        }
+        const data = (resp as any).data
+        if (data?.matched && data?.token && data?.user) {
+          setFaceModalOpen(false)
+          setFaceCandidates([])
+          setFaceSelectionTicket('')
+          await signInWithSession(data.token, data.user, keep7Days)
+          message.success(translate('auto.9579e9ee6a'))
+          return
+        }
+        message.error(translate('auto.437bf3c418'))
+      } catch (e: any) {
+        message.error(e?.message || translate('auto.437bf3c418'))
+      } finally {
+        setFaceSelectionLoading(false)
+      }
+    },
+    [faceSelectionTicket, keep7Days, message, signInWithSession]
   )
 
   // —— 提交 —— //
@@ -703,6 +660,10 @@ export function useLogin() {
     faceModalOpen,
     faceCaptureSubmit,
     closeFaceModal,
+    faceCandidates,
+    faceSelectionLoading,
+    selectFaceLoginCandidate,
+    resetFaceSelection,
     faceActionMode: settings?.loginLivenessLevel === 'action',
     submitDisabled,
     inputsDisabled,

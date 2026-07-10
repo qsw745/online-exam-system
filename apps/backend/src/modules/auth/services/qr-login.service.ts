@@ -1,29 +1,64 @@
 import { redis } from '@/common/redis/client'
-import { FaceLoginService, type FaceVerifyReason } from './face-login.service'
+import { FaceLoginService, type FaceMatchCandidate, type FaceVerifyFailureReason } from './face-login.service'
 
 const TTL_SEC = 180 // 二维码有效期 3 分钟
 const keyOf = (ticketId: string) => `qr:login:${ticketId}`
 
 type TicketStatus = 'pending' | 'scanned' | 'confirmed'
 
+type QrFaceChoice = {
+  choiceId: string
+  userId: number
+  email: string
+  displayName: string
+  maskedEmail: string
+  role: string | null
+  similarity: number
+}
+
 type Ticket = {
-  email: string // 可为空：空则手机端走 1:N 识别
   status: TicketStatus
   pollToken: string
   persist: boolean
   matchedUserId?: number
-  matchedEmail?: string // 1:N 识别到的账号邮箱
+  matchedEmail?: string
+  candidates?: QrFaceChoice[]
 }
 
 function uuid(): string {
   return (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-function maskEmail(email: string): string {
-  const [name, domain] = email.split('@')
+function maskEmail(email: string) {
+  const [name, domain] = String(email || '').split('@')
   if (!domain) return email
   const head = name.slice(0, Math.min(2, name.length))
-  return `${head}***@${domain}`
+  return `${head}${name.length > 2 ? '***' : '*'}@${domain}`
+}
+
+function displayNameOf(candidate: FaceMatchCandidate) {
+  return candidate.nickname || candidate.username || candidate.email.split('@')[0] || `用户 ${candidate.userId}`
+}
+
+function toChoices(candidates: FaceMatchCandidate[]): QrFaceChoice[] {
+  return candidates.map(candidate => ({
+    choiceId: uuid(),
+    userId: candidate.userId,
+    email: candidate.email,
+    displayName: displayNameOf(candidate),
+    maskedEmail: maskEmail(candidate.email),
+    role: candidate.role,
+    similarity: candidate.similarity,
+  }))
+}
+
+function publicChoices(choices: QrFaceChoice[]) {
+  return choices.map(({ choiceId, displayName, maskedEmail, role }) => ({
+    choiceId,
+    displayName,
+    maskedEmail,
+    role,
+  }))
 }
 
 async function read(ticketId: string): Promise<Ticket | null> {
@@ -42,14 +77,14 @@ async function write(ticketId: string, ticket: Ticket): Promise<void> {
 
 export class QrLoginService {
   /** PC 端出票：返回 ticketId + pollToken（pollToken 只回 PC，不进二维码） */
-  static async create(email: string, persist: boolean) {
+  static async create(persist: boolean) {
     const ticketId = uuid()
     const pollToken = uuid()
-    await write(ticketId, { email: email.trim(), status: 'pending', pollToken, persist })
+    await write(ticketId, { status: 'pending', pollToken, persist })
     return { ticketId, pollToken, expiresIn: TTL_SEC }
   }
 
-  /** 手机打开二维码页：标记已扫描，返回账号脱敏提示 */
+  /** 手机打开二维码页：标记已扫描 */
   static async info(ticketId: string) {
     const ticket = await read(ticketId)
     if (!ticket) return { status: 'expired' as const }
@@ -57,22 +92,31 @@ export class QrLoginService {
       ticket.status = 'scanned'
       await write(ticketId, ticket)
     }
-    return { status: ticket.status, emailHint: maskEmail(ticket.email) }
+    return { status: ticket.status }
   }
 
-  /** 手机端刷脸授权：对票据绑定的账号做 1:1 比对，通过则置 confirmed */
+  /** 手机端刷脸授权：按人脸识别出的账号置 confirmed */
   static async authorize(
     ticketId: string,
     images: string[]
-  ): Promise<{ ok: true } | { ok: false; reason: FaceVerifyReason | 'expired' }> {
+  ): Promise<
+    | { ok: true }
+    | { ok: false; reason: FaceVerifyFailureReason | 'multiple_matches' | 'expired'; candidates?: ReturnType<typeof publicChoices> }
+  > {
     const ticket = await read(ticketId)
     if (!ticket) return { ok: false, reason: 'expired' }
 
-    // 票据绑定了邮箱 → 1:1 验证；否则 → 1:N 直接刷脸识别
-    const result = ticket.email
-      ? await FaceLoginService.verify(ticket.email, images)
-      : await FaceLoginService.identify(images)
-    if (!result.matched) return { ok: false, reason: result.reason }
+    const result = await FaceLoginService.identify(images, { allowMultipleMatches: true })
+    if (!result.matched) {
+      if (result.reason === 'multiple_matches') {
+        const choices = toChoices(result.candidates)
+        ticket.status = 'scanned'
+        ticket.candidates = choices
+        await write(ticketId, ticket)
+        return { ok: false, reason: result.reason, candidates: publicChoices(choices) }
+      }
+      return { ok: false, reason: result.reason }
+    }
 
     ticket.status = 'confirmed'
     ticket.matchedUserId = result.userId
@@ -81,8 +125,24 @@ export class QrLoginService {
     return { ok: true }
   }
 
+  static async select(
+    ticketId: string,
+    choiceId: string
+  ): Promise<{ ok: true } | { ok: false; reason: 'expired' | 'invalid_choice' }> {
+    const ticket = await read(ticketId)
+    if (!ticket) return { ok: false, reason: 'expired' }
+    const selected = ticket.candidates?.find(item => item.choiceId === choiceId)
+    if (!selected) return { ok: false, reason: 'invalid_choice' }
+
+    ticket.status = 'confirmed'
+    ticket.matchedUserId = selected.userId
+    ticket.matchedEmail = selected.email
+    await write(ticketId, ticket)
+    return { ok: true }
+  }
+
   /**
-   * PC 轮询：校验 pollToken。confirmed 时返回绑定邮箱并消费票据（单次），
+   * PC 轮询：校验 pollToken。confirmed 时返回识别到的邮箱并消费票据（单次），
    * 由控制器据此签发会话。
    */
   static async poll(
@@ -99,6 +159,7 @@ export class QrLoginService {
 
     // 单次消费：确认后立即删除，避免二次使用
     await redis.del(keyOf(ticketId))
-    return { status: 'confirmed', email: ticket.matchedEmail || ticket.email, persist: ticket.persist }
+    if (!ticket.matchedEmail) return { status: 'expired' }
+    return { status: 'confirmed', email: ticket.matchedEmail, persist: ticket.persist }
   }
 }

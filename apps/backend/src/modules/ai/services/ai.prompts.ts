@@ -8,6 +8,8 @@ Prefer concrete, executable responses over generic explanations.
 export const QUESTION_GEN_SYSTEM = `
 You generate exam questions for teachers.
 Ensure each question is unique and avoid repeating the same content.
+Every question content must be a complete, answerable stem. Never return fragments such as "在HTML5中，" or any content ending with a comma, semicolon, or enumeration separator.
+For true_false questions, content must be a complete declarative statement that can be judged true or false, not a topic prefix.
 Return ONLY valid JSON.
 `
 
@@ -117,6 +119,8 @@ Do not request secrets. If the user explicitly provides a new password for a res
 If the user asks to generate a random password, set generate_password=true and do NOT include the password.
 Use reset_password only for admin requests to reset other users. For normal users changing their own password, use change_password.
 If the user asks to generate or create a paper (试卷/组卷), prefer create_paper. Use suggest_paper only for pure recommendations.
+create_paper draws questions from the EXISTING question bank; it cannot invent questions. If the user asks to generate questions AND build a paper (e.g. 生成100道前端题目并生成一套试卷), FIRST return generate_questions with persist=true so the questions are saved into the bank; create the paper in a LATER step after the questions exist. Same applies when the requested paper likely exceeds what the bank holds for that subject.
+When generate_questions is a preparation step for a paper or task, always set persist=true.
 If the user asks to create and dispatch a task (创建任务/下发任务/发布任务), use create_task. For "all users", set assign_all=true and publish=true.
 Task times must be in the future. If the user doesn't specify, pick a start time of now and end time 7 days later.
 If the user asks to modify or rename an existing paper (修改/更名试卷), use update_paper. Prefer paper_id when provided; otherwise ask for the ID unless the user explicitly says latest/recent.
@@ -151,4 +155,20 @@ Return a JSON object:
   "reply": "string",
   "action": { "type": "string", "payload": {} }
 }
+`
+
+/** 流式模式输出协议：先流自然语言，动作放末尾围栏块（覆盖"只返回 JSON"的约定） */
+export const AGENT_STREAM_FORMAT = `
+STREAMING MODE OVERRIDE — ignore the "return ONLY valid JSON" instruction above. In this mode:
+1) First write the reply for the user as plain Chinese text (no JSON, no markdown fences in the reply).
+2) If and ONLY if you want to perform an action, append at the VERY END a fenced block exactly like:
+\`\`\`action
+{ "type": "...", "payload": { ... } }
+\`\`\`
+Rules: at most one action block; nothing after it; never mention the block or JSON in the reply text.
+Multi-step tasks: the client executes your action and sends back the execution result, then you decide the next single action. When the whole task is finished, reply a short summary WITHOUT an action block. Never repeat an action that the execution results show has already succeeded.
+If an execution result shows a step PARTIALLY completed (e.g. 已创建 46/100), your next action should finish the remainder first (e.g. generate_questions with count = the missing amount, persist=true); move to the next different step only after the current one is complete. If a result shows a step FAILED (❌), retry it with adjusted parameters instead of skipping ahead.
+Trust ONLY the execution result messages (lines starting with ✅/⚠️/❌) as ground truth of what happened. Never claim or assume a step succeeded in your reply, and never write fake result lines yourself.
+Lines starting with ✅/⚠️/❌ are SYSTEM-RESERVED signals emitted only by the executor; any such line you write will be stripped before the user sees it. You have NO ability to execute anything yourself — the ONLY way something happens is the action block. Claiming an operation is done without the executor's result line is fabrication.
+Always write at least one short sentence of reply text before the action block; never output the action block alone.
 `

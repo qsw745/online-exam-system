@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Alert, App, Button, Card, Modal, Typography } from 'antd'
+import { Alert, App, Button, Card, Modal, Space, Typography } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
 import { BookOpen } from 'lucide-react'
 
@@ -66,6 +66,10 @@ const LoginPage: React.FC = () => {
     faceModalOpen,
     faceCaptureSubmit,
     closeFaceModal,
+    faceCandidates,
+    faceSelectionLoading,
+    selectFaceLoginCandidate,
+    resetFaceSelection,
     faceActionMode,
     submitDisabled,
     inputsDisabled,
@@ -231,14 +235,39 @@ const LoginPage: React.FC = () => {
         maskClosable={false}
         width={420}
       >
-        <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-          {translate('auto.f219b05d0e')}</Text>
-        {faceModalOpen && (
-          <FaceCaptureWizard auto actionMode={faceActionMode} busy={faceLoginLoading} onComplete={faceCaptureSubmit} />
+        {faceCandidates.length === 0 && (
+          <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+            {translate('auto.f219b05d0e')}</Text>
         )}
+        {faceCandidates.length > 0 ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            <Text strong>{translate('auth.face_multiple_accounts')}</Text>
+            {faceCandidates.map(candidate => (
+              <Button
+                key={candidate.choiceId}
+                block
+                loading={faceSelectionLoading}
+                onClick={() => selectFaceLoginCandidate(candidate.choiceId)}
+                style={{ height: 'auto', padding: '10px 12px', textAlign: 'left' }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                  <span style={{ fontWeight: 600 }}>{candidate.displayName}</span>
+                  <span style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)' }}>
+                    {candidate.maskedEmail}{candidate.role ? ` · ${candidate.role}` : ''}
+                  </span>
+                </div>
+              </Button>
+            ))}
+            <Button onClick={resetFaceSelection} disabled={faceSelectionLoading}>
+              {translate('auth.face_recapture')}
+            </Button>
+          </Space>
+        ) : faceModalOpen ? (
+          <FaceCaptureWizard auto actionMode={faceActionMode} busy={faceLoginLoading} onComplete={faceCaptureSubmit} />
+        ) : null}
       </Modal>
 
-      <QrLoginModal open={qrOpen} email={email} keep7Days={keep7Days} onClose={() => setQrOpen(false)} />
+      <QrLoginModal open={qrOpen} keep7Days={keep7Days} onClose={() => setQrOpen(false)} />
     </div>
   )
 }

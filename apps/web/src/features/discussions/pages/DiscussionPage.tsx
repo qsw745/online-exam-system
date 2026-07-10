@@ -1,5 +1,4 @@
-
-import { Card, Divider } from 'antd'
+import { Card, Typography } from 'antd'
 import { MessageSquare } from 'lucide-react'
 import { CreateDiscussionModal } from '../components/CreateDiscussionModal'
 import { DiscussionDetail } from '../components/DiscussionDetail'
@@ -9,6 +8,10 @@ import { ReplyList } from '../components/ReplyList'
 import { ReplyModal } from '../components/ReplyModal'
 import { useDiscussions } from '../hooks/useDiscussions'
 import { translate } from '@/shared/utils/i18n'
+import '../discussion.css'
+
+const { Title, Paragraph } = Typography
+
 export default function DiscussionPage() {
   const {
     discussions,
@@ -35,53 +38,58 @@ export default function DiscussionPage() {
   } = useDiscussions()
 
   return (
-    <div className="bg-gray-50 min-h-screen">
-   
-      <div className="mx-auto max-w-[1200px] px-4 md:px-6 py-5">
-        <DiscussionFilters
-          categories={categories}
-          selectedCategory={selectedCategory}
-          sortBy={sortBy}
-          onCategoryChange={setSelectedCategory}
-          onSortChange={setSortBy}
-          onCreate={() => setCreateOpen(true)}
-        />
+    <div className="disc-page">
+      <div className="disc-header">
+        <Title level={2} style={{ margin: 0 }}>
+          {translate('menus.learning-discussion')}
+        </Title>
+        <Paragraph type="secondary" style={{ margin: '8px 0 0 0' }}>
+          {translate('discussions.subtitle')}
+        </Paragraph>
+      </div>
 
-        <div className="grid grid-cols-12 gap-6 items-start">
-          {/* 左侧列表 */}
-          <div className="col-span-12 lg:col-span-5 lg:sticky lg:top-6">
-            <DiscussionList
-              loading={loading}
-              data={discussions}
-              categories={categories} // 传入类别表，用于兜底显示名称
-              selectedId={selectedDiscussion?.id}
-              onSelect={selectDiscussion}
-            />
-          </div>
+      <DiscussionFilters
+        categories={categories}
+        selectedCategory={selectedCategory}
+        sortBy={sortBy}
+        onCategoryChange={setSelectedCategory}
+        onSortChange={setSortBy}
+        onCreate={() => setCreateOpen(true)}
+      />
 
-          {/* 右侧详情 */}
-          <div className="col-span-12 lg:col-span-7">
-            {selectedDiscussion ? (
-              <div className="space-y-4">
-                <DiscussionDetail
-                  discussion={selectedDiscussion}
-                  onLike={() => toggleLike(selectedDiscussion.id)}
-                  onReply={() => setReplyOpen(true)}
-                />
-                <Divider className="my-0" />
-                <Card className="border bg-white shadow-sm rounded-xl">
-                  <ReplyList loading={repliesLoading} replies={replies} onLike={toggleReplyLike} />
-                </Card>
-              </div>
-            ) : (
-              <Card className="h-full border bg-white shadow-sm rounded-xl">
-                <div className="text-center py-16">
-                  <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">{translate('auto.9da61ef7f0')}</p>
-                </div>
+      <div className="disc-layout">
+        {/* 左侧列表 */}
+        <div className="disc-left">
+          <DiscussionList
+            loading={loading}
+            data={discussions}
+            categories={categories} // 传入类别表，用于兜底显示名称
+            selectedId={selectedDiscussion?.id}
+            onSelect={selectDiscussion}
+          />
+        </div>
+
+        {/* 右侧详情 */}
+        <div>
+          {selectedDiscussion ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <DiscussionDetail
+                discussion={selectedDiscussion}
+                onLike={() => toggleLike(selectedDiscussion.id)}
+                onReply={() => setReplyOpen(true)}
+              />
+              <Card title={translate('auto.ffc7850925')}>
+                <ReplyList loading={repliesLoading} replies={replies} onLike={toggleReplyLike} />
               </Card>
-            )}
-          </div>
+            </div>
+          ) : (
+            <Card>
+              <div className="disc-empty">
+                <MessageSquare size={56} />
+                <p>{translate('auto.9da61ef7f0')}</p>
+              </div>
+            </Card>
+          )}
         </div>
       </div>
 

@@ -4,6 +4,11 @@ import { LogService } from '@/modules/logs/services/log.service'
 import type { IQuestion, QuestionData, QuestionListData } from '../domain/question.model'
 import { QuestionRepository } from '../repositories/question.repository'
 import { computeQuestionContentSignature } from '../utils/content-hash'
+import {
+  formatQuestionQualityError,
+  normalizeQuestionContent,
+  validateQuestionQuality,
+} from '../utils/question-quality'
 
 let RC: any = null
 let RL: any = null
@@ -164,13 +169,17 @@ export class QuestionService {
       score = 10,
     } = body
 
-    if (!content || !question_type || correct_answer === undefined)
+    const contentText = normalizeQuestionContent(content)
+    if (!contentText || !question_type || correct_answer === undefined)
       throw new httpError('缺少必填字段：题目内容、题目类型和正确答案')
 
     const validTypes = ['single_choice', 'multiple_choice', 'true_false', 'short_answer']
     const validDifficulties = ['easy', 'medium', 'hard']
     if (!validTypes.includes(question_type)) throw new httpError('无效的题目类型')
     if (!validDifficulties.includes(difficulty)) throw new httpError('无效的难度等级')
+
+    const qualityIssues = validateQuestionQuality({ content: contentText, question_type })
+    if (qualityIssues.length) throw new httpError(formatQuestionQualityError(qualityIssues))
 
     let optionsJson: string | null = null
     if (question_type === 'single_choice' || question_type === 'multiple_choice') {
@@ -181,14 +190,14 @@ export class QuestionService {
     const correctAnswerStr = typeof correct_answer === 'string' ? correct_answer : JSON.stringify(correct_answer)
     const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledge_points))
     const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tags))
-    const questionTitle = title || (content.length > 50 ? content.substring(0, 50) + '...' : content)
-    const { hash: contentHash } = computeQuestionContentSignature(question_type, content)
+    const questionTitle = title || (contentText.length > 50 ? contentText.substring(0, 50) + '...' : contentText)
+    const { hash: contentHash } = computeQuestionContentSignature(question_type, contentText)
     const dupId = await QuestionRepository.findDupByContentHash(contentHash, question_type)
     if (dupId) throw new httpError('同类型下已有相同题干，请勿重复创建')
 
     const id = await QuestionRepository.insert({
       title: questionTitle,
-      content,
+      content: contentText,
       question_type,
       options: optionsJson,
       correct_answer: correctAnswerStr,
@@ -241,7 +250,7 @@ export class QuestionService {
 
     const existing = await QuestionRepository.findById(id)
     if (!existing) throw new httpError('问题不存在')
-    let nextContent = existing.content
+    let nextContent = normalizeQuestionContent(existing.content)
     let nextQuestionType = existing.question_type
 
     const sets: string[] = []
@@ -251,9 +260,10 @@ export class QuestionService {
       vals.push(title)
     }
     if (content !== undefined) {
+      const contentText = normalizeQuestionContent(content)
       sets.push('content = ?')
-      vals.push(content)
-      nextContent = content
+      vals.push(contentText)
+      nextContent = contentText
     }
     if (question_type !== undefined) {
       sets.push('question_type = ?')
@@ -294,6 +304,9 @@ export class QuestionService {
     }
 
     if (content !== undefined || question_type !== undefined) {
+      const qualityIssues = validateQuestionQuality({ content: nextContent, question_type: nextQuestionType })
+      if (qualityIssues.length) throw new httpError(formatQuestionQualityError(qualityIssues))
+
       const { hash: contentHash } = computeQuestionContentSignature(nextQuestionType, nextContent)
       const dupId = await QuestionRepository.findDupByContentHash(contentHash, nextQuestionType, id)
       if (dupId) throw new httpError('同类型下已有内容相同的题目')
@@ -324,6 +337,15 @@ export class QuestionService {
   }
 
   async remove(user: { id?: number; email?: string } | undefined, id: number, _reqMeta?: { ip?: string; ua?: string }) {
+    // 数据完整性保护：已被试卷引用或已有作答记录的题目不能删除（会破坏试卷和历史成绩）
+    const refs = await QuestionRepository.countReferences(id)
+    if (refs.papers > 0 || refs.answers > 0) {
+      const parts: string[] = []
+      if (refs.papers > 0) parts.push(`${refs.papers} 份试卷`)
+      if (refs.answers > 0) parts.push(`${refs.answers} 条作答记录`)
+      throw new httpError(`该题目已被 ${parts.join('、')} 引用，不能删除，避免破坏试卷与历史成绩。如需下架请改用"停用"。`, 400)
+    }
+
     const affected = await QuestionRepository.delete(id)
     if (!affected) throw new httpError('问题不存在')
 
@@ -383,7 +405,9 @@ export class QuestionService {
           score = 10,
         } = q
 
-        if (!content || !question_type || (!answer && correct_answer === undefined)) {
+        const contentText = normalizeQuestionContent(content)
+
+        if (!contentText || !question_type || (!answer && correct_answer === undefined)) {
           failCount++
           errors.push(`第${i + 1}题：缺少必填字段（题目内容、题目类型或答案）`)
           continue
@@ -396,6 +420,13 @@ export class QuestionService {
         if (!validDifficulties.includes(difficulty)) {
           failCount++
           errors.push(`第${i + 1}题：无效的难度等级 ${difficulty}`)
+          continue
+        }
+
+        const qualityIssues = validateQuestionQuality({ content: contentText, question_type })
+        if (qualityIssues.length) {
+          failCount++
+          errors.push(`第${i + 1}题：${formatQuestionQualityError(qualityIssues)}`)
           continue
         }
 
@@ -425,7 +456,7 @@ export class QuestionService {
         const correctAnswerStr = typeof finalCorrect === 'string' ? finalCorrect : JSON.stringify(finalCorrect)
         const knowledgePointsStr = JSON.stringify(ensureArrayFromMaybeCsv(knowledgeRaw))
         const tagsStr = JSON.stringify(ensureArrayFromMaybeCsv(tagsRaw))
-        const { hash: contentHash } = computeQuestionContentSignature(question_type, content)
+        const { hash: contentHash } = computeQuestionContentSignature(question_type, contentText)
         const dupId = await QuestionRepository.findDupByContentHash(contentHash, question_type)
         if (dupId) {
           if (upsertFlag) {
@@ -442,10 +473,10 @@ export class QuestionService {
           continue
         }
 
-        const questionTitle = title || (content.length > 50 ? content.substring(0, 50) + '...' : content)
+        const questionTitle = title || (contentText.length > 50 ? contentText.substring(0, 50) + '...' : contentText)
         await QuestionRepository.insert({
           title: questionTitle,
-          content,
+          content: contentText,
           question_type,
           options: optionsJson,
           correct_answer: correctAnswerStr,

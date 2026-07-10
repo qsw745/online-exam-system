@@ -132,6 +132,59 @@ public class WorkflowService {
   }
 
   @Transactional
+  public Map<String, Object> deleteTemplate(AuthUser user, long id) {
+    requireRole(user, "admin", "teacher");
+    repo.getTemplate(id).orElseThrow(() -> ApiException.notFound("模板不存在"));
+    long instanceCount = repo.countInstancesByTemplate(id);
+    if (instanceCount > 0) {
+      throw ApiException.badRequest("该流程已产生 " + instanceCount + " 个实例，不能删除。可通过\"关联数据\"查看实例详情，或改用\"停用\"。");
+    }
+    int deleted = repo.deleteTemplate(id);
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("deleted", deleted);
+    return out;
+  }
+
+  @Transactional
+  public Map<String, Object> copyTemplate(AuthUser user, long id) {
+    requireRole(user, "admin", "teacher");
+    Map<String, Object> existed = repo.getTemplate(id).orElseThrow(() -> ApiException.notFound("模板不存在"));
+    String name = existed.get("name") + "-副本";
+    int version = repo.nextVersion(name);
+    Map<String, Object> input = new LinkedHashMap<>();
+    input.put("name", name);
+    input.put("entity_type", existed.get("entity_type"));
+    input.put("app_code", existed.get("app_code"));
+    input.put("module_code", existed.get("module_code"));
+    input.put("form_key", existed.get("form_key"));
+    input.put("form_name", existed.get("form_name"));
+    input.put("version", version);
+    input.put("status", "draft");
+    input.put("definition", existed.get("definition"));
+    input.put("starter_roles", existed.get("starter_roles"));
+    input.put("created_by", user.id());
+    input.put("engine_process_key", FlowableBpmnBuilder.processKey(0, version));
+    long newId = repo.createTemplate(input);
+    repo.updateTemplate(newId, Map.of("engine_process_key", FlowableBpmnBuilder.processKey(newId, version)));
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("id", newId);
+    out.put("name", name);
+    return out;
+  }
+
+  /** 模板关联数据：实例总数、各状态分布、最近实例列表 */
+  public Map<String, Object> templateRelated(AuthUser user, long id) {
+    requireUser(user);
+    Map<String, Object> template = repo.getTemplate(id).orElseThrow(() -> ApiException.notFound("模板不存在"));
+    Map<String, Object> out = new LinkedHashMap<>();
+    out.put("template", template);
+    out.put("instanceCount", repo.countInstancesByTemplate(id));
+    out.put("statusCounts", repo.countInstancesByTemplateStatus(id));
+    out.put("instances", repo.listInstancesByTemplate(id, 20));
+    return out;
+  }
+
+  @Transactional
   public Map<String, Object> startInstance(AuthUser user, Map<String, Object> payload) {
     requireUser(user);
     String entityType = requiredString(payload, "entity_type", "缺少流程对象");

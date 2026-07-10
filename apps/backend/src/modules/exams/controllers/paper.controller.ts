@@ -15,6 +15,7 @@ export class PaperController {
       const data = await svc.addQuestion(paperId, req.body)
       return (res as any).created(data, '题目添加成功')
     } catch (e: any) {
+      if (e?.code === 'BAD_REQUEST') return (res as any).badRequest(e.message, { code: CODES.VALIDATION_ERROR })
       return (res as any).internal(e?.message || '添加试卷题目失败', { code: CODES.INTERNAL_ERROR })
     }
   }
@@ -25,6 +26,7 @@ export class PaperController {
       if (!affected) return (res as any).fail(CODES.NOT_FOUND, 404, '试卷题目不存在')
       return (res as any).ok(null, '移除成功')
     } catch (e: any) {
+      if (e?.code === 'BAD_REQUEST') return (res as any).badRequest(e.message, { code: CODES.VALIDATION_ERROR })
       return (res as any).internal(e?.message || '移除试卷题目失败', { code: CODES.INTERNAL_ERROR })
     }
   }
@@ -48,6 +50,7 @@ export class PaperController {
       await svc.updateOrder(Number(req.params.id), orders)
       return (res as any).ok(null, '更新题目顺序成功')
     } catch (e: any) {
+      if (e?.code === 'BAD_REQUEST') return (res as any).badRequest(e.message, { code: CODES.VALIDATION_ERROR })
       return (res as any).internal(e?.message || '更新试卷题目顺序失败', { code: CODES.INTERNAL_ERROR })
     }
   }
@@ -134,6 +137,7 @@ export class PaperController {
     } catch (e: any) {
       const notFound = /不存在/.test(e?.message)
       if (notFound) return (res as any).fail(CODES.NOT_FOUND, 404, e?.message || '试卷不存在')
+      if (e?.code === 'BAD_REQUEST') return (res as any).badRequest(e.message, { code: CODES.VALIDATION_ERROR })
       return (res as any).internal(e?.message || '删除试卷失败', { code: CODES.INTERNAL_ERROR })
     }
   }
@@ -192,6 +196,7 @@ export class PaperController {
       })
       return (res as any).created(data, '手工题添加成功')
     } catch (e: any) {
+      if (e?.code === 'BAD_REQUEST') return (res as any).badRequest(e.message, { code: CODES.VALIDATION_ERROR })
       return (res as any).internal(e?.message || '添加手工题失败', { code: CODES.INTERNAL_ERROR })
     }
   }

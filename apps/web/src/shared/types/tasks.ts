@@ -24,6 +24,9 @@ export interface Task {
   status: TaskStatus
   type?: 'exam' | 'practice'
   exam_id?: number
+  my_result_id?: number | string | null
+  my_result_status?: string | null
+  my_result_score?: number | null
   created_at?: string
   updated_at?: string
   assigned_users?: AssignedUser[]

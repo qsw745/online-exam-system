@@ -17,6 +17,8 @@ import {
 } from 'antd'
 import { useCallback, useEffect, useMemo, useState, type DragEvent } from 'react'
 import { workflowsApi, type WorkflowTemplate } from '@/shared/api/endpoints/workflows'
+import { isSuccess, getErr } from '@/shared/api/core/types'
+import { createTablePaginationConfig } from '@/shared/constants/pagination'
 import { usersApi } from '@/shared/api/endpoints/users'
 import { rolesApi } from '@/shared/api/endpoints/roles'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
@@ -380,6 +382,12 @@ export default function WorkflowTemplatesPage() {
   const [modal, setModal] = useState<ModalState>({ open: false })
   const [form] = Form.useForm()
   const [editorTab, setEditorTab] = useState<'flow' | 'form'>('flow')
+  const [relatedModal, setRelatedModal] = useState<{
+    open: boolean
+    loading?: boolean
+    name?: string
+    data?: Awaited<ReturnType<typeof workflowsApi.templateRelated>> | null
+  }>({ open: false })
   const [historyModal, setHistoryModal] = useState<{ open: boolean; name?: string; entityType?: string }>({
     open: false,
   })
@@ -449,6 +457,17 @@ export default function WorkflowTemplatesPage() {
       return bt - at
     })
   }, [items])
+  // 名称搜索 + 分页（模板量级不大，客户端过滤即可）
+  const [keyword, setKeyword] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
+  const filteredItems = useMemo(() => {
+    const kw = keyword.trim().toLowerCase()
+    if (!kw) return latestItems
+    return latestItems.filter(
+      it => String(it.name || '').toLowerCase().includes(kw) || String(it.entity_type || '').toLowerCase().includes(kw)
+    )
+  }, [latestItems, keyword])
   const previewSource = useMemo(() => {
     const hasSource = Boolean(formSource.html || formSource.css || formSource.js)
     return hasSource ? formSource : buildFormSourceFromBlocks(formBlocks, t)
@@ -800,7 +819,7 @@ export default function WorkflowTemplatesPage() {
       {
         title: t('workflowTemplates.columns.actions'),
         key: 'actions',
-        width: 240,
+        width: 340,
         render: (_: any, row: WorkflowTemplate) => (
           <Space>
             <Button type="link" disabled={row.status === 'published'} onClick={() => openEditor(row, 'edit')}>
@@ -844,6 +863,61 @@ export default function WorkflowTemplatesPage() {
             <Button type="link" onClick={() => setHistoryModal({ open: true, name: row.name, entityType: row.entity_type })}>
               {t('workflowTemplates.history')}
             </Button>
+            <Button
+              type="link"
+              onClick={async () => {
+                try {
+                  const res: any = await workflowsApi.copyTemplate(row.id)
+                  // HTTP 封装失败时不抛异常而是返回 {success:false}，必须显式检查
+                  if (!isSuccess(res)) throw new Error(getErr(res, t('workflowTemplates.errors.copy_failed')))
+                  const name = res?.data?.name || ''
+                  message.success(`${t('workflowTemplates.messages.copied')}${name ? `：${name}` : ''}`)
+                  load()
+                } catch (e: any) {
+                  message.error(e?.message || t('workflowTemplates.errors.copy_failed'))
+                }
+              }}
+            >
+              {t('workflowTemplates.copy')}
+            </Button>
+            <Button
+              type="link"
+              onClick={async () => {
+                setRelatedModal({ open: true, loading: true, name: row.name })
+                try {
+                  const data = await workflowsApi.templateRelated(row.id)
+                  setRelatedModal({ open: true, loading: false, name: row.name, data })
+                } catch (e: any) {
+                  message.error(e?.message || t('workflowTemplates.errors.related_failed'))
+                  setRelatedModal({ open: false })
+                }
+              }}
+            >
+              {t('workflowTemplates.related')}
+            </Button>
+            <Popconfirm
+              title={t('workflowTemplates.confirm.delete_title')}
+              description={t('workflowTemplates.confirm.delete_desc')}
+              okText={t('app.delete')}
+              okButtonProps={{ danger: true }}
+              cancelText={t('app.cancel')}
+              onConfirm={async () => {
+                try {
+                  const res: any = await workflowsApi.deleteTemplate(row.id)
+                  // HTTP 封装失败时不抛异常而是返回 {success:false}，必须显式检查
+                  if (!isSuccess(res)) throw new Error(getErr(res, t('workflowTemplates.errors.delete_failed')))
+                  message.success(t('workflowTemplates.messages.deleted'))
+                  load()
+                } catch (e: any) {
+                  // 有实例时后端会拒绝并说明数量，原样展示
+                  message.error(e?.message || t('workflowTemplates.errors.delete_failed'))
+                }
+              }}
+            >
+              <Button type="link" danger>
+                {t('app.delete')}
+              </Button>
+            </Popconfirm>
           </Space>
         ),
       },
@@ -867,7 +941,38 @@ export default function WorkflowTemplatesPage() {
         </Space>
       </Card>
       <Card>
-        <Table rowKey="id" loading={loading} columns={columns as any} dataSource={latestItems} pagination={false} />
+        <Space style={{ marginBottom: 12 }}>
+          <Input.Search
+            allowClear
+            placeholder={t('workflowTemplates.search_placeholder')}
+            style={{ width: 280 }}
+            onSearch={val => {
+              setKeyword(val)
+              setPage(1)
+            }}
+            onChange={e => {
+              if (!e.target.value) {
+                setKeyword('')
+                setPage(1)
+              }
+            }}
+          />
+        </Space>
+        <Table
+          rowKey="id"
+          loading={loading}
+          columns={columns as any}
+          dataSource={filteredItems}
+          pagination={createTablePaginationConfig({
+            current: page,
+            pageSize,
+            total: filteredItems.length,
+            onChange: (p, ps) => {
+              setPage(p)
+              if (ps) setPageSize(ps)
+            },
+          })}
+        />
       </Card>
       <Modal
         open={modal.open}
@@ -1254,6 +1359,52 @@ export default function WorkflowTemplatesPage() {
             },
           ]}
         />
+      </Modal>
+
+      <Modal
+        title={`${t('workflowTemplates.related_title')}${relatedModal.name ? `：${relatedModal.name}` : ''}`}
+        open={relatedModal.open}
+        onCancel={() => setRelatedModal({ open: false })}
+        footer={null}
+        width={720}
+      >
+        {relatedModal.loading ? (
+          <Text type="secondary">{t('app.loading')}</Text>
+        ) : relatedModal.data ? (
+          <Space direction="vertical" size={12} style={{ width: '100%' }}>
+            <Space wrap>
+              <Tag color={relatedModal.data.instanceCount > 0 ? 'blue' : 'default'}>
+                {formatText(t('workflowTemplates.related_count'), { count: relatedModal.data.instanceCount })}
+              </Tag>
+              {(relatedModal.data.statusCounts || []).map(s => (
+                <Tag key={s.status} color={s.status === 'running' ? 'processing' : s.status === 'approved' ? 'success' : s.status === 'rejected' ? 'error' : 'default'}>
+                  {s.status}: {s.count}
+                </Tag>
+              ))}
+            </Space>
+            {relatedModal.data.instanceCount === 0 ? (
+              <Text type="secondary">{t('workflowTemplates.related_empty')}</Text>
+            ) : (
+              <Table
+                size="small"
+                rowKey="id"
+                pagination={false}
+                dataSource={relatedModal.data.instances || []}
+                columns={[
+                  { title: 'ID', dataIndex: 'id', width: 70 },
+                  { title: t('workflowTemplates.columns.entity_type'), dataIndex: 'entity_type', width: 110 },
+                  { title: t('workflowTemplates.related_entity_id'), dataIndex: 'entity_id', width: 90 },
+                  { title: t('workflowTemplates.columns.status'), dataIndex: 'status', width: 100 },
+                  {
+                    title: t('workflowTemplates.columns.updated_at'),
+                    dataIndex: 'created_at',
+                    render: (v?: string) => (v ? formatDateTime(v) : '-'),
+                  },
+                ]}
+              />
+            )}
+          </Space>
+        ) : null}
       </Modal>
     </Space>
   )

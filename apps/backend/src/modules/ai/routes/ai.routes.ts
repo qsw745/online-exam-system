@@ -20,6 +20,7 @@ router.post('/exams/summary', aiLimit, named('ai.exams.summary', AiController.su
 router.post('/study/plan', aiLimit, named('ai.study.plan', AiController.studyPlan as any))
 router.post('/papers/suggest', aiLimit, named('ai.papers.suggest', AiController.suggestPaper as any))
 router.post('/agent', aiLimit, named('ai.agent', AiController.agent as any))
+router.post('/agent/stream', aiLimit, named('ai.agent.stream', AiController.agentStream as any))
 router.get('/sessions', sessionLimit, named('ai.sessions.list', AiController.listSessions as any))
 router.put('/sessions/:id', sessionLimit, named('ai.sessions.upsert', AiController.upsertSession as any))
 router.delete('/sessions/:id', sessionLimit, named('ai.sessions.delete', AiController.deleteSession as any))

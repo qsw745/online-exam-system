@@ -44,11 +44,10 @@ router.post(
   wrap(FaceLoginController.faceLogin)
 )
 router.post(
-  '/face-login/failure',
-  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:face-login:failure`, limit: 10, windowSec: 60 }),
-  wrap(AuthController.reportFaceLoginFailure)
+  '/face-login/select',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:face-login:select`, limit: 10, windowSec: 60 }),
+  wrap(FaceLoginController.selectFaceLogin)
 )
-
 // ===== 扫码手机刷脸登录 =====
 router.post(
   '/qr/create',
@@ -69,6 +68,11 @@ router.post(
   '/qr/authorize',
   rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:authorize`, limit: 15, windowSec: 60 }),
   wrap(QrLoginController.authorize)
+)
+router.post(
+  '/qr/select',
+  rateLimit({ keyBuilder: r => `rl:ip:${(r as any).ip || r.ip}:qr:select`, limit: 15, windowSec: 60 }),
+  wrap(QrLoginController.select)
 )
 
 // ===== 人脸凭据录入（自助，需登录态 + 本人同意）=====

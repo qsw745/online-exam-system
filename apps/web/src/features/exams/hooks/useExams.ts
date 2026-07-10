@@ -12,6 +12,20 @@ export type ExamListParams = {
 
 type ExamListItem = any
 
+function normalizeExamItem(item: any): ExamListItem {
+  const resultStatus = item?.my_result_status ?? item?.my_status ?? null
+  const resultScore = item?.my_result_score ?? item?.my_score ?? null
+  return {
+    ...item,
+    duration: item?.duration ?? item?.exam_duration ?? null,
+    total_score: item?.total_score ?? item?.exam_total_score ?? null,
+    my_status: item?.my_status ?? resultStatus,
+    my_score: item?.my_score ?? resultScore,
+    my_result_status: item?.my_result_status ?? resultStatus,
+    my_result_score: item?.my_result_score ?? resultScore,
+  }
+}
+
 export function useExams(initial: ExamListParams = { page: 1, limit: 10, status: 'all' }) {
   const { message } = App.useApp()
 
@@ -38,7 +52,7 @@ export function useExams(initial: ExamListParams = { page: 1, limit: 10, status:
         const res: any = await tasksApi.listMine(params as any)
         const payload = res?.data ?? res
         const list = payload?.items ?? payload?.list ?? payload?.tasks ?? (Array.isArray(payload) ? payload : [])
-        setItems(Array.isArray(list) ? list : [])
+        setItems(Array.isArray(list) ? list.map(normalizeExamItem) : [])
         setTotal(Number(payload?.total ?? 0))
         setPage(Number(payload?.page ?? params.page ?? 1))
         setLimit(Number(payload?.limit ?? params.limit ?? 10))

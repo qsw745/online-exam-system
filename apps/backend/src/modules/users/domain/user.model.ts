@@ -28,4 +28,11 @@ export interface UserSettings {
   notifications?: { email: boolean; push: boolean; sound: boolean }
   privacy?: { profile_visibility: 'public' | 'private'; show_activity: boolean; show_results: boolean }
   appearance?: { theme?: 'light' | 'dark'; language?: string }
+  security?: {
+    phone?: string
+    backup_email?: string
+    question?: string
+    answer?: string
+    questions?: Array<{ question: string; answer: string }>
+  }
 }

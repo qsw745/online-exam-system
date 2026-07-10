@@ -13,6 +13,7 @@ export interface IPaper extends RowDataPacket {
   workflow_requires_review: 0 | 1
   workflow_template_id?: number | null
   workflow_form_data?: string | null
+  submission_count?: number
 }
 
 export interface IPaperQuestion extends RowDataPacket {

@@ -20,6 +20,9 @@ export type Task = {
     | string
   type?: 'exam' | 'practice'
   exam_id?: number | null
+  my_result_id?: number | string | null
+  my_result_status?: string | null
+  my_result_score?: number | null
   start_time?: string | null
   end_time?: string | null
   created_at?: string | null
@@ -36,7 +39,20 @@ type Props = {
   onPublish?: (id: string) => void | Promise<void>
   onUnpublish?: (id: string) => void | Promise<void>
   onStart?: (task: Task) => void | Promise<void>
+  onViewResult?: (task: Task) => void | Promise<void>
   onDelete?: (id: string) => void | Promise<void>
+}
+
+const doneResultStatuses = new Set(['completed', 'submitted', 'graded'])
+const inProgressResultStatuses = new Set(['in_progress'])
+
+const hasDoneResult = (task: Task) => task.type === 'exam' && doneResultStatuses.has(String(task.my_result_status || '').toLowerCase())
+
+const displayStatus = (task: Task): Task['status'] => {
+  const resultStatus = String(task.my_result_status || '').toLowerCase()
+  if (doneResultStatuses.has(resultStatus)) return 'completed'
+  if (inProgressResultStatuses.has(resultStatus)) return 'in_progress'
+  return task.status
 }
 
 const statusText = (s: Task['status']) =>
@@ -82,6 +98,7 @@ export const TasksTable: React.FC<Props> = ({
   onPublish,
   onUnpublish,
   onStart,
+  onViewResult,
   onDelete,
 }) => {
   return (
@@ -105,7 +122,10 @@ export const TasksTable: React.FC<Props> = ({
           dataIndex: 'status',
           key: 'status',
           width: 120,
-          render: (s: Task['status']) => <Tag color={statusColor(s)}>{statusText(s)}</Tag>,
+          render: (_s: Task['status'], r: Task) => {
+            const s = displayStatus(r)
+            return <Tag color={statusColor(s)}>{statusText(s)}</Tag>
+          },
         },
         { title: translate('dashboard.start_time'), dataIndex: 'start_time', key: 'start_time', width: 180, render: (t?: string | null) => (t ? formatDateTime(t) : '-') },
         { title: translate('auto.864048b32f'), dataIndex: 'end_time', key: 'end_time', width: 180, render: (t?: string | null) => (t ? formatDateTime(t) : '-') },
@@ -126,8 +146,10 @@ export const TasksTable: React.FC<Props> = ({
             },
           }),
           render: (_: any, r: Task) => {
+            const done = hasDoneResult(r)
+            const hasResult = done && r.my_result_id != null
             const canStart =
-              showStartAction && (r.status === 'not_started' || r.status === 'published' || r.status === 'in_progress')
+              showStartAction && !done && (r.status === 'not_started' || r.status === 'published' || r.status === 'in_progress')
 
             return (
               <Space
@@ -139,6 +161,18 @@ export const TasksTable: React.FC<Props> = ({
                 }}
               >
                 {onEdit && <Button onClick={() => onEdit?.(r.id)}>{translate('app.edit')}</Button>}
+
+                {hasResult && (
+                  <Button onClick={() => onViewResult?.(r)}>
+                    {translate('exam.view_result')}
+                  </Button>
+                )}
+
+                {done && !hasResult && (
+                  <Button disabled>
+                    {translate('dashboard.status_completed')}
+                  </Button>
+                )}
 
                 {canStart && (
                   <Button type="primary" onClick={() => onStart?.(r)}>

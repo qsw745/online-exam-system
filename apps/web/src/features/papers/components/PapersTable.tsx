@@ -1,6 +1,6 @@
 import { Button, Empty, Space, Switch, Table, Tag, Tooltip, Typography } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
-import { EditOutlined, DeleteOutlined, FileTextOutlined } from '@ant-design/icons'
+import { EditOutlined, DeleteOutlined, FileTextOutlined, LockOutlined } from '@ant-design/icons'
 import type { Paper } from '@/shared/api/endpoints/papers'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { formatDateTime } from '@/shared/utils/datetime'
@@ -45,9 +45,18 @@ export default function PapersTable({
       width: 420,
       render: (_: any, r) => (
         <Space direction="vertical" size={0} style={{ maxWidth: 420 }}>
-          <Text strong ellipsis={{ tooltip: r.title }}>
-            {r.title}
-          </Text>
+          <Space size={6} wrap>
+            <Text strong ellipsis={{ tooltip: r.title }}>
+              {r.title}
+            </Text>
+            {Number(r.submission_count || 0) > 0 && (
+              <Tooltip title={t('papers.locked_tip').replace('{n}', String(r.submission_count))}>
+                <Tag color="warning" icon={<LockOutlined />} style={{ margin: 0 }}>
+                  {t('papers.locked')}
+                </Tag>
+              </Tooltip>
+            )}
+          </Space>
           {r.description ? (
             <Text type="secondary" ellipsis={{ tooltip: r.description }}>
               {r.description}
@@ -114,18 +123,21 @@ export default function PapersTable({
       fixed: 'right',
       onCell: () => ({ style: { background: '#fff' } }),
       onHeaderCell: () => ({ style: { background: '#fff' } }),
-      render: (_: any, r) => (
-        <Space size={4} wrap>
-          <Button size="small" type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>
-            {t('app.edit')}
-          </Button>
-          <Tooltip title={t('papers.delete_tooltip')}>
-            <Button size="small" type="link" danger icon={<DeleteOutlined />} onClick={() => onDelete(r.id)}>
-              {t('app.delete')}
+      render: (_: any, r) => {
+        const locked = Number(r.submission_count || 0) > 0
+        return (
+          <Space size={4} wrap>
+            <Button size="small" type="link" icon={<EditOutlined />} onClick={() => onEdit(r.id)}>
+              {t('app.edit')}
             </Button>
-          </Tooltip>
-        </Space>
-      ),
+            <Tooltip title={locked ? t('papers.locked_tip').replace('{n}', String(r.submission_count)) : t('papers.delete_tooltip')}>
+              <Button size="small" type="link" danger icon={<DeleteOutlined />} disabled={locked} onClick={() => onDelete(r.id)}>
+                {t('app.delete')}
+              </Button>
+            </Tooltip>
+          </Space>
+        )
+      },
     },
   ]
 
@@ -143,6 +155,13 @@ export default function PapersTable({
       rowSelection={{
         selectedRowKeys,
         onChange: onSelectionChange,
+        getCheckboxProps: record => ({
+          disabled: Number(record.submission_count || 0) > 0,
+          title:
+            Number(record.submission_count || 0) > 0
+              ? t('papers.locked_tip').replace('{n}', String(record.submission_count))
+              : undefined,
+        }),
       }}
       locale={{
         emptyText: (

@@ -11,7 +11,6 @@ const { Text, Paragraph } = Typography
 
 type Props = {
   open: boolean
-  email: string
   keep7Days?: boolean
   onClose: () => void
 }
@@ -20,7 +19,7 @@ type Phase = 'loading' | 'waiting' | 'scanned' | 'expired' | 'error'
 
 const POLL_INTERVAL_MS = 1500
 
-export default function QrLoginModal({ open, email, keep7Days, onClose }: Props) {
+export default function QrLoginModal({ open, keep7Days, onClose }: Props) {
   const { message } = App.useApp()
   const { signInWithSession } = useAuth()
   const [phase, setPhase] = useState<Phase>('loading')
@@ -59,7 +58,7 @@ export default function QrLoginModal({ open, email, keep7Days, onClose }: Props)
   const start = useCallback(async () => {
     stopPolling()
     setPhase('loading')
-    const res = await authApi.qrCreate({ email: email.trim() || undefined, keep7Days })
+    const res = await authApi.qrCreate({ keep7Days })
     if (!isSuccess(res)) {
       setPhase('error')
       return
@@ -70,7 +69,7 @@ export default function QrLoginModal({ open, email, keep7Days, onClose }: Props)
     setQrUrl(`${window.location.origin}/m/face-auth?ticket=${res.data.ticketId}`)
     setPhase('waiting')
     pollRef.current = window.setInterval(poll, POLL_INTERVAL_MS)
-  }, [email, keep7Days, poll, stopPolling])
+  }, [keep7Days, poll, stopPolling])
 
   useEffect(() => {
     if (open) start()
@@ -111,7 +110,7 @@ export default function QrLoginModal({ open, email, keep7Days, onClose }: Props)
         {phase === 'waiting' && <Tag color="processing">{translate('auto.865809d354')}</Tag>}
         {phase === 'scanned' && <Tag color="gold">{translate('auto.29dd7fcee2')}</Tag>}
         <Text type="secondary" style={{ fontSize: 12 }}>
-          {email ? `账号：${email}` : translate('visible.a4aed56b5d')}
+          {translate('visible.a4aed56b5d')}
         </Text>
         {(phase === 'waiting' || phase === 'scanned') && qrUrl && (
           <a href={qrUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12 }}>
