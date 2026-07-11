@@ -288,9 +288,18 @@
   padding-inline: 10px !important;
 }
 
+/* 胶囊允许收缩并省略号截断：长模型名不得把工具栏/网格撑宽 */
+.ai-chip-select {
+  min-width: 0;
+  max-width: 240px;
+}
+
 .ai-chip-select .ant-select-selection-item {
   font-size: 12px;
   color: #4b5563;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ai-chip-select:hover .ant-select-selector {

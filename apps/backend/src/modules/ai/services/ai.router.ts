@@ -130,6 +130,10 @@ const savePreviewIntent = (text: string) =>
   /^(保存|入库|确认|保存到?题库|存(入|到)题库|确认(保存|入库))[吧啊呗！!。.]?$/.test(text) ||
   (/(保存|入库|存进|写入)/.test(text) && /(预览|刚才|刚刚|这些|上面).{0,6}(题|题目)/.test(text))
 
+// 续跑/补齐意图（"继续生成""不足 500，继续""还差 50 道补齐"）：依赖对话上下文算剩余量，
+// 规则路由是无状态单条匹配，必须放行给大模型——否则会被出题模板误吞成"生成 5 道预览"
+const continueIntent = (text: string) => /继续|接着|补齐|补足|还差|不足|不够|剩下|剩余/.test(text)
+
 const questionIntent = (text: string) => /生成|出题|题目|试题/.test(text) && !/试卷|组卷/.test(text)
 
 const paperIntent = (text: string) => /组卷|试卷|套卷/.test(text) && /生成|创建|推荐|建议|智能|自动/.test(text)
@@ -327,6 +331,9 @@ export async function routeAgent(input: {
 
   // 复合/多步指令交给大模型规划（如"生成100道题目并组卷"需要先出题入库再组卷）
   if (compoundIntent(text)) return null
+
+  // 续跑/补齐指令需要上下文（之前的目标量与已完成量），交给大模型
+  if (continueIntent(text)) return null
 
   if (questionIntent(text)) return buildQuestionAction(text)
 

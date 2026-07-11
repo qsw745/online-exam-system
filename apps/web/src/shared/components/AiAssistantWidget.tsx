@@ -2387,7 +2387,8 @@ export default function AiAssistantWidget() {
           </Space>
         }
       >
-        <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%' }}>
+        {/* minmax(0,1fr) 防止子项固有宽度（长模型名等）撑爆网格列，否则消息区超宽、右侧头像被裁 */}
+        <div style={{ display: 'grid', gridTemplateRows: 'auto 1fr auto', gridTemplateColumns: 'minmax(0, 1fr)', height: '100%' }}>
           <div className="ai-config">
             <div className="ai-config__row">
               <Select
