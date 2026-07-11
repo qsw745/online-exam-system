@@ -125,6 +125,9 @@ export class AiService {
 
   static async generateQuestions(input: any) {
     ensureAiEnabled()
+    const existingTitles = Array.isArray(input?.existing_titles)
+      ? input.existing_titles.filter((t: any) => typeof t === 'string' && t).slice(-60)
+      : []
     const payload = {
       subject: input?.subject,
       difficulty: input?.difficulty,
@@ -133,6 +136,9 @@ export class AiService {
       knowledge_points: input?.knowledge_points,
       tags: input?.tags,
       language: 'zh-CN',
+      // 多批生成时喂回已出过的题干，配合系统提示词避免跨批重复、要求覆盖不同子领域
+      ...(existingTitles.length ? { existing_questions: existingTitles } : {}),
+      ...(Number(input?.batch_index) > 0 ? { batch_index: Number(input.batch_index) } : {}),
     }
     const prompt = `${QUESTION_GEN_SYSTEM}\n${QUESTION_GEN_SCHEMA}\n\nInput:\n${JSON.stringify(payload)}`
     // 输出长度按题量估算（每题约 400 token），否则全局 maxTokens(默认1200) 会把多题 JSON 截断导致解析失败

@@ -1,5 +1,6 @@
 import { ResultService } from '@/modules/exams/services/result.service'
 import { get as cacheGet, set as cacheSet } from '@/common/redis/cache'
+import { getPreviewStash } from './ai.queue'
 
 const resultSvc = new ResultService()
 
@@ -122,6 +123,12 @@ const assistantInfoIntent = (text: string) => {
   if (/你是谁|你是啥|你是什么|你能做什么|你可以做什么|怎么用|如何使用|使用方法|功能介绍/.test(text)) return true
   return /((当前|默认|正在|调用|接入).{0,10}(模型|大模型).{0,10}(是什么|哪一个|哪款|名称|名字))|模型.{0,10}(是什么|哪一个|哪款|列表|支持|切换)/.test(text)
 }
+
+// 保存预览题目意图：短确认指令（"保存"/"入库"/"保存到题库"等），存在预览暂存时直接出保存动作，
+// 绝不能落到大模型——大模型没有暂存概念，会重新发起一次完整生成
+const savePreviewIntent = (text: string) =>
+  /^(保存|入库|确认|保存到?题库|存(入|到)题库|确认(保存|入库))[吧啊呗！!。.]?$/.test(text) ||
+  (/(保存|入库|存进|写入)/.test(text) && /(预览|刚才|刚刚|这些|上面).{0,6}(题|题目)/.test(text))
 
 const questionIntent = (text: string) => /生成|出题|题目|试题/.test(text) && !/试卷|组卷/.test(text)
 
@@ -283,6 +290,17 @@ export async function routeAgent(input: {
     return {
       reply:
         '我是在线考试系统内置的 AI 助手，可帮你生成题目、智能组卷、发起审批、总结考试、制定学习计划和执行系统测速。你可以直接描述目标，我会优先给出可执行操作。',
+    }
+  }
+
+  // 保存预览题目：有暂存则直接出保存动作（放在出题意图之前，"保存这些题目"含"题目"会被误判为出题）
+  if (savePreviewIntent(text) && input.user?.id) {
+    const stash = await getPreviewStash(input.user.id)
+    if (stash) {
+      return {
+        reply: `好的，正在把之前预览生成的 ${stash.questions.length} 道题目保存到题库（不会重新生成）。`,
+        action: { type: 'save_generated_questions', payload: {} },
+      }
     }
   }
 

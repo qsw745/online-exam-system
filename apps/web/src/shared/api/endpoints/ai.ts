@@ -106,6 +106,9 @@ export const aiApi = {
     api.post('/ai/questions/generate/async', payload) as Promise<ApiResult<any>>,
   getQuestionJob: (id: string) =>
     api.get(`/ai/questions/generate/jobs/${encodeURIComponent(id)}`) as Promise<ApiResult<any>>,
+  /** 把最近一次预览生成的题目正式入库（后台任务，复用 getQuestionJob 轮询） */
+  persistPreviewAsync: () =>
+    api.post('/ai/questions/preview/persist/async', {}) as Promise<ApiResult<any>>,
   explainQuestion: (payload: any) =>
     api.post('/ai/questions/explain', payload, { timeout: AI_TIMEOUT_MS }) as Promise<ApiResult<any>>,
   gradeShortAnswer: (payload: any) =>

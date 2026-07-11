@@ -12,7 +12,7 @@ import { routeAgent } from '../services/ai.router'
 import { ResultService } from '@/modules/exams/services/result.service'
 import { AiKnowledgeService } from '../services/ai.knowledge'
 import { AiKnowledgeRepository } from '../repositories/ai-knowledge.repository'
-import { enqueueQuestionJob, ensureQuestionWorker, getQuestionJob } from '../services/ai.queue'
+import { enqueueQuestionJob, ensureQuestionWorker, getQuestionJob, getPreviewStash } from '../services/ai.queue'
 import { AiLogService } from '../services/ai-log.service'
 
 const qsvc = new QuestionService()
@@ -193,6 +193,19 @@ export class AiController {
       return res.ok({ jobId: job.id }, 'OK')
     } catch (e: any) {
       return res.internal(e?.message || 'AI 生成题目失败', { code: CODES.INTERNAL_ERROR })
+    }
+  }
+
+  /** 把最近一次预览生成的题目正式入库（后台任务，不再调用大模型重新生成） */
+  static async persistPreviewAsync(req: AuthRequest, res: Res) {
+    try {
+      if (!req.user?.id) return res.unauthorized('未授权')
+      const stash = await getPreviewStash(req.user.id)
+      if (!stash) return res.badRequest('没有可保存的预览题目（可能已过期），请重新生成')
+      const job = await enqueueQuestionJob({ mode: 'persist_preview' }, { id: req.user.id, email: req.user.email })
+      return res.ok({ jobId: job.id, count: stash.questions.length }, 'OK')
+    } catch (e: any) {
+      return res.internal(e?.message || '保存预览题目失败', { code: CODES.INTERNAL_ERROR })
     }
   }
 

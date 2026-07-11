@@ -130,6 +130,7 @@ const getActionLabels = (t: TranslateFn): Record<string, string> => ({
   open_url: t('aiAssistant.action.open_url'),
   send_mail: t('aiAssistant.action.send_mail'),
   generate_questions: t('aiAssistant.action.generate_questions'),
+  save_generated_questions: t('aiAssistant.action.save_generated_questions'),
   create_paper: t('aiAssistant.action.create_paper'),
   create_task: t('aiAssistant.action.create_task'),
   create_user: t('aiAssistant.action.create_user'),
@@ -175,6 +176,7 @@ const AGENT_LOOP_STOP_ACTIONS = new Set([
   'navigate',
   'open_url',
   'generate_questions',
+  'save_generated_questions',
   'change_password',
   'reset_password',
   'explain_question',
@@ -295,6 +297,8 @@ function actionSummary(action: AgentAction, t: TranslateFn): string {
         count: p.count ?? '',
         type: p.question_type ?? '',
       }).trim()
+    case 'save_generated_questions':
+      return t('aiAssistant.summary.save_generated_questions')
     case 'create_paper':
       return formatText(t('aiAssistant.summary.create_paper'), { count: p.totalQuestions ?? '' }).trim()
     case 'create_task':
@@ -1355,6 +1359,23 @@ export default function AiAssistantWidget() {
             if (action.payload?.url) window.open(String(action.payload.url), '_blank')
             append({ id: String(Date.now() + 3), role: 'assistant', content: t('aiAssistant.actions.open_url_done') })
             return
+          case 'save_generated_questions': {
+            // 把最近一次预览生成的题目直接入库（后台任务），绝不重新生成
+            const res: any = await aiApi.persistPreviewAsync()
+            if (!res?.success) throw new Error(res?.error || '没有可保存的预览题目（可能已过期），请重新生成')
+            const jobId = String(res?.data?.jobId || '')
+            const count = Number(res?.data?.count ?? 0)
+            if (!jobId) throw new Error(t('aiAssistant.jobs.missing_id'))
+            const progressItemId = `job-${jobId}-${Date.now()}`
+            append({
+              id: progressItemId,
+              role: 'assistant',
+              content: `⏳ 正在把 ${count} 道预览题目保存到题库（任务 ${jobId}）…`,
+              pending: true,
+            })
+            void pollQuestionJob(jobId, { count, persist: true }, progressItemId)
+            return
+          }
           case 'generate_questions': {
             const rawPayload = action.payload || {}
             const total = Number(rawPayload.count ?? 5)
