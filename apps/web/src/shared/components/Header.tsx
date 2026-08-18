@@ -321,6 +321,13 @@ function InboxBell({ themeMode }: { themeMode: 'light' | 'dark' }) {
     loadCounts()
   }, [])
 
+  // 收件箱页读取/删除后广播事件，这里同步角标
+  useEffect(() => {
+    const onCountsChanged = () => loadCounts()
+    window.addEventListener('inbox-counts-changed', onCountsChanged)
+    return () => window.removeEventListener('inbox-counts-changed', onCountsChanged)
+  }, [])
+
   // 打开时拉当前 tab 列表
   useEffect(() => {
     if (open) loadList(activeKey)

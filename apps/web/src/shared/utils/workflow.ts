@@ -1,4 +1,5 @@
 import type { WorkflowTemplate } from '@/shared/api/endpoints/workflows'
+import { translate } from '@/shared/utils/i18n'
 
 export const pickLatestTemplates = (items: WorkflowTemplate[]) => {
   const map = new Map<string, WorkflowTemplate>()
@@ -24,14 +25,33 @@ export const pickLatestTemplates = (items: WorkflowTemplate[]) => {
   return Array.from(map.values())
 }
 
+const STATUS_KEYS: Record<string, string> = {
+  pending: 'workflow.status_pending',
+  approved: 'workflow.status_approved',
+  rejected: 'workflow.status_rejected',
+  canceled: 'workflow.status_canceled',
+  running: 'workflow.status_running',
+  published: 'workflow.status_published',
+  draft: 'workflow.status_draft',
+}
+
 export const workflowStatusLabel = (status?: string) => {
   if (!status) return '-'
-  if (status === 'pending') return '待处理'
-  if (status === 'approved') return '已通过'
-  if (status === 'rejected') return '已驳回'
-  if (status === 'canceled') return '已取消'
-  if (status === 'running') return '进行中'
-  if (status === 'published') return '已启动'
-  if (status === 'draft') return '已停止'
-  return status
+  const key = STATUS_KEYS[status]
+  return key ? translate(key) : status
+}
+
+const ENTITY_KEYS: Record<string, string> = {
+  paper: 'workflow.entity_paper',
+  exam: 'workflow.entity_exam',
+}
+
+/** 实体类型对应的 i18n key；组件内应优先用它配合 useLanguage 的 t()，以便切换语言时重渲染 */
+export const workflowEntityLabelKey = (entityType?: string) => (entityType ? ENTITY_KEYS[entityType] : undefined)
+
+/** 实体类型的可读名称，供无法使用 hook 的场景（非响应式，与 workflowStatusLabel 一致） */
+export const workflowEntityLabel = (entityType?: string) => {
+  if (!entityType) return '-'
+  const key = workflowEntityLabelKey(entityType)
+  return key ? translate(key) : entityType
 }

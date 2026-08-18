@@ -1,26 +1,291 @@
-.inbox-badge {
-  display: block;
+/* 收件箱：工具栏 + 左右双栏（列表 / 详情） */
+.inbox-page {
+  --inbox-radius: 12px;
+  --inbox-gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--inbox-gap);
+  height: 100%;
+  min-height: 0;
 }
 
-.inbox-card .ant-card-body {
-  padding: 12px 16px;
+/* —— 工具栏 —— */
+.inbox-toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px;
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--inbox-radius);
 }
 
-.inbox-list-item {
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  padding: 8px 0;
+.inbox-toolbar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.inbox-list-item:hover {
-  background-color: #f7f9fc;
+.inbox-heading.ant-typography {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
 }
 
-.inbox-title {
-  font-weight: 500;
+.inbox-heading-count {
+  font-size: 13px;
+  font-weight: 400;
+  color: #ef4444;
 }
 
-.inbox-time {
-  color: #999;
+.inbox-search {
+  width: 220px;
+}
+
+.inbox-unread-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-2);
   white-space: nowrap;
+}
+
+.inbox-seg {
+  align-self: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.inbox-seg-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.inbox-seg-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  line-height: 18px;
+  text-align: center;
+}
+
+/* —— 主体 —— */
+.inbox-body {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
+  gap: var(--inbox-gap);
+  flex: 1;
+  min-height: 0;
+}
+
+.inbox-list-pane,
+.inbox-detail-pane {
+  background: var(--surface-1);
+  border: 1px solid var(--border-1);
+  border-radius: var(--inbox-radius);
+  min-height: 420px;
+  max-height: calc(100vh - 260px);
+  overflow-y: auto;
+}
+
+.inbox-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: 20px;
+}
+
+.inbox-empty {
+  padding: 64px 16px;
+}
+
+/* —— 列表 —— */
+.inbox-list {
+  list-style: none;
+  margin: 0;
+  padding: 6px;
+}
+
+.inbox-item {
+  position: relative;
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+.inbox-item + .inbox-item {
+  margin-top: 2px;
+}
+
+.inbox-item:hover {
+  background: var(--surface-3);
+}
+
+.inbox-item.is-active {
+  background: rgba(59, 130, 246, 0.1);
+  box-shadow: inset 2px 0 0 #3b82f6;
+}
+
+.inbox-item-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 7px;
+  border-radius: 50%;
+}
+
+.inbox-dot-notice { background: #3b82f6; }
+.inbox-dot-message { background: #10b981; }
+.inbox-dot-todo { background: #f59e0b; }
+
+.inbox-item.is-read .inbox-item-dot {
+  background: transparent;
+  border: 1px solid var(--border-1);
+}
+
+.inbox-item-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.inbox-item-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.inbox-item-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+  font-weight: 600;
+}
+
+.inbox-item.is-read .inbox-item-title {
+  font-weight: 400;
+  color: var(--text-2);
+}
+
+.inbox-item-time {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--icon-muted);
+  white-space: nowrap;
+}
+
+.inbox-item-desc {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-2);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.inbox-item-tags {
+  margin-top: 8px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.inbox-item-tags .ant-tag {
+  margin: 0;
+  font-size: 12px;
+}
+
+/* —— 详情 —— */
+.inbox-detail-placeholder {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.inbox-detail {
+  padding: 24px 28px;
+}
+
+.inbox-detail-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-1);
+}
+
+.inbox-detail-title.ant-typography {
+  margin: 0;
+}
+
+.inbox-detail-actions {
+  margin-top: 4px;
+}
+
+.inbox-detail-content.ant-typography {
+  margin: 20px 0 0;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  color: var(--text-1);
+}
+
+.inbox-attachments {
+  margin-top: 24px;
+  padding: 12px 16px;
+  border: 1px solid var(--border-1);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+.inbox-attachments ul {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.inbox-attachments li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* —— 响应式：窄屏改为上下堆叠 —— */
+@media (max-width: 1100px) {
+  .inbox-body {
+    grid-template-columns: 1fr;
+  }
+
+  .inbox-list-pane {
+    max-height: 46vh;
+    min-height: 240px;
+  }
+
+  .inbox-detail-pane {
+    max-height: none;
+    min-height: 320px;
+  }
+
+  .inbox-search {
+    width: 100%;
+  }
 }

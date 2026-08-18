@@ -1,7 +1,7 @@
 import { App, Modal, Segmented, Space, Spin, Tag, Typography } from 'antd'
 import { useEffect, useState } from 'react'
 import { workflowsApi, type WorkflowInstanceDetail } from '@/shared/api/endpoints/workflows'
-import { workflowStatusLabel } from '@/shared/utils/workflow'
+import { workflowEntityLabel, workflowStatusLabel } from '@/shared/utils/workflow'
 import WorkflowRuntimeView, { RuntimeSummary } from '@/features/workflows/components/WorkflowRuntimeView'
 import WorkflowProcessTable from '@/features/workflows/components/WorkflowProcessTable'
 import { translate } from '@/shared/utils/i18n'
@@ -59,7 +59,7 @@ export default function WorkflowInstanceModal({
                 {workflowStatusLabel(detail.instance?.status)}
               </Tag>
               <Text type="secondary">{translate('workflow.col_entity')}</Text>
-              <Tag bordered={false}>{detail.instance?.entity_type}</Tag>
+              <Tag bordered={false}>{workflowEntityLabel(detail.instance?.entity_type)}</Tag>
               <Text type="secondary">{translate('auto.9f42dac67e')}</Text>
               <Tag bordered={false}>{detail.instance?.entity_id}</Tag>
             </Space>

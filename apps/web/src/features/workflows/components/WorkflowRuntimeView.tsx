@@ -32,7 +32,7 @@ const TASK_STATUS_LABEL_KEY: Record<string, string> = {
 
 function formatMessage(key: string, values: Record<string, string | number>): string {
   return Object.entries(values).reduce(
-    (text, [name, value]) => text.replace(new RegExp(`\\\\{${name}\\\\}`, 'g'), String(value)),
+    (text, [name, value]) => text.replace(new RegExp(`\\{${name}\\}`, 'g'), String(value)),
     translate(key)
   )
 }
