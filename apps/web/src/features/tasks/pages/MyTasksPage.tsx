@@ -3,18 +3,21 @@ import React from 'react'
 import { Card, Space, Input, Select, DatePicker, Button, App } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
-import { useTasksQuery, type TaskFilters } from '../hooks/useTasksQuery'
+import MobileTaskList from '../components/MobileTaskList'
+import { useTasksQuery, type Task, type TaskFilters } from '../hooks/useTasksQuery'
 import dayjs from '@/shared/utils/dayjs'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import GlobalPagination from '@/shared/components/GlobalPagination'
 import { translate } from '@/shared/utils/i18n'
+import { useIsMobile } from '@/shared/hooks/useMobile'
 
 const { RangePicker } = DatePicker
 
 const MyTasksPage: React.FC = () => {
   const nav = useNavigate()
   const { message } = App.useApp()
+  const isMobile = useIsMobile()
 
   const { rows, total, page, pageSize, setPage, setPageSize, loading, filters, search, reset } = useTasksQuery(10, {
     scope: 'mine',
@@ -33,7 +36,7 @@ const MyTasksPage: React.FC = () => {
     search(next)
   }
 
-  const handleStart = async (r: any) => {
+  const handleStart = async (r: Task) => {
     try {
       if (r.my_result_id && ['completed', 'submitted', 'graded'].includes(String(r.my_result_status || '').toLowerCase())) {
         nav(`/results/${r.my_result_id}`)
@@ -55,7 +58,7 @@ const MyTasksPage: React.FC = () => {
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
       <Card title={translate('menus.tasks-my')} variant="outlined">
-        <Space wrap>
+        <Space className="student-task-filters" wrap>
           <Input
             placeholder={translate('aiLogs.keyword')}
             allowClear
@@ -97,16 +100,20 @@ const MyTasksPage: React.FC = () => {
       </Card>
 
       <Card variant="outlined">
-        <TasksTable
-          data={rows as any}
-          loading={loading}
-          showPublishActions={false}
-          showStartAction
-          onStart={handleStart}
-          onViewResult={(task: any) => {
-            if (task.my_result_id) nav(`/results/${task.my_result_id}`)
-          }}
-        />
+        {isMobile ? (
+          <MobileTaskList tasks={rows} loading={loading} onStart={handleStart} />
+        ) : (
+          <TasksTable
+            data={rows}
+            loading={loading}
+            showPublishActions={false}
+            showStartAction
+            onStart={handleStart}
+            onViewResult={(task: Task) => {
+              if (task.my_result_id) nav(`/results/${task.my_result_id}`)
+            }}
+          />
+        )}
 
         <GlobalPagination
           total={total}

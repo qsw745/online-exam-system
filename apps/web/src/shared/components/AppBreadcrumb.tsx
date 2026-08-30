@@ -3,6 +3,7 @@ import { useMenuPermissions } from '@/shared/contexts/MenuPermissionContext'
 import { Breadcrumb } from 'antd'
 import React from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { translate } from '@/shared/utils/i18n'
 
 // 与 Tabs 保持一致：'/' 与 '/dashboard' 视为同一路由（只用于匹配，不再强插面包屑）
 const DASHBOARD_CANON = '/dashboard'
@@ -77,6 +78,9 @@ export default function AppBreadcrumb({
 
     // 3) 如果菜单没有匹配（如非菜单路由），用 URL 段兜底；同样不插“仪表盘”
     if (result.length === 0) {
+      if (path === '/student/learning') return [{ title: translate('mobileNav.learning') }]
+      if (/^\/results(?:\/|$)/.test(path)) return [{ title: translate('nav.results') }]
+
       const segs = path.split('/').filter(Boolean)
       const toTitle = (s: string) => s.replace(/[-_]/g, ' ').replace(/^\w/, c => c.toUpperCase())
       const keep = hideParams ? segs.filter(s => !/^\d+$/i.test(s) && !/^[0-9a-f-]{8,}$/i.test(s)) : segs

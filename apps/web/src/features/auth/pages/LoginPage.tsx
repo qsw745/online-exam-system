@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Alert, App, Button, Card, Modal, Space, Typography } from 'antd'
 import { Link, useNavigate } from 'react-router-dom'
-import { BookOpen } from 'lucide-react'
 
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLogin } from '../../auth/hooks/useLogin'
@@ -15,6 +14,8 @@ import { useTheme } from '@/app/providers/AntdThemeProvider'
 import { AuthTopControls } from '../components/AuthTopControls'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { translate } from '@/shared/utils/i18n'
+import BrandMark from '@/shared/components/BrandMark'
+import { brand } from '@/shared/config/brand'
 
 const { Title, Text } = Typography
 
@@ -135,6 +136,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div
+      className="login-page"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -147,28 +149,21 @@ const LoginPage: React.FC = () => {
       }}
     >
       <AuthTopControls
+        className="login-top-controls"
         style={{
           position: 'absolute',
           top: 24,
           right: 24,
         }}
       />
-      <Card style={cardStyle} styles={{ body: { padding: 32 } }}>
+      <Card className="login-card" style={cardStyle} styles={{ body: { padding: 32 } }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div
-            style={{
-              width: 64,
-              height: 64,
-              background: isDark ? 'linear-gradient(135deg, #2563eb, #7c3aed)' : 'linear-gradient(135deg, #1890ff, #722ed1)',
-              borderRadius: 12,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-            }}
-          >
-            <BookOpen style={{ width: 32, height: 32, color: 'white' }} />
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+            <BrandMark size={56} inverse={isDark} />
           </div>
+          <Text type="secondary" style={{ display: 'block', marginBottom: 16, color: secondaryTextColor }}>
+            {brand.slogan}
+          </Text>
           <Title level={2} style={{ marginBottom: 8, color: isDark ? '#f1f5f9' : undefined }}>
             {t('auth.login_title')}
           </Title>

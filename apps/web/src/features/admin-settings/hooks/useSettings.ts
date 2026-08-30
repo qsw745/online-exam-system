@@ -7,7 +7,7 @@ import { settingsSchema } from '../validation/settings.schema'
 import { translate } from '@/shared/utils/i18n'
 
 const DEFAULTS: SystemSettings = {
-  systemName: '在线考试系统',
+  systemName: '问衡',
   allowUserRegistration: true,
   requireEmailVerification: false,
   loginLivenessLevel: 'silent',

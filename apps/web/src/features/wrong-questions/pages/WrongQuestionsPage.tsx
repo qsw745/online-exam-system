@@ -59,10 +59,10 @@ export default function WrongQuestionsPage() {
   return (
     <>
    
-      <Space direction="vertical" size="large" style={{ width: '100%', padding: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <Space className="student-wrong-questions" direction="vertical" size="large" style={{ width: '100%', padding: 8 }}>
+        <div className="student-wrong-questions__header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space direction="vertical" size={0}>
-            <Title level={1} style={{ margin: 0 }}>
+            <Title level={2} style={{ margin: 0 }}>
               {translate('menus.learning-wrong')}</Title>
             <Text type="secondary">{translate('auto.34b0ef0ba9')}</Text>
           </Space>
@@ -89,7 +89,7 @@ export default function WrongQuestionsPage() {
 
         {/* 过滤条 */}
         <Card>
-          <Space align="center">
+          <Space className="student-wrong-questions__filters" align="center" wrap>
             <div style={{ color: '#666' }}>{translate('auto.f7c8e8edcf')}</div>
             <Segmented
               value={filter}

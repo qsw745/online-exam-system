@@ -245,6 +245,7 @@ export default function DynamicRoutes() {
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },
+      { path: 'student/learning', element: elementFromRegistry('student-learning') },
       { path: 'settings', element: elementFromRegistry('settings') },
       { path: 'tasks/detail/:id', element: elementFromRegistry('task-detail') },
     ]

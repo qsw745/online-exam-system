@@ -68,7 +68,7 @@ const DashboardPage: React.FC = () => {
   // }
 
   return (
-    <Space direction="vertical" size="large" style={{ width: '100%' }}>
+    <Space className="student-dashboard" direction="vertical" size="large" style={{ width: '100%' }}>
       <div>
         <Title level={2} style={{ marginBottom: 8 }}>
           {t('dashboard.title')}

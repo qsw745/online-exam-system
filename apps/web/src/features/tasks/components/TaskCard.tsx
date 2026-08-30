@@ -40,8 +40,8 @@ export const TaskCard: React.FC<{
   const check = canStart(task)
 
   return (
-    <Card loading={!!loading}>
-      <Space style={{ width: '100%' }} align="start">
+    <Card className="student-task-card" loading={!!loading}>
+      <Space className="student-task-card__layout" style={{ width: '100%' }} align="start">
         <div style={{ flex: 1 }}>
           <Space wrap style={{ marginBottom: 8 }}>
             <Title level={4} style={{ margin: 0 }}>
@@ -73,7 +73,7 @@ export const TaskCard: React.FC<{
           </Space>
         </div>
 
-        <div>
+        <div className="student-task-card__action">
           {check.ok ? (
             <Button type="primary" onClick={() => onStart(task)}>
               {startLabel(task.type)}

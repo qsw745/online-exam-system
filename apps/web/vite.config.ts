@@ -13,6 +13,12 @@ const useHttps = process.env.VITE_HTTPS === '1'
 
 export default defineConfig({
   base: basePath,
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test/setup.ts'],
+    restoreMocks: true,
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

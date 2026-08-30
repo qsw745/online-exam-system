@@ -24,7 +24,8 @@ import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useLayout } from '@/shared/contexts/LayoutContext'
 import SearchPalette from '@/shared/components/SearchPalette'
-import { withAppAssetPath, withAppBasePath } from '@/shared/router/basePath'
+import BrandMark from '@/shared/components/BrandMark'
+import { withAppBasePath } from '@/shared/router/basePath'
 import './css/header.css'
 
 const HEADER_HEIGHT = 48
@@ -628,7 +629,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         }}
       >
         {/* 左区 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
+        <div className="app-header__left" style={{ display: 'flex', alignItems: 'center', gap: 16, minWidth: 0 }}>
           {mode === 'side' ? (
             <AppBreadcrumb />
           ) : showBrandInHeader ? (
@@ -644,17 +645,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
                 flexShrink: 0,
               }}
             >
-              <img
-                src={withAppAssetPath('/brand-logo.svg')}
-                alt="Logo"
-                width={20}
-                height={20}
-                style={{ display: 'block' }}
-                onError={e => {
-                  ;(e.currentTarget as HTMLImageElement).style.display = 'none'
-                }}
-              />
-              {t('app.title')}
+              <BrandMark compact size={24} inverse={themeMode === 'dark'} />
             </a>
           ) : null}
 
@@ -666,7 +657,7 @@ export default function Header({ onMobileMenuToggle }: HeaderProps) {
         </div>
 
         {/* 右区 */}
-        <nav style={{ display: 'grid', gridAutoFlow: 'column', alignItems: 'center', gap: 12 }}>
+        <nav className="app-header__tools" style={{ display: 'grid', gridAutoFlow: 'column', alignItems: 'center', gap: 12 }}>
           <IconButton
             themeMode={themeMode}
             title={t('header.search_tooltip')}

@@ -208,12 +208,12 @@ export default function ResultDetailView({ data, onBack }: Props) {
   const proctorItems = proctoring?.items ?? []
 
   return (
-    <Space direction="vertical" style={{ width: '100%' }} size="large">
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <Space className="student-result-detail" direction="vertical" style={{ width: '100%' }} size="large">
+      <div className="student-result-detail__header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0 }}>
           {data.paper_title || translate('visible.701efbdcb5')}
         </Title>
-        <Space>
+        <Space className="result-detail-actions" wrap>
           <Tag color={tagColor}>
             {uiStatus === 'completed' ? translate('dashboard.status_completed') : uiStatus === 'in_progress' ? translate('dashboard.status_in_progress') : translate('dashboard.status_not_started')}
           </Tag>
@@ -225,14 +225,14 @@ export default function ResultDetailView({ data, onBack }: Props) {
       </div>
 
       <Card>
-        <Descriptions column={3} bordered size="middle">
+        <Descriptions column={{ xs: 1, sm: 2, lg: 3 }} bordered size="middle">
           <Descriptions.Item label={translate('nav.results')}>{scoreLine}</Descriptions.Item>
           <Descriptions.Item label={translate('auto.8dc159502e')}>{data.percentage != null ? `${data.percentage}%` : '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('auto.c581cec042')}>{data.duration ?? '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('dashboard.start_time')}>{formatDateTime(data.start_time) || '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('dashboard.submit_time')}>{formatDateTime(data.end_time) || '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('auto.2514f93ebe')}>{data.exam_id ?? '-'}</Descriptions.Item>
-          <Descriptions.Item label={translate('auto.5cfe3f239d')} span={2}>
+          <Descriptions.Item label={translate('auto.5cfe3f239d')}>
             {data.paper_id ?? '-'}
           </Descriptions.Item>
         </Descriptions>

@@ -6,6 +6,7 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "concurrently -k -n SVC,TYPE \"pnpm dev:server\" \"pnpm typecheck:watch\"",
+    "test": "tsx --test \"src/**/*.test.ts\"",
     "dev:server": "tsx watch src/app.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:watch": "tsc -w --noEmit -p tsconfig.json",

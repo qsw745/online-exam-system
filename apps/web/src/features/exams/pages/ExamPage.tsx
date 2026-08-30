@@ -27,6 +27,10 @@ import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import { useAiProctoring, type ProctoringConfig } from '@/features/exams/hooks/useAiProctoring'
 import { sanitizeHtml } from '@/shared/utils/sanitizeHtml'
+import { useAuth } from '@/shared/contexts/AuthContext'
+import { useExamDraft } from '@/features/exams/hooks/useExamDraft'
+import type { ExamDraftState } from '@/features/exams/draft/examDraft'
+import { useOnlineStatus } from '@/shared/hooks/useOnlineStatus'
 
 type Question = {
   id: number
@@ -123,6 +127,8 @@ export default function ExamPage() {
   const navigate = useNavigate()
   const { message } = App.useApp()
   const { t } = useLanguage()
+  const { user } = useAuth()
+  const isOnline = useOnlineStatus()
 
   const [loading, setLoading] = React.useState(true)
   const [submitting, setSubmitting] = React.useState(false)
@@ -142,6 +148,21 @@ export default function ExamPage() {
   const [answers, setAnswers] = React.useState<Record<number, string>>({})
   const [flagged, setFlagged] = React.useState<Set<number>>(new Set())
   const [timeLeft, setTimeLeft] = React.useState<number>(0) // 秒
+  const draftIdentity = React.useMemo(() => {
+    if (!user?.id || !exam?.taskId || !exam?.examId) return null
+    return { userId: user.id, taskId: exam.taskId, examId: exam.examId }
+  }, [exam?.examId, exam?.taskId, user?.id])
+  const restoreDraft = React.useCallback((state: ExamDraftState) => {
+    setAnswers(Object.fromEntries(Object.entries(state.answers).map(([key, value]) => [Number(key), value])))
+    setFlagged(new Set(state.flagged))
+  }, [])
+  const flaggedQuestionIds = React.useMemo(() => [...flagged], [flagged])
+  const { status: draftStatus, savedAt, clearDraft, flushDraft } = useExamDraft({
+    identity: draftIdentity,
+    answers,
+    flagged: flaggedQuestionIds,
+    onRestore: restoreDraft,
+  })
 
   /** 拉取试卷 */
   React.useEffect(() => {
@@ -188,7 +209,7 @@ export default function ExamPage() {
     const tick = () => {
       const sec = Math.max(0, deadline.diff(dayjs(), 'second'))
       setTimeLeft(sec)
-      if (sec <= 0) doSubmit(true)
+      if (sec <= 0) doSubmitRef.current(true)
     }
     tick()
     const t = setInterval(tick, 1000)
@@ -228,6 +249,11 @@ export default function ExamPage() {
 
   const doSubmit = async (auto = false) => {
     if (!exam || submitting) return
+    if (!isOnline) {
+      flushDraft()
+      if (!auto) message.warning('当前网络不可用，答案已保存在本机。')
+      return
+    }
     try {
       if (!auto) {
         const ok = await new Promise<boolean>(resolve => {
@@ -247,16 +273,17 @@ export default function ExamPage() {
       const timeSpent = exam.startedAt ? Math.max(0, dayjs().diff(dayjs(exam.startedAt), 'second')) : 0
 
       // ✅ 使用统一的 API 封装，且不再在此处调用任何 Hook（避免 Invalid Hook Call）
+      flushDraft()
       const res: any = await tasksApi.submit(exam.taskId, {
         answers,
         time_spent: timeSpent,
       })
       if (!isSuccess(res)) throw new Error(res?.message || t('examPage.messages.submit_failed'))
+      clearDraft()
       if (!auto) message.success(t('examPage.messages.submit_success'))
       navigate(`/results/${exam.examId}`)
     } catch (e: any) {
       message.error(e?.message || t('examPage.messages.submit_failed'))
-      if (auto) setTimeout(() => navigate('/dashboard'), 800)
     } finally {
       setSubmitting(false)
     }
@@ -415,11 +442,11 @@ export default function ExamPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
+    <div className="exam-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '24px 16px' }}>
       {/* 顶部栏（固定） */}
       <div style={{ position: 'sticky', top: 0, zIndex: 30 }}>
-        <Card styles={{ body: { padding: 12 } }} style={{ borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,.04)' }}>
-          <Row gutter={16} align="middle">
+        <Card className="exam-top-card" styles={{ body: { padding: 12 } }} style={{ borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,.04)' }}>
+          <Row gutter={[12, 12]} align="middle">
             <Col flex="auto">
               <Space direction="vertical" size={0}>
                 <Title level={4} style={{ margin: 0 }}>
@@ -437,7 +464,7 @@ export default function ExamPage() {
               </Space>
             </Col>
             <Col>
-              <Space size={16} align="center">
+              <Space className="exam-submit-actions" size={16} align="center" wrap>
                 <Space>
                   <Clock size={18} />
                   <Text strong style={{ fontVariantNumeric: 'tabular-nums' }}>
@@ -445,7 +472,13 @@ export default function ExamPage() {
                   </Text>
                 </Space>
                 <Progress type="circle" size={44} percent={parseFloat(percent.toFixed(1))} />
-                <Button type="primary" icon={<Send size={16} />} onClick={() => doSubmit(false)} loading={submitting}>
+                <Button
+                  type="primary"
+                  icon={<Send size={16} />}
+                  onClick={() => doSubmit(false)}
+                  loading={submitting}
+                  disabled={!isOnline}
+                >
                   {t('app.submit')}
                 </Button>
               </Space>
@@ -454,9 +487,19 @@ export default function ExamPage() {
         </Card>
       </div>
 
+      <div className="exam-save-status">
+        {!isOnline ? (
+          <Alert type="warning" showIcon message="当前网络不可用" description="答案已保存在本机，恢复联网后请重新提交。" />
+        ) : draftStatus === 'unavailable' ? (
+          <Alert type="error" showIcon message="无法保存本地草稿" description="请保持页面打开，并尽快恢复设备存储权限。" />
+        ) : draftStatus === 'saved' ? (
+          <Text type="secondary">答案已保存{savedAt ? ` · ${dayjs(savedAt).format('HH:mm:ss')}` : ''}</Text>
+        ) : null}
+      </div>
+
       <Divider />
 
-      <Row gutter={16} align="top">
+      <Row gutter={[12, 12]} align="top">
         {/* 左侧：题目列表 */}
         <Col xs={24} lg={17}>
           {exam.questions.length === 0 ? (
@@ -558,7 +601,7 @@ export default function ExamPage() {
 
         {/* 右侧：答题卡 */}
         <Col xs={24} lg={7} style={{ marginTop: 16 }}>
-          <div style={{ position: 'sticky', top: 92 }}>
+          <div className="exam-side-panel" style={{ position: 'sticky', top: 92 }}>
             {proctoring.enabled && (
               <Card title={t('examPage.proctor.title')} style={{ borderRadius: 12, marginBottom: 16 }}>
                 <Space direction="vertical" size={8} style={{ width: '100%' }}>
@@ -653,6 +696,7 @@ export default function ExamPage() {
                 icon={<Send size={16} />}
                 onClick={() => doSubmit(false)}
                 loading={submitting}
+                disabled={!isOnline}
               >
                 {t('examPage.submit_paper')}
               </Button>

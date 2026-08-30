@@ -1,6 +1,12 @@
 export default {
   // 通用
-  'app.title': '在线考试系统',
+  'app.title': '问衡',
+  'brand.subtitle': 'AI 智能测评与学习平台',
+  'brand.slogan': '以问见知，以衡见长',
+  'mobileNav.home': '首页',
+  'mobileNav.tasks': '任务',
+  'mobileNav.learning': '学习',
+  'mobileNav.profile': '我的',
   'app.loading': '加载中...',
   'app.enter': '请输入',
   'app.save': '保存',

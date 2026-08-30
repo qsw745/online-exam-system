@@ -1,0 +1,262 @@
+:root {
+  --wenheng-ink: #10233f;
+  --wenheng-jade: #18a77b;
+  --wenheng-gold: #d9a441;
+  --wenheng-paper: #f7f9fc;
+  --wenheng-cloud: #e7ecf3;
+  --wenheng-danger: #d94a4a;
+  --student-mobile-nav-height: 64px;
+}
+
+.wenheng-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.wenheng-brand__copy {
+  display: grid;
+  line-height: 1.1;
+  text-align: left;
+}
+
+.wenheng-brand__copy strong {
+  font-size: 18px;
+  letter-spacing: 0.18em;
+}
+
+.wenheng-brand__copy small {
+  margin-top: 5px;
+  color: #667085;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
+
+.mobile-student-nav {
+  display: none;
+}
+
+.student-learning-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.exam-save-status:not(:empty) {
+  margin-top: 12px;
+}
+
+.student-practice-page {
+  width: 100%;
+  margin: 0 auto;
+}
+
+.student-profile-page {
+  padding: 24px;
+}
+
+.student-result-detail__header,
+.student-wrong-questions__header {
+  gap: 12px;
+}
+
+@media (max-width: 991px) {
+  .exam-side-panel {
+    position: static !important;
+  }
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--wenheng-jade) 45%, transparent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .app-header {
+    right: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+  }
+
+  .app-header__left {
+    overflow: hidden;
+  }
+
+  .app-header__tools {
+    gap: 4px !important;
+  }
+
+  .app-header__tools > :nth-child(n + 3) {
+    display: none !important;
+  }
+
+  .exam-page {
+    padding: 12px !important;
+  }
+
+  .exam-page .ant-btn-primary,
+  .student-practice-page .ant-btn-primary,
+  .student-wrong-questions .ant-btn-primary,
+  .student-profile-page .ant-btn-primary {
+    min-height: 44px;
+  }
+
+  .app-content--student-mobile {
+    padding: 12px 12px calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px) !important;
+  }
+
+  .mobile-student-nav {
+    position: fixed;
+    z-index: 1250;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    min-height: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom));
+    padding: 6px 8px env(safe-area-inset-bottom);
+    border-top: 1px solid var(--wenheng-cloud);
+    background: color-mix(in srgb, #fff 94%, transparent);
+    backdrop-filter: blur(18px);
+  }
+
+  .mobile-student-nav__item {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 2px;
+    min-height: 52px;
+    color: #667085;
+    text-decoration: none;
+    font-size: 11px;
+  }
+
+  .mobile-student-nav__item[aria-current='page'] {
+    color: var(--wenheng-jade);
+    font-weight: 700;
+  }
+
+  .student-learning-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .student-task-filters,
+  .student-task-filters > .ant-space-item {
+    width: 100%;
+  }
+
+  .student-task-filters > .ant-space-item {
+    flex: 1 0 100%;
+  }
+
+  .student-task-filters .ant-input-affix-wrapper,
+  .student-task-filters .ant-select,
+  .student-task-filters .ant-picker,
+  .student-task-filters .ant-btn {
+    width: 100% !important;
+    min-height: 44px;
+  }
+
+  .student-result-detail__header,
+  .student-wrong-questions__header {
+    flex-wrap: wrap;
+  }
+
+  .result-detail-actions {
+    width: 100%;
+  }
+
+  .result-detail-actions > .ant-space-item {
+    flex: 1 1 140px;
+  }
+
+  .result-detail-actions .ant-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .student-wrong-questions__filters {
+    width: 100%;
+  }
+
+  .student-wrong-questions__filters .ant-segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .student-profile-page {
+    padding: 12px;
+  }
+}
+
+@media (max-width: 559px) {
+  .exam-submit-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .exam-submit-actions > .ant-space-item:last-child {
+    flex: 1 0 100%;
+  }
+
+  .exam-submit-actions > .ant-space-item:last-child .ant-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .student-task-card__layout {
+    display: flex !important;
+    flex-direction: column;
+  }
+
+  .student-task-card__layout > .ant-space-item,
+  .student-task-card__action,
+  .student-task-card__action .ant-btn {
+    width: 100%;
+  }
+
+  .student-task-card__action .ant-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 479px) {
+  .login-page {
+    flex-direction: column;
+    justify-content: flex-start !important;
+    padding: 16px !important;
+    overflow-y: auto !important;
+  }
+
+  .login-top-controls {
+    position: static !important;
+    z-index: 1;
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .login-top-controls .ant-btn {
+    min-height: 44px;
+  }
+
+  .login-card .ant-card-body {
+    padding: 20px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

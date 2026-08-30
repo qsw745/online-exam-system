@@ -12,7 +12,7 @@ export default function ResultDetailPage() {
   if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
-        <Spin size="large" tip={translate('visible.045f900a1b')} />
+        <Spin size="large" aria-label={translate('visible.045f900a1b')} />
       </div>
     )
   }

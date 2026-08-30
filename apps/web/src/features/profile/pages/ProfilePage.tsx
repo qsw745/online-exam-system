@@ -13,7 +13,7 @@ export default function ProfilePage() {
 
   return (
     <App>
-      <Space direction="vertical" size="large" style={{ width: '100%', margin: '0 auto', padding: 24 }}>
+      <Space className="student-profile-page" direction="vertical" size="large" style={{ width: '100%', margin: '0 auto' }}>
         <Title level={2}>{t('profile.title')}</Title>
 
         <Card>

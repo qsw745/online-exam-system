@@ -169,7 +169,7 @@ export default function QuestionPracticePage() {
   return (
     <>
       {view === 'list' && (
-        <div style={{ minWidth: 1200, margin: '0 auto' }}>
+        <div className="student-practice-page">
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
             <Card>
               <Title level={3} style={{ margin: 0 }}>

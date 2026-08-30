@@ -33,12 +33,14 @@ const DiscussionPage = lazy(() => import('@/features/discussions/pages/Discussio
 const ExamListPage = lazy(() => import('@/features/exams/pages/ExamListPage'))
 const ExamPage = lazy(() => import('@/features/exams/pages/ExamPage'))
 const ResultsPage = lazy(() => import('@/features/exams/pages/ResultsPage'))
+const ResultDetailPage = lazy(() => import('@/features/exams/pages/ResultDetailPage'))
 const ExamReviewPage = lazy(() => import('@/features/exams/pages/ExamReviewPage'))
 const QuestionsPage = lazy(() => import('@/features/questions/browse/pages/QuestionsPage'))
 const QuestionPracticePage = lazy(() => import('@/features/questions/pages/QuestionPracticePage'))
 const FavoritesPage = lazy(() => import('@/features/favorites/pages/FavoritesPage'))
 const LeaderboardPage = lazy(() => import('@/features/leaderboard/pages/LeaderboardPage'))
 const LearningProgressPage = lazy(() => import('@/features/learning-progress/pages/LearningProgressPage'))
+const StudentLearningHubPage = lazy(() => import('@/features/learning/pages/StudentLearningHubPage'))
 const NotificationsPage = lazy(() => import('@/features/notifications-manager/pages/NotificationsPage'))
 const ProfilePage = lazy(() => import('@/features/profile/pages/ProfilePage'))
 const UserSettingsPage = lazy(() => import('@/features/settings/pages/UserSettingsPage'))
@@ -93,12 +95,13 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   exam: ExamPage,
   results: ResultsPage,
   'exam-reviews': ExamReviewPage,
-  'result-detail': PaperDetailPage,
+  'result-detail': ResultDetailPage,
   questions: QuestionsPage,
   'question-practice': QuestionPracticePage,
   favorites: FavoritesPage,
   leaderboard: LeaderboardPage,
   'learning-progress': LearningProgressPage,
+  'student-learning': StudentLearningHubPage,
   notifications: NotificationsPage,
   profile: ProfilePage,
   settings: UserSettingsPage,
@@ -180,6 +183,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
  */
 const globPages = import.meta.glob([
   '/src/features/**/pages/**/*.{tsx,jsx}',
+  '!/src/features/**/pages/**/*.test.{tsx,jsx}',
   '/src/app/errors/*.{tsx,jsx}',
   '/src/app/**/pages/**/*.{tsx,jsx}',
 ])

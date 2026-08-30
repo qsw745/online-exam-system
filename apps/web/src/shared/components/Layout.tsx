@@ -12,6 +12,7 @@ import LoadingSpinner from './LoadingSpinner'
 import LayoutOffsetVars from './LayoutOffsetVars'
 import AiAssistantWidget from './AiAssistantWidget'
 import { translate } from '@/shared/utils/i18n'
+import MobileStudentNav, { shouldShowMobileStudentNav } from './MobileStudentNav'
 
 const { Content } = AntLayout
 const HEADER_H = 48
@@ -33,7 +34,7 @@ const Layout: React.FC = () => {
     return () => window.removeEventListener('resize', checkMobile)
   }, [])
 
-  const isExamPage = useMemo(() => /^\/exam\/\d+$/.test(location.pathname), [location.pathname])
+  const isExamPage = useMemo(() => /^\/exam\/(?:task\/)?\d+$/.test(location.pathname), [location.pathname])
 
   if (isExamPage) {
     return (
@@ -47,13 +48,19 @@ const Layout: React.FC = () => {
     return <LoadingSpinner center="page" text={translate('visible.4f42c81a77')} />
   }
 
-  const headTotal = HEADER_H + (showTabs ? TABS_H : 0)
+  const showStudentMobileNav = shouldShowMobileStudentNav({
+    role: user.role,
+    pathname: location.pathname,
+    isMobile,
+  })
+  const visibleTabs = showTabs && !showStudentMobileNav
+  const headTotal = HEADER_H + (visibleTabs ? TABS_H : 0)
 
   return (
     <TabsProvider>
       <LayoutOffsetVars />
       <Header onMobileMenuToggle={() => setMobileSidebarOpen(true)} />
-      {showTabs && <TabsBar />}
+      {visibleTabs && <TabsBar />}
 
       {!isMobile && (mode === 'side' || mode === 'mix') && <DynamicSidebar /* 你的 props 不变 */ />}
       <MobileSidebar isOpen={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)} />
@@ -64,12 +71,13 @@ const Layout: React.FC = () => {
           background: token.colorBgLayout,
           color: token.colorText,
           paddingTop: headTotal,
-          marginLeft: 'var(--sider-width, 0px)',
+          marginLeft: isMobile ? 0 : 'var(--sider-width, 0px)',
           transition: 'margin-left .2s ease',
         }}
       >
         <AntLayout>
           <Content
+            className={showStudentMobileNav ? 'app-content app-content--student-mobile' : 'app-content'}
             style={{
               padding: '8px 16px',
               overflow: 'auto',
@@ -82,7 +90,8 @@ const Layout: React.FC = () => {
           </Content>
         </AntLayout>
       </AntLayout>
-      <AiAssistantWidget />
+      {!showStudentMobileNav && <AiAssistantWidget />}
+      {showStudentMobileNav && <MobileStudentNav />}
     </TabsProvider>
   )
 }

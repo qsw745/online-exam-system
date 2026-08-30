@@ -1,6 +1,12 @@
 export default {
   // Common
-  'app.title': 'Online Exam System',
+  'app.title': 'Wenheng',
+  'brand.subtitle': 'AI Assessment & Learning Platform',
+  'brand.slogan': 'Discover through questions, grow through balance',
+  'mobileNav.home': 'Home',
+  'mobileNav.tasks': 'Tasks',
+  'mobileNav.learning': 'Learn',
+  'mobileNav.profile': 'Me',
   'app.loading': 'Loading...',
   'app.enter': 'Enter',
   'app.save': 'Save',
