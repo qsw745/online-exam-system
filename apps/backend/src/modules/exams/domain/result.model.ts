@@ -4,6 +4,7 @@ export interface IResult extends RowDataPacket {
   id: number
   user_id: number
   exam_id?: number | null
+  attempt_id?: string | null
   paper_id: number | null
   paper_title?: string
   score: number

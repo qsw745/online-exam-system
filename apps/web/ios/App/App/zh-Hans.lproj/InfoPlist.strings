@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "问衡";
+"NSCameraUsageDescription" = "仅在您参加明确标注的严格监考考试并单独同意后，用于人脸身份核验、单人是否在场及摄像头中断检测；不会持续上传完整视频。";
+"NSMicrophoneUsageDescription" = "仅在您参加明确标注的严格监考考试并单独同意后，用于确认麦克风授权、设备和采集轨道是否可用；不会分析、保存或上传声音内容。";

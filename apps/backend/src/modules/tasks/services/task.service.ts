@@ -13,6 +13,12 @@ import { TaskRepository } from '../repositories/task.repository.js'
 import { ConfigRepository } from '@/modules/configs/repositories/config.repository'
 import { ExamRepository } from '@/modules/exams/repositories/exam.repository'
 import { PaperRepository } from '@/modules/exams/repositories/paper.repository'
+import {
+  calculateAttemptDeadline,
+  normalizeSubmissionIdentity,
+  submissionPayloadHash,
+} from '../domain/exam-reliability.policy.js'
+import { normalizeProctoringPolicy } from '@/modules/proctoring/domain/proctoring.policy.js'
 
 let RC: any = null,
   RL: any = null,
@@ -122,6 +128,7 @@ export class TaskService {
       assigned_user_ids,
       assigned_department_ids = [],
       assign_all,
+      proctoring_level = 'off',
     } = input
 
     let assignees: number[] = []
@@ -172,6 +179,13 @@ export class TaskService {
           created_by: creatorId,
         })
       }
+    }
+
+    if (type === 'exam' && finalExamId) {
+      await this.repo.updateExamProctoringPolicy(
+        finalExamId,
+        proctoring_level === 'strict' ? 'strict' : 'off',
+      )
     }
 
     const taskId = await this.repo.insertTask({
@@ -238,6 +252,7 @@ export class TaskService {
       }
     }
     const paperId = validatedPaperId !== undefined ? validatedPaperId : (existing as any).paper_id ?? null
+    const proctoringLevel = patch.proctoring_level ?? (existing as any).proctoring_level ?? 'off'
 
     if (targetType === 'exam') {
       if (!targetExamId && !paperId) throw new Error('考试任务必须选择试卷')
@@ -253,6 +268,12 @@ export class TaskService {
         })
       } else if (paperId) {
         await this.repo.updateExamPaper(targetExamId, paperId)
+      }
+      if (targetExamId) {
+        await this.repo.updateExamProctoringPolicy(
+          Number(targetExamId),
+          proctoringLevel === 'strict' ? 'strict' : 'off',
+        )
       }
     }
 
@@ -411,75 +432,99 @@ export class TaskService {
     return { results, errors, successCount: results.length, errorCount: errors.length }
   }
 
-  async submit(taskId: number, userId: number, payload: { answers: Record<string, string>; time_spent?: number }) {
+  async submit(
+    taskId: number,
+    userId: number,
+    payload: {
+      attemptId: unknown
+      submissionId: unknown
+      answers: Record<string, string>
+      time_spent?: number
+    },
+  ) {
     const task = await this.repo.getForAccess(taskId, userId, 'student')
     if (!task) throw new Error('任务不存在')
     const examId = task.exam_id
     if (!examId) throw new Error('任务没有关联的考试')
+    const meta = await this.repo.getExamMetaByTask(taskId)
+    if (!meta || meta.exam_id !== examId) throw new Error('考试任务信息不完整')
 
-    const { score, correctCount, questionCount, examResultId } = await this.repo.submitAndGrade({
+    const { attemptId, submissionId } = normalizeSubmissionIdentity(payload.attemptId, payload.submissionId)
+    const answers = Object.fromEntries(
+      Object.entries(payload.answers || {}).map(([key, value]) => [String(key), String(value)]),
+    )
+    const timeSpent = Math.max(0, Math.floor(Number(payload.time_spent) || 0))
+    const payloadHash = submissionPayloadHash({ attemptId, answers, timeSpent })
+    const { score, correctCount, questionCount, examResultId, replayed } = await this.repo.submitAndGrade({
       examId,
       userId,
-      answers: payload.answers || {},
-      time_spent: payload.time_spent || 0,
+      answers,
+      time_spent: timeSpent,
       taskId,
+      attemptId,
+      submissionId,
+      payloadHash,
+      durationMinutes: meta.duration ?? 60,
+      examEndsAt: meta.end_time,
     })
 
-    // ✅ 用 shim 声明的 setImmediate，不依赖 @types/node
-    setImmediate(async () => {
-      try {
-        const { WrongQuestionController } = await import(
-          '../../wrong-questions/controllers/wrong-question.controller.js'
-        )
-        const reqLike: any = { user: { id: userId }, body: { exam_result_id: examResultId } }
-        const resLike = makeResLike() as any
-        await WrongQuestionController.autoCollectWrongQuestions(reqLike, resLike)
-      } catch (e) {
-        log.error('自动收集错题失败:', e)
-      }
-
-      try {
-        const { learningProgressController } = await import(
-          '../../learning-progress/controllers/learning-progress.controller.js'
-        )
-        const accuracy = questionCount > 0 ? Math.round((correctCount / questionCount) * 100) : 0
-        await learningProgressController.recordProgress(
-          {
-            user: { id: userId },
-            body: {
-              studyTime: Math.floor(Math.random() * 45) + 15,
-              questionsAnswered: questionCount,
-              correctAnswers: correctCount,
-              studyContent: `任务：${taskId}（正确率 ${accuracy}%）`,
-            },
-          } as any
-        )
-      } catch (e) {
-        log.error('记录学习进度失败:', e)
-      }
-
-      try {
-        const { LeaderboardService } = await import('../../leaderboard/services/leaderboard.service.js')
-        const svc: any = new LeaderboardService()
-        const accuracy = questionCount > 0 ? (correctCount / questionCount) * 100 : 0
-
-        if (typeof svc.updateLeaderboardRanking === 'function') {
-          await svc.updateLeaderboardRanking(1, userId, score)
-          await svc.updateLeaderboardRanking(3, userId, accuracy)
-          if (typeof svc.checkAndAwardRankingAchievements === 'function') {
-            await svc.checkAndAwardRankingAchievements(userId)
-          }
-        } else if (typeof svc.update === 'function') {
-          await svc.update('score', userId, score)
-          await svc.update('accuracy', userId, accuracy)
-          if (typeof svc.award === 'function') await svc.award(userId, { score, accuracy })
+    // 幂等重放只返回既有成绩，不重复触发错题本、学习进度和排行榜副作用。
+    if (!replayed) {
+      setImmediate(async () => {
+        try {
+          const { WrongQuestionController } = await import(
+            '../../wrong-questions/controllers/wrong-question.controller.js'
+          )
+          const reqLike: any = { user: { id: userId }, body: { exam_result_id: examResultId } }
+          const resLike = makeResLike() as any
+          await WrongQuestionController.autoCollectWrongQuestions(reqLike, resLike)
+        } catch (e) {
+          log.error('自动收集错题失败:', e)
         }
-      } catch (e) {
-        log.error('更新排行榜失败:', e)
-      }
-    })
 
-    return { score, correctCount }
+        try {
+          const { learningProgressController } = await import(
+            '../../learning-progress/controllers/learning-progress.controller.js'
+          )
+          const accuracy = questionCount > 0 ? Math.round((correctCount / questionCount) * 100) : 0
+          await learningProgressController.recordProgress(
+            {
+              user: { id: userId },
+              body: {
+                studyTime: Math.floor(Math.random() * 45) + 15,
+                questionsAnswered: questionCount,
+                correctAnswers: correctCount,
+                studyContent: `任务：${taskId}（正确率 ${accuracy}%）`,
+              },
+            } as any
+          )
+        } catch (e) {
+          log.error('记录学习进度失败:', e)
+        }
+
+        try {
+          const { LeaderboardService } = await import('../../leaderboard/services/leaderboard.service.js')
+          const svc: any = new LeaderboardService()
+          const accuracy = questionCount > 0 ? (correctCount / questionCount) * 100 : 0
+
+          if (typeof svc.updateLeaderboardRanking === 'function') {
+            await svc.updateLeaderboardRanking(1, userId, score)
+            await svc.updateLeaderboardRanking(3, userId, accuracy)
+            if (typeof svc.checkAndAwardRankingAchievements === 'function') {
+              await svc.checkAndAwardRankingAchievements(userId)
+            }
+          } else if (typeof svc.update === 'function') {
+            await svc.update('score', userId, score)
+            await svc.update('accuracy', userId, accuracy)
+            if (typeof svc.award === 'function') await svc.award(userId, { score, accuracy })
+          }
+        } catch (e) {
+          log.error('更新排行榜失败:', e)
+        }
+      })
+    }
+
+    return { attemptId, submissionId, score, correctCount, replayed }
   }
 
   /** 🔥 开始/继续考试（兼容传 taskId 或 examId 的情况） */
@@ -522,16 +567,25 @@ export class TaskService {
     const result = await this.repo.ensureExamResultStandalone(meta.exam_id, userId)
     const questions = await this.repo.getQuestionsViewByPaperId(meta.paper_id)
     const antiCheat = await this.getAntiCheatSetting()
-    const proctoring = await this.getProctoringSetting()
+    const proctoring = await this.getProctoringSetting(meta.exam_id)
+    const serverNow = new Date().toISOString()
+    const deadlineAt = calculateAttemptDeadline({
+      startedAt: result.start_time,
+      durationMinutes: meta.duration ?? 60,
+      examEndsAt: meta.end_time,
+    })
 
     return {
       taskId: meta.taskId,
       examId: meta.exam_id,
       paperId: meta.paper_id,
+      attemptId: result.attempt_id,
       duration: meta.duration ?? 60,
       status: result.status,
       startedAt: result.start_time,
       endTime: meta.end_time,
+      deadlineAt,
+      serverNow,
       title: meta.title,
       description: meta.description ?? null,
       questions,
@@ -551,7 +605,7 @@ export class TaskService {
       const cfg = await ConfigRepository.getByKey('exam.anticheat.level')
       const value = (cfg?.config_value || 'basic').toLowerCase()
       if (value === 'strict') {
-        return { level: 'strict', maxSwitches: 1, disableCopy: true, autoSubmit: true }
+        return { level: 'strict', maxSwitches: 1, disableCopy: true, autoSubmit: false }
       }
       if (value === 'none' || value === 'off') {
         return { level: 'none', maxSwitches: Number.MAX_SAFE_INTEGER, disableCopy: false, autoSubmit: false }
@@ -562,43 +616,30 @@ export class TaskService {
     }
   }
 
-  private async getProctoringSetting() {
-    try {
-      const cfg = await ConfigRepository.getByKey('exam.proctoring.level')
-      const value = (cfg?.config_value || 'basic').toLowerCase()
-      if (value === 'off' || value === 'none') {
-        return {
-          enabled: false,
-          level: 'off',
-          requireCamera: false,
-          requireMic: false,
-          intervalMs: 5000,
-        }
-      }
-      if (value === 'strict') {
-        return {
-          enabled: true,
-          level: 'strict',
-          requireCamera: true,
-          requireMic: true,
-          intervalMs: 2500,
-        }
-      }
-      return {
-        enabled: true,
-        level: 'basic',
-        requireCamera: true,
-        requireMic: false,
-        intervalMs: 4000,
-      }
-    } catch {
-      return {
-        enabled: true,
-        level: 'basic',
-        requireCamera: true,
-        requireMic: false,
-        intervalMs: 4000,
-      }
+  private async getProctoringSetting(examId: number) {
+    const policy = normalizeProctoringPolicy(await this.repo.getExamProctoringPolicy(examId))
+    return {
+      enabled: policy.level === 'strict',
+      level: policy.level,
+      requireCamera: policy.requireCamera,
+      requireMic: policy.requireMicrophone,
+      requireIdentityVerification: policy.requireIdentityVerification,
+      policyVersion: policy.policyVersion,
+      noticeVersion: policy.noticeVersion,
+      eventRetentionDays: policy.eventRetentionDays,
+      snapshotRetentionDays: policy.snapshotRetentionDays,
+      heartbeatIntervalSeconds: policy.heartbeatIntervalSeconds,
+      interruptionGraceSeconds: policy.interruptionGraceSeconds,
+      notice: {
+        categories: ['camera', 'microphone_status', 'identity_verification', 'factual_events'],
+        purpose: '核验本场考试身份并记录监考期间的客观传感器与应用状态',
+        processingLocation: '账号所属数据区域的问衡服务',
+        cameraUsage: '人脸身份核验、单人是否在场、多人、遮挡、光线和画面中断检测',
+        microphoneUsage: '仅检查授权、设备可用性和采集轨道中断，不分析、保存或上传声音内容',
+        mediaUpload: '不持续上传音视频；身份核验只提交用户明确操作产生的有限画面',
+        eventRetentionDays: policy.eventRetentionDays,
+        snapshotRetentionDays: policy.snapshotRetentionDays,
+      },
     }
   }
 }

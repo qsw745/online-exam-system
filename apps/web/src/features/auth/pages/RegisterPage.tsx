@@ -41,7 +41,7 @@ const RegisterPage: React.FC = () => {
         padding: '32px 16px',
         background: pageBackground,
         position: 'relative',
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
       <AuthTopControls

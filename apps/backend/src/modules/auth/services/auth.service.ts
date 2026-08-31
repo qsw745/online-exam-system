@@ -5,6 +5,7 @@ import { ACCESS_JWT_EXPIRES_IN, REFRESH_JWT_EXPIRES_MS, getJwtSecret, getRefresh
 import { validateStrongPassword } from '@/modules/auth/services/password-policy.service'
 import { LogService } from '@/modules/logs/services/log.service'
 import { AdminSettingsService } from '@/modules/admin-settings/services/admin-settings.service'
+import { getServiceDataRegion } from '@/config/data-region'
 import { EmailVerificationService } from './email-verification.service'
 import bcrypt from 'bcryptjs'
 import { randomBytes } from 'crypto'
@@ -13,6 +14,13 @@ import { TokenRepository, sha256 } from '../repositories/token.repository'
 import { OrgRepository, UserRepository } from '../repositories/user.repository'
 import { pool } from '@/config/database'
 import type { OAuthProfile } from '@/modules/auth/services/oauth.service'
+import {
+  evaluatePersonalRegistration,
+  evaluateRegionAccess,
+  normalizeCountryCode,
+  normalizeDataRegion,
+  type DataRegion,
+} from '../domain/account-region.policy'
 
 type JwtLikePayload = {
   id: number
@@ -23,6 +31,8 @@ type JwtLikePayload = {
   jti?: string
   sid?: string
   prst?: 0 | 1
+  public_id?: string
+  data_region?: DataRegion
 }
 
 let _jwtMod: any | null = null
@@ -58,6 +68,32 @@ const signRefreshTokenAbs = async (
 }
 
 export class AuthService {
+  private regionOfUser(user: IUser, fallback?: DataRegion | null): DataRegion | null {
+    const persisted = normalizeDataRegion(user.data_region)
+    if (persisted) return persisted
+    if (process.env.NODE_ENV !== 'production') return fallback ?? 'CN'
+    return null
+  }
+
+  private assertRegionAccess(user: IUser, requestedRegion?: unknown): DataRegion {
+    const serviceRegion = getServiceDataRegion()
+    const accountRegion = this.regionOfUser(user, normalizeDataRegion(requestedRegion) ?? serviceRegion)
+    const result = evaluateRegionAccess(accountRegion, requestedRegion, serviceRegion)
+    if (result.allowed && result.region) return result.region
+
+    const code = result.code === 'SERVICE_REGION_MISMATCH'
+      ? 'SERVICE_REGION_MISMATCH'
+      : result.code === 'ACCOUNT_REGION_MISMATCH'
+        ? 'ACCOUNT_REGION_MISMATCH'
+        : 'VALIDATION_ERROR'
+    const message = code === 'SERVICE_REGION_MISMATCH'
+      ? '账号所属区域与当前服务区域不匹配'
+      : code === 'ACCOUNT_REGION_MISMATCH'
+        ? '账号所属区域与所选区域不匹配'
+        : '账号缺少有效的数据区域，请联系支持人员'
+    throw new HttpError(message, code === 'VALIDATION_ERROR' ? 400 : 409, { code })
+  }
+
   setRefreshCookie(res: import('express').Response, token: string, opts?: { persist?: boolean; maxAgeMs?: number }) {
     const isProd = process?.env?.NODE_ENV === 'production'
     const base: any = { httpOnly: true, secure: isProd, sameSite: 'lax', path: '/' }
@@ -77,6 +113,9 @@ export class AuthService {
   }
 
   private async ensureActiveUser(user: IUser, reqMeta?: { ip?: string; ua?: string }, messagePrefix = '登录') {
+    if (user.deletion_status && user.deletion_status !== 'ACTIVE' && user.deletion_status !== 'CANCELLED') {
+      throw new HttpError('账号已进入注销流程', 409, { code: 'ACCOUNT_DELETION_PENDING' })
+    }
     if ((user.status || 'active').toLowerCase() === 'active') return
     await LogService.log({
       type: 'login',
@@ -94,18 +133,26 @@ export class AuthService {
   private async issueSession(
     user: IUser,
     reqMeta: { ip?: string; ua?: string },
-    options?: { persist?: boolean; logAction?: string; logDetails?: Record<string, any> }
+    options?: {
+      persist?: boolean
+      logAction?: string
+      logDetails?: Record<string, any>
+      requestedRegion?: DataRegion
+    }
   ) {
+    await this.ensureActiveUser(user, reqMeta, options?.logAction || '登录')
+    const dataRegion = this.assertRegionAccess(user, options?.requestedRegion)
     const { roles, roleIds } = await UserRepository.rolesOfUser(user.id)
+    const identity = { public_id: user.public_id, data_region: dataRegion }
 
     const jti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
     const absExp = computeRefreshAbsExpire()
     const prst: 0 | 1 = options?.persist ? 1 : 0
     const refresh = await signRefreshTokenAbs(
-      { id: user.id, email: user.email, role_ids: roleIds, roles, jti, prst },
+      { id: user.id, email: user.email, role_ids: roleIds, roles, ...identity, jti, prst },
       absExp
     )
-    const access = await signAccessToken({ id: user.id, email: user.email, role_ids: roleIds, roles }, jti)
+    const access = await signAccessToken({ id: user.id, email: user.email, role_ids: roleIds, roles, ...identity }, jti)
 
     await TokenRepository.insertRefresh({
       userId: user.id,
@@ -133,7 +180,7 @@ export class AuthService {
       userId: user.id,
       action: options?.logAction || '登录',
       message: `${options?.logAction || '登录'}成功`,
-      details: { persist: !!options?.persist, email: user.email, ...(options?.logDetails || {}) },
+      details: { persist: !!options?.persist, email: user.email, dataRegion, ...(options?.logDetails || {}) },
       ipAddress: reqMeta.ip,
       userAgent: reqMeta.ua,
     } as any)
@@ -146,7 +193,15 @@ export class AuthService {
   }
 
   async register(
-    body: { email: string; password: string; nickname?: string | null },
+    body: {
+      email: string
+      password: string
+      nickname?: string | null
+      dataRegion: DataRegion
+      countryCode: string
+      dateOfBirth: string
+      accountType?: 'PERSONAL'
+    },
     reqMeta?: { ip?: string; ua?: string },
     options?: { persist?: boolean }
   ) {
@@ -155,6 +210,27 @@ export class AuthService {
     let createdUserId: number | null = null
     try {
       const { email, password, nickname } = body
+      const dataRegion = normalizeDataRegion(body.dataRegion)
+      const countryCode = normalizeCountryCode(body.countryCode)
+      const registration = evaluatePersonalRegistration(body)
+      if (!registration.allowed || !dataRegion || !countryCode || !registration.ageBand) {
+        if (registration.code === 'GUARDIAN_CONSENT_REQUIRED') {
+          throw new HttpError('未满 14 周岁的中国大陆个人账号需要先完成监护人同意', 409, {
+            code: 'GUARDIAN_CONSENT_REQUIRED',
+          })
+        }
+        throw new HttpError('注册区域、国家或出生日期不符合要求', 400, {
+          code: 'VALIDATION_ERROR',
+          details: { reason: registration.code },
+        })
+      }
+      const serviceRegion = getServiceDataRegion()
+      const registrationRegionAccess = evaluateRegionAccess(dataRegion, dataRegion, serviceRegion)
+      if (!registrationRegionAccess.allowed) {
+        throw new HttpError('所选数据区域与当前服务区域不匹配', 409, {
+          code: 'SERVICE_REGION_MISMATCH',
+        })
+      }
       await validateStrongPassword(password)
 
       const existed = await UserRepository.findByEmail(email)
@@ -162,10 +238,21 @@ export class AuthService {
 
       const hashed = bcrypt.hashSync(password, 10)
 
-      const ins = await UserRepository.insertUser({ email, hashed, nickname: nickname ?? null })
+      const ins = await UserRepository.insertUser({
+        email,
+        hashed,
+        nickname: nickname ?? null,
+        dataRegion,
+        countryCode,
+        accountType: 'PERSONAL',
+        // 个人注册仅用出生日期计算年龄段，不默认持久化完整出生日期。
+        dateOfBirth: null,
+        ageBand: registration.ageBand,
+      })
       createdUserId = ins.id
+      await UserRepository.upsertEmailIdentity({ userId: ins.id, email, dataRegion, verified: false })
 
-      const orgId = await OrgRepository.getDefaultOrgId()
+      const orgId = await OrgRepository.getDefaultOrgId(dataRegion)
       await OrgRepository.attachUserToOrg(ins.id, orgId)
 
       let roleIds = await OrgRepository.defaultRoleIdsOfOrg(orgId)
@@ -189,7 +276,7 @@ export class AuthService {
           action: '注册账号',
           resourceType: 'user',
           resourceId: ins.id,
-          details: { email, requireEmailVerification: true },
+          details: { email, dataRegion, ageBand: registration.ageBand, requireEmailVerification: true },
           message: '用户注册成功，待邮箱验证',
           ipAddress: reqMeta?.ip,
           userAgent: reqMeta?.ua,
@@ -201,8 +288,13 @@ export class AuthService {
       const absExp = new Date(Date.now() + REFRESH_JWT_EXPIRES_MS)
       const prst: 0 | 1 = options?.persist ? 1 : 0
 
-      const refresh = await signRefreshTokenAbs({ id: ins.id, email, role_ids: ridList, roles, jti, prst }, absExp)
-      const access = await signAccessToken({ id: ins.id, email, role_ids: ridList, roles }, jti)
+      const createdUser = (await UserRepository.findById(ins.id)) as IUser
+      const identity = { public_id: createdUser.public_id, data_region: dataRegion }
+      const refresh = await signRefreshTokenAbs(
+        { id: ins.id, email, role_ids: ridList, roles, ...identity, jti, prst },
+        absExp
+      )
+      const access = await signAccessToken({ id: ins.id, email, role_ids: ridList, roles, ...identity }, jti)
 
       await TokenRepository.insertRefresh({
         userId: ins.id,
@@ -231,13 +323,13 @@ export class AuthService {
         action: '注册账号',
         resourceType: 'user',
         resourceId: ins.id,
-        details: { email, persist: !!options?.persist },
+        details: { email, dataRegion, ageBand: registration.ageBand, persist: !!options?.persist },
         message: '用户注册成功',
         ipAddress: reqMeta?.ip,
         userAgent: reqMeta?.ua,
       } as any)
 
-      const user = (await UserRepository.findById(ins.id)) as IUser
+      const { password: _omitPassword, ...user } = createdUser as any
       return { token: access, refresh, user: { ...user, org_id: orgId }, persist: !!options?.persist }
     } catch (e: any) {
       // 唯一键冲突处理
@@ -267,7 +359,12 @@ export class AuthService {
   }
 
   /** 登录：只支持邮箱 */
-  async login(email: string, password: string, reqMeta: { ip?: string; ua?: string }, options?: { persist?: boolean }) {
+  async login(
+    email: string,
+    password: string,
+    reqMeta: { ip?: string; ua?: string },
+    options?: { persist?: boolean; requestedRegion?: DataRegion }
+  ) {
     await ensureJwtReady()
 
     const loginNorm = String(email || '').trim()
@@ -285,8 +382,6 @@ export class AuthService {
       throw new HttpError('用户不存在')
     }
 
-    await this.ensureActiveUser(user, reqMeta, '登录')
-
     const ok = bcrypt.compareSync(String(password ?? ''), String((user as any).password ?? ''))
     if (!ok) {
       await LogService.log({
@@ -301,6 +396,8 @@ export class AuthService {
       } as any)
       throw new HttpError('邮箱或密码错误')
     }
+
+    await this.ensureActiveUser(user, reqMeta, '登录')
 
     // 后台开启邮箱验证且该账号未验证 → 拦截登录
     const settings = await AdminSettingsService.getSafe().catch(() => ({}) as any)
@@ -318,7 +415,10 @@ export class AuthService {
       throw new HttpError('邮箱未验证，请先到注册邮箱完成验证后再登录')
     }
 
-    return this.issueSession(user, reqMeta, { persist: !!options?.persist })
+    return this.issueSession(user, reqMeta, {
+      persist: !!options?.persist,
+      requestedRegion: options?.requestedRegion,
+    })
   }
 
   /** 人脸登录：身份已由人脸比对验证通过，这里只做账号有效性校验并签发会话 */
@@ -342,8 +442,9 @@ export class AuthService {
     await ensureJwtReady()
     if (!profile.emailVerified) throw new HttpError('第三方账号邮箱未验证')
 
+    const serviceRegion = getServiceDataRegion() ?? 'CN'
     const attachDefaultOrgAndRoles = async (userId: number) => {
-      const orgId = await OrgRepository.getDefaultOrgId()
+      const orgId = await OrgRepository.getDefaultOrgId(serviceRegion)
       await OrgRepository.attachUserToOrg(userId, orgId)
 
       let roleIds = await OrgRepository.defaultRoleIdsOfOrg(orgId)
@@ -368,6 +469,16 @@ export class AuthService {
           email: profile.email,
           hashed,
           nickname: profile.displayName ?? null,
+          dataRegion: serviceRegion,
+          countryCode: serviceRegion === 'CN' ? 'CN' : null,
+          accountType: 'PERSONAL',
+          ageBand: 'UNKNOWN',
+        })
+        await UserRepository.upsertEmailIdentity({
+          userId: ins.id,
+          email: profile.email,
+          dataRegion: serviceRegion,
+          verified: true,
         })
         await attachDefaultOrgAndRoles(ins.id)
         user = (await UserRepository.findById(ins.id)) as IUser
@@ -394,6 +505,7 @@ export class AuthService {
       persist: !!options?.persist,
       logAction: '第三方登录',
       logDetails: { provider: profile.provider },
+      requestedRegion: serviceRegion,
     })
   }
 
@@ -421,15 +533,20 @@ export class AuthService {
     const remainMs = absExpMs - Date.now()
     if (remainMs <= 0) throw new HttpError('刷新令牌已过期')
 
+    const user = await UserRepository.findById(payload.id)
+    if (!user) throw new HttpError('用户不存在', 401, { code: 'AUTH_UNAUTHORIZED' })
+    await this.ensureActiveUser(user, undefined, '刷新会话')
+    const dataRegion = this.assertRegionAccess(user, payload.data_region)
     const { roles, roleIds } = await UserRepository.rolesOfUser(payload.id)
+    const identity = { public_id: user.public_id, data_region: dataRegion }
 
     const newJti = (globalThis.crypto?.randomUUID?.() as string) || Math.random().toString(36).slice(2)
     const prst: 0 | 1 = (payload as any)?.prst ? 1 : 0
     const newRefresh = await signRefreshTokenAbs(
-      { id: payload.id, email: payload.email, role_ids: roleIds, roles, jti: newJti, prst },
+      { id: payload.id, email: user.email, role_ids: roleIds, roles, ...identity, jti: newJti, prst },
       new Date(absExpMs)
     )
-    const access = await signAccessToken({ id: payload.id, email: payload.email, role_ids: roleIds, roles }, newJti)
+    const access = await signAccessToken({ id: payload.id, email: user.email, role_ids: roleIds, roles, ...identity }, newJti)
 
     await TokenRepository.rotate(payload.jti, {
       userId: payload.id,

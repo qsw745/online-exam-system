@@ -78,6 +78,8 @@ const PushLogsPage = lazy(() => import('@/features/notifications-manager/pages/P
 const AiLogsPage = lazy(() => import('@/features/ai-logs/pages/AiLogsPage'))
 const WorkflowTemplatesPage = lazy(() => import('@/features/workflows/pages/WorkflowTemplatesPage'))
 const WorkflowTasksPage = lazy(() => import('@/features/workflows/pages/WorkflowTasksPage'))
+const ProctoringReviewQueuePage = lazy(() => import('@/features/proctoring-review/pages/ProctoringReviewQueuePage'))
+const MyProctoringReviewPage = lazy(() => import('@/features/proctoring-review/pages/MyProctoringReviewPage'))
 
 // Errors
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
@@ -168,6 +170,8 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'notify-log': PushLogsPage,
   'workflow-templates': WorkflowTemplatesPage,
   'workflow-tasks': WorkflowTasksPage,
+  'proctoring-review-queue': ProctoringReviewQueuePage,
+  'my-proctoring-review': MyProctoringReviewPage,
 
   // Errors
   'errors-403': Forbidden403,

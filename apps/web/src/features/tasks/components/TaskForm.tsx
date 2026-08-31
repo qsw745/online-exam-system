@@ -16,6 +16,7 @@ export type TaskFormValues = {
   type: 'practice' | 'exam'
   paper_id?: string | number
   exam_id?: string | number
+  proctoring_level?: 'off' | 'strict'
   start_time?: Dayjs
   end_time?: Dayjs
   assigned_department_ids?: Array<string | number>
@@ -58,6 +59,7 @@ export const TaskForm: React.FC<{
             ? initial.exam_id
             : String(initial.exam_id)
           : undefined,
+      proctoring_level: initial.proctoring_level === 'strict' ? 'strict' : 'off',
       start_time: initial.start_time ? dayjs(initial.start_time as any) : (dayjs() as any),
       end_time: initial.end_time ? dayjs(initial.end_time as any) : (dayjs().add(7, 'day') as any),
       assigned_user_ids: (initial.assigned_user_ids || []).map(String),
@@ -72,6 +74,7 @@ export const TaskForm: React.FC<{
       initialValues={{
         status: 'not_started',
         type: 'practice',
+        proctoring_level: 'off',
         start_time: dayjs(),
         end_time: dayjs().add(7, 'day'),
       }}
@@ -94,6 +97,7 @@ export const TaskForm: React.FC<{
           type: v.type,
           paper_id: v.type === 'exam' ? toNum(v.paper_id) : undefined,
           exam_id: v.type === 'exam' ? toNum(v.exam_id) : undefined,
+          proctoring_level: v.type === 'exam' && v.proctoring_level === 'strict' ? 'strict' : 'off',
           start_time: v.start_time?.format('YYYY-MM-DD HH:mm:ss'),
           end_time: v.end_time?.format('YYYY-MM-DD HH:mm:ss'),
           assigned_department_ids: toNumArr(v.assigned_department_ids),
@@ -141,6 +145,22 @@ export const TaskForm: React.FC<{
 
                   <Form.Item label={translate('auto.f61099b90c')} name="exam_id" style={{ minWidth: 180 }}>
                     <Input disabled={readOnly} placeholder={translate('auto.abc146e631')} allowClear />
+                  </Form.Item>
+
+                  <Form.Item
+                    label={translate('taskForm.proctoring.label')}
+                    name="proctoring_level"
+                    style={{ minWidth: 280 }}
+                    extra={translate('taskForm.proctoring.help')}
+                  >
+                    <Select
+                      disabled={readOnly}
+                      options={[
+                        { value: 'off', label: translate('taskForm.proctoring.off') },
+                        { value: 'strict', label: translate('taskForm.proctoring.strict') },
+                      ]}
+                      getPopupContainer={t => t.parentElement!}
+                    />
                   </Form.Item>
                 </>
               )

@@ -31,6 +31,7 @@ dist/
 build/
 target/
 */target/
+apps/web/.build/
 apps/backend-java/app.jar
 # 框架/工具缓存
 .cache/

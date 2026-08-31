@@ -85,7 +85,7 @@ export class ResultRepository {
         const total = Number((countRows[0] as any)?.total || 0)
 
         const selectBase = `
-      r.id, r.user_id, r.exam_id,
+      r.id, r.user_id, r.exam_id, r.attempt_id,
       ${paperIdExpr} AS paper_id,
       COALESCE(p.title, '') AS paper_title,
       r.score, COALESCE(p.total_score, 0) AS total_score,
@@ -133,7 +133,7 @@ export class ResultRepository {
 
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT
-                 r.id, r.user_id, r.exam_id,
+                 r.id, r.user_id, r.exam_id, r.attempt_id,
                  ${paperIdExpr} AS paper_id,
                  COALESCE(p.title, '') AS paper_title,
                  r.score, COALESCE(p.total_score, 0) AS total_score,
@@ -212,7 +212,7 @@ export class ResultRepository {
         }
         const [rows] = await pool.query<RowDataPacket[]>(
             `SELECT
-          r.id, r.user_id, r.exam_id,
+          r.id, r.user_id, r.exam_id, r.attempt_id,
           COALESCE(r.paper_id, e.paper_id) AS paper_id,
           COALESCE(p.title, '') AS paper_title,
           r.score, COALESCE(p.total_score, 0) AS total_score,

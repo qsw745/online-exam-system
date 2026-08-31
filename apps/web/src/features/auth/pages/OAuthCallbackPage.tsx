@@ -47,7 +47,7 @@ export default function OAuthCallbackPage() {
         const res: any = await auth.refresh()
         const token = res?.data?.token ?? res?.token
         if (!token) throw new Error('missing token')
-        setAccessToken(token, mode)
+        await setAccessToken(token, mode)
         await reload().catch(() => undefined)
         if (alive) navigate(next, { replace: true })
       } catch {

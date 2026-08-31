@@ -6,6 +6,12 @@ import { resetRemoteCryptoCache, tryEncryptRemote } from '@/shared/utils/cryptoL
 import { App } from 'antd'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { translate } from '@/shared/utils/i18n'
+import {
+  readPreferredDataRegion,
+  writePreferredDataRegion,
+  type DataRegion,
+} from '@/platform/region/accountRegion'
+import { resolveAppTarget } from '@/platform/appTarget'
 
 const STORAGE_FLAG_KEY = 'auth_storage'
 const REMEMBER_PACK_KEY = 'remember_pack_v1'
@@ -24,6 +30,7 @@ const CODE_BAD_CREDS = 'BAD_CREDENTIALS'
 const CODE_LOCKED = 'AUTH_LOCKED'
 const CODE_LOCKED_LEGACY = 'LOCKED'
 const HTTP_UNAUTH = 401
+const appTarget = resolveAppTarget(import.meta.env.VITE_APP_TARGET)
 
 const keyFor = (b: string, em: string) => (em ? `${b}:${em.trim().toLowerCase()}` : '')
 const failedKey = (em: string) => keyFor('login_failed_count', em) || 'login_failed_count:__none__'
@@ -76,11 +83,11 @@ function parseLoginError(err: any): {
   retryAfterSec?: number
 } {
   const res = err?.response
-  const code = res?.data?.code
-  const status = res?.status
+  const code = res?.data?.code ?? err?.code
+  const status = res?.status ?? err?.status
   const backendMsg = res?.data?.message
   const data = res?.data?.data
-  const reason = res?.data?.error?.details?.reason
+  const reason = res?.data?.error?.details?.reason ?? err?.details?.reason
   const rh = res?.headers || {}
   const retryAfter = rh['retry-after'] ? Number(rh['retry-after']) : undefined
   const msg = backendMsg || err?.message || '错误'
@@ -124,6 +131,11 @@ export function useLogin() {
   const [password, setPassword] = useState('')
   const [rememberMe, setRememberMe] = useState(false)
   const [keep7Days, setKeep7Days] = useState(false)
+  const [dataRegion, setDataRegionState] = useState<DataRegion>(() => readPreferredDataRegion())
+  const setDataRegion = useCallback((region: DataRegion) => {
+    writePreferredDataRegion(region)
+    setDataRegionState(region)
+  }, [])
   const [loading, setLoading] = useState(false)
   const [faceLoginLoading, setFaceLoginLoading] = useState(false)
   const [faceModalOpen, setFaceModalOpen] = useState(false)
@@ -488,6 +500,7 @@ export function useLogin() {
         captchaId: captchaRequired ? captchaId || undefined : undefined,
         ...(remote ?? {}),
         keep7Days,
+        dataRegion: appTarget === 'ios' ? dataRegion : undefined,
       }
       await signIn(email, password, keep7Days, extra)
 
@@ -505,6 +518,7 @@ export function useLogin() {
               captchaId: captchaRequired ? captchaId || undefined : undefined,
               ...freshRemote,
               keep7Days,
+              dataRegion: appTarget === 'ios' ? dataRegion : undefined,
             })
             finishSuccess()
             return
@@ -624,6 +638,7 @@ export function useLogin() {
     email,
     password,
     keep7Days,
+    dataRegion,
     captchaRequired,
     captcha,
     captchaId,
@@ -651,6 +666,8 @@ export function useLogin() {
     setRememberMe,
     keep7Days,
     setKeep7Days,
+    dataRegion,
+    setDataRegion,
     loading,
     faceLoginLoading,
 

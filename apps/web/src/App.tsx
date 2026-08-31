@@ -6,8 +6,15 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AuthProvider } from '@/shared/contexts/AuthContext'
 import { LanguageProvider } from '@/shared/contexts/LanguageContext'
 import { MenuPermissionProvider } from '@/shared/contexts/MenuPermissionContext'
-import { router } from '@/app/routes'
+import { webRouter } from '@/app/routes'
+import { mobileRouter } from '@/app/mobile/MobileAppRouter'
+import { resolveAppTarget } from '@/platform/appTarget'
+import { RuntimeProvider, useRuntime } from '@/platform/runtime/RuntimeProvider'
+import BackgroundPrivacyCover from '@/platform/privacy/BackgroundPrivacyCover'
 import AppProviders from '@/AppProviders'
+
+const appTarget = resolveAppTarget(import.meta.env.VITE_APP_TARGET)
+const appRouter = appTarget === 'ios' ? mobileRouter : webRouter
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,21 +39,40 @@ const queryClient = new QueryClient({
   },
 })
 
-export default function App() {
+function ApplicationContent() {
+  const { snapshot } = useRuntime()
+
   return (
-    <QueryClientProvider client={queryClient}>
+    <>
       <AuthProvider>
         <LanguageProvider>
           <AppProviders>
-            <MenuPermissionProvider>
-              {/* v5 全局 Suspense：用 React 的 <Suspense> 包裹路由 */}
+            {appTarget === 'ios' ? (
               <Suspense fallback={null}>
-                <RouterProvider router={router} />
+                <RouterProvider router={appRouter} />
               </Suspense>
-            </MenuPermissionProvider>
+            ) : (
+              <MenuPermissionProvider>
+                {/* v5 全局 Suspense：用 React 的 <Suspense> 包裹路由 */}
+                <Suspense fallback={null}>
+                  <RouterProvider router={appRouter} />
+                </Suspense>
+              </MenuPermissionProvider>
+            )}
           </AppProviders>
         </LanguageProvider>
       </AuthProvider>
+      {appTarget === 'ios' && <BackgroundPrivacyCover lifecycle={snapshot.lifecycle} />}
+    </>
+  )
+}
+
+export default function App() {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <RuntimeProvider>
+        <ApplicationContent />
+      </RuntimeProvider>
     </QueryClientProvider>
   )
 }

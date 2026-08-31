@@ -6,7 +6,12 @@ import ProfileForm from '../components/ProfileForm'
 import ProfileStats from '../components/ProfileStats'
 import FaceLoginCard from '../components/FaceLoginCard'
 import { useProfilePage } from '../hooks/useProfilePage'
+import { resolveAppTarget } from '@/platform/appTarget'
+import { resolveAuthCapabilities } from '@/features/auth/mobileAuthCapabilities'
+import AccountDeletionCard from '../components/AccountDeletionCard'
 const { Title } = Typography
+
+const authCapabilities = resolveAuthCapabilities(resolveAppTarget(import.meta.env.VITE_APP_TARGET))
 
 export default function ProfilePage() {
   const { t, user, form, setForm, avatarSrc, onAvatarPick, loading, submit } = useProfilePage()
@@ -44,7 +49,8 @@ export default function ProfilePage() {
           </div>
         </Card>
 
-        <FaceLoginCard />
+        {authCapabilities.faceLogin && <FaceLoginCard />}
+        <AccountDeletionCard />
       </Space>
     </App>
   )

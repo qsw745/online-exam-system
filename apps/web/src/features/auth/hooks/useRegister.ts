@@ -3,16 +3,26 @@ import { useCallback, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { translate } from '@/shared/utils/i18n'
+import type { DataRegion } from '@/platform/region/accountRegion'
 
 export type RegisterValues = {
   email: string
   password: string
   confirmPassword: string
   nickname?: string
+  dataRegion: DataRegion
+  countryCode: string
+  dateOfBirth: string
   agree: boolean
 }
 
 function parseRegisterError(err: any): string {
+  if (err?.code === 'GUARDIAN_CONSENT_REQUIRED') {
+    return '未满 14 周岁的中国大陆个人账号需要先完成监护人同意'
+  }
+  if (err?.code === 'SERVICE_REGION_MISMATCH') {
+    return '当前服务不属于所选地区，请返回检查地区后重试'
+  }
   if (err?.message) return err.message
   const status = err?.response?.status
   const dataMsg = err?.response?.data?.message
@@ -51,7 +61,14 @@ export function useRegister() {
   const submit = useCallback(
     async (values: RegisterValues) => {
       // 基础前端校验（表单层已校验，这里兜底）
-      if (!values.email || !values.password || !values.confirmPassword) {
+      if (
+        !values.email ||
+        !values.password ||
+        !values.confirmPassword ||
+        !values.dataRegion ||
+        !values.countryCode ||
+        !values.dateOfBirth
+      ) {
         message.error(translate('auto.f59ba47760'))
         return
       }
@@ -70,7 +87,12 @@ export function useRegister() {
 
       setLoading(true)
       try {
-        const res = await signUp(values.email, values.password, { nickname: values.nickname || undefined })
+        const res = await signUp(values.email, values.password, {
+          nickname: values.nickname || undefined,
+          dataRegion: values.dataRegion,
+          countryCode: values.countryCode,
+          dateOfBirth: values.dateOfBirth,
+        })
         if (res?.needVerification) {
           message.success(translate('auto.2fc1f72de8'))
         } else {

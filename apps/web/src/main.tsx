@@ -4,6 +4,7 @@ import App from './App'
 import '@ant-design/v5-patch-for-react-19'
 import { ErrorBoundary } from '@/shared/components/ErrorBoundary'
 import { formatDocumentTitle } from '@/shared/config/brand'
+import { initializeAuthStorage } from '@/shared/api/core/storage'
 
 import 'antd/dist/reset.css'
 import './index.css'
@@ -14,8 +15,30 @@ import '@/shared/styles/mobile-foundation.css'
 
 document.title = formatDocumentTitle()
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <ErrorBoundary>
-    <App />
-  </ErrorBoundary>
-)
+const root = ReactDOM.createRoot(document.getElementById('root')!)
+
+async function bootstrap() {
+  try {
+    await initializeAuthStorage()
+    root.render(
+      <ErrorBoundary>
+        <App />
+      </ErrorBoundary>,
+    )
+  } catch (error) {
+    console.error(
+      '[Wenheng bootstrap] secure session restore failed',
+      error instanceof Error ? error.message : 'unknown error',
+    )
+    root.render(
+      <main role="alert" style={{ minHeight: '100vh', display: 'grid', placeItems: 'center', padding: 24 }}>
+        <div style={{ maxWidth: 420, textAlign: 'center' }}>
+          <h1>问衡暂时无法启动</h1>
+          <p>安全会话恢复失败，请完全退出 App 后重新打开。</p>
+        </div>
+      </main>,
+    )
+  }
+}
+
+void bootstrap()

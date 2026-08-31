@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Wenheng";
+"NSCameraUsageDescription" = "Only after you enter an explicitly marked strictly proctored exam and give separate consent, the camera is used for face identity verification, presence, multiple-person, obstruction, lighting, and interruption checks. Continuous video is not uploaded.";
+"NSMicrophoneUsageDescription" = "Only after you enter an explicitly marked strictly proctored exam and give separate consent, the microphone is used to verify permission, device availability, and capture-track interruptions. Audio content is not analyzed, stored, or uploaded.";

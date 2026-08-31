@@ -1,6 +1,66 @@
 import { api } from '../core/httpClient'
 
 export type ProctoringSeverity = 'info' | 'warn' | 'critical'
+export type StrictProctoringSessionState = 'prepared' | 'active' | 'interrupted' | 'review_required' | 'completed'
+
+export type StrictProctoringPolicy = {
+  level: 'off' | 'strict'
+  policyVersion: string
+  noticeVersion: string
+  requireCamera: boolean
+  requireMicrophone: boolean
+  requireIdentityVerification: boolean
+  eventRetentionDays: number
+  snapshotRetentionDays: number
+  heartbeatIntervalSeconds: number
+  interruptionGraceSeconds: number
+  notice?: {
+    categories: string[]
+    purpose: string
+    processingLocation: string
+    cameraUsage: string
+    microphoneUsage: string
+    mediaUpload: string
+    eventRetentionDays: number
+    snapshotRetentionDays: number
+  }
+}
+
+export type StrictProctoringSession = {
+  sessionId: string
+  consentId: string
+  attemptId: string
+  examId: number
+  taskId: number | null
+  state: StrictProctoringSessionState
+  lastSequence: number
+  cameraRequired: boolean
+  microphoneRequired: boolean
+  identityRequired: boolean
+  identityStatus: 'pending' | 'passed' | 'failed' | 'not_required'
+  startedAt: string | null
+  lastHeartbeatAt: string | null
+  interruptionStartedAt: string | null
+  completedAt: string | null
+  reviewReasonCode: string | null
+}
+
+export type StrictProctoringDecision = {
+  state: StrictProctoringSessionState
+  mayContinue: boolean
+  action: 'continue' | 'remain_paused' | 'manual_review' | 'completed'
+  reasonCode?: string | null
+}
+
+export type ProctoringSensorState = {
+  camera: 'available' | 'interrupted' | 'denied' | 'unavailable'
+  microphone: 'available' | 'interrupted' | 'denied' | 'unavailable'
+  app: 'foreground' | 'background'
+  network: 'online' | 'offline'
+  faceCount?: 0 | 1 | 2
+  light?: 'normal' | 'dark'
+  screenCaptured?: boolean
+}
 
 export type ProctoringEvent = {
   id: number
@@ -42,16 +102,87 @@ function unwrap(res: any): any {
 }
 
 export const proctoringApi = {
-  reportEvent: (payload: {
+  async createConsent(payload: {
     examId: number
-    taskId?: number
+    attemptId: string
+    policyVersion: string
+    noticeVersion: string
+    accepted: true
+    biometricConsent: true
+    categories: string[]
+    locale?: string
+  }) {
+    return unwrap(await api.post('/proctoring/consents', payload)) as {
+      consent: { consentId: string; expiresAt: string }
+      policy: StrictProctoringPolicy
+      replayed: boolean
+    }
+  },
+
+  async createSession(payload: { examId: number; attemptId: string; consentId: string }) {
+    return unwrap(await api.post('/proctoring/sessions', payload)) as {
+      session: StrictProctoringSession
+      policy: StrictProctoringPolicy
+      decision: StrictProctoringDecision
+      replayed: boolean
+    }
+  },
+
+  async getSession(sessionId: string) {
+    return unwrap(await api.get(`/proctoring/sessions/${sessionId}`)) as {
+      session: StrictProctoringSession
+      decision: StrictProctoringDecision
+    }
+  },
+
+  async reportFactualEvent(sessionId: string, payload: {
+    eventId: string
     type: string
-    severity?: ProctoringSeverity
-    message?: string
-    meta?: any
-    occurredAt?: string
-    source?: string
-  }) => api.post('/proctoring/events', payload),
+    sequence: number
+    occurredAt: string
+    state: Partial<ProctoringSensorState>
+  }) {
+    return unwrap(await api.post(`/proctoring/sessions/${sessionId}/events`, payload)) as {
+      session: StrictProctoringSession
+      decision: StrictProctoringDecision
+      replayed: boolean
+    }
+  },
+
+  async heartbeat(sessionId: string, state: ProctoringSensorState) {
+    return unwrap(await api.post(`/proctoring/sessions/${sessionId}/heartbeat`, state)) as {
+      session: StrictProctoringSession
+      decision: StrictProctoringDecision
+      serverNow: string
+    }
+  },
+
+  async verifyIdentity(sessionId: string, images: string[]) {
+    return unwrap(await api.post(`/proctoring/sessions/${sessionId}/identity-check`, { images }, { timeout: 60000 })) as {
+      session: StrictProctoringSession
+      decision: StrictProctoringDecision
+      result: {
+        checkId?: string
+        result: 'passed' | 'failed'
+        reasonCode: string | null
+        similarity?: number | null
+      }
+      replayed?: boolean
+    }
+  },
+
+  async complete(sessionId: string, payload: {
+    eventId: string
+    sequence: number
+    occurredAt: string
+    state: Partial<ProctoringSensorState>
+  }) {
+    return unwrap(await api.post(`/proctoring/sessions/${sessionId}/complete`, payload)) as {
+      session: StrictProctoringSession
+      decision: StrictProctoringDecision
+      replayed: boolean
+    }
+  },
 
   async listExamEvents(examId: string | number, params?: { page?: number; limit?: number; severity?: string }) {
     const res = await api.get(`/proctoring/exams/${examId}`, { params })

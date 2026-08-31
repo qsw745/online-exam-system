@@ -4,6 +4,7 @@ import type { AuthRequest } from '@/types/auth.js'
 import type { ApiResponse } from '@/types/response.js'
 import { TaskService } from '../services/task.service.js'
 import type { TaskStatus } from '../domain/task.model'
+import { ExamReliabilityError } from '../domain/exam-reliability.policy.js'
 import { log } from '@/infrastructure/logging/logger'
 
 const svc = new TaskService()
@@ -50,10 +51,13 @@ type ExamPayloadResponse = ApiResponse<{
     taskId: number
     examId: number
     paperId: number
+    attemptId: string
     duration: number
-    status: 'in_progress' | 'not_started' | 'submitted'
+    status: 'in_progress' | 'not_started' | 'submitted' | 'graded'
     startedAt?: string | null
     endTime?: string | null
+    deadlineAt: string
+    serverNow: string
     title: string
     description?: string | null
     questions: Array<{
@@ -67,10 +71,17 @@ type ExamPayloadResponse = ApiResponse<{
     antiCheat?: { level: 'none' | 'basic' | 'strict'; maxSwitches: number; disableCopy?: boolean; autoSubmit?: boolean }
     proctoring?: {
         enabled: boolean
-        level: 'off' | 'basic' | 'strict'
+        level: 'off' | 'strict'
         requireCamera: boolean
         requireMic: boolean
-        intervalMs: number
+        requireIdentityVerification: boolean
+        policyVersion: string
+        noticeVersion: string
+        eventRetentionDays: number
+        snapshotRetentionDays: number
+        heartbeatIntervalSeconds: number
+        interruptionGraceSeconds: number
+        notice: Record<string, unknown>
     }
 }>
 
@@ -198,6 +209,7 @@ export class TaskController {
         assigned_user_ids,
         assigned_department_ids,
         assign_all,
+        proctoring_level: req.body.proctoring_level === 'strict' ? 'strict' : 'off',
       })
       return res.created({ task }, '创建成功')
     } catch (e: any) {
@@ -227,6 +239,15 @@ export class TaskController {
           status: req.body.status,
           start_time: req.body.start_time,
           end_time: req.body.end_time,
+          type: req.body.type,
+          paper_id: req.body.paper_id ? Number(req.body.paper_id) : undefined,
+          exam_id: req.body.exam_id ? Number(req.body.exam_id) : undefined,
+          proctoring_level:
+            req.body.proctoring_level == null
+              ? undefined
+              : req.body.proctoring_level === 'strict'
+                ? 'strict'
+                : 'off',
           assigned_user_ids: Array.isArray(req.body.assigned_user_ids) ? req.body.assigned_user_ids : undefined,
           assigned_department_ids: Array.isArray(req.body.assigned_department_ids)
             ? req.body.assigned_department_ids
@@ -265,7 +286,7 @@ export class TaskController {
     }
   }
 
-  static async submit(req: AuthRequest, res: Res<ApiResponse<null>>) {
+  static async submit(req: AuthRequest, res: Res<ApiResponse<any>>) {
     try {
       const userId = req.user?.id
       if (!userId) return res.unauthorized()
@@ -273,10 +294,18 @@ export class TaskController {
       const taskId = Number(req.params.id)
       if (!Number.isFinite(taskId)) return res.badRequest('无效的任务ID')
 
-      await svc.submit(taskId, userId, { answers: req.body?.answers || {}, time_spent: req.body?.time_spent })
-      return res.ok(null, '提交成功')
+      const result = await svc.submit(taskId, userId, {
+        attemptId: req.body?.attemptId,
+        submissionId: req.body?.submissionId,
+        answers: req.body?.answers || {},
+        time_spent: req.body?.time_spent,
+      })
+      return res.ok(result, result.replayed ? '已确认此前交卷结果' : '提交成功')
     } catch (e: any) {
       log.error('提交任务错误:', e)
+      if (e instanceof ExamReliabilityError) {
+        return res.fail(e.code, e.httpStatus, e.message)
+      }
       return res.internal(e?.message || '提交任务失败')
     }
   }

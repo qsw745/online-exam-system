@@ -21,5 +21,11 @@ export default function ResultDetailPage() {
     return <Empty description={translate('auto.602c040cc7')} />
   }
 
-  return <ResultDetailView data={data} onBack={() => navigate('/exam/results')} />
+  return (
+    <ResultDetailView
+      data={data}
+      onBack={() => navigate('/exam/results')}
+      onOpenReview={caseId => navigate(`/proctoring/reviews/${caseId}`)}
+    />
+  )
 }

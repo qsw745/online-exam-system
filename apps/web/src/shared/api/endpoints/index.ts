@@ -1,4 +1,5 @@
 export * from './auth'
+export * from './accountDeletion'
 export * from './dashboard'
 export * from './discussions'
 export * from './favorites'
@@ -29,6 +30,7 @@ export * from './ai'
 export * from './ai-logs'
 export * from './system-tests'
 export * from './proctoring'
+export * from './proctoringReview'
 export * from './workflows'
 export { adminSettingsApi } from './admin-settings'
 

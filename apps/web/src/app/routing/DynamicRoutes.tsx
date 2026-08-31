@@ -242,6 +242,7 @@ export default function DynamicRoutes() {
       { path: 'exam/:id', element: elementFromRegistry('exam') },
       { path: 'exam/task/:taskId', element: elementFromRegistry('exam') },
       { path: 'results/:id', element: elementFromRegistry('result-detail') },
+      { path: 'proctoring/reviews/:caseId', element: elementFromRegistry('my-proctoring-review') },
       { path: 'questions/:id/practice', element: elementFromRegistry('question-practice') },
       { path: 'questions/:id', element: elementFromRegistry('question-practice') },
       { path: 'learning/practice/:id', element: elementFromRegistry('question-practice') },

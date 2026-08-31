@@ -53,6 +53,7 @@ import * as mailRoutesMod from '@/modules/mail/routes/mail.routes'
 import * as aiRoutesMod from '@/modules/ai/routes/ai.routes'
 import * as systemTestsRoutesMod from '@/modules/system-tests/routes/system-tests.routes'
 import * as workflowRoutesMod from '@/modules/workflows/routes/workflow.routes'
+import * as accountRoutesMod from '@/modules/account/routes/account.routes'
 
 import * as captchaRoutesMod from '@/modules/auth/routes/captcha.routes'
 import * as cryptoRoutesMod from '@/modules/auth/routes/crypto.routes'
@@ -102,6 +103,7 @@ const workflowRoutes = pick(workflowRoutesMod, 'workflowRoutes')
 const captchaRoutes = pick(captchaRoutesMod, 'captchaRoutes')
 const cryptoRoutes = pick(cryptoRoutesMod, 'cryptoRoutes')
 const publicRoutes = pick(publicRoutesMod, 'publicRoutes')
+const accountRoutes = pick(accountRoutesMod, 'accountRoutes')
 
 const router = Router()
 
@@ -147,6 +149,7 @@ const mounts: Array<[string, any]> = [
   ['/ai', aiRoutes],
   ['/system-tests', systemTestsRoutes],
   ['/workflows', workflowRoutes],
+  ['/account', accountRoutes],
 ]
 
 let ok = 0

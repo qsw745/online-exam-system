@@ -111,14 +111,11 @@ export class ExamController {
   }
 
   static async submit(req: AuthRequest, res: Response<ApiResponse<null>>) {
-    try {
-      const userId = req.user?.id
-      const examId = Number(req.params.id)
-      if (!userId) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
-      await svc.submit(userId, examId, req.body?.answers || {}, req)
-      return (res as any).ok(null, '提交成功')
-    } catch (e: any) {
-      return (res as any).internal(e?.message || '提交考试失败', { code: CODES.INTERNAL_ERROR })
-    }
+    if (!req.user?.id) return (res as any).unauthorized('未授权访问', { code: CODES.AUTH_UNAUTHORIZED })
+    return (res as any).fail(
+      'LEGACY_EXAM_SUBMIT_DISABLED',
+      409,
+      '旧版考试交卷接口已停用，请重新进入考试并使用任务交卷接口。',
+    )
   }
 }

@@ -4,13 +4,31 @@ import { normalize } from './normalize'
 import { getAccessToken, setAccessToken, clearTokenAll, getAuthStorageFlag, type AuthStorageMode } from './storage'
 import { attachNProgressToAxios /*, attachToGlobalAxios*/ } from '../nprogress-axios' // ✅ 新增
 import { redirectToLogin } from '@/shared/router/basePath'
+import {
+  readPreferredDataRegion,
+  resolveRegionalApiBaseUrl,
+} from '@/platform/region/accountRegion'
+import { resolveAppTarget } from '@/platform/appTarget'
 
 // --- 环境变量容错（不依赖类型声明也能工作） ---
 const isDev = typeof import.meta !== 'undefined' && (import.meta as any)?.env && Boolean((import.meta as any).env.DEV)
 export const API_URL = (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_API_URL) || '/api'
+export const REGIONAL_API_URLS = {
+  defaultUrl: API_URL,
+  cnUrl: (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_API_URL_CN) || '',
+  globalUrl: (typeof import.meta !== 'undefined' && (import.meta as any)?.env?.VITE_API_URL_GLOBAL) || '',
+}
+const appTarget = resolveAppTarget(
+  typeof import.meta !== 'undefined' ? (import.meta as any)?.env?.VITE_APP_TARGET : undefined,
+)
+
+export function getCurrentApiUrl(): string {
+  if (isDev || appTarget === 'web') return isDev ? '/api' : API_URL
+  return resolveRegionalApiBaseUrl(readPreferredDataRegion(), REGIONAL_API_URLS)
+}
 
 // 本地开发走代理 /api，生产用 VITE_API_URL
-const baseURL = isDev ? '/api' : API_URL
+const baseURL = getCurrentApiUrl()
 
 export const http = axios.create({
   baseURL,
@@ -28,8 +46,8 @@ export const http = axios.create({
 attachNProgressToAxios(http)
 // attachToGlobalAxios() // 如果你也会用到默认 axios，可打开这一行
 
-function clearAuthAndRedirect() {
-  clearTokenAll()
+async function clearAuthAndRedirect() {
+  await clearTokenAll()
   redirectToLogin()
 }
 
@@ -48,7 +66,7 @@ async function postRefresh(): Promise<string | null> {
   const token = pickAccessToken(resp?.data)
   if (typeof token === 'string' && token) {
     const mode: AuthStorageMode = getAuthStorageFlag()
-    setAccessToken(token, mode)
+    await setAccessToken(token, mode)
     return token
   }
   return null
@@ -59,7 +77,7 @@ async function getRefresh(): Promise<string | null> {
   const token = pickAccessToken(resp?.data)
   if (typeof token === 'string' && token) {
     const mode: AuthStorageMode = getAuthStorageFlag()
-    setAccessToken(token, mode)
+    await setAccessToken(token, mode)
     return token
   }
   return null
@@ -90,6 +108,7 @@ http.interceptors.request.use(
     const isRefresh = url.includes('/auth/refresh')
 
     config.headers = { ...(config.headers || {}) }
+    config.baseURL = getCurrentApiUrl()
 
     if (!isRefresh) {
       const token = getAccessToken()
@@ -115,6 +134,7 @@ http.interceptors.response.use(
       url.includes('/auth/refresh') ||
       url.includes('/auth/login') ||
       url.includes('/auth/register') ||
+      url.includes('/account/deletion') ||
       url.includes('/password-reset')
 
     const shouldTryRefresh =
@@ -127,12 +147,12 @@ http.interceptors.response.use(
         original.headers = { ...(original.headers || {}), Authorization: `Bearer ${newToken}` }
         return http(original)
       }
-      clearAuthAndRedirect()
+      await clearAuthAndRedirect()
       return Promise.reject(error)
     }
 
     if ((status === 401 || status === 419 || status === 498) && !isAuthRoute) {
-      clearAuthAndRedirect()
+      await clearAuthAndRedirect()
     }
     return Promise.reject(error)
   }

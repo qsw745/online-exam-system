@@ -2,6 +2,13 @@
 import { pool as basePool } from '@/config/database.js'
 import { isAnswerCorrect } from '@/modules/exams/utils/grade.js'
 import type { TaskDTO, TaskListQuery, TaskListResult, TaskWithAssigned, UpdateTaskInput } from '../domain/task.model.js'
+import {
+  assertSubmissionWindow,
+  calculateAttemptDeadline,
+  decideSubmission,
+  ExamReliabilityError,
+  type ExamSubmissionResult,
+} from '../domain/exam-reliability.policy.js'
 import type { RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 
 // ---- 最小接口，屏蔽 mysql2 类型差异 ----
@@ -19,12 +26,28 @@ interface DBPool {
 const pool = basePool as unknown as DBPool
 
 // ================== helpers (module-scope) ==================
-function formatNow() {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(
-    d.getMinutes()
-  )}:${pad(d.getSeconds())}`
+function parseSubmissionResponse(value: unknown): ExamSubmissionResult | null {
+  if (value == null) return null
+  try {
+    const parsed: any = typeof value === 'string' ? JSON.parse(value) : value
+    if (
+      parsed &&
+      Number.isFinite(Number(parsed.score)) &&
+      Number.isInteger(Number(parsed.correctCount)) &&
+      Number.isInteger(Number(parsed.questionCount)) &&
+      Number.isInteger(Number(parsed.examResultId))
+    ) {
+      return {
+        score: Number(parsed.score),
+        correctCount: Number(parsed.correctCount),
+        questionCount: Number(parsed.questionCount),
+        examResultId: Number(parsed.examResultId),
+      }
+    }
+  } catch {
+    // 无法解析的历史响应不能作为幂等成功结果返回。
+  }
+  return null
 }
 function parseOptionsLoose(input: any): string[] | null {
   const toLabel = (x: any) => (x == null ? '' : typeof x === 'string' ? x : x?.content ?? x?.label ?? String(x))
@@ -238,6 +261,7 @@ export class TaskRepository {
          e.duration  AS duration,
          e.total_score AS total_score,
          e.paper_id  AS paper_id,
+         e.proctoring_level AS proctoring_level,
          p.title     AS paper_title,
          ${resultSelect}
          GROUP_CONCAT(DISTINCT CONCAT(u.id, ':', u.username, ':', u.email) SEPARATOR '|') AS assigned_users_info,
@@ -282,6 +306,7 @@ export class TaskRepository {
          e.duration  AS duration,
          e.total_score AS total_score,
          e.paper_id  AS paper_id,
+         e.proctoring_level AS proctoring_level,
          p.title     AS paper_title,
          (SELECT er.id
             FROM exam_results er
@@ -497,6 +522,46 @@ export class TaskRepository {
     await this.db.execute('UPDATE exams SET paper_id = ?, updated_at = NOW() WHERE id = ?', [paperId, examId])
   }
 
+  async updateExamProctoringPolicy(examId: number, level: 'off' | 'strict'): Promise<void> {
+    await this.db.execute(
+      `UPDATE exams
+          SET proctoring_level = ?,
+              proctoring_require_identity = ?,
+              updated_at = NOW()
+        WHERE id = ?`,
+      [level, level === 'strict', examId]
+    )
+  }
+
+  async getExamProctoringPolicy(examId: number): Promise<Record<string, unknown> | null> {
+    const [rows] = await this.db.execute<RowDataPacket[]>(
+      `SELECT proctoring_level,
+              proctoring_policy_version,
+              proctoring_notice_version,
+              proctoring_require_identity,
+              proctoring_event_retention_days,
+              proctoring_snapshot_retention_days,
+              proctoring_heartbeat_seconds,
+              proctoring_interruption_grace_seconds
+         FROM exams
+        WHERE id = ?
+        LIMIT 1`,
+      [examId]
+    )
+    const row: any = rows[0]
+    if (!row) return null
+    return {
+      level: row.proctoring_level,
+      policyVersion: row.proctoring_policy_version,
+      noticeVersion: row.proctoring_notice_version,
+      requireIdentityVerification: Boolean(row.proctoring_require_identity),
+      eventRetentionDays: row.proctoring_event_retention_days,
+      snapshotRetentionDays: row.proctoring_snapshot_retention_days,
+      heartbeatIntervalSeconds: row.proctoring_heartbeat_seconds,
+      interruptionGraceSeconds: row.proctoring_interruption_grace_seconds,
+    }
+  }
+
   async createExam(data: {
     title: string
     description?: string
@@ -541,8 +606,8 @@ export class TaskRepository {
         e.id AS exam_id,
         e.paper_id AS paper_id,
         e.duration AS duration,
-        DATE_FORMAT(COALESCE(e.start_time, t.start_time), '%Y-%m-%d %H:%i:%s') AS start_time,
-        DATE_FORMAT(COALESCE(e.end_time,   t.end_time),   '%Y-%m-%d %H:%i:%s') AS end_time,
+        UNIX_TIMESTAMP(COALESCE(e.start_time, t.start_time)) * 1000 AS start_time_ms,
+        UNIX_TIMESTAMP(COALESCE(e.end_time,   t.end_time)) * 1000 AS end_time_ms,
         COALESCE(e.title, t.title) AS title,
         COALESCE(e.description, t.description) AS description
       FROM tasks t
@@ -560,8 +625,8 @@ export class TaskRepository {
       exam_id: r.exam_id == null ? null : Number(r.exam_id),
       paper_id: r.paper_id == null ? null : Number(r.paper_id),
       duration: r.duration == null ? null : Number(r.duration),
-      start_time: r.start_time ?? null,
-      end_time: r.end_time ?? null,
+      start_time: r.start_time_ms == null ? null : new Date(Number(r.start_time_ms)).toISOString(),
+      end_time: r.end_time_ms == null ? null : new Date(Number(r.end_time_ms)).toISOString(),
       title: String(r.title ?? ''),
       description: r.description == null ? null : String(r.description),
     }
@@ -645,26 +710,47 @@ export class TaskRepository {
   async ensureExamResultStandalone(
     examId: number,
     userId: number
-  ): Promise<{ id: number; status: 'in_progress' | 'submitted'; start_time: string | null }> {
-    const [exists] = await this.db.execute<RowDataPacket[]>(
-      'SELECT id, status, DATE_FORMAT(start_time, "%Y-%m-%d %H:%i:%s") AS start_time FROM exam_results WHERE exam_id = ? AND user_id = ?',
-      [examId, userId]
+  ): Promise<{
+    id: number
+    attempt_id: string
+    status: 'in_progress' | 'submitted' | 'graded'
+    start_time: string
+  }> {
+    await this.db.execute(
+      `INSERT INTO exam_results
+        (exam_id, user_id, attempt_id, status, start_time, created_at, updated_at)
+       VALUES (?, ?, UUID(), "in_progress", NOW(), NOW(), NOW())
+       ON DUPLICATE KEY UPDATE id = id`,
+      [examId, userId],
     )
-    if (exists.length) {
-      const row: any = exists[0]
-      if (!row.start_time) {
-        await this.db.execute('UPDATE exam_results SET status = "in_progress", start_time = NOW() WHERE id = ?', [
-          row.id,
-        ])
-        return { id: Number(row.id), status: 'in_progress', start_time: formatNow() }
+    const [rows] = await this.db.execute<RowDataPacket[]>(
+      `SELECT id, attempt_id, status, UNIX_TIMESTAMP(start_time) * 1000 AS start_time_ms
+         FROM exam_results
+        WHERE exam_id = ? AND user_id = ?
+        LIMIT 1`,
+      [examId, userId],
+    )
+    if (!rows.length) throw new Error('无法创建考试作答记录')
+    const row: any = rows[0]
+    if (!row.attempt_id) throw new Error('考试可靠性迁移尚未完成：attempt_id 缺失')
+    if (row.start_time_ms == null) {
+      await this.db.execute(
+        'UPDATE exam_results SET status = "in_progress", start_time = NOW() WHERE id = ?',
+        [row.id],
+      )
+      return {
+        id: Number(row.id),
+        attempt_id: String(row.attempt_id),
+        status: 'in_progress',
+        start_time: new Date().toISOString(),
       }
-      return { id: Number(row.id), status: (row.status as any) ?? 'in_progress', start_time: row.start_time ?? null }
     }
-    const [ret] = await this.db.execute<ResultSetHeader>(
-      'INSERT INTO exam_results (exam_id, user_id, status, start_time, created_at, updated_at) VALUES (?, ?, "in_progress", NOW(), NOW(), NOW())',
-      [examId, userId]
-    )
-    return { id: ret.insertId, status: 'in_progress', start_time: formatNow() }
+    return {
+      id: Number(row.id),
+      attempt_id: String(row.attempt_id),
+      status: (row.status as any) ?? 'in_progress',
+      start_time: new Date(Number(row.start_time_ms)).toISOString(),
+    }
   }
 
   /** ---------- 提交与评分（事务） ---------- */
@@ -674,7 +760,12 @@ export class TaskRepository {
     answers: Record<string, string>
     time_spent: number
     taskId: number
-  }): Promise<{ score: number; correctCount: number; questionCount: number; examResultId: number }> {
+    attemptId: string
+    submissionId: string
+    payloadHash: string
+    durationMinutes: number
+    examEndsAt?: string | null
+  }): Promise<ExamSubmissionResult & { replayed: boolean }> {
     const conn = await this.db.getConnection()
     try {
       await conn.beginTransaction()
@@ -688,13 +779,39 @@ export class TaskRepository {
 
       // 2.5) 已交卷/已判分的不允许重复提交，防止覆盖历史成绩（空答案重复交卷曾把 55 分刷成 0）
       const [cur] = await conn.execute<RowDataPacket[]>(
-        'SELECT status FROM exam_results WHERE id = ? FOR UPDATE',
+        `SELECT status, attempt_id, submission_id, submission_payload_hash, submission_response_json,
+                UNIX_TIMESTAMP(start_time) * 1000 AS start_time_ms
+           FROM exam_results
+          WHERE id = ?
+          FOR UPDATE`,
         [examResultId]
       )
-      const curStatus = String((cur[0] as any)?.status || '')
-      if (curStatus === 'submitted' || curStatus === 'graded') {
-        throw new Error('该考试已交卷，不能重复提交')
+      const current: any = cur[0]
+      if (!current) throw new Error('考试作答记录不存在')
+      if (String(current.attempt_id) !== args.attemptId) {
+        throw new ExamReliabilityError('ATTEMPT_MISMATCH', '作答编号与当前考试不匹配，请重新进入考试')
       }
+      const storedResponse = parseSubmissionResponse(current.submission_response_json)
+      const decision = decideSubmission(
+        {
+          status: String(current.status || ''),
+          submissionId: current.submission_id ? String(current.submission_id) : null,
+          payloadHash: current.submission_payload_hash ? String(current.submission_payload_hash) : null,
+          response: storedResponse,
+        },
+        { submissionId: args.submissionId, payloadHash: args.payloadHash },
+      )
+      if (decision.action === 'replay') {
+        await conn.commit()
+        return { ...decision.response, replayed: true }
+      }
+      if (current.start_time_ms == null) throw new Error('考试开始时间缺失')
+      const deadlineAt = calculateAttemptDeadline({
+        startedAt: new Date(Number(current.start_time_ms)),
+        durationMinutes: args.durationMinutes,
+        examEndsAt: args.examEndsAt,
+      })
+      assertSubmissionWindow(deadlineAt)
 
       // 3) 判分用题目（只要 id / correct_answer / score）
       const questions = await this.getQuestionsForGradingByPaperId(paperId, conn)
@@ -726,14 +843,31 @@ export class TaskRepository {
         )
       }
 
+      const response: ExamSubmissionResult = {
+        score: totalScore,
+        correctCount,
+        questionCount: questions.length,
+        examResultId,
+      }
       await conn.execute(
-        'UPDATE exam_results SET score = ?, submit_time = NOW(), status = "submitted", answers = ?, time_spent = ? WHERE id = ?',
-        [totalScore, JSON.stringify(args.answers || {}), args.time_spent || 0, examResultId]
+        `UPDATE exam_results
+            SET score = ?, submit_time = NOW(), status = "submitted", answers = ?, time_spent = ?,
+                submission_id = ?, submission_payload_hash = ?, submission_response_json = ?
+          WHERE id = ?`,
+        [
+          totalScore,
+          JSON.stringify(args.answers || {}),
+          args.time_spent || 0,
+          args.submissionId,
+          args.payloadHash,
+          JSON.stringify(response),
+          examResultId,
+        ]
       )
       // 不要在单个用户提交后把任务标记为全局 completed，避免其他用户无法继续考试
 
       await conn.commit()
-      return { score: totalScore, correctCount, questionCount: questions.length, examResultId }
+      return { ...response, replayed: false }
     } catch (e) {
       await conn.rollback()
       throw e
@@ -750,16 +884,18 @@ export class TaskRepository {
   }
 
   private async ensureExamResult(examId: number, userId: number, conn: DBConn): Promise<number> {
-    const [exists] = await conn.execute<RowDataPacket[]>(
-      'SELECT id FROM exam_results WHERE exam_id = ? AND user_id = ?',
-      [examId, userId]
+    await conn.execute(
+      `INSERT INTO exam_results (exam_id, user_id, attempt_id, status, start_time, created_at, updated_at)
+       VALUES (?, ?, UUID(), "in_progress", NOW(), NOW(), NOW())
+       ON DUPLICATE KEY UPDATE id = id`,
+      [examId, userId],
     )
-    if (exists.length) return Number((exists[0] as any).id)
-    const [ret] = await conn.execute<ResultSetHeader>(
-      'INSERT INTO exam_results (exam_id, user_id, status, start_time) VALUES (?, ?, "in_progress", NOW())',
-      [examId, userId]
+    const [rows] = await conn.execute<RowDataPacket[]>(
+      'SELECT id FROM exam_results WHERE exam_id = ? AND user_id = ? LIMIT 1 FOR UPDATE',
+      [examId, userId],
     )
-    return ret.insertId
+    if (!rows.length) throw new Error('无法创建考试作答记录')
+    return Number((rows[0] as any).id)
   }
 
   /** 获取判分用题目（带正确答案/分值；不含 subject） */

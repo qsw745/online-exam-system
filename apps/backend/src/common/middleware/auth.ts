@@ -19,6 +19,8 @@ const jwt: any = (() => {
 import { ACCESS_JWT_CLOCK_TOLERANCE_SEC, getJwtSecret } from '@/config/jwt'
 import type { RowDataPacket } from 'mysql2/promise'
 import { SessionStore } from '@/common/session/session.store'
+import { getServiceDataRegion } from '@/config/data-region'
+import { evaluateRegionAccess, normalizeDataRegion, type DataRegion } from '@/modules/auth/domain/account-region.policy'
 
 // —— 简单解析 Cookie（无需 cookie-parser 依赖）——
 function readCookie(req: Request, name: string): string | null {
@@ -80,6 +82,8 @@ declare global {
         isAdmin?: boolean
         isSuperAdmin?: boolean
         sessionId?: string
+        publicId?: string
+        dataRegion?: DataRegion
       } | null
       auth?: { userId: number | null; orgId: number | null; isAdminInOrg: boolean }
     }
@@ -142,9 +146,7 @@ async function fillUserFromToken(req: Request, required: boolean) {
   }
 
   // 确认用户仍存在
-  const [rows] = await pool.query<RowDataPacket[]>(`SELECT id, email, role FROM users WHERE id=? LIMIT 1`, [
-    uid,
-  ])
+  const [rows] = await pool.query<RowDataPacket[]>(`SELECT * FROM users WHERE id=? LIMIT 1`, [uid])
   if ((rows as any).length === 0) {
     if (required) throw Object.assign(new Error('用户不存在'), { status: 401 })
     req.user = null
@@ -153,6 +155,35 @@ async function fillUserFromToken(req: Request, required: boolean) {
   }
 
   const u = rows[0] as any
+  if (u.deletion_status && !['ACTIVE', 'CANCELLED'].includes(String(u.deletion_status))) {
+    throw Object.assign(new Error('账号已进入注销流程'), {
+      status: 409,
+      code: 'ACCOUNT_DELETION_PENDING',
+    })
+  }
+
+  const serviceRegion = getServiceDataRegion()
+  const tokenRegion = normalizeDataRegion(payload?.data_region)
+  const accountRegion = normalizeDataRegion(u.data_region) ??
+    (process.env.NODE_ENV !== 'production' ? tokenRegion ?? serviceRegion ?? 'CN' : null)
+  if (serviceRegion && !tokenRegion) {
+    throw Object.assign(new Error('访问令牌缺少数据区域'), {
+      status: 401,
+      code: 'AUTH_UNAUTHORIZED',
+    })
+  }
+  const regionAccess = evaluateRegionAccess(accountRegion, tokenRegion, serviceRegion)
+  if (!regionAccess.allowed || !regionAccess.region) {
+    const code = regionAccess.code === 'SERVICE_REGION_MISMATCH'
+      ? 'SERVICE_REGION_MISMATCH'
+      : regionAccess.code === 'ACCOUNT_REGION_MISMATCH'
+        ? 'ACCOUNT_REGION_MISMATCH'
+        : 'AUTH_UNAUTHORIZED'
+    throw Object.assign(new Error('账号、令牌与服务区域不匹配'), {
+      status: code === 'AUTH_UNAUTHORIZED' ? 401 : 409,
+      code,
+    })
+  }
   const tokenRoles = Array.isArray(payload?.roles)
     ? payload.roles.map((r: any) => ({ id: Number(r?.id), code: String(r?.code || '').toLowerCase() }))
     : []
@@ -174,6 +205,8 @@ async function fillUserFromToken(req: Request, required: boolean) {
     isAdmin: hasAdminCode || hasAdminId || undefined,
     isSuperAdmin: tokenRoleIds.includes(1) || undefined,
     sessionId: sid,
+    publicId: u.public_id || payload?.public_id,
+    dataRegion: regionAccess.region,
   }
 
   const orgId = await resolveOrgId(req, u.id)
@@ -200,7 +233,11 @@ export const authenticateToken: RequestHandler = async (req, res, next) => {
     next()
   } catch (e: any) {
     const msg = e?.message || '无效的访问令牌'
-    return res.status(401).json({ success: false, error: msg })
+    return res.status(Number(e?.status) || 401).json({
+      success: false,
+      code: e?.code || 'AUTH_UNAUTHORIZED',
+      error: msg,
+    })
   }
 }
 

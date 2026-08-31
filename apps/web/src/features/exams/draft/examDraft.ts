@@ -1,14 +1,18 @@
-export const EXAM_DRAFT_VERSION = 1 as const
+import type { ExamVaultAdapter } from '@/platform/exam-vault'
+import type { PendingExamSubmission } from '../reliability/examReliability'
+
+export const EXAM_DRAFT_VERSION = 2 as const
 
 export type ExamDraftIdentity = {
   userId: string | number
   taskId: string | number
   examId: string | number
+  attemptId: string
 }
-
 export type ExamDraftState = {
   answers: Record<string, string>
   flagged: number[]
+  pendingSubmission?: PendingExamSubmission | null
 }
 
 export type ExamDraft = ExamDraftIdentity &
@@ -24,11 +28,21 @@ export type ExamDraftReadResult =
   | { status: 'found'; draft: ExamDraft }
 
 export function examDraftKey(identity: ExamDraftIdentity) {
-  return `wenheng:exam-draft:v1:${identity.userId}:${identity.taskId}:${identity.examId}`
+  return `wenheng:exam-draft:v2:${identity.userId}:${identity.taskId}:${identity.examId}:${identity.attemptId}`
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isValidPendingSubmission(value: unknown, attemptId: string): value is PendingExamSubmission {
+  if (!isRecord(value)) return false
+  if (value.attemptId !== attemptId) return false
+  if (typeof value.submissionId !== 'string' || value.submissionId.length < 32) return false
+  if (!isRecord(value.answers) || !Object.values(value.answers).every(item => typeof item === 'string')) return false
+  if (!Number.isInteger(value.timeSpent) || Number(value.timeSpent) < 0) return false
+  if (!['manual', 'deadline', 'anti_cheat'].includes(String(value.reason))) return false
+  return typeof value.createdAt === 'string' && !Number.isNaN(Date.parse(value.createdAt))
 }
 
 function isValidDraft(value: unknown, identity: ExamDraftIdentity): value is ExamDraft {
@@ -36,13 +50,17 @@ function isValidDraft(value: unknown, identity: ExamDraftIdentity): value is Exa
   if (String(value.userId) !== String(identity.userId)) return false
   if (String(value.taskId) !== String(identity.taskId)) return false
   if (String(value.examId) !== String(identity.examId)) return false
+  if (String(value.attemptId) !== identity.attemptId) return false
   if (!isRecord(value.answers) || !Object.values(value.answers).every(item => typeof item === 'string')) return false
   if (!Array.isArray(value.flagged) || !value.flagged.every(Number.isInteger)) return false
+  if (value.pendingSubmission != null && !isValidPendingSubmission(value.pendingSubmission, identity.attemptId)) {
+    return false
+  }
   return typeof value.savedAt === 'string' && !Number.isNaN(Date.parse(value.savedAt))
 }
 
-export function saveExamDraft(
-  storage: Storage,
+export async function saveExamDraft(
+  storage: ExamVaultAdapter,
   identity: ExamDraftIdentity,
   state: ExamDraftState,
   now: () => string = () => new Date().toISOString(),
@@ -50,17 +68,20 @@ export function saveExamDraft(
   const savedAt = now()
   const draft: ExamDraft = { version: EXAM_DRAFT_VERSION, ...identity, ...state, savedAt }
   try {
-    storage.setItem(examDraftKey(identity), JSON.stringify(draft))
+    await storage.write(examDraftKey(identity), JSON.stringify(draft))
     return { ok: true as const, savedAt }
   } catch {
     return { ok: false as const }
   }
 }
 
-export function readExamDraft(storage: Storage, identity: ExamDraftIdentity): ExamDraftReadResult {
+export async function readExamDraft(
+  storage: ExamVaultAdapter,
+  identity: ExamDraftIdentity,
+): Promise<ExamDraftReadResult> {
   let raw: string | null
   try {
-    raw = storage.getItem(examDraftKey(identity))
+    raw = await storage.read(examDraftKey(identity))
   } catch {
     return { status: 'unavailable' }
   }
@@ -75,16 +96,16 @@ export function readExamDraft(storage: Storage, identity: ExamDraftIdentity): Ex
   }
 
   try {
-    storage.removeItem(examDraftKey(identity))
+    await storage.remove(examDraftKey(identity))
   } catch {
     // 清理失败不应阻断考试页。
   }
   return { status: 'invalid' }
 }
 
-export function clearExamDraft(storage: Storage, identity: ExamDraftIdentity) {
+export async function clearExamDraft(storage: ExamVaultAdapter, identity: ExamDraftIdentity) {
   try {
-    storage.removeItem(examDraftKey(identity))
+    await storage.remove(examDraftKey(identity))
     return true
   } catch {
     return false

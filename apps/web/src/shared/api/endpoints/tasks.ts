@@ -24,7 +24,12 @@ export const tasksApi = {
   publish: (id: string | number) => api.post(`/tasks/${id}/publish`),
   unpublish: (id: string | number, reason?: string) => api.post(`/tasks/${id}/unpublish`, { reason }),
   startExam: (id: string | number) => api.get(`/tasks/${id}/exam`),
-  submit: (taskId: string | number, payload: { answers: Record<string, string>; time_spent?: number }) =>
+  submit: (taskId: string | number, payload: {
+    attemptId: string
+    submissionId: string
+    answers: Record<string, string>
+    time_spent?: number
+  }) =>
     api.post(`/tasks/${taskId}/submit`, payload),
 }
 

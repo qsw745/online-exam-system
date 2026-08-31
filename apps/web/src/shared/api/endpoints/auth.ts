@@ -1,7 +1,8 @@
 // apps/web/src/shared/api/endpoints/auth.ts
-import { API_URL, api } from '../core/httpClient'
+import { api, getCurrentApiUrl } from '../core/httpClient'
 import { clearTokenAll } from '../core/storage'
 import type { ApiResult } from '../core/types' // ✅ 仅使用这里的 ApiResult，去掉本文件重复声明
+import type { DataRegion } from '@/platform/region/accountRegion'
 
 export type FaceLoginCandidate = {
   choiceId: string
@@ -15,7 +16,14 @@ export const auth = {
   login(
     email: string,
     password: string,
-    extra?: { captcha?: string; captchaId?: string; enc?: string; alg?: string; keep7Days?: boolean } // ✅
+    extra?: {
+      captcha?: string
+      captchaId?: string
+      enc?: string
+      alg?: string
+      keep7Days?: boolean
+      dataRegion?: DataRegion
+    } // ✅
   ) {
     const hasEnc = !!(extra?.enc && extra?.alg)
     const body: any = hasEnc
@@ -23,6 +31,7 @@ export const auth = {
           enc: extra!.enc,
           alg: extra!.alg,
           keep7Days: !!extra?.keep7Days, // ✅ 传后端
+          ...(extra?.dataRegion ? { dataRegion: extra.dataRegion } : {}),
 
           ...(extra?.captcha ? { captcha: extra.captcha } : {}),
           ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
@@ -31,6 +40,7 @@ export const auth = {
           email,
           password,
           keep7Days: !!extra?.keep7Days, // ✅ 传后端
+          ...(extra?.dataRegion ? { dataRegion: extra.dataRegion } : {}),
 
           ...(extra?.captcha ? { captcha: extra.captcha } : {}),
           ...(extra?.captchaId ? { captchaId: extra.captchaId } : {}),
@@ -148,7 +158,17 @@ export const auth = {
     return api.delete<{ removed: number }>('/auth/face/enroll')
   },
 
-  register(userData: { email: string; password: string; username?: string | null; nickname?: string | null; keep7Days?: boolean }) {
+  register(userData: {
+    email: string
+    password: string
+    username?: string | null
+    nickname?: string | null
+    keep7Days?: boolean
+    dataRegion: DataRegion
+    countryCode: string
+    dateOfBirth: string
+    accountType: 'PERSONAL'
+  }) {
     return api.post<ApiResult<{ token: string; user: any }>>('/auth/register', userData)
   },
 
@@ -162,7 +182,7 @@ export const auth = {
     } finally {
       try {
         // 仅清除易变登录态：token/角色。保留“记住我”和“7天免登录”偏好。
-        clearTokenAll()
+        await clearTokenAll()
         localStorage.removeItem('user_role')
         sessionStorage.removeItem('user_role')
       } catch {}
@@ -206,7 +226,7 @@ export const auth = {
   },
 
   oauthStartUrl(provider: 'github' | 'google', opts?: { keep7Days?: boolean; next?: string }) {
-    const base = String(API_URL || '/api').replace(/\/+$/, '')
+    const base = String(getCurrentApiUrl() || '/api').replace(/\/+$/, '')
     const params = new URLSearchParams()
     if (opts?.keep7Days) params.set('keep7Days', '1')
     if (opts?.next) params.set('next', opts.next)

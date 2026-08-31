@@ -103,6 +103,16 @@ export const TokenRepository = {
     await (pool as any).query(`UPDATE refresh_tokens SET revoked=1 WHERE jti=?`, [jti])
   },
 
+  async revokeAllByUser(userId: number): Promise<string[]> {
+    const [rowsAny] = await (pool as any).query(
+      `SELECT jti FROM refresh_tokens WHERE user_id=? AND revoked=0`,
+      [userId],
+    )
+    const jtis = (rowsAny as Array<{ jti: string }>).map(row => String(row.jti)).filter(Boolean)
+    await (pool as any).query(`UPDATE refresh_tokens SET revoked=1 WHERE user_id=? AND revoked=0`, [userId])
+    return jtis
+  },
+
   async findByJti(jti: string) {
     const [rowsAny] = await (pool as any).query(`SELECT * FROM refresh_tokens WHERE jti=? LIMIT 1`, [jti])
     const rows = rowsAny as RefreshTokenRow[]

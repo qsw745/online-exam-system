@@ -12,6 +12,7 @@ import { AuthLockService } from '@/modules/auth/services/auth-lock.service'
 import { getClientIp } from '@/common/utils/request-ip'
 import Geo from '@/common/utils/geo'
 import { OAuthService } from '@/modules/auth/services/oauth.service'
+import { normalizeDataRegion } from '@/modules/auth/domain/account-region.policy'
 
 const svc = new AuthService()
 const OAUTH_STATE_COOKIE = 'oauth_state'
@@ -24,14 +25,33 @@ function oauthCookieOptions(maxAgeMs?: number) {
 export class AuthController {
   static async register(req: AuthRequest, res: Response<ApiResponse<any>>) {
     try {
-      const { email, password, nickname, keep7Days } = (req.body || {}) as any
-      if (!email || !password) {
+      const { email, password, nickname, keep7Days, dataRegion, countryCode, dateOfBirth, accountType } = (req.body || {}) as any
+      if (!email || !password || !dataRegion || !countryCode || !dateOfBirth) {
         return (res as any).badRequest('缺少必填字段', {
-          error: { details: [{ field: 'email/password', message: '必填' }] },
+          error: {
+            details: [
+              { field: 'email/password/dataRegion/countryCode/dateOfBirth', message: '必填' },
+            ],
+          },
+        })
+      }
+      const normalizedRegion = normalizeDataRegion(dataRegion)
+      if (!normalizedRegion || (accountType && accountType !== 'PERSONAL')) {
+        return (res as any).badRequest('暂不支持该注册区域或账号类型', {
+          code: CODES.VALIDATION_ERROR,
+          error: { retryable: false },
         })
       }
       const result = await svc.register(
-        { email, password, nickname: nickname ?? null },
+        {
+          email,
+          password,
+          nickname: nickname ?? null,
+          dataRegion: normalizedRegion,
+          countryCode,
+          dateOfBirth,
+          accountType: 'PERSONAL',
+        },
         { ip: getClientIp(req) || req.ip, ua: req.get('User-Agent') || undefined },
         { persist: !!keep7Days }
       )
@@ -56,6 +76,22 @@ export class AuthController {
         return (res as any).badRequest('邮箱已被占用', {
           code: CODES.VALIDATION_ERROR,
           error: { retryable: false, details: [{ field: 'email', message: '已被占用' }] },
+        })
+      }
+      if (e?.code === CODES.GUARDIAN_CONSENT_REQUIRED) {
+        return (res as any).fail(CODES.GUARDIAN_CONSENT_REQUIRED, 409, msg, {
+          error: { retryable: false },
+        })
+      }
+      if (e?.code === CODES.SERVICE_REGION_MISMATCH) {
+        return (res as any).fail(CODES.SERVICE_REGION_MISMATCH, 409, msg, {
+          error: { retryable: false },
+        })
+      }
+      if (e?.code === CODES.VALIDATION_ERROR) {
+        return (res as any).badRequest(msg || '注册信息不符合要求', {
+          code: CODES.VALIDATION_ERROR,
+          error: { retryable: false, details: e?.details },
         })
       }
       return (res as any).internal(msg || '创建用户失败')
@@ -84,7 +120,7 @@ export class AuthController {
 
       const lockSvc = new AuthLockService(lockMinutes)
 
-      let { email, password, captcha, captchaId, enc, alg, keep7Days } = (req.body || {}) as any
+      let { email, password, captcha, captchaId, enc, alg, keep7Days, dataRegion } = (req.body || {}) as any
       enc = enc || req.get('x-cred-enc')
       alg = (alg || req.get('x-cred-alg') || '').toString()
 
@@ -106,10 +142,19 @@ export class AuthController {
 
       const loginEmail = typeof email === 'string' ? email.trim() : email
       const plainPwd = typeof password === 'string' ? password : password
+      const requestedRegion = dataRegion == null || dataRegion === ''
+        ? undefined
+        : normalizeDataRegion(dataRegion) ?? undefined
 
       if (!loginEmail || !plainPwd) {
         return (res as any).badRequest('缺少必填字段', {
           error: { details: [{ field: 'email/password', message: '必填' }] },
+        })
+      }
+      if (dataRegion != null && dataRegion !== '' && !requestedRegion) {
+        return (res as any).badRequest('数据区域无效', {
+          code: CODES.VALIDATION_ERROR,
+          error: { retryable: false, details: [{ field: 'dataRegion', message: '仅支持 CN 或 GLOBAL' }] },
         })
       }
 
@@ -177,7 +222,7 @@ export class AuthController {
           loginEmail,
           plainPwd,
           { ip, ua: req.get('User-Agent') || undefined },
-          { persist: !!keep7Days }
+          { persist: !!keep7Days, requestedRegion }
         )
         const location = await Geo.lookup(ip)
 
@@ -186,6 +231,17 @@ export class AuthController {
 
         return (res as any).ok({ token, user, location }, '登录成功')
       } catch (e: any) {
+        const policyCodes = new Set([
+          CODES.ACCOUNT_REGION_MISMATCH,
+          CODES.SERVICE_REGION_MISMATCH,
+          CODES.ACCOUNT_DELETION_PENDING,
+        ])
+        if (policyCodes.has(e?.code)) {
+          await lockSvc.reset(loginEmail, ip)
+          return (res as any).fail(e.code, Number(e.status) || 409, e.message || '账号当前不可登录', {
+            error: { retryable: false },
+          })
+        }
         const next = await lockSvc.hitFail(loginEmail, ip)
         if (next >= lockAfter) {
           const { untilMs, remainSec } = await lockSvc.lock(loginEmail, ip, lockMinutes, next)
@@ -228,6 +284,15 @@ export class AuthController {
       return (res as any).ok({ token }, '刷新成功')
     } catch (e: any) {
       svc.clearRefreshCookie(res as any)
+      if (
+        e?.code === CODES.ACCOUNT_REGION_MISMATCH ||
+        e?.code === CODES.SERVICE_REGION_MISMATCH ||
+        e?.code === CODES.ACCOUNT_DELETION_PENDING
+      ) {
+        return (res as any).fail(e.code, Number(e.status) || 409, e.message || '会话区域校验失败', {
+          error: { retryable: false },
+        })
+      }
       return (res as any).unauthorized(e?.message || '刷新失败，请重新登录', { code: CODES.AUTH_UNAUTHORIZED })
     }
   }

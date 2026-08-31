@@ -11,6 +11,8 @@ import {
 } from '@ant-design/icons'
 import { Link } from 'react-router-dom'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
+import { AccountRegionField } from './AccountRegionField'
+import type { DataRegion } from '@/platform/region/accountRegion'
 
 const { Text } = Typography
 
@@ -41,6 +43,9 @@ type Props = {
   onKeep7DaysChange: (v: boolean) => void
   onSubmit: () => void
   onFaceLogin: () => void
+  showFaceLogin?: boolean
+  dataRegion?: DataRegion
+  onDataRegionChange?: (region: DataRegion) => void
 }
 
 export const LoginForm: React.FC<Props> = p => {
@@ -66,6 +71,15 @@ export const LoginForm: React.FC<Props> = p => {
       autoComplete="on"
     >
       <Space direction="vertical" style={{ width: '100%' }} size={16}>
+        {p.dataRegion && p.onDataRegionChange && (
+          <AccountRegionField
+            compact
+            value={p.dataRegion}
+            onChange={p.onDataRegionChange}
+            disabled={p.inputsDisabled}
+          />
+        )}
+
         <div>
           <Text style={{ display: 'block', marginBottom: 8 }}>{t('auth.email_label')}</Text>
           <Input
@@ -186,17 +200,19 @@ export const LoginForm: React.FC<Props> = p => {
           {btnText}
         </Button>
 
-        <Button
-          icon={<CameraOutlined />}
-          onClick={p.onFaceLogin}
-          loading={p.faceLoginLoading}
-          size="large"
-          block
-          disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
-          aria-disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
-        >
-          {t('auth.face_login')}
-        </Button>
+        {p.showFaceLogin !== false && (
+          <Button
+            icon={<CameraOutlined />}
+            onClick={p.onFaceLogin}
+            loading={p.faceLoginLoading}
+            size="large"
+            block
+            disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
+            aria-disabled={p.loading || p.inputsDisabled || (p.isLocked && p.lockTryRemainSec > 0)}
+          >
+            {t('auth.face_login')}
+          </Button>
+        )}
       </Space>
     </form>
   )

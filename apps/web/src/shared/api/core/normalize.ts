@@ -12,7 +12,13 @@ export async function normalize<T = any>(promise: Promise<any>): Promise<ApiResu
       if (body.success !== true) {
         // 失败：优先 message，其次 error.details/docUrl 可自行拼到 UI
         const msg = body.message || body.error || '请求失败'
-        return { success: false, error: String(msg) }
+        return {
+          success: false,
+          error: String(msg),
+          code: body.code,
+          status: body.status,
+          details: body.error?.details,
+        }
       }
 
       // 成功
@@ -44,7 +50,13 @@ export async function normalize<T = any>(promise: Promise<any>): Promise<ApiResu
     if (e?.response) {
       const b = e.response.data || {}
       const msg = b.message || b.error || '请求失败'
-      return { success: false, error: String(msg) }
+      return {
+        success: false,
+        error: String(msg),
+        code: b.code,
+        status: e.response.status,
+        details: b.error?.details,
+      }
     }
     if (e?.request) return { success: false, error: '服务器无响应，请检查网络连接' }
     return { success: false, error: '请求配置错误，请稍后重试' }

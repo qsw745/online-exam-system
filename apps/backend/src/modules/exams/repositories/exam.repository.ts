@@ -335,7 +335,9 @@ export class ExamRepository {
 
   static async createInProgressResult(examId: number, userId: number): Promise<void> {
     await pool.query(
-        'INSERT INTO exam_results (exam_id, user_id, start_time, status) VALUES (?, ?, NOW(), "in_progress")',
+        `INSERT INTO exam_results (exam_id, user_id, attempt_id, start_time, status, created_at, updated_at)
+         VALUES (?, ?, UUID(), NOW(), "in_progress", NOW(), NOW())
+         ON DUPLICATE KEY UPDATE id = id`,
         [examId, userId]
     )
   }

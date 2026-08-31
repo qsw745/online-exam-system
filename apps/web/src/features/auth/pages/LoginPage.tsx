@@ -16,8 +16,12 @@ import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { translate } from '@/shared/utils/i18n'
 import BrandMark from '@/shared/components/BrandMark'
 import { brand } from '@/shared/config/brand'
+import { resolveAppTarget } from '@/platform/appTarget'
+import { resolveAuthCapabilities } from '../mobileAuthCapabilities'
 
 const { Title, Text } = Typography
+const appTarget = resolveAppTarget(import.meta.env.VITE_APP_TARGET)
+const authCapabilities = resolveAuthCapabilities(appTarget)
 
 function pickDefaultHome(tree: any[] | null | undefined): string {
   const isAdminAbs = (abs: string) => abs === '/admin' || abs.startsWith('/admin/')
@@ -60,6 +64,8 @@ const LoginPage: React.FC = () => {
     setRememberMe,
     keep7Days,
     setKeep7Days,
+    dataRegion,
+    setDataRegion,
     loading,
     faceLoginLoading,
     submit,
@@ -105,6 +111,10 @@ const LoginPage: React.FC = () => {
         navigatedRef.current = true
         navigate(to, { replace: true, state: { __bump: Date.now() } })
       }
+      if (appTarget === 'ios') {
+        go('/dashboard')
+        return
+      }
       if (cached && Array.isArray(cached)) go(pickDefaultHome(cached))
       else
         menuApi
@@ -145,7 +155,7 @@ const LoginPage: React.FC = () => {
         padding: '32px 16px',
         background: pageBackground,
         position: 'relative',
-        overflow: 'hidden',
+        overflow: 'auto',
       }}
     >
       <AuthTopControls
@@ -187,7 +197,9 @@ const LoginPage: React.FC = () => {
 
         {showDemoAccounts && <DemoAccountsCard onQuickLogin={quickLogin} />}
 
-        <OAuthLoginButtons keep7Days={keep7Days} disabled={loading || inputsDisabled} />
+        {authCapabilities.oauth && (
+          <OAuthLoginButtons keep7Days={keep7Days} disabled={loading || inputsDisabled} />
+        )}
 
         <LoginForm
           email={email}
@@ -213,56 +225,65 @@ const LoginPage: React.FC = () => {
           captchaImgUrl={captchaImgUrl}
           onCaptchaChange={setCaptcha}
           onRefreshCaptcha={refreshCaptcha}
+          showFaceLogin={authCapabilities.faceLogin}
+          dataRegion={appTarget === 'ios' ? dataRegion : undefined}
+          onDataRegionChange={appTarget === 'ios' ? setDataRegion : undefined}
         />
 
-        <div style={{ textAlign: 'center', marginTop: 8 }}>
-          <Button type="link" size="small" disabled={inputsDisabled} onClick={openQrLogin}>
-            {translate('auto.83ecbae416')}</Button>
-        </div>
+        {authCapabilities.qrLogin && (
+          <div style={{ textAlign: 'center', marginTop: 8 }}>
+            <Button type="link" size="small" disabled={inputsDisabled} onClick={openQrLogin}>
+              {translate('auto.83ecbae416')}</Button>
+          </div>
+        )}
       </Card>
 
-      <Modal
-        title={translate('auth.face_login')}
-        open={faceModalOpen}
-        onCancel={closeFaceModal}
-        footer={null}
-        destroyOnHidden
-        maskClosable={false}
-        width={420}
-      >
-        {faceCandidates.length === 0 && (
-          <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
-            {translate('auto.f219b05d0e')}</Text>
-        )}
-        {faceCandidates.length > 0 ? (
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
-            <Text strong>{translate('auth.face_multiple_accounts')}</Text>
-            {faceCandidates.map(candidate => (
-              <Button
-                key={candidate.choiceId}
-                block
-                loading={faceSelectionLoading}
-                onClick={() => selectFaceLoginCandidate(candidate.choiceId)}
-                style={{ height: 'auto', padding: '10px 12px', textAlign: 'left' }}
-              >
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
-                  <span style={{ fontWeight: 600 }}>{candidate.displayName}</span>
-                  <span style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)' }}>
-                    {candidate.maskedEmail}{candidate.role ? ` · ${candidate.role}` : ''}
-                  </span>
-                </div>
+      {authCapabilities.faceLogin && (
+        <Modal
+          title={translate('auth.face_login')}
+          open={faceModalOpen}
+          onCancel={closeFaceModal}
+          footer={null}
+          destroyOnHidden
+          maskClosable={false}
+          width={420}
+        >
+          {faceCandidates.length === 0 && (
+            <Text type="secondary" style={{ display: 'block', marginBottom: 12 }}>
+              {translate('auto.f219b05d0e')}</Text>
+          )}
+          {faceCandidates.length > 0 ? (
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
+              <Text strong>{translate('auth.face_multiple_accounts')}</Text>
+              {faceCandidates.map(candidate => (
+                <Button
+                  key={candidate.choiceId}
+                  block
+                  loading={faceSelectionLoading}
+                  onClick={() => selectFaceLoginCandidate(candidate.choiceId)}
+                  style={{ height: 'auto', padding: '10px 12px', textAlign: 'left' }}
+                >
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2 }}>
+                    <span style={{ fontWeight: 600 }}>{candidate.displayName}</span>
+                    <span style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)' }}>
+                      {candidate.maskedEmail}{candidate.role ? ` · ${candidate.role}` : ''}
+                    </span>
+                  </div>
+                </Button>
+              ))}
+              <Button onClick={resetFaceSelection} disabled={faceSelectionLoading}>
+                {translate('auth.face_recapture')}
               </Button>
-            ))}
-            <Button onClick={resetFaceSelection} disabled={faceSelectionLoading}>
-              {translate('auth.face_recapture')}
-            </Button>
-          </Space>
-        ) : faceModalOpen ? (
-          <FaceCaptureWizard auto actionMode={faceActionMode} busy={faceLoginLoading} onComplete={faceCaptureSubmit} />
-        ) : null}
-      </Modal>
+            </Space>
+          ) : faceModalOpen ? (
+            <FaceCaptureWizard auto actionMode={faceActionMode} busy={faceLoginLoading} onComplete={faceCaptureSubmit} />
+          ) : null}
+        </Modal>
+      )}
 
-      <QrLoginModal open={qrOpen} keep7Days={keep7Days} onClose={() => setQrOpen(false)} />
+      {authCapabilities.qrLogin && (
+        <QrLoginModal open={qrOpen} keep7Days={keep7Days} onClose={() => setQrOpen(false)} />
+      )}
     </div>
   )
 }

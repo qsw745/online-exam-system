@@ -25,13 +25,15 @@ const OAuthCallbackPage = lazy(() => import('@/features/auth/pages/OAuthCallback
 const MobileFaceAuthPage = lazy(() => import('@/features/auth/pages/MobileFaceAuthPage'))
 const VerifyEmailPage = lazy(() => import('@/features/auth/pages/VerifyEmailPage'))
 const SharedFavoritePage = lazy(() => import('@/features/favorites/pages/SharedFavoritePage'))
+const LegalDocumentPage = lazy(() => import('@/features/legal/pages/LegalDocumentPage'))
+const AccountDeletionPage = lazy(() => import('@/features/account/pages/AccountDeletionPage'))
 
 /**
  * 关键点：
  * 1) 顶层增加 index 路由：访问 "/" 时立即跳到 "/dashboard"（未登录会被守卫重定向到 /login）
  * 2) 用 path="*" 挂载 <DynamicRoutes/>，因为它内部使用了 useRoutes() —— 所在路由必须以 * 结尾
  */
-export const router = createBrowserRouter([
+export const webRouter = createBrowserRouter([
   {
     path: '/',
     element: <RouterRoot />,
@@ -49,6 +51,9 @@ export const router = createBrowserRouter([
       { path: 'reset-password', element: withSuspense(<ResetPasswordPage />) },
       { path: 'verify-email', element: withSuspense(<VerifyEmailPage />) },
       { path: 'shared/favorites/:code', element: withSuspense(<SharedFavoritePage />) },
+      { path: 'legal/terms', element: withSuspense(<LegalDocumentPage />) },
+      { path: 'legal/privacy', element: withSuspense(<LegalDocumentPage />) },
+      { path: 'account-deletion', element: withSuspense(<AccountDeletionPage />) },
       // ✅ 放在 "*" 之前
       {
         path: 'settings',

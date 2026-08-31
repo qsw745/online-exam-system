@@ -253,7 +253,7 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
   if (status === 404) return res.fail(code ?? CODES.NOT_FOUND, 404, msg, { error: errorPayload })
   if (status === 429) return res.tooMany(msg, { code: code ?? CODES.RATE_LIMITED, error: errorPayload })
   if (status >= 400 && status < 500)
-    return res.badRequest(msg, { code: code ?? CODES.VALIDATION_ERROR, error: errorPayload })
+    return res.fail(code ?? CODES.VALIDATION_ERROR, status, msg, { error: errorPayload })
   return res.internal(msg, { code: code ?? CODES.INTERNAL_ERROR, error: errorPayload })
 }
 

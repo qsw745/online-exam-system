@@ -67,6 +67,7 @@ export interface CreateTaskInput {
   type?: TaskType
   assigned_user_ids?: number[]
   assign_all?: boolean
+  proctoring_level?: 'off' | 'strict'
 }
 
 export interface UpdateTaskInput {
@@ -78,4 +79,5 @@ export interface UpdateTaskInput {
   exam_id?: number
   type?: TaskType
   paper_id?: number
+  proctoring_level?: 'off' | 'strict'
 }

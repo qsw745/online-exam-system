@@ -2,6 +2,8 @@
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IUser } from '../domain/auth.model'
 import { pool as basePool } from '@/config/database'
+import type { AgeBand, DataRegion } from '../domain/account-region.policy'
+import { randomUUID } from 'crypto'
 
 interface DBPool {
   execute<T = any>(sql: string, params?: any[]): Promise<[T, any]>
@@ -141,6 +143,11 @@ export class UserRepository {
     email: string
     hashed: string
     nickname?: string | null
+    dataRegion?: DataRegion
+    countryCode?: string | null
+    accountType?: 'PERSONAL' | 'INSTITUTION'
+    dateOfBirth?: string | null
+    ageBand?: AgeBand | 'UNKNOWN'
   }): Promise<{ id: number }> {
     const colsAll = await loadAllUserColumns()
     const hasNickname = colsAll.includes('nickname')
@@ -148,6 +155,37 @@ export class UserRepository {
 
     const cols: string[] = []
     const vals: any[] = []
+
+    const requiredMobileColumns = ['public_id', 'data_region']
+    const missingMobileColumns = requiredMobileColumns.filter(column => !colsAll.includes(column))
+    if (process.env.NODE_ENV === 'production' && missingMobileColumns.length > 0) {
+      throw new Error(`MOBILE_ACCOUNT_MIGRATION_REQUIRED:${missingMobileColumns.join(',')}`)
+    }
+
+    if (colsAll.includes('public_id')) {
+      cols.push('public_id')
+      vals.push(randomUUID())
+    }
+    if (colsAll.includes('data_region')) {
+      cols.push('data_region')
+      vals.push(params.dataRegion ?? 'CN')
+    }
+    if (colsAll.includes('country_code')) {
+      cols.push('country_code')
+      vals.push(params.countryCode ?? null)
+    }
+    if (colsAll.includes('account_type')) {
+      cols.push('account_type')
+      vals.push(params.accountType ?? 'PERSONAL')
+    }
+    if (colsAll.includes('date_of_birth')) {
+      cols.push('date_of_birth')
+      vals.push(params.dateOfBirth ?? null)
+    }
+    if (colsAll.includes('age_band')) {
+      cols.push('age_band')
+      vals.push(params.ageBand ?? 'UNKNOWN')
+    }
 
     if (hasUsername) {
       cols.push('username')
@@ -165,6 +203,30 @@ export class UserRepository {
 
     const [rs] = await pool.execute<ResultSetHeader>(sql, vals)
     return { id: rs.insertId }
+  }
+
+  static async upsertEmailIdentity(params: {
+    userId: number
+    email: string
+    dataRegion: DataRegion
+    verified?: boolean
+  }): Promise<void> {
+    try {
+      await pool.execute(
+        `INSERT INTO user_identities
+          (user_id, identity_type, identifier_normalized, data_region, verified_at)
+         VALUES (?, 'EMAIL', LOWER(TRIM(?)), ?, ?)
+         ON DUPLICATE KEY UPDATE
+          user_id=VALUES(user_id),
+          verified_at=COALESCE(VALUES(verified_at), verified_at),
+          updated_at=NOW()`,
+        [params.userId, params.email, params.dataRegion, params.verified ? new Date() : null],
+      )
+    } catch (error: any) {
+      const missingTable = error?.code === 'ER_NO_SUCH_TABLE' || /user_identities.*doesn't exist/i.test(String(error?.message || ''))
+      if (missingTable && process.env.NODE_ENV !== 'production') return
+      throw error
+    }
   }
 
   static async rolesOfUser(userId: number): Promise<{ roles: { id: number; code: string }[]; roleIds: number[] }> {
@@ -209,11 +271,19 @@ export class UserRepository {
 }
 
 export class OrgRepository {
-  static async getDefaultOrgId(): Promise<number> {
-    const [orgRows] = await pool.execute<RowDataPacket[]>(`SELECT id FROM organizations WHERE code='default' LIMIT 1`)
+  static async getDefaultOrgId(dataRegion?: DataRegion): Promise<number> {
+    const [columns] = await pool.execute<RowDataPacket[]>('SHOW COLUMNS FROM organizations')
+    const hasRegion = columns.some(row => String((row as any).Field) === 'data_region')
+    if (process.env.NODE_ENV === 'production' && dataRegion && !hasRegion) {
+      throw new Error('MOBILE_ACCOUNT_MIGRATION_REQUIRED:organizations.data_region')
+    }
+    const sql = hasRegion && dataRegion
+      ? `SELECT id FROM organizations WHERE code='default' AND data_region=? LIMIT 1`
+      : `SELECT id FROM organizations WHERE code='default' LIMIT 1`
+    const [orgRows] = await pool.execute<RowDataPacket[]>(sql, hasRegion && dataRegion ? [dataRegion] : [])
     const org = orgRows[0] as RowDataPacket | undefined
     const orgId = Number((org as any)?.id)
-    if (!orgId) throw new Error('默认机构不存在，请先执行迁移脚本')
+    if (!orgId) throw new Error(`默认机构不存在或区域不匹配，请先配置 ${dataRegion ?? '当前'} 区域机构`)
     return orgId
   }
 

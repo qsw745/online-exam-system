@@ -1,4 +1,5 @@
 import type { RowDataPacket } from 'mysql2'
+import type { AgeBand, DataRegion } from './account-region.policy'
 
 export interface IUser extends RowDataPacket {
   id: number
@@ -6,6 +7,13 @@ export interface IUser extends RowDataPacket {
   email: string
   password: string
   status: 'active' | 'disabled'
+  public_id?: string
+  data_region?: DataRegion
+  country_code?: string | null
+  account_type?: 'PERSONAL' | 'INSTITUTION'
+  date_of_birth?: string | Date | null
+  age_band?: AgeBand | 'UNKNOWN'
+  deletion_status?: 'ACTIVE' | 'PENDING' | 'CANCELLED' | 'COMPLETED'
   created_at: Date
   updated_at: Date
 }
@@ -39,4 +47,7 @@ export type JwtPayload = {
   roles?: JwtRole[]
   type?: 'access' | 'refresh'
   jti?: string
+  sid?: string
+  public_id?: string
+  data_region?: DataRegion
 }

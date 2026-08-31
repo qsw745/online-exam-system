@@ -5,6 +5,7 @@ export type ResultStatus = 'completed' | 'in_progress' | 'not_started' | 'submit
 export interface ResultItem {
   id: string | number
   exam_id?: string | number | null
+  attempt_id?: string | null
   paper_id: string | number | null
   paper_title: string
   score: number

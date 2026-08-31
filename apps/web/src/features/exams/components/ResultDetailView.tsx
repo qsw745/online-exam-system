@@ -1,5 +1,5 @@
 // apps/web/src/features/exams/components/ResultDetailView.tsx
-import { Card, Descriptions, Space, Tag, Typography, Button, List, Divider, message } from 'antd'
+import { Alert, Card, Descriptions, Space, Tag, Typography, Button, List, Divider, message } from 'antd'
 import { useEffect, useState } from 'react'
 import type { ResultDetail } from '@/shared/api/endpoints/results'
 import { aiApi } from '@/shared/api/endpoints/ai'
@@ -7,6 +7,8 @@ import { proctoringApi, type ProctoringList } from '@/shared/api/endpoints/proct
 import { translate } from '@/shared/utils/i18n'
 import { formatDateTime } from '@/shared/utils/datetime'
 import { printHtml, escapeHtml, optionLetter } from '@/shared/utils/print'
+import MyProctoringReviewCard from '@/features/proctoring-review/components/MyProctoringReviewCard'
+import { useMyProctoringReview } from '@/features/proctoring-review/hooks/useMyProctoringReview'
 
 const { Title, Text, Paragraph } = Typography
 
@@ -75,9 +77,9 @@ function renderAnswerByType(type: string, value: string | null, options: string[
 type UiStatus = 'completed' | 'in_progress' | 'not_started'
 const toUiStatus = (s: string): UiStatus => (s === 'submitted' || s === 'graded' ? 'completed' : (s as UiStatus))
 
-type Props = { data: ResultDetail; onBack?: () => void }
+type Props = { data: ResultDetail; onBack?: () => void; onOpenReview?: (caseId: string) => void }
 
-export default function ResultDetailView({ data, onBack }: Props) {
+export default function ResultDetailView({ data, onBack, onOpenReview }: Props) {
   const uiStatus = toUiStatus(String(data.status))
   const tagColor = uiStatus === 'completed' ? 'success' : uiStatus === 'in_progress' ? 'warning' : 'default'
   const scoreLine = `${data.score} / ${data.total_score}`
@@ -85,6 +87,7 @@ export default function ResultDetailView({ data, onBack }: Props) {
   const [aiLoading, setAiLoading] = useState(false)
   const [proctoring, setProctoring] = useState<ProctoringList | null>(null)
   const [proctorLoading, setProctorLoading] = useState(false)
+  const candidateReview = useMyProctoringReview(data.attempt_id)
   const strengths = Array.isArray(aiSummary?.strengths) ? aiSummary.strengths.map(String) : []
   const weaknesses = Array.isArray(aiSummary?.weaknesses) ? aiSummary.weaknesses.map(String) : []
   const nextSteps = Array.isArray(aiSummary?.next_steps) ? aiSummary.next_steps.map(String) : []
@@ -237,6 +240,25 @@ export default function ResultDetailView({ data, onBack }: Props) {
           </Descriptions.Item>
         </Descriptions>
       </Card>
+
+      {candidateReview.error && data.attempt_id && (
+        <Alert
+          type="warning"
+          showIcon
+          message={translate('proctoringReview.candidate.loadFailed')}
+          action={<Button size="small" onClick={() => void candidateReview.reload()}>{translate('app.retry')}</Button>}
+        />
+      )}
+      <MyProctoringReviewCard
+        detail={candidateReview.detail}
+        onRespond={() => {
+          if (candidateReview.detail) onOpenReview?.(candidateReview.detail.caseId)
+        }}
+        onAppeal={() => {
+          if (candidateReview.detail) onOpenReview?.(candidateReview.detail.caseId)
+        }}
+        onOpenDetail={caseId => onOpenReview?.(caseId)}
+      />
 
       {aiSummary && (
         <Card title={translate('auto.3c756fd702')}>

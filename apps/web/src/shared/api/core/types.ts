@@ -10,6 +10,9 @@ export type ApiSuccess<T = any> = {
 export type ApiFailure = {
   success: false
   error: string
+  code?: string
+  status?: number
+  details?: unknown
 }
 
 export type ApiResult<T = any> = ApiSuccess<T> | ApiFailure

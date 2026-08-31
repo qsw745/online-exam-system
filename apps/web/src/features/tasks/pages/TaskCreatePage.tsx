@@ -29,6 +29,7 @@ const TaskCreatePage: React.FC = () => {
       type: task.type as any,
       exam_id: (task as any).exam_id ? String((task as any).exam_id) : undefined,
       paper_id: (task as any).paper_id ? String((task as any).paper_id) : undefined,
+      proctoring_level: (task as any).proctoring_level === 'strict' ? 'strict' : 'off',
       start_time: task.start_time ? dayjs(task.start_time) : undefined,
       end_time: task.end_time ? dayjs(task.end_time) : undefined,
       assigned_user_ids: (task.assigned_users ?? []).map((u: any) => String(u.id)),

@@ -1,9 +1,12 @@
 import React from 'react'
-import { Button, Checkbox, Form, Input, Space, Typography } from 'antd'
+import { Alert, Button, Checkbox, Form, Input, Space, Typography } from 'antd'
 import { UserOutlined, LockOutlined, EyeInvisibleOutlined, EyeTwoTone, MailOutlined } from '@ant-design/icons'
 import { PasswordStrengthBar } from './PasswordStrengthBar'
 import type { RegisterValues } from '../../auth/hooks/useRegister'
 import { translate } from '@/shared/utils/i18n'
+import { Link } from 'react-router-dom'
+import { AccountRegionField } from './AccountRegionField'
+import { writePreferredDataRegion } from '@/platform/region/accountRegion'
 
 const { Text } = Typography
 
@@ -21,10 +24,75 @@ export const RegisterForm: React.FC<Props> = ({ loading, onSubmit, t }) => {
     <Form<RegisterValues>
       form={form}
       layout="vertical"
-      initialValues={{ email: '', password: '', confirmPassword: '', nickname: '', agree: false }}
+      initialValues={{
+        email: '',
+        password: '',
+        confirmPassword: '',
+        nickname: '',
+        dataRegion: 'CN',
+        countryCode: 'CN',
+        dateOfBirth: '',
+        agree: false,
+      }}
       onFinish={onSubmit}
+      onValuesChange={changed => {
+        if (changed.dataRegion === 'CN' || changed.dataRegion === 'GLOBAL') {
+          writePreferredDataRegion(changed.dataRegion)
+          form.setFieldValue('countryCode', changed.dataRegion === 'CN' ? 'CN' : '')
+        }
+      }}
       requiredMark={false}
     >
+      <Form.Item name="dataRegion" rules={[{ required: true }]}>
+        <AccountRegionField value="CN" onChange={() => undefined} />
+      </Form.Item>
+
+      <Form.Item noStyle shouldUpdate={(prev, current) => prev.dataRegion !== current.dataRegion}>
+        {({ getFieldValue }) => {
+          const mainland = getFieldValue('dataRegion') === 'CN'
+          return (
+            <Form.Item
+              name="countryCode"
+              label="常住国家或地区代码"
+              normalize={value => String(value || '').trim().toUpperCase()}
+              rules={[
+                { required: true, message: '请输入两位国家或地区代码' },
+                { pattern: /^[A-Z]{2}$/, message: '请输入 ISO 两位代码，例如 CN、US、SG' },
+              ]}
+              extra={mainland ? '中国大陆区域固定为 CN。' : '请输入 ISO 两位代码，例如 US、SG、JP、GB。'}
+            >
+              <Input
+                size="large"
+                maxLength={2}
+                disabled={mainland}
+                autoCapitalize="characters"
+                placeholder="例如 US"
+              />
+            </Form.Item>
+          )
+        }}
+      </Form.Item>
+
+      <Form.Item
+        name="dateOfBirth"
+        label="出生日期"
+        rules={[{ required: true, message: '请选择出生日期' }]}
+        extra="用于适用未成年人保护规则；不会展示在公开资料中。"
+      >
+        <Input type="date" size="large" max={new Date().toISOString().slice(0, 10)} />
+      </Form.Item>
+
+      <Form.Item noStyle shouldUpdate={(prev, current) => prev.dataRegion !== current.dataRegion}>
+        {({ getFieldValue }) => getFieldValue('dataRegion') === 'CN' ? (
+          <Alert
+            type="warning"
+            showIcon
+            style={{ marginBottom: 20 }}
+            message="中国大陆未满 14 周岁的个人账号需先完成监护人同意流程。"
+          />
+        ) : null}
+      </Form.Item>
+
       {/* 邮箱 */}
       <Form.Item
         name="email"
@@ -105,12 +173,12 @@ export const RegisterForm: React.FC<Props> = ({ loading, onSubmit, t }) => {
         <Checkbox>
           <Text style={{ fontSize: 14 }}>
             {t?.('auth.agree_terms') ?? translate('visible.141d8c4dfc')}
-            <a href="#" style={{ color: '#1890ff', margin: '0 4px' }}>
+            <Link to="/legal/terms" target="_blank" style={{ color: '#1890ff', margin: '0 4px' }}>
               {t?.('auth.terms') ?? translate('auth.terms')}
-            </a>
-            {translate('auto.9a3eb34097')}<a href="#" style={{ color: '#1890ff', margin: '0 4px' }}>
+            </Link>
+            {translate('auto.9a3eb34097')}<Link to="/legal/privacy" target="_blank" style={{ color: '#1890ff', margin: '0 4px' }}>
               {t?.('auth.privacy') ?? translate('auth.privacy')}
-            </a>
+            </Link>
             。
           </Text>
         </Checkbox>

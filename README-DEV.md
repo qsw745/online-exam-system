@@ -1,4 +1,4 @@
-# 在线考试系统开发文档
+# 问衡开发文档
 
 ## 项目结构
 
@@ -51,6 +51,26 @@ pnpm run dev
 ```bash
 pnpm run test
 ```
+
+### iOS 考生端
+
+要求：Node.js 22+、Xcode 26+；工程最低支持 iOS 16，Bundle ID 为 `top.qisw.wenheng`。
+
+```bash
+# 构建 iOS 专用前端资源
+pnpm -C apps/web build:ios
+
+# 构建资源并同步 Capacitor/Xcode 工程
+pnpm -C apps/web cap:sync:ios
+
+# 无签名编译 iOS 模拟器版本
+pnpm -C apps/web ios:build:sim
+
+# 在 Xcode 中打开工程
+pnpm -C apps/web cap:open:ios
+```
+
+首次模拟器编译需要从 GitHub 拉取 Capacitor Swift Package；如依赖解析失败，应先确认 `github.com:443` 可访问，再重试同一命令。
 
 ## 环境变量
 

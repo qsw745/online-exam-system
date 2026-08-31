@@ -112,7 +112,12 @@ export const exams = {
   delete: (id: string) => api.delete(`/exams/${id}`),
 
   /** 交卷（保持原有签名），返回 resultId/true */
-  async submit(taskId: string, submitData: { answers: Record<string, number[]>; time_spent: number }) {
+  async submit(taskId: string, submitData: {
+    attemptId: string
+    submissionId: string
+    answers: Record<string, number[]>
+    time_spent: number
+  }) {
     const res = await api.post(`/tasks/${taskId}/submit`, submitData)
     const d = (res as any)?.data ?? res
     return d?.resultId ?? d?.id ?? true
