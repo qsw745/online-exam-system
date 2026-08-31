@@ -166,6 +166,7 @@ export class AccountDeletionService {
     const result = await this.repository.createOrReplay({
       requestId,
       userId,
+      notificationEmail: user.email,
       dataRegion: user.dataRegion,
       mode,
       requestDigest,

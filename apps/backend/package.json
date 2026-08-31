@@ -26,7 +26,9 @@
     "dev:with-db:seed": "pnpm db:setup && pnpm dev",
     "privacy:schema-audit": "tsx scripts/privacy/lifecycle-schema-audit.ts",
     "worker:lifecycle": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts",
-    "worker:lifecycle:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts --once"
+    "worker:lifecycle:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts --once",
+    "worker:lifecycle-outbox": "tsx src/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.ts",
+    "worker:lifecycle-outbox:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.ts --once"
   },
   "keywords": [],
   "author": "",

@@ -18,6 +18,15 @@ import type {
   CreateDeletionRequestInput,
   CreateDeletionRequestResult,
 } from '../domain/account-deletion.model'
+import { encryptOutboxValue, parseOutboxKeyring } from '@/modules/privacy-lifecycle/domain/outbox-crypto'
+
+const stageOutbox = async (connection: any,input:{messageKey:string;requestId:string;dataRegion:string;messageType:string;email:string;payload:unknown;now:Date})=>{
+  const key=parseOutboxKeyring(process.env).v1
+  await connection.query(`INSERT INTO transactional_outbox(message_id,message_key,request_id,data_region,message_type,status,recipient_envelope_json,payload_envelope_json,expires_at) VALUES (?,?,?,?,?,'PENDING',?,?,?)`,[
+    randomUUID(),input.messageKey,input.requestId,input.dataRegion,input.messageType,
+    JSON.stringify(encryptOutboxValue(key,input.email)),JSON.stringify(encryptOutboxValue(key,JSON.stringify(input.payload))),new Date(input.now.getTime()+7*86400000),
+  ])
+}
 
 const parseJson = <T>(value: unknown, fallback: T): T => {
   if (value == null) return fallback
@@ -223,6 +232,7 @@ export const AccountDeletionRepository: AccountDeletionRepositoryContract = {
             [randomUUID(), input.requestId, step.stepCode, step.category, step.action],
           )
         }
+        await stageOutbox(connection,{messageKey:`deletion-requested:${input.requestId}`,requestId:input.requestId,dataRegion:input.dataRegion,messageType:'DELETION_REQUESTED',email:input.notificationEmail,payload:{status:'SCHEDULED',scheduledFor:input.scheduledFor.toISOString()},now:input.now})
 
         const [sessions] = await connection.query(
           `SELECT jti FROM refresh_tokens WHERE user_id=? AND revoked=0 FOR UPDATE`,
@@ -268,10 +278,10 @@ export const AccountDeletionRepository: AccountDeletionRepositoryContract = {
     try {
       await connection.beginTransaction()
       const [rows] = await connection.query(
-        `SELECT request_id, deletion_mode, execution_status, started_at
-           FROM account_deletion_requests
-          WHERE user_id=?
-          ORDER BY id DESC
+        `SELECT adr.request_id, adr.data_region, adr.deletion_mode, adr.execution_status, adr.started_at, u.email
+           FROM account_deletion_requests adr JOIN users u ON u.id=adr.user_id
+          WHERE adr.user_id=?
+          ORDER BY adr.id DESC
           LIMIT 1 FOR UPDATE`,
         [userId],
       )
@@ -295,6 +305,7 @@ export const AccountDeletionRepository: AccountDeletionRepositoryContract = {
       )
       await connection.query('DELETE FROM data_lifecycle_steps WHERE request_id=?', [requestId])
       await connection.query("UPDATE users SET deletion_status='ACTIVE' WHERE id=?", [userId])
+      await stageOutbox(connection,{messageKey:`deletion-cancelled:${requestId}`,requestId,dataRegion:String(record.data_region),messageType:'DELETION_CANCELLED',email:String(record.email),payload:{status:'CANCELLED',completedAt:now.toISOString()},now})
       await connection.commit()
     } catch (error) {
       await connection.rollback()

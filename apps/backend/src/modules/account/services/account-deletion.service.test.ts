@@ -22,6 +22,8 @@ const clone = <T>(value: T): T => structuredClone(value)
 
 class MemoryAccountDeletionRepository implements AccountDeletionRepositoryContract {
   readonly requests: AccountDeletionRecord[] = []
+  readonly outboxKeys: string[] = []
+  readonly notificationRecipients: string[] = []
   activeSessionCount = 2
 
   constructor(readonly user: AccountDeletionUser) {}
@@ -66,6 +68,8 @@ class MemoryAccountDeletionRepository implements AccountDeletionRepositoryContra
       steps: input.steps.map(step => ({ ...step, status: 'PENDING', attemptCount: 0 })),
     }
     this.requests.push(record)
+    this.outboxKeys.push(`deletion-requested:${input.requestId}`)
+    this.notificationRecipients.push(input.notificationEmail)
     this.user.deletionStatus = 'SCHEDULED'
     const revokedSessionIds = Array.from({ length: this.activeSessionCount }, (_, index) => `session-${index + 1}`)
     this.activeSessionCount = 0
@@ -92,6 +96,8 @@ class MemoryAccountDeletionRepository implements AccountDeletionRepositoryContra
     record.cancelledAt = now.toISOString()
     record.steps = []
     this.user.deletionStatus = 'ACTIVE'
+    this.outboxKeys.push(`deletion-cancelled:${record.requestId}`)
+    this.notificationRecipients.push(this.user.email)
     return clone(record)
   }
 }
@@ -134,6 +140,8 @@ test('立即删除冻结账号、撤销会话并只保存客户端状态令牌�
   assert.equal(JSON.stringify(repository.requests).includes(STATUS_TOKEN), false)
   assert.equal(repository.user.deletionStatus, 'SCHEDULED')
   assert.equal(repository.activeSessionCount, 0)
+  assert.deepEqual(repository.outboxKeys, [`deletion-requested:${REQUEST_ID}`])
+  assert.deepEqual(repository.notificationRecipients, ['user@example.com'])
   assert.deepEqual(revoked, ['session-1', 'session-2'])
 })
 
@@ -155,6 +163,10 @@ test('三十天模式固化计划时间且执行前可重新认证取消', async
   assert.equal(cancelled.status, 'CANCELLED')
   assert.equal(cancelled.cancellable, false)
   assert.equal(repository.user.deletionStatus, 'ACTIVE')
+  assert.deepEqual(repository.outboxKeys, [
+    `deletion-requested:${REQUEST_ID}`,
+    `deletion-cancelled:${REQUEST_ID}`,
+  ])
 })
 
 test('立即删除和已开始执行的宽限请求都不能取消', async () => {
@@ -204,6 +216,7 @@ test('网络不确定重试复用相同语义，复用编号但改变模式会�
   const replay = await service.request(7, input)
   assert.equal(first.requestId, replay.requestId)
   assert.equal(repository.requests.length, 1)
+  assert.deepEqual(repository.outboxKeys, [`deletion-requested:${REQUEST_ID}`])
 
   await assert.rejects(
     () => service.request(7, { ...input, mode: 'IMMEDIATE' }),

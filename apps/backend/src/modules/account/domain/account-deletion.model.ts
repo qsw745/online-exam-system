@@ -56,6 +56,7 @@ export type AccountDeletionRecord = {
 export type CreateDeletionRequestInput = {
   requestId: string
   userId: number
+  notificationEmail: string
   dataRegion: DataRegion
   mode: DeletionMode
   requestDigest: string
