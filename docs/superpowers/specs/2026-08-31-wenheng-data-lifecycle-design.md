@@ -176,9 +176,10 @@ Worker 作为独立 Node.js 进程运行：
 
 ### 6.2 `data_lifecycle_steps`
 
-每个请求和处理器一条或多条步骤记录，核心字段包括：
+每个注销请求或期限扫描与处理器对应一条或多条步骤记录，核心字段包括：
 
-- `step_id`、`request_id`、`step_code`，并对 `request_id + step_code` 建唯一键。
+- `step_id`、可空的 `request_id`、可空的 `scan_run_id`、`step_code`。
+- 数据库约束保证 `request_id` 与 `scan_run_id` 恰好一个非空，并分别建立 `父记录 + step_code` 唯一键。
 - `status`、`cursor_json`、`planned_count`、`processed_count`、`attempt_count`。
 - `lease_owner`、`lease_expires_at`、`next_attempt_at`。
 - `started_at`、`completed_at`、`last_error_code`。
@@ -218,6 +219,10 @@ Worker 作为独立 Node.js 进程运行：
 ### 6.8 `data_retention_policies`
 
 保存版本化平台、区域和机构策略。平台安全上下限不可由普通管理员修改；机构策略只能在区域允许范围内选择。策略更新只影响新数据和新任务。
+
+### 6.9 `data_retention_scan_runs`
+
+保存系统期限扫描编号、区域、策略版本、数据类别、扫描时间窗口、状态、租约、游标和聚合数量，不保存用户身份或被清理内容。扫描使用确定性的 `区域 + 类别 + 时间窗口` 唯一键，重复调度只能继续同一次扫描；账号注销步骤与期限扫描步骤共用 Worker 和处理器，但父记录严格分离。
 
 ## 7. 状态机
 
@@ -270,11 +275,11 @@ Worker 每天按索引扫描到期记录，为监考、复核、匿名考试档�
 在现有 `/account/deletion/*` 路径上兼容扩展：
 
 - `GET /account/deletion/preview`：返回两种模式、数据分类、预计时间和确认词。
-- `POST /account/deletion/request`：新增 `requestId` 和 `mode`，返回请求状态及仅展示一次的状态令牌。
+- `POST /account/deletion/request`：新增 `requestId`、`mode` 和客户端生成的 32 字节高熵 `statusToken`，返回请求状态并只在本次申请流程中展示该令牌。
 - `POST /account/deletion/status`：优先接受 `requestId + statusToken`；兼容执行前的邮箱密码查询。
 - `POST /account/deletion/cancel`：只接受 30 天模式、执行前状态和重新认证。
 
-原始状态令牌只在创建时返回，服务端只保存摘要。iOS 通过现有安全会话能力写入 Keychain；Web 只保存在当前注销状态会话，不写普通 `localStorage`。
+客户端必须在首次请求前生成并暂存原始状态令牌；网络结果不确定时，相同请求编号、模式和令牌原样重试。服务端验证令牌强度后只保存摘要，不能生成或恢复明文。iOS 通过现有安全会话能力写入 Keychain；Web 只保存在当前注销状态会话，不写普通 `localStorage`。
 
 ### 9.2 管理 API
 
@@ -401,7 +406,7 @@ Worker 指标只包含聚合信息：
 
 ## 15. 迁移与发布顺序
 
-1. 新增阶段六迁移，建立策略、步骤、冻结、匿名主体、回执、墓碑和消息箱结构，并扩展注销请求表及必要用户外键。
+1. 新增阶段六迁移，建立策略、步骤、期限扫描、冻结、匿名主体、回执、墓碑和消息箱结构，并扩展注销请求表及必要用户外键。
 2. 迁移只增加结构和兼容状态映射，不自动处理历史真实用户。
 3. 部署支持新结构的 API 与暂停状态 Worker。
 4. 在隔离或预发布数据库运行数据覆盖清单和安全预演。
