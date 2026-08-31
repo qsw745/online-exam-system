@@ -13,7 +13,18 @@ export interface IUser extends RowDataPacket {
   account_type?: 'PERSONAL' | 'INSTITUTION'
   date_of_birth?: string | Date | null
   age_band?: AgeBand | 'UNKNOWN'
-  deletion_status?: 'ACTIVE' | 'PENDING' | 'CANCELLED' | 'COMPLETED'
+  deletion_status?:
+    | 'ACTIVE'
+    | 'PENDING'
+    | 'REQUESTED'
+    | 'SCHEDULED'
+    | 'RUNNING'
+    | 'HELD'
+    | 'RETRYING'
+    | 'ATTENTION_REQUIRED'
+    | 'CANCELLED'
+    | 'COMPLETED'
+    | 'COMPLETED_WITH_RESTRICTED_RETENTION'
   created_at: Date
   updated_at: Date
 }

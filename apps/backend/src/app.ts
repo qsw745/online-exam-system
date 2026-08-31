@@ -26,6 +26,11 @@ import { requestContext } from '@/common/middleware/request-context'
 import { imageWatermark } from '@/common/middleware/image-watermark'
 import { requestId } from '@/common/middleware/requestId'
 import { responseEnvelope } from '@/common/middleware/response'
+import {
+  redactSensitiveFields,
+  redactSensitiveText,
+  sanitizeSqlErrorMetadata,
+} from '@/common/logging/sensitive-field-redaction'
 
 // 路由（默认导出：Router 或 工厂函数）
 import apiRoutesOrFactory from '@/routes'
@@ -134,21 +139,6 @@ function shouldExposeStack(req: Request) {
   return !isProd || debugHeader === '1' || debugHeader.toLowerCase() === 'true'
 }
 
-/** 从错误对象萃取常见 SQL 元信息 */
-function extractSqlish(err: any) {
-  if (!err) return undefined
-  const hasAny = err?.code || err?.errno || err?.sqlState || err?.sql || err?.sqlMessage
-  if (!hasAny) return undefined
-  return {
-    code: err.code,
-    errno: err.errno,
-    sqlState: err.sqlState || err.sqlstate,
-    sqlMessage: err.sqlMessage || err.message,
-    sql: err.sql,
-    parameters: err.parameters || err.values,
-  }
-}
-
 /** 提取首个“业务栈帧”（忽略 node/node_modules） */
 function pickTopBusinessFrame(stack?: string) {
   if (!stack) return null
@@ -200,36 +190,40 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
 
   const top = pickTopBusinessFrame((err as any)?.stack)
   const exposeStack = shouldExposeStack(req)
-  const sql = extractSqlish(err)
+  const sql = sanitizeSqlErrorMetadata(err)
+  const safeMessage = redactSensitiveText((err as any)?.message ?? err)
+  const safeDetails = redactSensitiveFields(details)
+  const safeContext = redactSensitiveFields(ctx)
+  const safeStack = exposeStack ? redactSensitiveText((err as any)?.stack) : undefined
 
   const short =
-    `[error-handler] ${(err as any)?.name || 'Error'}: ${String((err as any)?.message ?? err)}` +
+    `[error-handler] ${(err as any)?.name || 'Error'}: ${safeMessage}` +
     (top ? ` @/ ${top.file}:${top.line}:${top.column}${top?.method ? ` (${top.method})` : ''}` : '')
 
   const reqDump =
     req.method === 'GET' || req.method === 'HEAD'
-      ? { params: req.params, query: req.query }
-      : { params: req.params, query: req.query, body: safeJson(req.body) }
+      ? redactSensitiveFields({ params: req.params, query: req.query })
+      : redactSensitiveFields({ params: req.params, query: req.query, body: req.body })
 
   logger[status >= 500 ? 'error' : 'warn']?.('controller error', {
     rid: (req as any).id ?? null,
     method: req.method,
-    url: (req as any).originalUrl || req.url,
+    url: req.path,
     routePath: (req as any).route?.path || null,
     handler: (req as any).__handlerName ?? null,
     short,
     error: {
       type: (err as any)?.name,
-      message: String((err as any)?.message ?? err),
+      message: safeMessage,
       code,
       status,
-      details,
-      ctx,
+      details: safeDetails,
+      ctx: safeContext,
       sql,
       topFrame: top || undefined,
-      stack: exposeStack ? (err as any)?.stack : undefined,
+      stack: safeStack,
     },
-    request: reqDump,
+    request: safeJson(reqDump),
   })
 
   const msg = (err as any)?.message || (status >= 500 ? '服务器内部错误' : '请求错误')
@@ -238,11 +232,11 @@ const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     message: msg,
     code,
     status,
-    details,
-    ctx,
+    details: safeDetails,
+    ctx: safeContext,
     sql,
     where: top || undefined,
-    stack: exposeStack ? (err as any)?.stack : undefined,
+    stack: safeStack,
     routePath: (req as any).route?.path || undefined,
     handler: (req as any).__handlerName || undefined,
     requestId: (req as any).id || undefined,
