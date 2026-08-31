@@ -23,7 +23,8 @@
     "db:drop": "tsx scripts/db/drop.ts",
     "db:setup": "pnpm db:bootstrap && pnpm db:latest && pnpm db:seed",
     "db:rebuild": "pnpm db:drop && pnpm db:setup",
-    "dev:with-db:seed": "pnpm db:setup && pnpm dev"
+    "dev:with-db:seed": "pnpm db:setup && pnpm dev",
+    "privacy:schema-audit": "tsx scripts/privacy/lifecycle-schema-audit.ts"
   },
   "keywords": [],
   "author": "",
