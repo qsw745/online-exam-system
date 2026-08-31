@@ -6,6 +6,12 @@ export type AccountDeletionPreview = {
   confirmationPhrase: string
   graceDays: number
   scheduledFor: string
+  modes: Array<{
+    mode: 'IMMEDIATE' | 'GRACE_PERIOD'
+    scheduledFor: string
+    cancellable: boolean
+    targetCompletionHours: number | null
+  }>
   deleteOrAnonymize: string[]
   conditionalRetention: string[]
   disclaimer: string
@@ -22,6 +28,20 @@ export function buildAccountDeletionPreview(now = new Date()): AccountDeletionPr
     confirmationPhrase: ACCOUNT_DELETION_CONFIRMATION,
     graceDays: ACCOUNT_DELETION_GRACE_DAYS,
     scheduledFor: scheduledFor.toISOString(),
+    modes: [
+      {
+        mode: 'IMMEDIATE',
+        scheduledFor: now.toISOString(),
+        cancellable: false,
+        targetCompletionHours: 24,
+      },
+      {
+        mode: 'GRACE_PERIOD',
+        scheduledFor: scheduledFor.toISOString(),
+        cancellable: true,
+        targetCompletionHours: null,
+      },
+    ],
     deleteOrAnonymize: [
       '个人资料、头像与非必要联系方式',
       '个人收藏、错题、学习偏好与可删除学习记录',
