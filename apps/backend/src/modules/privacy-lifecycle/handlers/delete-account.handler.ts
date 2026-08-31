@@ -85,7 +85,8 @@ export function createDeleteAccountHandler(input: {
              FROM data_lifecycle_steps
             WHERE request_id=?
               AND step_code NOT IN ('delete_account', 'sync_deletion_manifest')
-              AND status<>'COMPLETED'`,
+              AND status<>'COMPLETED'
+              AND NOT (status='HELD' AND action='RESTRICTED_RETENTION')`,
           [parent.requestId],
         )
         if (Number((counts as any[])?.[0]?.incomplete_count || 0) > 0) {

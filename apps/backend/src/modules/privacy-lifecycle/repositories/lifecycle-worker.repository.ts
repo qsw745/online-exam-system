@@ -82,10 +82,10 @@ const syncParentStatus = async (
   const [counts] = await connection.query<any[]>(
     `SELECT
        SUM(status='ATTENTION_REQUIRED') AS attention_count,
-       SUM(status='HELD') AS held_count,
+       SUM(status='HELD' AND action<>'RESTRICTED_RETENTION') AS blocking_held_count,
        SUM(status='RETRYING') AS retry_count,
        SUM(status='RUNNING') AS running_count,
-       SUM(status<>'COMPLETED') AS incomplete_count
+       SUM(status<>'COMPLETED' AND NOT(status='HELD' AND action='RESTRICTED_RETENTION')) AS incomplete_count
        FROM data_lifecycle_steps
       WHERE ${parentColumn}=?`,
     [parentId],
@@ -93,7 +93,7 @@ const syncParentStatus = async (
   const count = counts[0] ?? {}
   let status = 'SCHEDULED'
   if (Number(count.attention_count) > 0) status = 'ATTENTION_REQUIRED'
-  else if (Number(count.held_count) > 0) status = 'HELD'
+  else if (Number(count.blocking_held_count) > 0) status = 'HELD'
   else if (Number(count.running_count) > 0) status = 'RUNNING'
   else if (Number(count.retry_count) > 0) status = 'RETRYING'
   else if (Number(count.incomplete_count) === 0) {
@@ -134,6 +134,34 @@ export class LifecycleWorkerRepository implements LifecycleWorkerRepositoryContr
   constructor(private readonly database: LifecycleWorkerDatabase = pool as unknown as LifecycleWorkerDatabase) {}
 
   async releaseExpiredLeases(now: Date, dataRegion?: DataRegion): Promise<number> {
+    await this.database.query(
+      `UPDATE data_lifecycle_steps s
+       LEFT JOIN account_deletion_requests adr ON adr.request_id=s.request_id
+       LEFT JOIN data_retention_scan_runs scan ON scan.scan_run_id=s.scan_run_id
+          SET s.status='PENDING',s.next_attempt_at=NULL,s.updated_at=NOW()
+        WHERE s.status='HELD' AND (? IS NULL OR COALESCE(adr.data_region,scan.data_region)=?)
+          AND NOT EXISTS (
+            SELECT 1 FROM data_retention_holds h
+             WHERE h.data_region=COALESCE(adr.data_region,scan.data_region)
+               AND h.category_code=s.category_code AND h.released_at IS NULL AND h.expires_at>?
+               AND ((h.scope_type='USER_REQUEST' AND h.scope_id=s.request_id)
+                 OR (h.scope_type='RETENTION_SCAN' AND h.scope_id=s.scan_run_id))
+          )`,
+      [dataRegion ?? null,dataRegion ?? null,now],
+    )
+    await this.database.query(
+      `UPDATE data_lifecycle_steps s
+       LEFT JOIN account_deletion_requests adr ON adr.request_id=s.request_id
+       LEFT JOIN data_retention_scan_runs scan ON scan.scan_run_id=s.scan_run_id
+       JOIN data_retention_holds h ON h.data_region=COALESCE(adr.data_region,scan.data_region)
+        AND h.category_code=s.category_code AND h.released_at IS NULL AND h.expires_at>?
+        AND ((h.scope_type='USER_REQUEST' AND h.scope_id=s.request_id)
+          OR (h.scope_type='RETENTION_SCAN' AND h.scope_id=s.scan_run_id))
+          SET s.status='HELD',s.lease_owner=NULL,s.lease_expires_at=NULL,s.updated_at=NOW()
+        WHERE s.status IN ('PENDING','RETRYING')
+          AND (? IS NULL OR COALESCE(adr.data_region,scan.data_region)=?)`,
+      [now,dataRegion ?? null,dataRegion ?? null],
+    )
     const params: unknown[] = [now]
     const regionClause = dataRegion
       ? 'AND COALESCE(adr.data_region, scan.data_region)=?'
