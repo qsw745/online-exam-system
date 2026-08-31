@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createNativeSecureSessionAdapter } from './nativeSecureSession'
+import { createNativeSecureSessionAdapter, type WenhengSecureSessionPlugin } from './nativeSecureSession'
 import type { StoredNativeSession } from './secureSession.types'
 
 describe('nativeSecureSession', () => {
@@ -46,5 +46,20 @@ describe('nativeSecureSession', () => {
     })
 
     await expect(adapter.clear()).rejects.toThrow('keychain-clear-failed')
+  })
+
+  it('登录会话清理只调用 clear，不会清理独立注销状态凭证', async () => {
+    let deletionCredentialCleared = false
+    const plugin: WenhengSecureSessionPlugin = {
+      read: async () => ({}),
+      write: async () => undefined,
+      clear: async () => undefined,
+      readDeletionStatus: async () => ({}),
+      writeDeletionStatus: async () => undefined,
+      clearDeletionStatus: async () => { deletionCredentialCleared = true },
+    }
+    const adapter = createNativeSecureSessionAdapter(plugin)
+    await adapter.clear()
+    expect(deletionCredentialCleared).toBe(false)
   })
 })

@@ -7,6 +7,8 @@ import React, { useEffect, useMemo, useState } from 'react'
 import { isSuccess, getErr, type ApiResult } from '@/shared/api/core/types'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import type { UserSettings } from '@/shared/types/settings'
+import AccountDeletionRequestCard from '@/features/account/components/AccountDeletionRequestCard'
+import { useNavigate } from 'react-router-dom'
 
 const { Title, Text } = Typography
 
@@ -123,8 +125,9 @@ function RowItem({ title, desc, onEdit }: { title: React.ReactNode; desc: React.
 /* ---------- 主页面 ---------- */
 export default function AccountTab() {
   const { message, modal } = App.useApp()
-  const { user } = useAuth()
+  const { user, signOut } = useAuth()
   const { t } = useLanguage()
+  const navigate = useNavigate()
 
   // 这些值来源两处：1) user_settings（推荐），2) user 兜底
   // 初始先用 user 兜底，随后从 user_settings 回填
@@ -365,6 +368,13 @@ export default function AccountTab() {
           }}
         />
       </Card>
+
+      <AccountDeletionRequestCard
+        onAccepted={async () => {
+          await signOut()
+          navigate('/account-deletion', { replace: true })
+        }}
+      />
 
       {/* ======= 弹窗们 ======= */}
 

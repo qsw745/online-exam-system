@@ -6,12 +6,21 @@ export type WenhengSecureSessionPlugin = {
   read(): Promise<{ session?: StoredNativeSession }>
   write(options: StoredNativeSession): Promise<void>
   clear(): Promise<void>
+  readDeletionStatus(): Promise<{ credential?: DeletionStatusCredential }>
+  writeDeletionStatus(options: DeletionStatusCredential): Promise<void>
+  clearDeletionStatus(): Promise<void>
 }
+
+export type DeletionStatusCredential = { requestId: string; statusToken: string }
+export type WenhengDeletionStatusPlugin = Pick<
+  WenhengSecureSessionPlugin,
+  'readDeletionStatus' | 'writeDeletionStatus' | 'clearDeletionStatus'
+>
 
 export const WenhengSecureSession = registerPlugin<WenhengSecureSessionPlugin>('WenhengSecureSession')
 
 export function createNativeSecureSessionAdapter(
-  plugin: WenhengSecureSessionPlugin = WenhengSecureSession,
+  plugin: Pick<WenhengSecureSessionPlugin, 'read' | 'write' | 'clear'> = WenhengSecureSession,
 ): SecureSessionAdapter {
   return {
     async read() {
