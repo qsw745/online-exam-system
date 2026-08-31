@@ -97,7 +97,11 @@ export class ResultRepository {
       r.status, r.created_at, r.updated_at
     `
         const select = includeStudentInfo
-            ? `${selectBase}, u.nickname AS student_name, u.email AS student_email`
+            ? `${selectBase},
+               CASE WHEN r.user_id IS NULL AND r.anonymous_subject_id IS NOT NULL
+                    THEN '已注销考生' ELSE u.nickname END AS student_name,
+               CASE WHEN r.user_id IS NULL AND r.anonymous_subject_id IS NOT NULL
+                    THEN NULL ELSE u.email END AS student_email`
             : selectBase
 
         const [rows] = await pool.query<RowDataPacket[]>(

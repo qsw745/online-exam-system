@@ -40,8 +40,8 @@ export const LogRepository = {
     const sql = `
       INSERT INTO logs
       (log_type, level, user_id, action, resource_type, resource_id,
-       message, details, ip_address, user_agent, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       message, details, ip_address, user_agent, status, retain_until, retention_policy_version)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 180 DAY), 'wenheng-lifecycle-2026-08-v1')
     `
     const params = [
       input.type,

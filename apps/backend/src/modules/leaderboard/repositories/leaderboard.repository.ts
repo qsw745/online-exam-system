@@ -33,7 +33,7 @@ export class LeaderboardRepository {
       `SELECT lr.*, u.username, u.email
        FROM leaderboard_records lr
        JOIN users u ON u.id = lr.user_id
-       WHERE lr.leaderboard_id=?
+       WHERE lr.leaderboard_id=? AND lr.user_id IS NOT NULL
        ORDER BY lr.rank_position ASC
        LIMIT ? OFFSET ?`,
       [leaderboardId, limit, offset]
@@ -56,7 +56,7 @@ export class LeaderboardRepository {
 
   async countParticipants(leaderboardId: number) {
     const [rows] = await pool.query<RowDataPacket[]>(
-      'SELECT COUNT(DISTINCT user_id) AS total FROM leaderboard_records WHERE leaderboard_id=?',
+      'SELECT COUNT(DISTINCT user_id) AS total FROM leaderboard_records WHERE leaderboard_id=? AND user_id IS NOT NULL',
       [leaderboardId]
     )
     return Number(rows[0]?.total || 0)
@@ -103,7 +103,7 @@ export class LeaderboardRepository {
          MIN(score) AS lowest_score,
          COUNT(*)  AS total_records
        FROM leaderboard_records
-       WHERE leaderboard_id=?`,
+       WHERE leaderboard_id=? AND user_id IS NOT NULL`,
       [leaderboardId]
     )
     return rows[0] || {}

@@ -65,8 +65,10 @@ const BASE_SELECT = `
   c.*,
   e.title AS exam_title,
   e.created_by AS exam_created_by,
-  u.public_id AS candidate_public_id,
-  COALESCE(u.nickname, u.username) AS candidate_display_name,
+  CASE WHEN c.user_id IS NULL AND c.anonymous_subject_id IS NOT NULL
+       THEN 'DELETED_CANDIDATE' ELSE u.public_id END AS candidate_public_id,
+  CASE WHEN c.user_id IS NULL AND c.anonymous_subject_id IS NOT NULL
+       THEN '已注销考生' ELSE COALESCE(u.nickname, u.username) END AS candidate_display_name,
   ps.state AS session_state,
   ps.identity_status AS session_identity_status,
   ps.started_at AS session_started_at,
@@ -77,7 +79,7 @@ const BASE_SELECT = `
 const BASE_FROM = `
   FROM ${TABLES.cases} c
   JOIN exams e ON e.id = c.exam_id
-  JOIN users u ON u.id = c.user_id
+  LEFT JOIN users u ON u.id = c.user_id
   JOIN proctoring_sessions ps ON ps.session_id = c.session_id`
 
 const toCaseListItem = (row: any): ReviewCaseListItem => ({
@@ -86,8 +88,8 @@ const toCaseListItem = (row: any): ReviewCaseListItem => ({
   examId: Number(row.exam_id),
   taskId: row.task_id == null ? null : Number(row.task_id),
   attemptId: String(row.attempt_id),
-  userId: Number(row.user_id),
-  candidatePublicId: String(row.candidate_public_id || `WH-${row.user_id}`),
+  userId: row.user_id == null ? null : Number(row.user_id),
+  candidatePublicId: String(row.candidate_public_id || 'DELETED_CANDIDATE'),
   candidateDisplayName: row.candidate_display_name ? String(row.candidate_display_name) : null,
   examTitle: String(row.exam_title || ''),
   dataRegion: toRegion(row.data_region),
@@ -216,7 +218,7 @@ const loadDetail = async (db: Queryable, row: any): Promise<ReviewCaseDetail> =>
   }))
   const decisions = decisionRows.map((decision: any): ReviewDecisionRecord => ({
     decisionId: String(decision.decision_id),
-    actorUserId: Number(decision.actor_user_id),
+    actorUserId: decision.actor_user_id == null ? null : Number(decision.actor_user_id),
     action: String(decision.action) as StaffReviewAction,
     reasonCode: String(decision.reason_code) as ReviewReasonCode,
     comment: String(decision.comment),
@@ -226,7 +228,7 @@ const loadDetail = async (db: Queryable, row: any): Promise<ReviewCaseDetail> =>
   }))
   const messages = messageRows.map((message: any): ReviewMessageRecord => ({
     messageId: String(message.message_id),
-    actorUserId: Number(message.actor_user_id),
+    actorUserId: message.actor_user_id == null ? null : Number(message.actor_user_id),
     messageType: String(message.message_type) as ReviewMessageRecord['messageType'],
     replyToMessageId: message.reply_to_message_id ? String(message.reply_to_message_id) : null,
     body: String(message.body),
@@ -238,7 +240,7 @@ const loadDetail = async (db: Queryable, row: any): Promise<ReviewCaseDetail> =>
   const appeal: ReviewAppealRecord | null = appealRow
     ? {
         appealId: String(appealRow.appeal_id),
-        userId: Number(appealRow.user_id),
+        userId: appealRow.user_id == null ? null : Number(appealRow.user_id),
         reasonCode: String(appealRow.reason_code) as ReviewAppealRecord['reasonCode'],
         statement: String(appealRow.statement),
         status: String(appealRow.status) as ReviewAppealRecord['status'],
@@ -334,10 +336,11 @@ export async function ensureReviewCaseInTransaction(
   await connection.query<ResultSetHeader>(
     `INSERT IGNORE INTO ${TABLES.cases}
       (case_id, session_id, exam_id, task_id, attempt_id, user_id, data_region,
-       status, outcome, trigger_reason_code, version, opened_at, retain_until)
+       status, outcome, trigger_reason_code, version, opened_at, retain_until, retention_policy_version)
      SELECT ?, ?, ?, ?, ?, ?, ?, 'pending_review', 'pending', ?, 1,
             CURRENT_TIMESTAMP,
-            DATE_ADD(CURRENT_TIMESTAMP, INTERVAL COALESCE(e.proctoring_event_retention_days, 180) DAY)
+            DATE_ADD(CURRENT_TIMESTAMP, INTERVAL COALESCE(e.proctoring_event_retention_days, 180) DAY),
+            'wenheng-lifecycle-2026-08-v1'
        FROM exams e
       WHERE e.id = ?`,
     [

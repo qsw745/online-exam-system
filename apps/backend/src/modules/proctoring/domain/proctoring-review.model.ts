@@ -21,7 +21,7 @@ export type ReviewCaseListItem = ReviewCaseProjection & {
   examId: number
   taskId: number | null
   attemptId: string
-  userId: number
+  userId: number | null
   candidatePublicId: string
   candidateDisplayName: string | null
   examTitle: string
@@ -62,7 +62,7 @@ export type ReviewEventSummary = {
 
 export type ReviewDecisionRecord = {
   decisionId: string
-  actorUserId: number
+  actorUserId: number | null
   action: StaffReviewAction
   reasonCode: ReviewReasonCode
   comment: string
@@ -73,7 +73,7 @@ export type ReviewDecisionRecord = {
 
 export type ReviewMessageRecord = {
   messageId: string
-  actorUserId: number
+  actorUserId: number | null
   messageType: 'information_request' | 'candidate_response'
   replyToMessageId: string | null
   body: string
@@ -84,7 +84,7 @@ export type ReviewMessageRecord = {
 
 export type ReviewAppealRecord = {
   appealId: string
-  userId: number
+  userId: number | null
   reasonCode: AppealReasonCode
   statement: string
   status: 'pending' | 'upheld' | 'rejected'

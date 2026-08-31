@@ -335,10 +335,23 @@ export class ExamRepository {
 
   static async createInProgressResult(examId: number, userId: number): Promise<void> {
     await pool.query(
-        `INSERT INTO exam_results (exam_id, user_id, attempt_id, start_time, status, created_at, updated_at)
-         VALUES (?, ?, UUID(), NOW(), "in_progress", NOW(), NOW())
+        `INSERT INTO exam_results
+          (exam_id, user_id, attempt_id, start_time, status, retain_until,
+           retention_policy_version, created_at, updated_at)
+         SELECT e.id, ?, UUID(), NOW(), 'in_progress',
+                DATE_ADD(COALESCE(e.end_time, NOW()), INTERVAL
+                  CASE WHEN e.org_id IS NULL THEN 365 ELSE
+                    LEAST(1825, GREATEST(365, COALESCE((
+                      SELECT p.retention_days FROM data_retention_policies p
+                       WHERE p.institution_id=e.org_id AND p.category_code='EXAM_ARCHIVE'
+                         AND p.data_region=COALESCE((SELECT data_region FROM users WHERE id=?), 'CN')
+                         AND p.effective_from<=NOW() AND p.retired_at IS NULL
+                       ORDER BY p.effective_from DESC LIMIT 1
+                    ), 1095))) END DAY),
+                'wenheng-lifecycle-2026-08-v1', NOW(), NOW()
+           FROM exams e WHERE e.id=?
          ON DUPLICATE KEY UPDATE id = id`,
-        [examId, userId]
+        [userId, userId, examId]
     )
   }
 
@@ -384,8 +397,12 @@ export class ExamRepository {
         const correct = isAnswerCorrect(q, ua)
         if (correct) totalScore += q.score
         await conn.query(
-            'INSERT INTO answer_records (exam_result_id, exam_id, user_id, question_id, user_answer, is_correct) VALUES (?, ?, ?, ?, ?, ?)',
-            [resultId, examId, userId, q.id, ua ?? '', correct]
+            `INSERT INTO answer_records
+              (exam_result_id, exam_id, user_id, question_id, user_answer, is_correct,
+               retain_until, retention_policy_version)
+             SELECT ?, ?, ?, ?, ?, ?, er.retain_until, er.retention_policy_version
+               FROM exam_results er WHERE er.id=?`,
+            [resultId, examId, userId, q.id, ua ?? '', correct, resultId]
         )
       }
 

@@ -223,8 +223,9 @@ export const ProctoringRepository = {
     await pool.query<ResultSetHeader>(
       `INSERT INTO proctoring_sessions
         (session_id, consent_id, attempt_id, exam_id, task_id, user_id, data_region,
-         camera_required, microphone_required, identity_required, identity_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         camera_required, microphone_required, identity_required, identity_status,
+         retain_until, retention_policy_version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL ? DAY), ?)`,
       [
         input.sessionId,
         input.consent.consentId,
@@ -237,6 +238,8 @@ export const ProctoringRepository = {
         input.context.policy.requireMicrophone,
         input.context.policy.requireIdentityVerification,
         input.context.policy.requireIdentityVerification ? 'pending' : 'not_required',
+        input.context.policy.eventRetentionDays,
+        'wenheng-lifecycle-2026-08-v1',
       ],
     )
     const inserted = await this.findSessionById(input.sessionId, input.context.userId)
@@ -301,8 +304,11 @@ export const ProctoringRepository = {
 
       await connection.query<ResultSetHeader>(
         `INSERT INTO proctoring_events
-          (event_id, session_id, exam_id, user_id, sequence, event_type, severity, state_json, occurred_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (event_id, session_id, exam_id, user_id, sequence, event_type, severity, state_json,
+           occurred_at, retain_until, retention_policy_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 (SELECT retain_until FROM proctoring_sessions WHERE session_id=?),
+                 'wenheng-lifecycle-2026-08-v1')`,
         [
           input.event.eventId,
           session.sessionId,
@@ -313,6 +319,7 @@ export const ProctoringRepository = {
           input.event.severity,
           JSON.stringify(input.event.state),
           new Date(input.event.occurredAt),
+          session.sessionId,
         ],
       )
 
@@ -435,8 +442,11 @@ export const ProctoringRepository = {
       await connection.beginTransaction()
       await connection.query<ResultSetHeader>(
         `INSERT INTO proctoring_identity_checks
-          (check_id, session_id, exam_id, user_id, result, reason_code, similarity, liveness_passed, model)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (check_id, session_id, exam_id, user_id, result, reason_code, similarity,
+           liveness_passed, model, retain_until, retention_policy_version)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?,
+                 (SELECT retain_until FROM proctoring_sessions WHERE session_id=?),
+                 'wenheng-lifecycle-2026-08-v1')`,
         [
           input.check.checkId,
           input.session.sessionId,
@@ -447,6 +457,7 @@ export const ProctoringRepository = {
           input.check.similarity,
           input.check.livenessPassed,
           input.check.model,
+          input.session.sessionId,
         ],
       )
       const nextState = input.check.result === 'passed' ? input.session.state : 'review_required'

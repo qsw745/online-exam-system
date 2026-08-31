@@ -7,6 +7,7 @@ import { LifecycleWorkerRepository } from '../repositories/lifecycle-worker.repo
 import { LifecycleSchemaAuditService } from '../services/lifecycle-schema-audit.service'
 import { NoopLifecycleMetrics } from '../services/lifecycle-observability'
 import { runLifecycleWorkerOnce, type LifecycleHandler } from '../services/lifecycle-worker.service'
+import { createLifecycleHandlerMap } from '../handlers'
 
 const parseRegion = (value: unknown): DataRegion => {
   if (value === 'CN' || value === 'GLOBAL') return value
@@ -63,7 +64,7 @@ const delay = (milliseconds: number) => new Promise<void>(resolve => setTimeout(
 
 export async function startLifecycleWorker(
   options = readLifecycleWorkerRuntimeOptions(),
-  handlers: ReadonlyMap<string, LifecycleHandler> = new Map(),
+  handlers: ReadonlyMap<string, LifecycleHandler> = createLifecycleHandlerMap(),
 ): Promise<void> {
   const audit = new LifecycleSchemaAuditService(pool as any)
   await audit.inspect()

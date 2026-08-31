@@ -19,8 +19,12 @@ const safeEventState = (state: ReviewEventSummary['state']) => {
   return safe
 }
 
-const actorLabel = (detail: ReviewCaseDetail, actorUserId: number) =>
-  actorUserId === detail.userId ? detail.candidatePublicId : `staff:${actorUserId}`
+const actorLabel = (detail: ReviewCaseDetail, actorUserId: number | null) =>
+  actorUserId == null
+    ? '已注销操作者'
+    : actorUserId === detail.userId
+      ? detail.candidatePublicId
+      : `staff:${actorUserId}`
 
 export function buildReviewCaseCsv(detail: ReviewCaseDetail): string {
   const rows: unknown[][] = [['类型', '时间', '操作者', '动作或事件', '原因', '说明']]
