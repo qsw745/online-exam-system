@@ -1,4 +1,5 @@
 import type { LifecycleHandler } from '../services/lifecycle-worker.service'
+import type { DeletionManifestSink } from '../services/deletion-manifest.service'
 import { createAnonymizeExamArchiveHandler } from './anonymize-exam-archive.handler'
 import { createAnonymizeUserContentHandler } from './anonymize-user-content.handler'
 import { createDeleteAccountHandler, failClosedManifestStager, type DeletionManifestStager } from './delete-account.handler'
@@ -12,10 +13,22 @@ import { createRedactAuditActorsHandler } from './redact-audit-actors.handler'
 import { createRedactSecurityLogsHandler } from './redact-security-logs.handler'
 import { createRestrictGuardianConsentsHandler } from './restrict-guardian-consents.handler'
 import { createRestrictProctoringDataHandler } from './restrict-proctoring-data.handler'
+import { createSyncDeletionManifestHandler } from './sync-deletion-manifest.handler'
+
+const failClosedManifestSink: DeletionManifestSink = {
+  async append() {
+    throw Object.assign(new Error('删除墓碑同步处理器尚未配置'), {
+      code: 'LIFECYCLE_MANIFEST_NOT_CONFIGURED',
+      recoverable: false,
+    })
+  },
+  async list() { return { entries: [], nextCursor: null } },
+}
 
 export function createLifecycleHandlerMap(input: {
   database?: LifecycleHandlerDatabase
   manifest?: DeletionManifestStager
+  manifestSink?: DeletionManifestSink
 } = {}): ReadonlyMap<string, LifecycleHandler> {
   const database = input.database ?? defaultLifecycleHandlerDatabase
   const handlers: LifecycleHandler[] = [
@@ -31,17 +44,7 @@ export function createLifecycleHandlerMap(input: {
     createRedactAuditActorsHandler(database),
     createRedactSecurityLogsHandler(database),
     createDeleteAccountHandler({ database, manifest: input.manifest ?? failClosedManifestStager }),
-    {
-      stepCode: 'sync_deletion_manifest',
-      category: 'RECEIPT_AND_TOMBSTONE',
-      async planCount() { return 0 },
-      async executeBatch() {
-        throw Object.assign(new Error('删除墓碑同步处理器尚未配置'), {
-          code: 'LIFECYCLE_MANIFEST_NOT_CONFIGURED',
-          recoverable: false,
-        })
-      },
-    },
+    createSyncDeletionManifestHandler({ database, sink: input.manifestSink ?? failClosedManifestSink }),
   ]
   const map = new Map<string, LifecycleHandler>()
   for (const handler of handlers) {
@@ -51,5 +54,5 @@ export function createLifecycleHandlerMap(input: {
   return map
 }
 
-export type { DeletionManifestStager } from './delete-account.handler'
+export type { DeletionManifestStager } from '../services/deletion-manifest.service'
 export type { LifecycleHandlerDatabase } from './handler-support'

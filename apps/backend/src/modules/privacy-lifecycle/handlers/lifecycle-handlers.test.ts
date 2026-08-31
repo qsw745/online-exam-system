@@ -10,6 +10,7 @@ import {
   type DeletionManifestStager,
 } from './delete-account.handler'
 import { createLifecycleHandlerMap } from './index'
+import { createSyncDeletionManifestHandler } from './sync-deletion-manifest.handler'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
 
@@ -119,4 +120,46 @@ test('存在原身份到匿名主体关联时失败关闭', async () => {
     assertNoIdentityToAnonymousLink(connection, 'b132689c-4a5d-42a2-86c5-3661e62d4d1f'),
     (error: any) => error.code === 'LIFECYCLE_IDENTITY_LINK_REMAINS',
   )
+})
+
+test('外部墓碑接收器确认前同步步骤不能完成', async () => {
+  const syncContext: LifecycleHandlerContext = {
+    ...context(),
+    parent: { kind: 'ACCOUNT_DELETION', requestId: 'b132689c-4a5d-42a2-86c5-3661e62d4d1f', userId: null },
+  }
+  let synced = false
+  const database = {
+    async withTransaction<T>(operation: (connection: LifecycleTransaction) => Promise<T>): Promise<T> {
+      return operation(this)
+    },
+    async query(sql: string): Promise<[any, unknown]> {
+      if (sql.includes('SELECT tombstone_id')) {
+        return [[{
+          tombstone_id: 'a132689c-4a5d-42a2-86c5-3661e62d4d1f',
+          request_id: 'b132689c-4a5d-42a2-86c5-3661e62d4d1f',
+          data_region: 'CN',
+          subject_digest: 'a'.repeat(64),
+          key_version: 'v1',
+          completed_at: new Date('2026-08-31T08:00:00.000Z'),
+          sync_status: synced ? 'SYNCED' : 'PENDING',
+        }], null]
+      }
+      if (sql.includes("SET sync_status='SYNCED'")) synced = true
+      return [{ affectedRows: 1 }, null]
+    },
+  }
+  const failing = createSyncDeletionManifestHandler({
+    database,
+    sink: { async append() { throw new Error('receiver unavailable') }, async list() { return { entries: [], nextCursor: null } } },
+  })
+  await assert.rejects(() => failing.executeBatch(syncContext))
+  assert.equal(synced, false)
+
+  const handler = createSyncDeletionManifestHandler({
+    database,
+    sink: { async append() {}, async list() { return { entries: [], nextCursor: null } } },
+  })
+  const result = await handler.executeBatch(syncContext)
+  assert.equal(result.done, true)
+  assert.equal(synced, true)
 })

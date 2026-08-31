@@ -1,16 +1,9 @@
-import type { DataRegion } from '../domain/lifecycle.model'
 import { LifecyclePolicyError } from '../domain/lifecycle.policy'
+import type { DeletionManifestStager } from '../services/deletion-manifest.service'
 import type { LifecycleHandler, LifecycleTransaction } from '../services/lifecycle-worker.service'
 import { defaultLifecycleHandlerDatabase, requireAccountParent, type LifecycleHandlerDatabase } from './handler-support'
 
-export interface DeletionManifestStager {
-  stageFingerprint(input: {
-    requestId: string
-    dataRegion: DataRegion
-    publicId: string
-    connection: LifecycleTransaction
-  }): Promise<void>
-}
+export type { DeletionManifestStager } from '../services/deletion-manifest.service'
 
 export const failClosedManifestStager: DeletionManifestStager = {
   async stageFingerprint() {
@@ -94,7 +87,7 @@ export function createDeleteAccountHandler(input: {
         }
         await assertNoIdentityToAnonymousLink(connection, parent.requestId)
         const [users] = await connection.query(
-          'SELECT public_id FROM users WHERE id=? LIMIT 1 FOR UPDATE',
+          'SELECT public_id, email FROM users WHERE id=? LIMIT 1 FOR UPDATE',
           [parent.userId],
         )
         const user = (users as any[])?.[0]
@@ -111,6 +104,8 @@ export function createDeleteAccountHandler(input: {
           dataRegion: context.dataRegion,
           publicId,
           connection,
+          completedAt: context.now,
+          notificationEmail: String(user.email || ''),
         })
         await connection.query('DELETE FROM users WHERE id=?', [parent.userId])
         const [requests] = await connection.query(

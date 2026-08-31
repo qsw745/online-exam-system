@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": "."
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.d.ts",
+    "scripts/privacy/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}

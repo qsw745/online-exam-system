@@ -8,7 +8,7 @@
     "dev": "concurrently -k -n SVC,TYPE \"pnpm dev:server\" \"pnpm typecheck:watch\"",
     "test": "tsx --test \"src/**/*.test.ts\"",
     "dev:server": "tsx watch src/app.ts",
-    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.scripts.json",
     "typecheck:watch": "tsc -w --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.json && tsc-alias -p tsconfig.json",
     "lint": "eslint \"src/**/*.{ts,tsx}\"",
@@ -28,7 +28,10 @@
     "worker:lifecycle": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts",
     "worker:lifecycle:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts --once",
     "worker:lifecycle-outbox": "tsx src/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.ts",
-    "worker:lifecycle-outbox:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.ts --once"
+    "worker:lifecycle-outbox:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.ts --once",
+    "privacy:retention:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts --retention-once",
+    "privacy:retention:backfill": "tsx scripts/privacy/backfill-retain-until.ts",
+    "privacy:manifest:replay": "tsx scripts/privacy/replay-deletion-manifest.ts"
   },
   "keywords": [],
   "author": "",
