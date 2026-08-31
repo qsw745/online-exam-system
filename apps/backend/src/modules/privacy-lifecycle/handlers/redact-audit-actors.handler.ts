@@ -17,6 +17,7 @@ const ACTOR_TABLES = [
   { table: 'data_retention_holds', subjectColumn: 'created_by', mode: 'CLEAR' as const },
   { table: 'data_retention_holds', subjectColumn: 'released_by', mode: 'CLEAR' as const },
   { table: 'data_lifecycle_controls', subjectColumn: 'updated_by', mode: 'CLEAR' as const },
+  { table: 'data_lifecycle_admin_operations', subjectColumn: 'actor_user_id', mode: 'CLEAR' as const },
 ] as const
 
 export const createRedactAuditActorsHandler = (database: LifecycleHandlerDatabase = defaultLifecycleHandlerDatabase) =>

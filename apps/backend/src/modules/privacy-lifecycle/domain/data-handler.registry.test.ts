@@ -34,10 +34,11 @@ test('当前主体、操作者和直接标识列都有显式分类', () => {
     { tableName: 'proctoring_review_decisions', columnName: 'actor_user_id', referencedTableName: 'users' },
     { tableName: 'data_retention_holds', columnName: 'created_by', referencedTableName: 'users' },
     { tableName: 'data_lifecycle_controls', columnName: 'updated_by', referencedTableName: 'users' },
+    { tableName: 'data_lifecycle_admin_operations', columnName: 'actor_user_id', referencedTableName: 'users' },
     { tableName: 'logs', columnName: 'ip', referencedTableName: null },
   ])
 
-  assert.equal(report.coveredColumnCount, 11)
+  assert.equal(report.coveredColumnCount, 12)
   assert.equal(report.uncoveredColumnCount, 0)
   assert.ok((report.categoryCounts.AUTH_CREDENTIALS ?? 0) >= 1)
   assert.ok((report.categoryCounts.SECURITY_LOGS ?? 0) >= 1)

@@ -2,6 +2,7 @@ import type { Knex } from 'knex'
 
 export const LIFECYCLE_STEP_PARENTS = ['request_id', 'scan_run_id'] as const
 export const ACCOUNT_DELETION_USER_FK = 'fk_account_deletion_user_set_null'
+export const LIFECYCLE_ADMIN_OPERATIONS_TABLE = 'data_lifecycle_admin_operations'
 
 const ACCOUNT_DELETION_REQUESTS = 'account_deletion_requests'
 const LIFECYCLE_POLICY_VERSION = 'wenheng-lifecycle-2026-08-v1'
@@ -240,6 +241,22 @@ async function createLifecycleParents(knex: Knex, userIdType: string): Promise<v
       table.specificType('updated_by', userIdType).nullable()
       table.timestamp('updated_at', { useTz: false }).notNullable().defaultTo(knex.fn.now())
       table.foreign('updated_by', 'fk_lifecycle_control_actor').references('users.id').onDelete('SET NULL')
+    })
+  }
+
+  if (!(await knex.schema.hasTable(LIFECYCLE_ADMIN_OPERATIONS_TABLE))) {
+    await knex.schema.createTable(LIFECYCLE_ADMIN_OPERATIONS_TABLE, table => {
+      table.bigIncrements('id').primary()
+      table.uuid('operation_id').notNullable().unique('uk_lifecycle_admin_operation_id')
+      table.string('data_region', 16).notNullable()
+      table.string('operation_type', 48).notNullable()
+      table.string('request_digest', 64).notNullable()
+      table.json('result_json').nullable()
+      table.specificType('actor_user_id', userIdType).nullable()
+      table.timestamp('completed_at', { useTz: false }).nullable()
+      table.timestamp('created_at', { useTz: false }).notNullable().defaultTo(knex.fn.now())
+      table.index(['data_region', 'created_at'], 'idx_lifecycle_admin_operation_region')
+      table.foreign('actor_user_id', 'fk_lifecycle_admin_operation_actor').references('users.id').onDelete('SET NULL')
     })
   }
 
@@ -487,6 +504,7 @@ export async function down(knex: Knex): Promise<void> {
   await knex.schema.dropTableIfExists('anonymous_exam_subjects')
   await knex.schema.dropTableIfExists('data_retention_holds')
   await knex.schema.dropTableIfExists('data_retention_scan_runs')
+  await knex.schema.dropTableIfExists(LIFECYCLE_ADMIN_OPERATIONS_TABLE)
   await knex.schema.dropTableIfExists('data_lifecycle_controls')
   await knex.schema.dropTableIfExists('data_retention_policies')
 

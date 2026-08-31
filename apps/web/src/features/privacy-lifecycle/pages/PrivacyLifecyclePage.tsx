@@ -184,12 +184,14 @@ function PrivacyLifecyclePageContent({
       setHoldOpen(false)
       await Promise.all([queue.load(), queue.detail ? queue.loadDetail(queue.detail.requestId) : Promise.resolve(null)])
       message.success(translate('privacyLifecycle.hold.success'))
+      return true
     } catch (reason: any) {
       const uncertain = reason?.status == null || reason.status >= 500
       if (uncertain) setPendingHold(payload)
       setHoldFeedback(uncertain
         ? translate('privacyLifecycle.operation.uncertain')
         : reason?.message || translate('privacyLifecycle.error.generic'))
+      return false
     }
   }
 
@@ -233,11 +235,12 @@ function PrivacyLifecyclePageContent({
     { title: translate('privacyLifecycle.field.actions'), key: 'actions', render: (_, item) => actions(item), width: 210 },
   ]
 
+  const knownItems = queue.items.filter(item => item.mode !== 'UNKNOWN' && lifecycleStatusPresentation(item.status).known)
   const counts = {
-    active: queue.items.filter(item => !lifecycleStatusPresentation(item.status).terminal).length,
-    attention: queue.items.filter(item => item.status === 'ATTENTION_REQUIRED').length,
-    held: queue.items.filter(item => item.status === 'HELD').length,
-    completed: queue.items.filter(item => lifecycleStatusPresentation(item.status).terminal).length,
+    active: knownItems.filter(item => !lifecycleStatusPresentation(item.status).terminal).length,
+    attention: knownItems.filter(item => item.status === 'ATTENTION_REQUIRED').length,
+    held: knownItems.filter(item => item.status === 'HELD').length,
+    completed: knownItems.filter(item => lifecycleStatusPresentation(item.status).terminal).length,
   }
 
   return (
@@ -289,6 +292,9 @@ function PrivacyLifecyclePageContent({
       </Card>
 
       {queue.error ? <Alert type="error" showIcon message={queue.error} /> : null}
+      {queue.items.some(item => item.mode === 'UNKNOWN' || !lifecycleStatusPresentation(item.status).known) ? (
+        <Alert type="warning" showIcon message={translate('privacyLifecycle.unknown.warning')} />
+      ) : null}
       {controlFeedback && !pauseOpen ? <Alert type="warning" showIcon message={controlFeedback} /> : null}
 
       {mobile ? (
@@ -347,8 +353,11 @@ function PrivacyLifecyclePageContent({
         title={translate('privacyLifecycle.pause.title')}
         footer={null}
         maskClosable={false}
+        closable={!pendingPause}
+        keyboard={!pendingPause}
         destroyOnHidden
         onCancel={() => {
+          if (pendingPause) return
           setPauseOpen(false)
           setPendingPause(null)
           setControlFeedback(null)

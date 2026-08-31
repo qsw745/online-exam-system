@@ -19,7 +19,7 @@ export type RetentionHoldInput = {
   expiresAt: string
 }
 
-export function normalizeRetentionHold(input: RetentionHoldInput, now: Date) {
+export function canonicalizeRetentionHold(input: RetentionHoldInput) {
   if (!HOLDABLE_CATEGORIES.has(input.category)) throw new LifecyclePolicyError('该数据类别不可冻结', 'LIFECYCLE_HOLD_CATEGORY_FORBIDDEN')
   if (input.scopeType !== 'USER_REQUEST' && input.scopeType !== 'RETENTION_SCAN') throw new LifecyclePolicyError('冻结范围无效', 'LIFECYCLE_HOLD_SCOPE_INVALID')
   const scopeId = String(input.scopeId || '').trim()
@@ -29,8 +29,19 @@ export function normalizeRetentionHold(input: RetentionHoldInput, now: Date) {
   if (!legalBasisReference) throw new LifecyclePolicyError('冻结依据不能为空', 'LIFECYCLE_HOLD_BASIS_REQUIRED')
   if (legalBasisReference.length > 500) throw new LifecyclePolicyError('冻结依据过长', 'LIFECYCLE_HOLD_BASIS_INVALID')
   const expiresAt = new Date(input.expiresAt)
-  if (Number.isNaN(expiresAt.getTime()) || expiresAt <= now) throw new LifecyclePolicyError('冻结到期时间必须晚于当前时间', 'LIFECYCLE_HOLD_EXPIRY_INVALID')
-  if (expiresAt.getTime() > now.getTime() + RETENTION_HOLD_MAX_DAYS * DAY_MS) throw new LifecyclePolicyError('单次冻结不能超过一年', 'LIFECYCLE_HOLD_EXPIRY_TOO_LONG')
+  if (Number.isNaN(expiresAt.getTime())) throw new LifecyclePolicyError('冻结到期时间无效', 'LIFECYCLE_HOLD_EXPIRY_INVALID')
   const canonical = { category: input.category, scopeType: input.scopeType, scopeId, reasonCode: input.reasonCode, legalBasisReference, expiresAt: expiresAt.toISOString() }
   return { ...canonical, requestDigest: createHash('sha256').update(JSON.stringify(canonical)).digest('hex') }
+}
+
+export function validateRetentionHoldWindow(expiresAtValue: string, now: Date): void {
+  const expiresAt = new Date(expiresAtValue)
+  if (expiresAt <= now) throw new LifecyclePolicyError('冻结到期时间必须晚于当前时间', 'LIFECYCLE_HOLD_EXPIRY_INVALID')
+  if (expiresAt.getTime() > now.getTime() + RETENTION_HOLD_MAX_DAYS * DAY_MS) throw new LifecyclePolicyError('单次冻结不能超过一年', 'LIFECYCLE_HOLD_EXPIRY_TOO_LONG')
+}
+
+export function normalizeRetentionHold(input: RetentionHoldInput, now: Date) {
+  const normalized = canonicalizeRetentionHold(input)
+  validateRetentionHoldWindow(normalized.expiresAt, now)
+  return normalized
 }

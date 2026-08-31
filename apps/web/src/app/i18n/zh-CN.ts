@@ -1274,6 +1274,8 @@ export default {
   'privacyLifecycle.field.restrictedUntil': '受限保留至',
   'privacyLifecycle.mode.IMMEDIATE': '立即删除',
   'privacyLifecycle.mode.GRACE_PERIOD': '30 天宽限期',
+  'privacyLifecycle.mode.UNKNOWN': '未知模式',
+  'privacyLifecycle.unknown.warning': '发现服务端未识别的模式或状态，相关记录已按失败关闭处理，不能执行人工写操作。',
   'privacyLifecycle.status.REQUESTED': '已申请',
   'privacyLifecycle.status.SCHEDULED': '已安排',
   'privacyLifecycle.status.RUNNING': '执行中',

@@ -2,7 +2,7 @@ import type { DataRegion } from '@/platform/region/accountRegion'
 import { api } from '../core/httpClient'
 import type { ApiResult } from '../core/types'
 
-export type LifecycleDeletionMode = 'IMMEDIATE' | 'GRACE_PERIOD'
+export type LifecycleDeletionMode = 'IMMEDIATE' | 'GRACE_PERIOD' | 'UNKNOWN'
 export type LifecycleCategoryCode =
   | 'AUTH_CREDENTIALS'
   | 'FACE_CREDENTIALS'
@@ -51,7 +51,7 @@ export type LifecycleDryRun = {
 export type RetentionHoldPayload = {
   holdId: string
   categoryCode: LifecycleCategoryCode
-  scopeType: 'USER_REQUEST' | 'RETENTION_SCAN'
+  scopeType: 'USER_REQUEST'
   scopeId: string
   reasonCode: 'LEGAL_DISPUTE' | 'REGULATORY_REQUEST' | 'SECURITY_INCIDENT' | 'CONTRACTUAL_ARCHIVE'
   legalBasisReference: string
@@ -80,9 +80,10 @@ function normalizeStep(input: unknown): LifecycleAdminStep {
 
 export function normalizeLifecycleAdminRequest(input: unknown, region: DataRegion): LifecycleAdminRequest {
   const raw = input && typeof input === 'object' ? input as Record<string, unknown> : {}
+  const rawMode = String(value(raw, 'mode', 'deletion_mode') ?? '')
   return {
     requestId: String(value(raw, 'requestId', 'request_id') ?? ''),
-    mode: String(value(raw, 'mode', 'deletion_mode')) === 'IMMEDIATE' ? 'IMMEDIATE' : 'GRACE_PERIOD',
+    mode: rawMode === 'IMMEDIATE' || rawMode === 'GRACE_PERIOD' ? rawMode : 'UNKNOWN',
     status: String(value(raw, 'status', 'execution_status') ?? ''),
     region,
     requestedAt: String(value(raw, 'requestedAt', 'requested_at') ?? ''),
@@ -91,6 +92,30 @@ export function normalizeLifecycleAdminRequest(input: unknown, region: DataRegio
     completedAt: nullableString(value(raw, 'completedAt', 'completed_at')),
     restrictedRetentionUntil: nullableString(value(raw, 'restrictedRetentionUntil', 'restricted_retention_until')),
     steps: Array.isArray(raw.steps) ? raw.steps.map(normalizeStep) : [],
+  }
+}
+
+export function normalizeLifecycleDryRun(input: unknown): LifecycleDryRun {
+  const raw = input && typeof input === 'object' ? input as Record<string, any> : {}
+  const aggregated = new Map<string, { categoryCode: string; action: string; count: number }>()
+  if (Array.isArray(raw.categories)) {
+    for (const item of raw.categories) {
+      const categoryCode = String(item?.categoryCode ?? item?.category ?? '')
+      const action = String(item?.action ?? '')
+      if (!categoryCode || !action) continue
+      const key = `${categoryCode}:${action}`
+      const current = aggregated.get(key)
+      const count = Number(item?.count ?? 0)
+      if (current) current.count += Number.isFinite(count) ? count : 0
+      else aggregated.set(key, { categoryCode, action, count: Number.isFinite(count) ? count : 0 })
+    }
+  }
+  return {
+    coverage: {
+      coveredColumnCount: Number(raw?.coverage?.coveredColumnCount ?? 0),
+      uncoveredColumnCount: Number(raw?.coverage?.uncoveredColumnCount ?? 0),
+    },
+    categories: [...aggregated.values()],
   }
 }
 
@@ -125,19 +150,7 @@ export const privacyLifecycleApi = {
 
   async dryRun(requestId: string): Promise<LifecycleDryRun> {
     const raw = unwrap<any>(await api.post('/privacy/lifecycle/dry-run', { requestId }))
-    return {
-      coverage: {
-        coveredColumnCount: Number(raw?.coverage?.coveredColumnCount ?? 0),
-        uncoveredColumnCount: Number(raw?.coverage?.uncoveredColumnCount ?? 0),
-      },
-      categories: Array.isArray(raw?.categories)
-        ? raw.categories.map((item: any) => ({
-            categoryCode: String(item?.categoryCode ?? item?.category ?? ''),
-            action: String(item?.action ?? ''),
-            count: Number(item?.count ?? 0),
-          }))
-        : [],
-    }
+    return normalizeLifecycleDryRun(raw)
   },
 
   async createHold(payload: RetentionHoldPayload) {

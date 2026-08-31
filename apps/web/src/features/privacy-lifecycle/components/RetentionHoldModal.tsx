@@ -27,7 +27,7 @@ export default function RetentionHoldModal({
   uncertain?: boolean
   feedback?: string | null
   onCancel: () => void
-  onSubmit: (payload: RetentionHoldPayload) => Promise<void>
+  onSubmit: (payload: RetentionHoldPayload) => Promise<boolean>
 }) {
   const [form] = Form.useForm<RetentionHoldPayload>()
   const [submitting, setSubmitting] = useState(false)
@@ -45,8 +45,8 @@ export default function RetentionHoldModal({
     setSubmitting(true)
     try {
       const expiresAt = new Date(values.expiresAt)
-      await onSubmit({ ...values, holdId, scopeId, expiresAt: expiresAt.toISOString() })
-      form.resetFields()
+      const succeeded = await onSubmit({ ...values, holdId, scopeId, expiresAt: expiresAt.toISOString() })
+      if (succeeded) form.resetFields()
     } finally {
       setSubmitting(false)
     }
@@ -58,9 +58,11 @@ export default function RetentionHoldModal({
       title={translate('privacyLifecycle.hold.title', '创建合法冻结')}
       footer={null}
       maskClosable={false}
+      closable={!uncertain && !submitting}
+      keyboard={!uncertain && !submitting}
       destroyOnHidden
       onCancel={() => {
-        if (submitting) return
+        if (submitting || uncertain) return
         form.resetFields()
         onCancel()
       }}
@@ -86,9 +88,8 @@ export default function RetentionHoldModal({
             />
           </Form.Item>
           <Form.Item name="scopeType" label={translate('privacyLifecycle.hold.scopeType', '冻结范围')} rules={[{ required: true }]}>
-            <Select disabled={uncertain} options={[
+            <Select disabled options={[
               { value: 'USER_REQUEST', label: translate('privacyLifecycle.hold.scopeUserRequest', '账号注销申请') },
-              { value: 'RETENTION_SCAN', label: translate('privacyLifecycle.hold.scopeRetentionScan', '期限扫描') },
             ]} />
           </Form.Item>
           <Form.Item name="scopeId" label={translate('privacyLifecycle.hold.scopeId', '范围编号')} rules={[{ required: true, message: translate('privacyLifecycle.hold.scopeIdRequired', '请输入范围编号') }]}>

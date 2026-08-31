@@ -247,6 +247,14 @@ export const LIFECYCLE_DATASETS = [
     'redact_audit_actors',
   ),
   dataset(
+    'data_lifecycle_admin_operations',
+    ['actor_user_id'],
+    [],
+    'SECURITY_LOGS',
+    'ANONYMIZE',
+    'redact_audit_actors',
+  ),
+  dataset(
     'logs',
     ['user_id'],
     ['email', 'phone', 'ip', 'ip_address', 'ua', 'user_agent'],

@@ -1274,6 +1274,8 @@ export default {
   'privacyLifecycle.field.restrictedUntil': 'Restricted until',
   'privacyLifecycle.mode.IMMEDIATE': 'Immediate deletion',
   'privacyLifecycle.mode.GRACE_PERIOD': '30-day grace period',
+  'privacyLifecycle.mode.UNKNOWN': 'Unknown mode',
+  'privacyLifecycle.unknown.warning': 'An unrecognized server mode or status was found. The record is fail-closed and write actions are disabled.',
   'privacyLifecycle.status.REQUESTED': 'Requested',
   'privacyLifecycle.status.SCHEDULED': 'Scheduled',
   'privacyLifecycle.status.RUNNING': 'Running',

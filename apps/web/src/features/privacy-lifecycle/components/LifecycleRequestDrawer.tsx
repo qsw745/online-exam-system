@@ -32,6 +32,7 @@ export default function LifecycleRequestDrawer({
   onRetry: (step: LifecycleAdminStep) => Promise<void>
 }) {
   const status = detail ? lifecycleStatusPresentation(detail.status) : null
+  const parentAllowsWrites = Boolean(status?.known && !status.terminal && detail?.mode !== 'UNKNOWN')
 
   return (
     <Drawer
@@ -75,7 +76,7 @@ export default function LifecycleRequestDrawer({
           <Button
             danger
             onClick={onOpenHold}
-            disabled={!status?.known || status.terminal}
+            disabled={!parentAllowsWrites}
           >
             {translate('privacyLifecycle.hold.title', '创建合法冻结')}
           </Button>
@@ -106,7 +107,7 @@ export default function LifecycleRequestDrawer({
                           .replace('{attempts}', String(step.attemptCount))}
                       </Text>
                       {step.lastErrorCode ? <Text code>{step.lastErrorCode}</Text> : null}
-                      {stepView.canRetry ? (
+                      {stepView.canRetry && parentAllowsWrites ? (
                         <Button
                           danger
                           loading={retryingStepId === step.stepId}

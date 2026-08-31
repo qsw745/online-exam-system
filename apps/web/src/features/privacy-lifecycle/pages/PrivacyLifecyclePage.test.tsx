@@ -126,6 +126,8 @@ describe('PrivacyLifecyclePage', () => {
     await user.type(screen.getByLabelText('复核时间'), '2026-09-01T10:00')
     await user.click(screen.getByRole('button', { name: '确认暂停' }))
     expect(await screen.findByText(/结果尚未确认/)).toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: '暂停本区生命周期处理' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: '使用同一操作重试' }))
 
     await waitFor(() => expect(pauseRegion).toHaveBeenCalledTimes(2))
@@ -148,6 +150,70 @@ describe('PrivacyLifecyclePage', () => {
     expect(await screen.findByText('考试档案')).toBeInTheDocument()
     expect(screen.queryByText('认证凭据')).not.toBeInTheDocument()
     expect(screen.queryByText('人脸凭据')).not.toBeInTheDocument()
+    await user.keyboard('{Escape}')
+    await user.click(within(dialog).getByLabelText('冻结范围'))
+    expect(await screen.findAllByText('账号注销申请')).not.toHaveLength(0)
+    expect(screen.queryByText('期限扫描')).not.toBeInTheDocument()
+  })
+
+  it('合法冻结网络不确定时保留原表单和冻结编号并用同一载荷重试', async () => {
+    const user = userEvent.setup()
+    let attempt = 0
+    const createHold = vi.fn(async (payload: RetentionHoldPayload) => {
+      attempt += 1
+      if (attempt === 1) throw new Error('服务器无响应，请检查网络连接')
+      return { holdId: payload.holdId }
+    })
+    const api = createApi({ createHold })
+    renderPage(api)
+
+    await user.click(await screen.findByRole('button', { name: '查看详情' }))
+    await user.click(await screen.findByRole('button', { name: '创建合法冻结' }))
+    const dialog = await screen.findByRole('dialog', { name: '创建合法冻结' })
+    await user.click(within(dialog).getByLabelText('数据类别'))
+    await user.click(await screen.findByText('考试档案'))
+    await user.click(within(dialog).getByLabelText('冻结原因'))
+    await user.click(await screen.findByText('法律争议'))
+    await user.type(within(dialog).getByLabelText('法律依据或案件编号'), '案号 2026-08-31-01')
+    await user.type(within(dialog).getByLabelText('冻结到期时间'), '2026-09-30T10:00')
+    await user.click(within(dialog).getByRole('button', { name: '确认创建冻结' }))
+
+    expect(await within(dialog).findByText(/结果尚未确认/)).toBeInTheDocument()
+    const originalHoldId = String(createHold.mock.calls[0][0].holdId)
+    await user.keyboard('{Escape}')
+    expect(screen.getByRole('dialog', { name: '创建合法冻结' })).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('button', { name: '使用同一操作重试' }))
+
+    await waitFor(() => expect(createHold).toHaveBeenCalledTimes(2))
+    expect(createHold.mock.calls[1][0]).toEqual(createHold.mock.calls[0][0])
+    expect(createHold.mock.calls[1][0].holdId).toBe(originalHoldId)
+  })
+
+  it('未知删除模式失败关闭并禁止创建冻结', async () => {
+    const unknownRequest = { ...request, mode: 'UNKNOWN' as const }
+    const api = createApi({
+      listRequests: vi.fn(async () => ({ items: [unknownRequest], limit: 50, offset: 0 })),
+      getRequest: vi.fn(async () => unknownRequest),
+    })
+    const user = userEvent.setup()
+    renderPage(api)
+    expect(await screen.findByText('未知模式')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: '查看详情' }))
+    expect(await screen.findByRole('button', { name: '创建合法冻结' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: '人工重试' })).not.toBeInTheDocument()
+  })
+
+  it('未知父状态即使步骤需要人工处理也不显示重试', async () => {
+    const unknownRequest = { ...request, status: 'FUTURE_STATUS' }
+    const api = createApi({
+      listRequests: vi.fn(async () => ({ items: [unknownRequest], limit: 50, offset: 0 })),
+      getRequest: vi.fn(async () => unknownRequest),
+    })
+    const user = userEvent.setup()
+    renderPage(api)
+    await user.click(await screen.findByRole('button', { name: '查看详情' }))
+    expect(await screen.findAllByText('未知状态')).not.toHaveLength(0)
+    expect(screen.queryByRole('button', { name: '人工重试' })).not.toBeInTheDocument()
   })
 
   it('安全预演必须二次确认且只展示类别聚合数量', async () => {
