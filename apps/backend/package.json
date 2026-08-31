@@ -24,7 +24,9 @@
     "db:setup": "pnpm db:bootstrap && pnpm db:latest && pnpm db:seed",
     "db:rebuild": "pnpm db:drop && pnpm db:setup",
     "dev:with-db:seed": "pnpm db:setup && pnpm dev",
-    "privacy:schema-audit": "tsx scripts/privacy/lifecycle-schema-audit.ts"
+    "privacy:schema-audit": "tsx scripts/privacy/lifecycle-schema-audit.ts",
+    "worker:lifecycle": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts",
+    "worker:lifecycle:once": "tsx src/modules/privacy-lifecycle/workers/lifecycle.worker.ts --once"
   },
   "keywords": [],
   "author": "",
