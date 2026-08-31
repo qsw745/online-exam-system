@@ -1,5 +1,6 @@
 export * from './auth'
 export * from './accountDeletion'
+export * from './privacyLifecycle'
 export * from './dashboard'
 export * from './discussions'
 export * from './favorites'

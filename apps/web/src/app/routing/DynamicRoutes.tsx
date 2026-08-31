@@ -259,6 +259,7 @@ export default function DynamicRoutes() {
       { path: 'paper-edit/:id', element: elementFromRegistry('paper-edit') },
       { path: 'tasks/edit/:id', element: elementFromRegistry('tasks-edit') },
       { path: 'exam-reviews', element: elementFromRegistry('exam-reviews') },
+      { path: 'privacy/lifecycle', element: elementFromRegistry('privacy-lifecycle') },
     ]
 
     // 默认首页（优先 dashboard）

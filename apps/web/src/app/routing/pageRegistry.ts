@@ -80,6 +80,7 @@ const WorkflowTemplatesPage = lazy(() => import('@/features/workflows/pages/Work
 const WorkflowTasksPage = lazy(() => import('@/features/workflows/pages/WorkflowTasksPage'))
 const ProctoringReviewQueuePage = lazy(() => import('@/features/proctoring-review/pages/ProctoringReviewQueuePage'))
 const MyProctoringReviewPage = lazy(() => import('@/features/proctoring-review/pages/MyProctoringReviewPage'))
+const PrivacyLifecyclePage = lazy(() => import('@/features/privacy-lifecycle/pages/PrivacyLifecyclePage'))
 
 // Errors
 const Forbidden403 = lazy(() => import('@/app/errors/Forbidden403'))
@@ -119,6 +120,7 @@ export const componentRegistry: Record<string, LazyExoticComponent<ComponentType
   'admin-user': UserManagementPage,
   'menu-list': MenusListPage,
   'system-settings': SystemSettingsPage,
+  'privacy-lifecycle': PrivacyLifecyclePage,
   'files-library': FilesLibraryPage,
   'files-uploads': FilesUploadPage,
   'system-dict': DictManagementPage,
