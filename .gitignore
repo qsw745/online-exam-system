@@ -125,3 +125,4 @@ apps/face-engine/models/
 
 # i18n 扫描报告（生成文件）
 apps/web/i18n-report.txt
+output/playwright/

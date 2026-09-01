@@ -123,8 +123,8 @@ describe('AccountDeletionPage', () => {
       email: 'member@example.com',
       password: 'correct-password',
     }))
-    expect(memory.store.clear).toHaveBeenCalledOnce()
-    expect(screen.getByTestId('location')).toHaveTextContent('/login')
+    await waitFor(() => expect(memory.store.clear).toHaveBeenCalledOnce())
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/login'))
   })
 
   it('完成但依法限期保留时明确说明受限数据不再用于产品功能', async () => {

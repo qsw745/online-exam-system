@@ -10,8 +10,8 @@ export default function AccountDeletionCard() {
   return (
     <AccountDeletionRequestCard
       onAccepted={async () => {
-        await signOut()
         navigate('/account-deletion', { replace: true })
+        await signOut()
       }}
     />
   )

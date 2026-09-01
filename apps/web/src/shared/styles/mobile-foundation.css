@@ -111,6 +111,11 @@
     padding: 12px 12px calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px) !important;
   }
 
+  .mobile-app-shell {
+    min-height: 100vh;
+    padding-bottom: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
+  }
+
   .mobile-student-nav {
     position: fixed;
     z-index: 1250;

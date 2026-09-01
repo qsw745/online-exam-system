@@ -202,7 +202,7 @@ export default function AccountDeletionPage({
                 <Descriptions.Item label={translate('account.deletion.scheduled_at')}>{formatDate(activeStatus.scheduledFor)}</Descriptions.Item>
                 <Descriptions.Item label={translate('account.deletion.completed_at')}>{formatDate(activeStatus.completedAt)}</Descriptions.Item>
                 {activeStatus.restrictedRetentionUntil ? (
-                  <Descriptions.Item label={translate('account.deletion.retained_until')} span={2}>{formatDate(activeStatus.restrictedRetentionUntil)}</Descriptions.Item>
+                  <Descriptions.Item label={translate('account.deletion.retained_until')}>{formatDate(activeStatus.restrictedRetentionUntil)}</Descriptions.Item>
                 ) : null}
               </Descriptions>
 

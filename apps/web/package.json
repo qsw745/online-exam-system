@@ -5,7 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:ios:e2e": "cross-env VITE_APP_TARGET=ios VITE_BASE_PATH=/ vite --host 127.0.0.1 --port 4176 --strictPort",
     "test": "vitest run",
+    "test:e2e:phase6": "playwright test e2e/mobile-account-deletion.phase6.spec.ts",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "typecheck:watch": "tsc -w --noEmit -p tsconfig.json",
@@ -62,6 +64,7 @@
   "devDependencies": {
     "@capacitor/cli": "8.5.0",
     "@capacitor/ios": "8.5.0",
+    "@playwright/test": "^1.62.1",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.6",

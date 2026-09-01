@@ -371,8 +371,8 @@ export default function AccountTab() {
 
       <AccountDeletionRequestCard
         onAccepted={async () => {
-          await signOut()
           navigate('/account-deletion', { replace: true })
+          await signOut()
         }}
       />
 
