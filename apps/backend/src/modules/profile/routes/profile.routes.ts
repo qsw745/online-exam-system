@@ -5,6 +5,7 @@ import { authenticateToken } from '@/common/middleware/auth.js'
 import { validateRequest } from '@/common/middleware/validation.js'
 import { upload } from '@/common/middleware/upload.js'
 import type { AuthRequest } from '@/types/auth.js'
+import { updateProfileValidation } from './profile-validation.js'
 import { ProfileController } from '../controllers/profile.controller.js'
 
 const router = Router()
@@ -23,15 +24,7 @@ router.get('/', wrap(ProfileController.getProfile))
 // PUT /profile
 router.put(
   '/',
-  [
-    body('email').optional().isEmail().isLength({ max: 120 }),
-    body('nickname').optional().isString().isLength({ min: 1, max: 50 }),
-    body('phone').optional().isString().isLength({ min: 3, max: 30 }),
-    body('bio').optional().isString().isLength({ max: 500 }),
-    body('avatar').optional().isString().isLength({ max: 500 }),
-    body('school').optional().isString().isLength({ max: 100 }),
-    body('class_name').optional().isString().isLength({ max: 100 }),
-  ],
+  updateProfileValidation,
   validateRequest,
   wrap(ProfileController.updateProfile)
 )

@@ -1,56 +1,36 @@
-// features/profile/components/ProfileStats.tsx
-import { Card, Typography, Space } from 'antd'
-import { Calendar, School, Trophy } from 'lucide-react'
-const { Title, Text } = Typography
+import { Alert, Button, Card, Statistic, Spin } from 'antd'
+import { useEffect, useState } from 'react'
+import { wrongQuestions } from '@/shared/api/http'
 
-export default function ProfileStats({ t }: { t: (k: string) => string }) {
-  return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: 16,
-        marginBottom: 24,
-      }}
-    >
-      <Card size="small">
-        <Space align="center" style={{ marginBottom: 8 }}>
-          <Trophy style={{ width: 20, height: 20, color: '#1890ff' }} />
-          <Text strong>{t('profile.exam_score')}</Text>
-        </Space>
-        <div>
-          <Title level={2} style={{ margin: 0, fontSize: 32 }}>
-            85.5
-          </Title>
-          <Text type="secondary">{t('profile.average_score')}</Text>
-        </div>
-      </Card>
-
-      <Card size="small">
-        <Space align="center" style={{ marginBottom: 8 }}>
-          <Calendar style={{ width: 20, height: 20, color: '#1890ff' }} />
-          <Text strong>{t('profile.exams_taken')}</Text>
-        </Space>
-        <div>
-          <Title level={2} style={{ margin: 0, fontSize: 32 }}>
-            12
-          </Title>
-          <Text type="secondary">{t('profile.total_exams')}</Text>
-        </div>
-      </Card>
-
-      <Card size="small">
-        <Space align="center" style={{ marginBottom: 8 }}>
-          <School style={{ width: 20, height: 20, color: '#1890ff' }} />
-          <Text strong>{t('profile.knowledge_points')}</Text>
-        </Space>
-        <div>
-          <Title level={2} style={{ margin: 0, fontSize: 32 }}>
-            156
-          </Title>
-          <Text type="secondary">{t('profile.mastered')}</Text>
-        </div>
-      </Card>
-    </div>
-  )
+export default function ProfileStats({ t }: { t: (key: string) => string }) {
+  const [stats, setStats] = useState<{ totalPractice: number; correctRate: number; masteredQuestions: number } | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    let active = true
+    const load = async () => {
+      setLoading(true)
+      setError(null)
+      await wrongQuestions.getPracticeStats().then(result => {
+      if (!active) return
+      if (!result.success || !result.data) throw new Error(('error' in result ? result.error : '') || '学习统计加载失败')
+      const data = result.data as Record<string, unknown>
+      const values = [data.totalPractice, data.correctRate, data.masteredQuestions].map(Number)
+      if (values.some(value => !Number.isFinite(value) || value < 0)) throw new Error('学习统计数据不完整')
+      setStats({ totalPractice: values[0], correctRate: Math.min(100, values[1]), masteredQuestions: values[2] })
+    }).catch(error => { if (active) setError(error instanceof Error ? error.message : '学习统计加载失败') })
+      .finally(() => { if (active) setLoading(false) })
+    }
+    void load()
+    return () => { active = false }
+  }, [retry])
+  return <Card title="学习统计" className="student-profile-stats">
+    {error ? <Alert type="warning" message={error} action={<Button onClick={() => setRetry(value => value + 1)}>{t('app.retry')}</Button>} /> :
+      <Spin spinning={loading}><div className="student-profile-stats__grid">
+        <Statistic title="累计练习次数" value={stats?.totalPractice ?? '—'} />
+        <Statistic title="练习正确率" value={stats?.correctRate ?? '—'} suffix={stats ? '%' : undefined} precision={stats ? 1 : undefined} />
+        <Statistic title="已掌握题目" value={stats?.masteredQuestions ?? '—'} />
+      </div></Spin>}
+  </Card>
 }

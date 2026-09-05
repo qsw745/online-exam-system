@@ -1,7 +1,8 @@
 // src/features/tasks/pages/TaskDetailPage.tsx
-import React, { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { App, Card, Space, Button } from 'antd'
+import React, { useMemo, useState } from 'react'
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { Alert, App, Card, Space, Button } from 'antd'
+import { useAuth } from '@/shared/contexts/AuthContext'
 import dayjs from '@/shared/utils/dayjs'
 import { TaskDetail } from '../components/TaskDetail'
 import { TaskForm } from '../components/TaskForm'
@@ -23,19 +24,21 @@ const toNumArr = (a: any): number[] =>
         .filter((n): n is number => typeof n === 'number')
     : []
 
+export const getTaskPracticePath = (taskId: string | number) => `/learning/practice?taskId=${encodeURIComponent(taskId)}`
+
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [sp, setSp] = useSearchParams()
   const { message } = App.useApp()
   const nav = useNavigate()
+  const location = useLocation()
+  const { user } = useAuth()
+  const canEdit = user?.role === 'teacher' || user?.role === 'admin'
+  const goBack = () => location.key === 'default' ? nav(user?.role === 'student' ? '/tasks/my' : '/tasks') : nav(-1)
 
-  const { loading, task, refetch } = useTaskById(id)
-  const [editing, setEditing] = useState(sp.get('edit') === '1')
+  const { loading, task, error, refetch } = useTaskById(id)
+  const editing = canEdit && sp.get('edit') === '1'
   const [saving, setSaving] = useState(false)
-
-  useEffect(() => {
-    setEditing(sp.get('edit') === '1')
-  }, [sp])
 
   /** 生成表单初始值（全部用 number 做 value，避免 Select 不回显） */
   const initial = useMemo(() => {
@@ -95,7 +98,7 @@ export default function TaskDetailPage() {
   }
 
   const onSubmit = async (payload: any) => {
-    if (!id) return
+    if (!id || !canEdit) return
     try {
       setSaving(true)
       // 提交前再做一遍 number 归一化，防止控件返回字符串
@@ -138,21 +141,23 @@ export default function TaskDetailPage() {
       return
     }
     if (t.type === 'exam') {
-      const examId = toNum(t.exam_id ?? t.examId)
-      if (examId) nav(`/exam/${examId}`)
+      nav(`/exam/task/${t.id}`)
     } else {
-      nav(`/practice/${t.id}`)
+      nav(getTaskPracticePath(t.id))
     }
   }
 
   return (
     <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      {editing ? (
+      {error ? (
+        <Alert type="error" showIcon message="任务加载失败" description={error}
+          action={<Space wrap><Button onClick={goBack}>返回任务</Button><Button loading={loading} onClick={() => void refetch()}>重试</Button></Space>} />
+      ) : editing && canEdit ? (
         <Card
           title={translate('jobs.edit_job')}
           extra={
             <Space>
-              <Button onClick={() => nav(-1)}>{translate('app.back')}</Button>
+              <Button onClick={goBack}>{translate('app.back')}</Button>
               <Button onClick={cancelEdit}>{translate('auto.c698df948d')}</Button>
             </Space>
           }
@@ -170,8 +175,8 @@ export default function TaskDetailPage() {
           onViewResult={(t: any) => {
             if (t?.my_result_id) nav(`/results/${t.my_result_id}`)
           }}
-          onBack={() => nav(-1)}
-          onEdit={() => enterEdit()}
+          onBack={goBack}
+          onEdit={canEdit ? enterEdit : undefined}
         />
       )}
     </Space>

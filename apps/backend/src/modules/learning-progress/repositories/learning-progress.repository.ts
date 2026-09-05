@@ -1,4 +1,5 @@
 import { pool } from '@/config/database.js'
+import { buildProgressFilter, type ProgressRange } from './progress-filter.js'
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type {
   LearningAchievement,
@@ -22,6 +23,7 @@ type DailyRow = RowDataPacket & {
   avg_accuracy: number | null
 }
 type TotalRow = RowDataPacket & {
+  subjects_studied: number | null
   total_study_time: number | null
   total_questions: number | null
   correct_answers: number | null
@@ -145,9 +147,8 @@ export class LearningProgressRepository {
     )
   }
 
-  async dailyStats(userId: number, subjectId: number | undefined, days: number) {
-    const subjectCond = subjectId ? 'AND subject_id = ?' : ''
-    const params = (subjectId ? [userId, subjectId] : [userId]) as any[]
+  async dailyStats(userId: number, subjectId: number | undefined, days: number | undefined, range: ProgressRange = {}) {
+    const filter = buildProgressFilter(userId, subjectId, { days, ...range })
     const [rows] = await pool.execute<DailyRow[]>(
       `SELECT DATE(study_date) AS date,
               SUM(time_spent) AS total_study_time,
@@ -155,26 +156,26 @@ export class LearningProgressRepository {
               SUM(correct_answers) AS correct_answers,
               AVG(accuracy_rate) AS avg_accuracy
        FROM learning_progress
-       WHERE user_id=? ${subjectCond} AND study_date >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)
+       WHERE ${filter.sql}
        GROUP BY DATE(study_date)
        ORDER BY DATE(study_date) ASC`,
-      params
+      filter.params
     )
     return rows
   }
 
-  async totalStats(userId: number, subjectId: number | undefined, days: number) {
-    const subjectCond = subjectId ? 'AND subject_id = ?' : ''
-    const params = (subjectId ? [userId, subjectId] : [userId]) as any[]
+  async totalStats(userId: number, subjectId: number | undefined, days: number | undefined, range: ProgressRange = {}) {
+    const filter = buildProgressFilter(userId, subjectId, { days, ...range })
     const [rows] = await pool.execute<TotalRow[]>(
       `SELECT SUM(time_spent) AS total_study_time,
               SUM(total_questions) AS total_questions,
               SUM(correct_answers) AS correct_answers,
               AVG(accuracy_rate) AS avg_accuracy,
-              COUNT(DISTINCT study_date) AS study_days
+              COUNT(DISTINCT study_date) AS study_days,
+              COUNT(DISTINCT subject_id) AS subjects_studied
        FROM learning_progress
-       WHERE user_id=? ${subjectCond} AND study_date >= DATE_SUB(CURDATE(), INTERVAL ${days} DAY)`,
-      params
+       WHERE ${filter.sql}`,
+      filter.params
     )
     return rows[0]
   }
@@ -280,26 +281,15 @@ export class LearningProgressRepository {
   }
 
   async listRecords(userId: number, start?: string, end?: string, subject?: string, limit = 20) {
-    let sql = `SELECT 
-         lp.id, lp.user_id,
-         COALESCE(lp.subject_id, 0) AS subject_id,
-         lp.subject_id AS subject,
-         lp.total_questions AS questions_count,
-         lp.correct_answers AS correct_count,
-         lp.time_spent AS study_time,
-         lp.accuracy_rate AS accuracy_rate,
-         lp.study_date AS created_at
-       FROM learning_progress lp
-       WHERE 1=1`
-    if (userId) sql += ` AND lp.user_id=${Number(userId)}`
-    if (subject && subject !== 'all') {
-      const sid = Number.parseInt(subject, 10)
-      if (!Number.isNaN(sid)) sql += ` AND lp.subject_id=${sid}`
-    }
-    if (start && end) sql += ` AND lp.study_date >= '${start}' AND lp.study_date <= '${end}'`
-    sql += ` ORDER BY lp.study_date DESC, lp.id DESC`
-    if (limit) sql += ` LIMIT ${Number.parseInt(String(limit), 10)}`
-    const [rows] = await pool.query<ProgressRecordRow[]>(sql)
+    const subjectId = subject && subject !== 'all' ? Number(subject) : undefined
+    const filter = buildProgressFilter(userId, subjectId, { start, end }, 'lp')
+    const sql = `SELECT lp.id, lp.user_id, COALESCE(lp.subject_id, 0) AS subject_id,
+         lp.subject_id AS subject, lp.total_questions AS questions_count,
+         lp.correct_answers AS correct_count, lp.time_spent AS study_time,
+         lp.accuracy_rate AS accuracy_rate, lp.study_date AS created_at
+       FROM learning_progress lp WHERE ${filter.sql}
+       ORDER BY lp.study_date DESC, lp.id DESC LIMIT ?`
+    const [rows] = await pool.query<ProgressRecordRow[]>(sql, [...filter.params, limit])
     return rows as unknown as ProgressRecord[]
   }
 

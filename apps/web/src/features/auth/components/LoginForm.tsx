@@ -148,6 +148,7 @@ export const LoginForm: React.FC<Props> = p => {
                   />
                   <Button
                     icon={<ReloadOutlined />}
+                    aria-label="刷新验证码"
                     onClick={p.onRefreshCaptcha}
                     disabled={p.inputsDisabled}
                     aria-disabled={p.inputsDisabled}

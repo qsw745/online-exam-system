@@ -1,27 +1,20 @@
-import React, { useEffect, useMemo, useRef, useState, useLayoutEffect } from 'react'
-import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff, ArrowUp } from 'lucide-react'
-import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input, BackTop, FloatButton } from 'antd'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, ArrowLeft, CheckCircle, Eye, EyeOff, Heart, HeartOff } from 'lucide-react'
+import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, App, Alert, Empty, Input, FloatButton } from 'antd'
 import { wrongQuestions, questionsApi, isSuccess } from '@/shared/api/http'
 import {
   addQuestionToFavorites,
-  isQuestionFavorited,
+  getFavoriteQuestionIds,
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
 import { aiApi } from '@/shared/api/endpoints/ai'
+import { judgePracticeQuestion, normalizePracticeQuestion, parsePracticeGrade, type PracticeQuestion } from '../utils/practiceQuestion'
 import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
 
-type Question = {
-  id: string | number
-  content: string
-  question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
-  options?: Array<{ content: string; is_correct: boolean }>
-  correct_answer?: number[] | string
-  explanation?: string
-  difficulty?: 'easy' | 'medium' | 'hard' | string
-}
+type Question = PracticeQuestion
 
 type Props = {
   ids: string[]
@@ -31,20 +24,16 @@ type Props = {
 const SHORT_ANSWER_PASS_RATE = 0.6
 const SHORT_ANSWER_MAX_SCORE = 10
 
-function judge(q: Question, selected: number[], text: string, aiCorrect?: boolean) {
-  if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
-    const correct = q.options?.map((opt, i) => (opt.is_correct ? i : -1)).filter(i => i !== -1) || []
-    return selected.length === correct.length && selected.every(i => correct.includes(i))
-  }
-  if (q.question_type === 'true_false') {
-    const idx = (q.correct_answer as string) === 'true' ? 0 : 1
-    return selected[0] === idx
-  }
-  if (q.question_type === 'short_answer') return aiCorrect === true
-  return false
-}
-
 export default function BulkPracticeView({ ids, onExit }: Props) {
+  const { message } = App.useApp()
+  const generation = useRef(0)
+  const gradingLock = useRef(false)
+  const favoriteLock = useRef(false)
+  const editedFavoriteIds = useRef(new Set<string>())
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
+  const [retry, setRetry] = useState(0)
+  const [submissionError, setSubmissionError] = useState<string | null>(null)
+  const [recordError, setRecordError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [qs, setQs] = useState<Question[]>([])
@@ -66,29 +55,22 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
   const [fav, setFav] = useState<Record<string, boolean>>({})
   const [grading, setGrading] = useState(false)
 
-  // 全局导航高度，按你的页面调整
-  const TOP_OFFSET = 64
-
-  // 回到顶部可见性
-  const [showGoTop, setShowGoTop] = useState(false)
-  useEffect(() => {
-    const handler = () => {
-      const top = window.document.documentElement.scrollTop || window.document.body.scrollTop
-      setShowGoTop(top > 300)
-    }
-    window.addEventListener('scroll', handler, { passive: true })
-    handler()
-    return () => window.removeEventListener('scroll', handler)
-  }, [])
-  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' })
-
   // 拉题（一次性 batch）
   useEffect(() => {
     let mounted = true
+    generation.current += 1
+    gradingLock.current = false
+    favoriteLock.current = false
+    editedFavoriteIds.current = new Set()
     ;(async () => {
       try {
         setLoading(true)
         setError(null)
+        setQs([])
+        setGrading(false)
+        setFavoriteLoading(false)
+        setSubmissionError(null)
+        setRecordError(null)
         if (!ids.length) {
           setQs([])
           setAnswers({})
@@ -97,7 +79,13 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
         }
         const resp = await questionsApi.getByIds(ids)
         if (!isSuccess(resp)) throw new Error((resp as any).error || '加载题目失败')
-        const ordered = (Array.isArray(resp.data) ? resp.data : []) as Question[]
+        if (!Array.isArray(resp.data)) throw new Error('题目数据不完整，请重试')
+        const fetched = new Map(resp.data.map(raw => { const q = normalizePracticeQuestion(raw); return [String(q.id), q] }))
+        const ordered = ids.map(id => {
+          const question = fetched.get(id)
+          if (!question) throw new Error('部分题目已失效，请返回列表刷新')
+          return question
+        })
 
         if (!mounted) return
         setQs(ordered)
@@ -112,14 +100,16 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
         for (const q of ordered) {
           const k = String(q.id)
           ans[k] = { selected: [], text: '' }
-          try {
-            favMap[k] = await isQuestionFavorited(k)
-          } catch {
-            favMap[k] = false
-          }
+          favMap[k] = false
         }
         setAnswers(ans)
         setFav(favMap)
+        void getFavoriteQuestionIds().then(favorites => {
+          if (mounted) setFav(previous => Object.fromEntries(ordered.map(q => {
+            const id = String(q.id)
+            return [id, editedFavoriteIds.current.has(id) ? previous[id] : favorites.has(id)]
+          })))
+        }).catch(() => undefined)
 
         window.scrollTo({ top: 0 })
       } catch (e: any) {
@@ -130,83 +120,87 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
     })()
     return () => {
       mounted = false
+      generation.current += 1
     }
-  }, [ids])
+  }, [ids, retry])
 
   const summary = useMemo(() => {
     if (!submitted) return { total: qs.length, correct: 0 }
     let c = 0
     qs.forEach(q => {
       const a = answers[String(q.id)] || { selected: [], text: '' }
-      if (judge(q, a.selected, a.text, a.aiCorrect)) c++
+      if (judgePracticeQuestion(q, a.selected, a.aiCorrect)) c++
     })
     return { total: qs.length, correct: c }
   }, [submitted, qs, answers])
 
   const submitAll = async () => {
-    setSubmitted(true)
+    if (gradingLock.current || submitted || loading || !qs.length) return
+    const version = generation.current
+    gradingLock.current = true
     setGrading(true)
+    setSubmissionError(null)
+    setRecordError(null)
     const nextAnswers = { ...answers }
-    const payloads: Array<{ id: string; ok: boolean; payload: any }> = []
-
-    for (const q of qs) {
-      const id = String(q.id)
-      const a = nextAnswers[id] || { selected: [], text: '' }
-      let ok = judge(q, a.selected, a.text, a.aiCorrect)
-
-      if (q.question_type === 'short_answer') {
-        if (!a.text?.trim()) {
-          ok = false
-          nextAnswers[id] = { ...a, aiCorrect: false, aiFeedback: '未作答' }
-          payloads.push({ id, ok, payload: a.text })
+    try {
+      for (const q of qs) {
+        const id = String(q.id)
+        const answer = nextAnswers[id] || { selected: [], text: '' }
+        if (q.question_type !== 'short_answer') continue
+        if (!answer.text.trim()) {
+          nextAnswers[id] = { ...answer, aiCorrect: false, aiFeedback: '未作答' }
           continue
         }
-        try {
-          const payload = {
-            question: q.content,
-            rubric: q.correct_answer,
-            answer: a.text,
-            max_score: SHORT_ANSWER_MAX_SCORE,
-          }
-          const res: any = await aiApi.gradeShortAnswer(payload)
-          if (!res?.success) throw new Error(res?.error || 'AI 评分失败')
-          const root = res?.data ?? {}
-          const data = root?.data ?? root
-          const score = Number(data?.score)
-          const maxScore = Number(data?.max_score ?? payload.max_score)
-          if (Number.isFinite(score) && Number.isFinite(maxScore)) {
-            ok = score >= maxScore * SHORT_ANSWER_PASS_RATE
-            nextAnswers[id] = {
-              ...a,
-              aiCorrect: ok,
-              aiScore: score,
-              aiMaxScore: maxScore,
-              aiFeedback: data?.feedback,
-            }
-          } else {
-            ok = false
-            nextAnswers[id] = { ...a, aiCorrect: false }
-          }
-        } catch (e: any) {
-          ok = false
-          nextAnswers[id] = { ...a, aiCorrect: false, aiFeedback: 'AI 评分失败' }
-        }
+        if (answer.aiScore != null && answer.aiMaxScore != null) continue
+        const res: any = await aiApi.gradeShortAnswer({ question: q.content, rubric: q.correct_answer,
+          answer: answer.text, max_score: SHORT_ANSWER_MAX_SCORE })
+        if (version !== generation.current) return
+        if (!res?.success) throw new Error(res?.error || 'AI 评分失败')
+        const grade = parsePracticeGrade(res.data?.data ?? res.data, SHORT_ANSWER_MAX_SCORE)
+        nextAnswers[id] = { ...answer, aiCorrect: grade.score >= grade.maxScore * SHORT_ANSWER_PASS_RATE,
+          aiScore: grade.score, aiMaxScore: grade.maxScore, aiFeedback: grade.feedback }
       }
-
-      payloads.push({ id, ok, payload: q.question_type === 'short_answer' ? a.text : a.selected })
+      if (version !== generation.current) return
+      setAnswers(nextAnswers)
+      setSubmitted(true)
+      setShowExp(true)
+      const results = await Promise.allSettled(qs.map(async q => {
+        const answer = nextAnswers[String(q.id)] || { selected: [], text: '' }
+        const res = await wrongQuestions.recordPractice({ question_id: Number(q.id),
+          is_correct: judgePracticeQuestion(q, answer.selected, answer.aiCorrect),
+          answer: q.question_type === 'short_answer' ? answer.text : answer.selected })
+        if (!isSuccess(res)) throw new Error(res.error || '练习记录未确认')
+      }))
+      if (version !== generation.current) return
+      const failed = results.filter(result => result.status === 'rejected').length
+      if (failed) setRecordError(`${failed} 条练习记录尚未确认，答题结果保留在当前页面。请稍后查看学习记录。`)
+    } catch (error) {
+      if (version !== generation.current) return
+      setAnswers(nextAnswers)
+      setSubmissionError(`${error instanceof Error ? error.message : '评分失败'}。答案已保留，请重试评分。`)
+    } finally {
+      if (version === generation.current) { gradingLock.current = false; setGrading(false) }
     }
+  }
 
-    setAnswers(nextAnswers)
-    setGrading(false)
-    Promise.allSettled(
-      payloads.map(p =>
-        wrongQuestions.recordPractice({
-          question_id: parseInt(p.id, 10),
-          is_correct: p.ok,
-          answer: p.payload,
-        })
-      )
-    ).catch(() => {})
+  const toggleFavorite = async (q: Question) => {
+    if (favoriteLock.current) return
+    const version = generation.current
+    const id = String(q.id)
+    editedFavoriteIds.current.add(id)
+    favoriteLock.current = true
+    setFavoriteLoading(true)
+    try {
+      if (fav[id]) await removeQuestionFromFavorites(id)
+      else await addQuestionToFavorites(id, q.content.slice(0, 100))
+      if (version !== generation.current) return
+      setFav(previous => ({ ...previous, [id]: !fav[id] }))
+      message.success(translate(fav[id] ? 'auto.0fc87e8309' : 'auto.143a521b56'))
+    } catch (error) {
+      if (version === generation.current) message.error(error instanceof Error ? error.message : '收藏操作失败')
+    } finally {
+      if (version === generation.current) { favoriteLock.current = false; setFavoriteLoading(false) }
+    }
   }
 
   const typeLabel = (t?: string) =>
@@ -215,16 +209,17 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
     (({ easy: translate('questions.easy'), medium: translate('questions.medium'), hard: translate('questions.hard') } as any)[d || ''] || d)
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+    <div className="student-practice-session" style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 顶部工具条 —— 用 sticky，不会遮挡内容 */}
         <div
+          className="practice-bulk-toolbar"
           style={{
             position: 'sticky',
-            top: TOP_OFFSET,
-            zIndex: 1000,
+            top: 64,
+            zIndex: 30,
             padding: '12px 16px',
-            background: '#fff',
+            background: 'var(--ant-color-bg-container)',
             borderRadius: 12,
             border: '1px solid rgba(15, 23, 42, 0.06)',
             boxShadow: '0 8px 24px -12px rgba(15, 23, 42, 0.25)',
@@ -252,15 +247,18 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                 {showExp ? translate('visible.fbdfb3c5b1') : translate('visible.e25ef71017')}
               </Button>
               {!submitted ? (
-                <Button type="primary" onClick={submitAll} loading={grading}>
+                <Button type="primary" onClick={submitAll} loading={grading} disabled={loading || !qs.length}>
                   {translate('auto.fe82d08c17')}</Button>
               ) : (
                 <Button
+                  disabled={grading}
                   onClick={() => {
                     const cleared: typeof answers = {}
                     qs.forEach(q => (cleared[String(q.id)] = { selected: [], text: '' }))
                     setAnswers(cleared)
                     setSubmitted(false)
+                    setRecordError(null)
+                    setSubmissionError(null)
                     setShowExp(false)
                     window.scrollTo({ top: 0, behavior: 'smooth' })
                   }}
@@ -271,6 +269,8 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
           </div>
         </div>
 
+        {submissionError && <Alert type="error" showIcon message={submissionError} />}
+        {recordError && <Alert type="warning" showIcon message={recordError} />}
         <Spin spinning={loading} tip={translate('questions.loading')}>
           {!loading && error && (
             <Card>
@@ -278,18 +278,21 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                 <AlertTriangle size={64} color="#ff4d4f" />
                 <Title level={3}>{translate('auto.c2bd90b611')}</Title>
                 <Text type="secondary">{error}</Text>
+                <Button onClick={() => setRetry(value => value + 1)}>{translate('app.retry')}</Button>
               </Space>
             </Card>
           )}
 
-          {!loading &&
+          {!loading && !error && !qs.length && <Empty description="没有可练习的题目，请返回列表" />}
+          {!loading && !error &&
             qs.map((q, idx) => {
               const k = String(q.id)
               const a = answers[k] || { selected: [], text: '' }
-              const ok = submitted ? judge(q, a.selected, a.text, a.aiCorrect) : undefined
+              const ok = submitted ? judgePracticeQuestion(q, a.selected, a.aiCorrect) : undefined
               return (
                 <Card key={k} style={{ marginTop: 16 }}>
                   <div
+                    className="practice-question-heading"
                     style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}
                   >
                     <Space>
@@ -299,7 +302,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                           {diffLabel(q.difficulty)}
                         </Tag>
                       )}
-                      <Text type="secondary">#{idx + 1}</Text>
+                      <Text type="secondary" style={{ whiteSpace: 'nowrap' }}>#{idx + 1}</Text>
                     </Space>
                     <Space>
                       {submitted && (
@@ -310,21 +313,8 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                       <Button
                         size="small"
                         icon={fav[k] ? <Heart size={16} /> : <HeartOff size={16} />}
-                        onClick={async () => {
-                          try {
-                            if (fav[k]) {
-                              await removeQuestionFromFavorites(k)
-                              setFav(prev => ({ ...prev, [k]: false }))
-                              message.success(translate('auto.0fc87e8309'))
-                            } else {
-                              await addQuestionToFavorites(k, (q.content || '').slice(0, 100))
-                              setFav(prev => ({ ...prev, [k]: true }))
-                              message.success(translate('auto.143a521b56'))
-                            }
-                          } catch (e: any) {
-                            message.error(e?.message || translate('app.operation_failed'))
-                          }
-                        }}
+                        onClick={() => void toggleFavorite(q)}
+                        disabled={favoriteLoading}
                         danger={!!fav[k]}
                         type={fav[k] ? 'primary' : 'default'}
                       >
@@ -348,14 +338,15 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                         return (
                           <Card
                             key={oi}
+                          className="practice-answer-option"
                             size="small"
                             style={{
-                              backgroundColor: showC ? '#f6ffed' : showW ? '#fff2f0' : isSel ? '#f0f5ff' : '#fafafa',
+                              backgroundColor: showC ? 'var(--practice-correct-bg)' : showW ? 'var(--practice-wrong-bg)' : isSel ? 'var(--practice-selected-bg)' : 'var(--ant-color-fill-alter)',
                               borderColor: showC ? '#b7eb8f' : showW ? '#ffccc7' : isSel ? '#91caff' : '#d9d9d9',
                               cursor: submitted ? 'default' : 'pointer',
                             }}
                             onClick={() => {
-                              if (submitted) return
+                              if (submitted || grading) return
                               setAnswers(prev => {
                                 const cur = prev[k] || { selected: [], text: '' }
                                 let sel = cur.selected
@@ -368,9 +359,11 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                                 <Option
+                                  aria-label={opt.content}
+                                  onClick={event => event.stopPropagation()}
                                   checked={isSel}
                                   onChange={() => {
-                                    if (submitted) return
+                                    if (submitted || grading) return
                                     setAnswers(prev => {
                                       const cur = prev[k] || { selected: [], text: '' }
                                       let sel = cur.selected
@@ -379,7 +372,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                                       return { ...prev, [k]: { ...cur, selected: sel } }
                                     })
                                   }}
-                                  disabled={submitted}
+                                  disabled={submitted || grading}
                                   style={{ marginRight: 12 }}
                                 />
                                 <Text>{opt.content}</Text>
@@ -404,14 +397,15 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                         return (
                           <Card
                             key={oi}
+                          className="practice-answer-option"
                             size="small"
                             style={{
-                              backgroundColor: showC ? '#f6ffed' : showW ? '#fff2f0' : isSel ? '#f0f5ff' : '#fafafa',
+                              backgroundColor: showC ? 'var(--practice-correct-bg)' : showW ? 'var(--practice-wrong-bg)' : isSel ? 'var(--practice-selected-bg)' : 'var(--ant-color-fill-alter)',
                               borderColor: showC ? '#b7eb8f' : showW ? '#ffccc7' : isSel ? '#91caff' : '#d9d9d9',
                               cursor: submitted ? 'default' : 'pointer',
                             }}
                             onClick={() => {
-                              if (submitted) return
+                              if (submitted || grading) return
                               setAnswers(prev => ({
                                 ...prev,
                                 [k]: { ...(prev[k] || { selected: [], text: '' }), selected: [oi] },
@@ -421,15 +415,17 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                                 <Radio
+                                  aria-label={label}
+                                  onClick={event => event.stopPropagation()}
                                   checked={isSel}
                                   onChange={() => {
-                                    if (submitted) return
+                                    if (submitted || grading) return
                                     setAnswers(prev => ({
                                       ...prev,
                                       [k]: { ...(prev[k] || { selected: [], text: '' }), selected: [oi] },
                                     }))
                                   }}
-                                  disabled={submitted}
+                                  disabled={submitted || grading}
                                   style={{ marginRight: 12 }}
                                 />
                                 <Text>{label}</Text>
@@ -447,12 +443,12 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                     <TextArea
                       value={a.text}
                       onChange={e => {
-                        if (submitted) return
+                        if (submitted || grading) return
                         const v = e.target.value
-                        setAnswers(prev => ({ ...prev, [k]: { ...(prev[k] || { selected: [] }), text: v } }))
+                        setAnswers(prev => ({ ...prev, [k]: { selected: [], text: v } }))
                       }}
                       placeholder={translate('auto.977e722666')}
-                      disabled={submitted}
+                      disabled={submitted || grading}
                       rows={5}
                       style={{ marginTop: 8 }}
                     />
@@ -461,7 +457,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
                   {showExp && q.explanation && (
                     <Card
                       size="small"
-                      style={{ marginTop: 12, backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
+                      style={{ marginTop: 12, backgroundColor: 'var(--practice-selected-bg)', borderColor: '#91caff' }}
                       title={
                         <Title level={5} style={{ margin: 0, color: '#1890ff' }}>
                           {translate('aiAssistant.action.explain_question')}</Title>
@@ -477,7 +473,7 @@ export default function BulkPracticeView({ ids, onExit }: Props) {
 
         {/* 左下角回到顶部 */}
         {/* <BackTop visibilityHeight={300} style={{ right: 24, bottom: 24 }} /> */}
-        <FloatButton.BackTop visibilityHeight={500}  duration={500}/>
+        <FloatButton.BackTop className="practice-back-top" visibilityHeight={500}  duration={500}/>
       </Space>
     </div>
   )

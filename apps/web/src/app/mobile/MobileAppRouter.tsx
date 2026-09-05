@@ -1,6 +1,6 @@
 import type { ComponentType, LazyExoticComponent, ReactElement } from 'react'
 import { createElement, lazy, Suspense } from 'react'
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter, Navigate, ScrollRestoration } from 'react-router-dom'
 
 import NotFound404 from '@/app/errors/NotFound404'
 import ServerError500 from '@/app/errors/ServerError500'
@@ -19,10 +19,12 @@ const VerifyEmailPage = lazy(() => import('@/features/auth/pages/VerifyEmailPage
 const OAuthCallbackPage = lazy(() => import('@/features/auth/pages/OAuthCallbackPage'))
 const LegalDocumentPage = lazy(() => import('@/features/legal/pages/LegalDocumentPage'))
 const AccountDeletionPage = lazy(() => import('@/features/account/pages/AccountDeletionPage'))
+const SharedFavoritePage = lazy(() => import('@/features/favorites/pages/SharedFavoritePage'))
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'))
 const MyTasksPage = lazy(() => import('@/features/tasks/pages/MyTasksPage'))
 const TaskDetailPage = lazy(() => import('@/features/tasks/pages/TaskDetailPage'))
 const StudentLearningHubPage = lazy(() => import('@/features/learning/pages/StudentLearningHubPage'))
+const LearningProgressPage = lazy(() => import('@/features/learning-progress/pages/LearningProgressPage'))
 const QuestionPracticePage = lazy(() => import('@/features/questions/pages/QuestionPracticePage'))
 const WrongQuestionsPage = lazy(() => import('@/features/wrong-questions/pages/WrongQuestionsPage'))
 const FavoritesPage = lazy(() => import('@/features/favorites/pages/FavoritesPage'))
@@ -46,17 +48,26 @@ const mobilePages = {
   '/legal/terms': LegalDocumentPage,
   '/legal/privacy': LegalDocumentPage,
   '/account-deletion': AccountDeletionPage,
+  '/shared/favorites/:code': SharedFavoritePage,
   '/dashboard': DashboardPage,
   '/tasks/my': MyTasksPage,
   '/tasks/detail/:id': TaskDetailPage,
   '/student/learning': StudentLearningHubPage,
+  '/learning/practice': QuestionPracticePage,
+  '/learning/practice/:id': QuestionPracticePage,
+  '/practice/:id': QuestionPracticePage,
+  '/learning/wrong-questions': WrongQuestionsPage,
+  '/learning/favorites': FavoritesPage,
+  '/learning/progress': LearningProgressPage,
   '/questions/:id/practice': QuestionPracticePage,
+  '/questions/:id': QuestionPracticePage,
   '/wrong-questions': WrongQuestionsPage,
   '/favorites': FavoritesPage,
   '/profile': ProfilePage,
   '/settings': UserSettingsPage,
   '/exam/:id': ExamPage,
   '/exam/task/:taskId': ExamPage,
+  '/exam/results': ResultsPage,
   '/results': ResultsPage,
   '/results/:id': ResultDetailPage,
   '/proctoring/reviews/:caseId': MyProctoringReviewPage,
@@ -84,7 +95,7 @@ export const mobileRouter = createBrowserRouter(
   [
     {
       path: '/',
-      element: <RouterRoot />,
+      element: <><RouterRoot /><ScrollRestoration /></>,
       errorElement: <ServerError500 />,
       children: [
         { index: true, element: <Navigate to="/dashboard" replace /> },

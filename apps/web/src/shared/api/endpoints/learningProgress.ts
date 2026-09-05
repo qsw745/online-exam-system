@@ -1,78 +1,46 @@
 import { api } from '../core/httpClient'
 import type { Dayjs } from 'dayjs'
 
-export type LearningStats = {
-  total_study_time: number
-  questions_practiced: number
-  correct_rate: number
-  streak_days: number
-  subjects_studied: number
-  avg_score: number
+export type LearningStats = { total_study_time: number; questions_practiced: number; correct_answers: number;
+  correct_rate: number; study_days: number; subjects_studied: number }
+export type ProgressRecord = { id: number; subject: string; questions_count: number; correct_count: number; study_time: number; created_at: string }
+export type LearningSubject = { id: string; name: string }
+type Filters = { start?: Dayjs | null; end?: Dayjs | null; subject?: string }
+const count = (value: unknown) => { const n = Number(value ?? 0); return Number.isFinite(n) ? Math.max(0, n) : 0 }
+function payload(result: any) {
+  if (!result?.success) throw new Error(result?.error || '学习数据加载失败，请重试')
+  return result.data?.data ?? result.data
 }
-
-export type ProgressRecord = {
-  id: number
-  subject: string
-  questions_count: number
-  correct_count: number
-  study_time: number
-  created_at: string
+function list(data: any, field: string): any[] {
+  const values = Array.isArray(data) ? data : data?.[field] ?? data?.items
+  if (!Array.isArray(values)) throw new Error('学习数据不完整，请重试')
+  return values
 }
-
-type ApiSuccess<T = any> = { success: true; data: T; message?: string }
-const isSuccess = <T>(r: any): r is ApiSuccess<T> => r && r.success === true
-
-function pickArray<T = any>(res: any, fallback: T[] = []): T[] {
-  const d = res?.data
-  if (Array.isArray(d)) return d as T[]
-  if (Array.isArray(d?.data)) return d.data as T[]
-  if (Array.isArray(d?.items)) return d.items as T[]
-  if (Array.isArray(d?.records)) return d.records as T[]
-  if (Array.isArray(d?.subjects)) return d.subjects as T[]
-  return fallback
-}
-function pickObject<T = any>(res: any, fallback: T | null = null): T | null {
-  const d = res?.data
-  if (d && typeof d === 'object') return d as T
-  if (d?.data && typeof d.data === 'object') return d.data as T
-  return fallback
-}
+const query = (filters: Filters) => ({ start_date: filters.start?.format('YYYY-MM-DD'), end_date: filters.end?.format('YYYY-MM-DD') })
 
 export const learningProgressApi = {
-  async getStats(params: { start?: Dayjs | null; end?: Dayjs | null; subject?: string }) {
-    const query: any = {
-      start_date: params.start?.format('YYYY-MM-DD'),
-      end_date: params.end?.format('YYYY-MM-DD'),
-      subject: params.subject && params.subject !== 'all' ? params.subject : undefined,
-    }
-    const res = await api.get('/learning-progress/stats', { params: query })
-    const obj = pickObject<any>(res, {}) || {}
-    const stats: LearningStats = obj.stats ?? {
-      total_study_time: Number(obj.total_study_time ?? 0),
-      questions_practiced: Number(obj.questions_practiced ?? 0),
-      correct_rate: Number(obj.correct_rate ?? 0),
-      streak_days: Number(obj.streak_days ?? 0),
-      subjects_studied: Number(obj.subjects_studied ?? 0),
-      avg_score: Number(obj.avg_score ?? 0),
-    }
-    return stats
+  async getStats(filters: Filters): Promise<LearningStats> {
+    const data = payload(await api.get('/learning-progress/stats', { params: {
+      ...query(filters), period: 'all', subjectId: filters.subject && filters.subject !== 'all' ? filters.subject : undefined,
+    } }))
+    const stats = data?.totalStats ?? data?.stats ?? data
+    if (!stats || typeof stats !== 'object' || !('total_study_time' in stats)) throw new Error('学习统计数据不完整，请重试')
+    const total = count(stats.total_questions ?? stats.questions_practiced)
+    const correct = Math.min(total, count(stats.correct_answers))
+    return { total_study_time: count(stats.total_study_time), questions_practiced: total, correct_answers: correct,
+      correct_rate: total ? correct / total * 100 : 0, study_days: count(stats.study_days), subjects_studied: count(stats.subjects_studied) }
   },
-
-  async getRecords(params: { start?: Dayjs | null; end?: Dayjs | null; subject?: string; limit?: number }) {
-    const query: any = {
-      start_date: params.start?.format('YYYY-MM-DD'),
-      end_date: params.end?.format('YYYY-MM-DD'),
-      subject: params.subject && params.subject !== 'all' ? params.subject : undefined,
-      limit: params.limit ?? 20,
-    }
-    const res = await api.get('/learning-progress/records', { params: query })
-    const list = pickArray<ProgressRecord>(res, [])
-    return list
+  async getRecords(filters: Filters & { limit?: number }): Promise<ProgressRecord[]> {
+    const data = payload(await api.get('/learning-progress/records', { params: { ...query(filters),
+      subject: filters.subject && filters.subject !== 'all' ? filters.subject : undefined, limit: filters.limit ?? 20 } }))
+    return list(data, 'records').map(record => ({ ...record, id: Number(record.id),
+      subject: record.subject == null ? '未分类' : String(record.subject),
+      questions_count: count(record.questions_count), correct_count: Math.min(count(record.questions_count), count(record.correct_count)),
+      study_time: count(record.study_time) }))
   },
-
-  async getSubjects() {
-    const res = await api.get('/learning-progress/subjects')
-    return pickArray<string>(res, [])
+  async getSubjects(): Promise<LearningSubject[]> {
+    const data = payload(await api.get('/learning-progress/subjects'))
+    return list(data, 'subjects').map(subject => typeof subject === 'string' ? { id: subject, name: subject } : { id: String(subject.id), name: String(subject.name) })
   },
 }
 export default learningProgressApi

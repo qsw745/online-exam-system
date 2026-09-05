@@ -1,5 +1,6 @@
 import { BookOpenCheck, CircleUserRound, ClipboardList, House } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
+import { getStudentNavSection, isStudentExamPath } from '@/shared/router/studentNavigation'
 
 export type MobileNavVisibilityInput = {
   role?: string | null
@@ -8,7 +9,7 @@ export type MobileNavVisibilityInput = {
 }
 
 export function shouldShowMobileStudentNav({ role, pathname, isMobile }: MobileNavVisibilityInput) {
-  const examRoute = /^\/exam\/(?:task\/)?\d+/.test(pathname)
+  const examRoute = isStudentExamPath(pathname)
   return isMobile && role === 'student' && !examRoute
 }
 
@@ -19,14 +20,16 @@ const items = [
   { to: '/profile', label: '我的', icon: CircleUserRound },
 ]
 
-export default function MobileStudentNav() {
+export default function MobileStudentNav({ appLayout = false }: { appLayout?: boolean }) {
+  const { pathname } = useLocation()
+  const activeSection = getStudentNavSection(pathname)
   return (
-    <nav className="mobile-student-nav" aria-label="考生主导航">
-      {items.map(({ to, label, icon: Icon, end }) => (
-        <NavLink key={to} to={to} end={end} className="mobile-student-nav__item">
+    <nav className={`mobile-student-nav${appLayout ? ' mobile-student-nav--app' : ''}`} aria-label="考生主导航">
+      {items.map(({ to, label, icon: Icon }) => (
+        <Link key={to} to={to} aria-current={activeSection === to ? 'page' : undefined} className="mobile-student-nav__item">
           <Icon size={21} aria-hidden="true" />
           <span>{label}</span>
-        </NavLink>
+        </Link>
       ))}
     </nav>
   )

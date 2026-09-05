@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import LoadingSpinner from '@/shared/components/LoadingSpinner'
 import MobileStudentNav from '@/shared/components/MobileStudentNav'
 import { useAuth } from '@/shared/contexts/AuthContext'
+import { isStudentExamPath } from '@/shared/router/studentNavigation'
 
 import UnsupportedMobileRolePage from './UnsupportedMobileRolePage'
 
@@ -22,7 +23,7 @@ export default function MobileAppLayout() {
     return <UnsupportedMobileRolePage />
   }
 
-  if (/^\/exam\/(?:task\/)?\d+$/.test(location.pathname)) {
+  if (isStudentExamPath(location.pathname)) {
     return <Outlet />
   }
 
@@ -31,7 +32,7 @@ export default function MobileAppLayout() {
       <main className="mobile-app-shell">
         <Outlet />
       </main>
-      <MobileStudentNav />
+      <MobileStudentNav appLayout />
     </>
   )
 }

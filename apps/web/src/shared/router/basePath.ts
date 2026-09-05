@@ -28,6 +28,10 @@ export function redirectToLogin() {
   const now = Date.now()
   if (window.location.pathname !== target && now - lastLoginRedirectAt > 2000) {
     lastLoginRedirectAt = now
-    window.location.assign(target)
+    const pathname = appBasePath !== '/' && window.location.pathname.startsWith(`${appBasePath}/`)
+      ? window.location.pathname.slice(appBasePath.length)
+      : window.location.pathname
+    const returnTo = `${pathname}${window.location.search}${window.location.hash}`
+    window.location.assign(`${target}?${new URLSearchParams({ returnTo })}`)
   }
 }

@@ -75,6 +75,7 @@ export type ProgressStats = {
     correct_answers: number
     avg_accuracy: number
     study_days: number
+    subjects_studied: number
   }
   period: string
 }

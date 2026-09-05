@@ -18,7 +18,7 @@ export const DashboardStatsCards: React.FC<{
   }
 }> = ({ stats, labels }) => {
   return (
-    <Row gutter={[16, 16]}>
+    <Row className="student-dashboard-stats" gutter={[12, 12]}>
       <Col xs={24} sm={12} lg={6}>
         <Card>
           <Statistic

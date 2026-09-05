@@ -33,6 +33,7 @@ const RegisterPage: React.FC = () => {
 
   return (
     <div
+      className="auth-page"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -45,13 +46,14 @@ const RegisterPage: React.FC = () => {
       }}
     >
       <AuthTopControls
+        className="auth-top-controls"
         style={{
           position: 'absolute',
           top: 24,
           right: 24,
         }}
       />
-      <Card style={cardStyle} bodyStyle={{ padding: 32 }}>
+      <Card className="auth-card" style={cardStyle} styles={{ body: { padding: 32 } }}>
         {/* Logo & 标题 */}
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div

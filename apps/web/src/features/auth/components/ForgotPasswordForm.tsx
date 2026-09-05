@@ -22,6 +22,7 @@ export const ForgotPasswordForm: React.FC<Props> = ({ loading, error, onSubmit, 
 
   return (
     <div
+      className="auth-page"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -31,7 +32,7 @@ export const ForgotPasswordForm: React.FC<Props> = ({ loading, error, onSubmit, 
         background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
       }}
     >
-      <Card style={{ width: '100%', maxWidth: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Title level={2} style={{ marginBottom: 8 }}>
             {translate('auto.2e90a49062')}</Title>

@@ -6,9 +6,10 @@ import SinglePracticeView from '@/features/questions/practice/components/SingleP
 import { usePracticeList } from '@/features/questions/practice/hooks/usePracticeList'
 
 import { useLanguage } from '@/shared/contexts/LanguageContext'
-import { App, Card, Space, Typography } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { App, Alert, Button, Card, Empty, Space, Typography } from 'antd'
+import { useEffect, useMemo, useState } from 'react'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
+import { useAuth } from '@/shared/contexts/AuthContext'
 import { translate } from '@/shared/utils/i18n'
 const { Title, Text } = Typography
 type View = 'list' | 'single' | 'bulk'
@@ -25,17 +26,17 @@ type PersistedState = {
 const clampIndex = (idx: number, total: number) => {
   if (!total) return 0
   const safe = Number.isFinite(idx) ? idx : 0
-  return Math.max(0, Math.min(total - 1, safe))
+  return Math.max(0, Math.min(total - 1, Math.floor(safe)))
 }
 
-const readPersistedState = (): PersistedState | null => {
+const readPersistedState = (key: string): PersistedState | null => {
   if (typeof window === 'undefined') return null
   try {
-    const raw = sessionStorage.getItem(STORAGE_KEY)
+    const raw = sessionStorage.getItem(key)
     if (!raw) return null
     const parsed = JSON.parse(raw) as PersistedState
-    if (!parsed || parsed.view === 'list') return null
-    if (!Array.isArray(parsed.ids) || !parsed.ids.length) return null
+    if (!parsed || !['single', 'bulk'].includes(parsed.view)) return null
+    if (!Array.isArray(parsed.ids) || !parsed.ids.length || parsed.ids.some(id => !/^[1-9]\d*$/.test(String(id)))) return null
     return {
       view: parsed.view,
       ids: parsed.ids.map(id => String(id)),
@@ -47,22 +48,33 @@ const readPersistedState = (): PersistedState | null => {
   }
 }
 
-const persistState = (state: PersistedState | null) => {
+const persistState = (key: string, state: PersistedState | null) => {
   if (typeof window === 'undefined') return
   try {
     if (!state || state.view === 'list' || !state.ids.length) {
-      sessionStorage.removeItem(STORAGE_KEY)
+      sessionStorage.removeItem(key)
       return
     }
-    sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ ...state, ts: Date.now() }))
+    sessionStorage.setItem(key, JSON.stringify({ ...state, ts: Date.now() }))
   } catch {
     /* ignore */
   }
 }
 
 export default function QuestionPracticePage() {
+  const { id } = useParams<{ id?: string }>()
+  const [searchParams] = useSearchParams()
+  const { user } = useAuth()
+  return <PracticePageContent key={`${user?.id}:${id ?? ''}:${searchParams.get('taskId') ?? ''}`} />
+}
+
+function PracticePageContent() {
   const { id: routeQuestionId } = useParams<{ id?: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const fromTask = searchParams.has('taskId')
+  const { user } = useAuth()
+  const storageKey = `${STORAGE_KEY}:${user?.id ?? 'anonymous'}`
   const { t } = useLanguage()
   const { message } = App.useApp()
   const {
@@ -71,6 +83,9 @@ export default function QuestionPracticePage() {
     page,
     pageSize,
     loading,
+    error,
+    refetch,
+    loadedPage,
 
     /** ✅ 多选题型 */
     types,
@@ -88,16 +103,18 @@ export default function QuestionPracticePage() {
     setPageSize,
   } = usePracticeList()
 
-  const [view, setView] = useState<View>('list')
-  const [practiceIds, setPracticeIds] = useState<string[]>([])
-  const [activeIndex, setActiveIndex] = useState(0)
-  const advanceRef = useRef(false)
+  const [initialState] = useState(() => fromTask || routeQuestionId ? null : readPersistedState(storageKey))
+  const [view, setView] = useState<View>(() => routeQuestionId ? 'single' : initialState?.view ?? 'list')
+  const [practiceIds, setPracticeIds] = useState<string[]>(() => routeQuestionId ? [routeQuestionId] : initialState?.ids ?? [])
+  const [activeIndex, setActiveIndex] = useState(initialState?.index ?? 0)
+  const [advancing, setAdvancing] = useState(false)
   const ids = useMemo(() => list.map(it => String(it.id)), [list])
   const activeIds = practiceIds.length ? practiceIds : ids
-  const canAdvancePage = view === 'single' && practiceIds.length > 0 && practiceIds.length === ids.length
+  const canAdvancePage = view === 'single' && !routeQuestionId && practiceIds.length > 0 && practiceIds.length === ids.length && practiceIds.every((id, index) => id === ids[index])
   const hasNextPage = canAdvancePage && page * pageSize < total
 
   const enterSingle = (idx: number) => {
+    if (loading || error) return
     const snapshot = ids.length ? ids : practiceIds
     if (!snapshot.length) return
     const nextIdx = clampIndex(idx, snapshot.length)
@@ -107,6 +124,7 @@ export default function QuestionPracticePage() {
   }
 
   const enterBulk = () => {
+    if (loading || error) return
     const snapshot = ids.length ? ids : practiceIds
     if (!snapshot.length) return
     setPracticeIds(snapshot)
@@ -115,20 +133,13 @@ export default function QuestionPracticePage() {
   }
 
   const exitPractice = () => {
+    persistState(storageKey, null)
     setView('list')
     setPracticeIds([])
     setActiveIndex(0)
-    advanceRef.current = false
+    setAdvancing(false)
     if (routeQuestionId) navigate('/learning/practice', { replace: true })
   }
-
-  useEffect(() => {
-    const persisted = readPersistedState()
-    if (!persisted) return
-    setPracticeIds(persisted.ids)
-    setActiveIndex(clampIndex(persisted.index ?? 0, persisted.ids.length))
-    setView(persisted.view)
-  }, [])
 
   useEffect(() => {
     if (!routeQuestionId) return
@@ -140,34 +151,36 @@ export default function QuestionPracticePage() {
 
   useEffect(() => {
     if (view === 'list') {
-      persistState(null)
+      persistState(storageKey, null)
       return
     }
-    persistState({ view, ids: practiceIds, index: clampIndex(activeIndex, practiceIds.length) })
-  }, [view, practiceIds, activeIndex])
+    persistState(storageKey, { view, ids: practiceIds, index: clampIndex(activeIndex, practiceIds.length) })
+  }, [view, practiceIds, activeIndex, storageKey])
 
   useEffect(() => {
-    if (!advanceRef.current || view !== 'single') return
+    if (!advancing || loading || error || loadedPage !== page || view !== 'single') return
     if (!ids.length) {
-      advanceRef.current = false
+      setAdvancing(false)
       message.info(translate('auto.89e9e4736e'))
       exitPractice()
       return
     }
-    advanceRef.current = false
+    setAdvancing(false)
     setPracticeIds(ids)
     setActiveIndex(0)
-  }, [ids, message, view])
+  }, [ids, message, view, advancing, loading, error, loadedPage, page])
 
   const requestNextPage = () => {
-    if (!hasNextPage) return false
-    advanceRef.current = true
+    if (!hasNextPage || advancing || loading) return false
+    setAdvancing(true)
     setPage(p => p + 1)
     return true
   }
 
   return (
     <>
+      {error && <Alert type="error" showIcon message="练习题暂时无法显示" description={error}
+        style={{ marginBottom: 16 }} action={<Button onClick={refetch}>{translate('app.retry')}</Button>} />}
       {view === 'list' && (
         <div className="student-practice-page">
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -178,6 +191,7 @@ export default function QuestionPracticePage() {
             </Card>
 
             <PracticeFilters
+              disabled={loading || !!error || !list.length}
               /** ✅ 多选题型传入/传出 */
               types={types}
               difficulty={difficulty}
@@ -204,6 +218,7 @@ export default function QuestionPracticePage() {
               onEnterBulk={enterBulk}
             />
 
+            {!loading && !error && !list.length && <Card><Empty description="没有符合条件的题目，请调整筛选条件" /></Card>}
             <QuestionCardGrid
               loading={loading}
               list={list}
@@ -225,7 +240,7 @@ export default function QuestionPracticePage() {
 
       {view === 'single' && (
         <SinglePracticeView
-          key={`single-${page}-${pageSize}`}
+          navigationBusy={advancing}
           ids={activeIds}
           startIndex={activeIndex}
           onIndexChange={setActiveIndex}
@@ -236,7 +251,7 @@ export default function QuestionPracticePage() {
       )}
 
       {view === 'bulk' && (
-        <BulkPracticeView key={`bulk-${page}-${pageSize}`} ids={activeIds} onExit={exitPractice} />
+        <BulkPracticeView key={`bulk-${activeIds.join(",")}`} ids={activeIds} onExit={exitPractice} />
       )}
     </>
   )

@@ -8,7 +8,7 @@ export const SettingRow: React.FC<{
   label: React.ReactNode
   control: React.ReactNode
 }> = ({ icon, label, control }) => (
-  <Row justify="space-between" align="middle" style={{ marginBottom: 12 }}>
+  <Row className="student-setting-row" justify="space-between" align="middle" style={{ marginBottom: 12 }}>
     <Col>
       <Space>
         {icon}

@@ -1,64 +1,47 @@
-// src/features/questions/practice/utils/practiceApi.ts
-import { api, favoritesApi } from '@/shared/api/http'
+import { api, favoritesApi, isSuccess } from '@/shared/api/http'
 import { translate } from '@/shared/utils/i18n'
+import { normalizePracticeQuestion } from './practiceQuestion'
 
 export async function getQuestionById(id: string) {
-  const r = await api.get(`/questions/${id}`)
-  const anyr = r as any
-  const d = anyr?.data?.data ?? anyr?.data ?? r
-  return (d?.question ?? d) as any
+  if (!/^[1-9]\d*$/.test(id)) throw new Error('题目编号无效')
+  const result = await api.get(`/questions/${id}`)
+  if (!isSuccess(result)) throw new Error(result.error || '题目加载失败')
+  const data = result.data as any
+  return normalizePracticeQuestion(data?.data ?? data)
 }
 
-/** —— favorites 兼容层（list/items/addItem/removeItem 组合）—— */
-async function getFirstFavoriteList(): Promise<any | null> {
-  try {
-    const lists = await (favoritesApi as any).list?.()
-    const arr = ((lists as any)?.data ?? lists) as any
-    if (Array.isArray(arr) && arr.length) return arr[0]
-    if (!(favoritesApi as any).create) return null
-    const created = await (favoritesApi as any).create?.({ name: translate('auto.441c933645') })
-    return (created as any)?.data ?? created ?? null
-  } catch {
-    return null
-  }
+async function getFirstFavoriteList(create = false) {
+  const lists = await favoritesApi.list()
+  if (lists.length) return lists[0]
+  if (!create) return null
+  const created = await favoritesApi.create({ name: translate('auto.441c933645') })
+  if (!created?.id) throw new Error('创建收藏夹失败')
+  return created
+}
+
+/** 查询收藏状态只读取，不自动创建收藏夹；批量练习共用一次查询。 */
+export async function getFavoriteQuestionIds(): Promise<Set<string>> {
+  const favorite = await getFirstFavoriteList()
+  if (!favorite) return new Set()
+  const items = await favoritesApi.items(favorite.id)
+  return new Set(items.filter(item => !item.item_type || item.item_type === 'question')
+    .map(item => String(item.question_id ?? item.item_id ?? '')))
 }
 
 export async function isQuestionFavorited(questionId: string): Promise<boolean> {
-  try {
-    const fav = await getFirstFavoriteList()
-    if (!fav) return false
-    const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
-    const items = await (favoritesApi as any).items?.(fid)
-    const list = (((items as any)?.data ?? items) as any[]) || []
-    const qidNum = Number(questionId)
-    return (
-      Array.isArray(list) && list.some(it => Number(it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id) === qidNum)
-    )
-  } catch {
-    return false
-  }
+  return (await getFavoriteQuestionIds()).has(questionId)
 }
 
 export async function addQuestionToFavorites(questionId: string, title?: string) {
-  const fav = await getFirstFavoriteList()
-  if (!fav) throw new Error(translate('auto.4b9bce8109'))
-  const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
-  if (!(favoritesApi as any).addItem) throw new Error(translate('auto.e3d7e261f6'))
-  await (favoritesApi as any).addItem(fid, { question_id: Number(questionId), title })
+  const favorite = await getFirstFavoriteList(true)
+  if (!favorite) throw new Error('创建收藏夹失败')
+  await favoritesApi.addItem(favorite.id, { question_id: Number(questionId), title })
 }
 
 export async function removeQuestionFromFavorites(questionId: string) {
-  const fav = await getFirstFavoriteList()
-  if (!fav) throw new Error(translate('auto.4b9bce8109'))
-  const fid = Number(fav.id ?? fav.favorite_id ?? fav.ID)
-  if (!(favoritesApi as any).removeItem) throw new Error(translate('auto.4503eede33'))
-  const items = await (favoritesApi as any).items?.(fid)
-  const list = (((items as any)?.data ?? items) as any[]) || []
-  const qidNum = Number(questionId)
-  const hit = Array.isArray(list)
-    ? list.find(it => Number(it?.question_id ?? it?.qid ?? it?.target_id ?? it?.id) === qidNum)
-    : null
-  if (!hit) return
-  const itemId = Number(hit.id ?? hit.item_id ?? hit.ID ?? qidNum)
-  await (favoritesApi as any).removeItem(fid, itemId)
+  const favorite = await getFirstFavoriteList()
+  if (!favorite) return
+  const items = await favoritesApi.items(favorite.id)
+  const hit = items.find(item => (!item.item_type || item.item_type === 'question') && String(item.question_id ?? item.item_id) === questionId)
+  if (hit) await favoritesApi.removeItem(favorite.id, hit.id)
 }

@@ -39,22 +39,26 @@ export function useResetPassword(rawToken: string | null) {
   const navigate = useNavigate()
 
   const [validating, setValidating] = useState(true)
-  const [tokenValid, setTokenValid] = useState(false)
+  const [validatedToken, setValidatedToken] = useState<string | null>(null)
+  const tokenValid = Boolean(token && validatedToken === token)
   const [loading, setLoading] = useState(false)
-  const [success, setSuccess] = useState(false)
+  const [successToken, setSuccessToken] = useState<string | null>(null)
+  const success = Boolean(token && successToken === token)
   const [error, setError] = useState<string | null>(null)
   const [countdown, setCountdown] = useState(3)
-  const timerRef = useRef<number | null>(null)
+  const inFlight = useRef(false)
+  const requestVersion = useRef(0)
 
   // 校验 token
   useEffect(() => {
     let mounted = true
+    requestVersion.current += 1
     ;(async () => {
       if (!token) {
         if (!mounted) return
         setError('重置链接无效或已过期')
         setValidating(false)
-        setTokenValid(false)
+        setValidatedToken(null)
         return
       }
       try {
@@ -63,19 +67,18 @@ export function useResetPassword(rawToken: string | null) {
         const res = (await apiValidate(token)) as { success?: boolean; data?: { valid?: boolean } }
         if (!mounted) return
         if (res?.success && res?.data?.valid) {
-          setTokenValid(true)
+          setValidatedToken(token)
           setError(null)
         } else {
-          setTokenValid(false)
+          setValidatedToken(null)
           setError(pickError(res, '重置链接无效或已过期'))
         }
       } catch (err: any) {
         if (!mounted) return
-        setTokenValid(false)
+        setValidatedToken(null)
         setError(pickError(err, '重置链接无效或已过期'))
       } finally {
-        if (!mounted) return
-        setValidating(false)
+        if (mounted) setValidating(false)
       }
     })()
     return () => {
@@ -83,27 +86,20 @@ export function useResetPassword(rawToken: string | null) {
     }
   }, [token])
 
-  // 成功后倒计时与跳转
+  // 导航在独立 effect 中执行，避免在状态更新函数中触发路由更新。
   useEffect(() => {
-    if (!success) return
-    timerRef.current = window.setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          if (timerRef.current) window.clearInterval(timerRef.current)
-          navigate('/login')
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000) as unknown as number
-    return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current)
-    }
-  }, [success, navigate])
+    if (!success || countdown <= 0) return
+    const timer = window.setTimeout(() => setCountdown(value => Math.max(0, value - 1)), 1000)
+    return () => window.clearTimeout(timer)
+  }, [success, countdown])
+  useEffect(() => {
+    if (success && countdown === 0) navigate('/login', { replace: true })
+  }, [success, countdown, navigate])
 
   const submit = useCallback(
     async (values: ResetValues) => {
-      if (!token) {
+      if (inFlight.current || success) return
+      if (!token || !tokenValid || validating) {
         setError('重置令牌无效')
         return
       }
@@ -120,22 +116,28 @@ export function useResetPassword(rawToken: string | null) {
         return
       }
 
+      const version = requestVersion.current
+      inFlight.current = true
       setLoading(true)
       setError(null)
       try {
         const res = await apiReset(token, values.password, values.confirmPassword)
+        if (version !== requestVersion.current) return
         if (res?.success) {
-          setSuccess(true)
+          setCountdown(3)
+          setSuccessToken(token)
         } else {
           setError(pickError(res, '密码重置失败，请稍后重试'))
         }
       } catch (err: any) {
+        if (version !== requestVersion.current) return
         setError(pickError(err, '密码重置失败，请稍后重试'))
       } finally {
+        inFlight.current = false
         setLoading(false)
       }
     },
-    [message, token]
+    [message, token, tokenValid, validating, success]
   )
 
   const status = useMemo<'validating' | 'invalid' | 'form' | 'success'>(() => {

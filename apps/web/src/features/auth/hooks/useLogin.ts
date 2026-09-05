@@ -12,11 +12,13 @@ import {
   type DataRegion,
 } from '@/platform/region/accountRegion'
 import { resolveAppTarget } from '@/platform/appTarget'
+import {
+  loadLoginEmailPreference,
+  saveLoginEmailPreference,
+} from './loginEmailPreference'
 
 const STORAGE_FLAG_KEY = 'auth_storage'
 const REMEMBER_PACK_KEY = 'remember_pack_v1'
-const REMEMBER_ME_FLAG = 'remember_me_flag'
-const LAST_EMAIL_KEY = 'last_login_email'
 
 // 历史兼容键
 const FAILED_COUNT_KEY = 'login_failed_count'
@@ -189,14 +191,6 @@ export function useLogin() {
 
   // —— 初始化 —— //
   useEffect(() => {
-    if (email) {
-      try {
-        localStorage.setItem(LAST_EMAIL_KEY, email)
-      } catch {}
-    }
-  }, [email])
-
-  useEffect(() => {
     ;(async () => {
       try {
         setSettings(normalizeSettings(await adminSettingsApi.getPublic()))
@@ -208,10 +202,9 @@ export function useLogin() {
 
   useEffect(() => {
     ;(async () => {
-      const rememberFlag = localStorage.getItem(REMEMBER_ME_FLAG) === '1'
-      setRememberMe(rememberFlag)
-      const lastEmail = localStorage.getItem(LAST_EMAIL_KEY) || ''
-      setEmail(lastEmail)
+      const emailPreference = loadLoginEmailPreference()
+      setRememberMe(emailPreference.rememberMe)
+      setEmail(emailPreference.email)
       setPassword('')
       localStorage.removeItem(REMEMBER_PACK_KEY)
       const flag = localStorage.getItem(STORAGE_FLAG_KEY)
@@ -286,16 +279,15 @@ export function useLogin() {
         setCaptchaId(id)
         setCaptchaImgUrl(svgToDataUrl(svg))
       } else {
-        setCaptchaId(null)
-        setCaptchaImgUrl(undefined)
+        throw new Error(raw?.error || '验证码加载失败，请点击刷新重试')
       }
     } catch (e) {
       const { msg } = parseLoginError(e)
-      App.useApp().message.error(msg || '验证码加载失败')
+      message.error(msg || '验证码加载失败')
       setCaptchaId(null)
       setCaptchaImgUrl(undefined)
     }
-  }, [])
+  }, [message])
   const refreshCaptcha = useCallback(() => {
     setCaptcha('')
     loadCaptcha()
@@ -312,11 +304,8 @@ export function useLogin() {
   // 记住我只保留邮箱，不持久化密码或可还原凭据。
   const saveRemember = useCallback(
     async (em: string) => {
-      if (!rememberMe) return
       localStorage.removeItem(REMEMBER_PACK_KEY)
-      try {
-        localStorage.setItem(LAST_EMAIL_KEY, em || '')
-      } catch {}
+      saveLoginEmailPreference(rememberMe, em || '')
     },
     [rememberMe]
   )
@@ -325,14 +314,10 @@ export function useLogin() {
     if (!prefsReady) return
     ;(async () => {
       if (rememberMe) {
-        localStorage.setItem(REMEMBER_ME_FLAG, '1')
         await saveRemember(email)
       } else {
-        localStorage.setItem(REMEMBER_ME_FLAG, '0')
         localStorage.removeItem(REMEMBER_PACK_KEY)
-        try {
-          localStorage.setItem(LAST_EMAIL_KEY, email || '')
-        } catch {}
+        saveLoginEmailPreference(false, '')
       }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -489,9 +474,7 @@ export function useLogin() {
     }
     try {
       localStorage.setItem(STORAGE_FLAG_KEY, keep7Days ? '7d' : 'session')
-      try {
-        localStorage.setItem(LAST_EMAIL_KEY, email || '')
-      } catch {}
+      saveLoginEmailPreference(rememberMe, email || '')
 
       const remote = await tryEncryptRemote({ email, password, captcha, captchaId: captchaId || undefined })
       usedRemoteCrypto = !!remote
@@ -637,6 +620,7 @@ export function useLogin() {
   }, [
     email,
     password,
+    rememberMe,
     keep7Days,
     dataRegion,
     captchaRequired,

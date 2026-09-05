@@ -25,14 +25,15 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
             borderRadius: 8,
             padding: 12,
             marginBottom: 8,
-            backgroundColor: selectedId === favorite.id ? '#f0f9ff' : undefined,
-            border: selectedId === favorite.id ? '1px solid #bae6fd' : '1px solid transparent',
+            backgroundColor: selectedId === favorite.id ? 'var(--ant-color-primary-bg)' : undefined,
+            border: selectedId === favorite.id ? '1px solid var(--ant-color-primary-border)' : '1px solid transparent',
             transition: 'all 0.2s',
           }}
           onClick={() => onSelect(favorite)}
           actions={[
             <Tooltip title={translate('app.edit')} key="edit">
               <Button
+                aria-label={translate('app.edit')}
                 type="text"
                 size="small"
                 icon={<Edit style={{ width: 16, height: 16 }} />}
@@ -44,6 +45,7 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
             </Tooltip>,
             <Tooltip title={translate('auto.7a92434114')} key="share">
               <Button
+                aria-label={translate('auto.7a92434114')}
                 type="text"
                 size="small"
                 icon={<Share2 style={{ width: 16, height: 16 }} />}
@@ -55,6 +57,7 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
             </Tooltip>,
             <Tooltip title={translate('app.delete')} key="delete">
               <Button
+                aria-label={translate('app.delete')}
                 type="text"
                 size="small"
                 danger
@@ -70,7 +73,10 @@ export default function FavoritesList({ data, selectedId, onSelect, onEdit, onSh
           <List.Item.Meta
             title={
               <div className="flex items-center space-x-2">
-                <span>{favorite.name}</span>
+                <Button type="link" style={{ padding: 0, height: 'auto', whiteSpace: 'normal', textAlign: 'start' }}
+                  aria-pressed={selectedId === favorite.id} onClick={e => { e.stopPropagation(); onSelect(favorite) }}>
+                  {favorite.name}
+                </Button>
                 {Boolean(favorite.is_public) && ( // 关键：Boolean()，避免 0 被当成文本渲染
                   <Tag
                     color="blue"

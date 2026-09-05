@@ -32,7 +32,7 @@ export const AppearanceCard: React.FC<{
           control={
             <Button
               onClick={toggleTheme}
-              aria-label="toggle-theme"
+              aria-label={t('settings.theme')}
               icon={mode === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
             />
           }
@@ -42,6 +42,7 @@ export const AppearanceCard: React.FC<{
           label={<Text>{t('settings.language')}</Text>}
           control={
             <Select
+              aria-label={t('settings.language')}
               value={value.language}
               onChange={v => onChange({ ...value, language: v })}
               style={{ width: 140 }}

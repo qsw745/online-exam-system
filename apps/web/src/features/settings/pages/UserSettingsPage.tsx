@@ -1,5 +1,5 @@
 // features/settings/pages/SettingsPage.tsx
-import { Button, Space, Spin, Typography } from 'antd'
+import { Alert, Button, Space, Spin, Typography } from 'antd'
 import { Save } from 'lucide-react'
 import React from 'react'
 import { useTheme } from '@/app/providers/AntdThemeProvider'
@@ -12,7 +12,7 @@ const { Title } = Typography
 
 export default function SettingsPage() {
   const { mode, toggle } = useTheme()
-  const { t, initialLoading, loading, settings, setSettings, save, reset, isDirty } = useUserSettings()
+  const { t, initialLoading, loading, settings, setSettings, save, reset, isDirty, error, saveError, retry } = useUserSettings()
 
   if (initialLoading) {
     return (
@@ -22,8 +22,11 @@ export default function SettingsPage() {
     )
   }
 
+  if (error) return <Alert type="error" showIcon message="设置暂时无法显示" description={error}
+    action={<Button onClick={retry}>重试</Button>} />
+
   return (
-    <div style={{ padding: 24 }}>
+    <div className="student-settings-page">
       <Title level={2} style={{ marginBottom: 32 }}>
         {t('settings.title')}
       </Title>
@@ -44,6 +47,7 @@ export default function SettingsPage() {
         />
       </Space>
 
+      {saveError && <Alert type="error" showIcon message={saveError} description="修改内容已保留，请重试保存。" style={{ marginTop: 16 }} />}
       {/* 底部操作 */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
         <Button onClick={reset} disabled={loading || !isDirty}>

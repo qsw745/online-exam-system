@@ -18,16 +18,25 @@ describe('mobileRouteManifest', () => {
       '/tasks/my',
       '/tasks/detail/:id',
       '/student/learning',
+      '/learning/practice',
+      '/learning/practice/:id',
+      '/practice/:id',
+      '/learning/wrong-questions',
+      '/learning/favorites',
+      '/learning/progress',
       '/questions/:id/practice',
+      '/questions/:id',
       '/wrong-questions',
       '/favorites',
       '/profile',
       '/settings',
       '/exam/:id',
       '/exam/task/:taskId',
+      '/exam/results',
       '/results',
       '/results/:id',
       '/proctoring/reviews/:caseId',
+      '/shared/favorites/:code',
     ])
   })
 
@@ -41,9 +50,29 @@ describe('mobileRouteManifest', () => {
   )
 
   it('考试路由必须使用沉浸模式', () => {
-    const examRoutes = mobileRouteManifest.filter((route) => route.path.startsWith('/exam/'))
+    const examRoutes = mobileRouteManifest.filter(
+      (route) => 'immersive' in route && route.immersive === true,
+    )
 
     expect(examRoutes).toHaveLength(2)
     expect(examRoutes.every((route) => 'immersive' in route && route.immersive === true)).toBe(true)
+  })
+
+  it('登记学生端页面使用的兼容路径，避免旧入口落到 404', () => {
+    const registeredPaths = new Set(mobileRouteManifest.map((route) => route.path))
+
+    expect([...registeredPaths]).toEqual(
+      expect.arrayContaining([
+        '/learning/practice',
+        '/learning/practice/:id',
+        '/practice/:id',
+        '/learning/wrong-questions',
+        '/learning/favorites',
+        '/learning/progress',
+        '/questions/:id',
+        '/exam/results',
+        '/shared/favorites/:code',
+      ]),
+    )
   })
 })

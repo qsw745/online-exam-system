@@ -102,16 +102,18 @@ export class WrongQuestionRepository {
   }
 
   // ------------------------- questions --------------------------
-  /** 去重时带上 user_id，避免跨用户冲突 */
+  /** 通过错题本归属校验用户，兼容 v2 迁移后移除的 wrong_questions.user_id。 */
   async findExistingWrongQuestion(userId: number, bookId: number, questionId: number): Promise<{ id: number } | null> {
     const [rows] = await this.db.execute<RowDataPacket[]>(
-      'SELECT id FROM wrong_questions WHERE user_id = ? AND book_id = ? AND question_id = ?',
+      `SELECT wq.id FROM wrong_questions wq JOIN wrong_question_books book ON book.id = wq.book_id
+       WHERE book.user_id = ? AND wq.book_id = ? AND wq.question_id = ?`,
       [userId, bookId, questionId]
     )
     return rows[0] ? { id: Number((rows[0] as any).id) } : null
   }
 
   async upsertWrongQuestion(data: Omit<WrongQuestion, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+    if (!(await this.ensureBookOwnership(data.book_id, data.user_id))) throw new Error('无权操作此错题本')
     const exist = await this.findExistingWrongQuestion(data.user_id, data.book_id, data.question_id)
     const lastWrongTime = toMySQLDate(data.last_wrong_time) ?? new Date()
 
@@ -141,10 +143,9 @@ export class WrongQuestionRepository {
 
     const [ret] = await this.db.execute<ResultSetHeader>(
       `INSERT INTO wrong_questions
-         (user_id, book_id, question_id, exam_result_id, wrong_count, last_wrong_time, mastery_level, tags, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         (book_id, question_id, exam_result_id, wrong_count, last_wrong_time, mastery_level, tags, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        data.user_id,
         data.book_id,
         data.question_id,
         data.exam_result_id ?? null,
@@ -166,12 +167,21 @@ export class WrongQuestionRepository {
     return !!rows.length
   }
 
+  async ensureWrongQuestionOwnership(id: number, userId: number): Promise<boolean> {
+    const [rows] = await this.db.execute<RowDataPacket[]>(
+      `SELECT 1 FROM wrong_questions wq JOIN wrong_question_books book ON book.id = wq.book_id
+       WHERE wq.id = ? AND book.user_id = ?`, [id, userId],
+    )
+    return rows.length > 0
+  }
+
   async listWrongQuestions(
     bookId: number,
     opts: { page: number; limit: number; mastery_level?: string; tags?: string; search?: string }
   ) {
-    if (opts.limit > 100) opts.limit = 100
-    const offset = (opts.page - 1) * opts.limit
+    const limit = Number.isFinite(opts.limit) ? Math.min(100, Math.max(1, Math.floor(opts.limit))) : 20
+    const page = Number.isFinite(opts.page) ? Math.min(1_000_000, Math.max(1, Math.floor(opts.page))) : 1
+    const offset = (page - 1) * limit
     let where = 'WHERE wq.book_id = ?'
     const params: any[] = [bookId]
 
@@ -213,9 +223,9 @@ export class WrongQuestionRepository {
           GROUP BY wrong_question_id
         ) pr ON pr.wrong_question_id = wq.id
        ${where}
-       ORDER BY wq.last_wrong_time DESC
-       LIMIT ? OFFSET ?`,
-      [...params, opts.limit, offset]
+       ORDER BY wq.last_wrong_time DESC, wq.id DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      params
     )
 
     return { rows, total }
@@ -276,7 +286,7 @@ export class WrongQuestionRepository {
       `SELECT is_correct
          FROM wrong_question_practice_records
         WHERE wrong_question_id = ?
-        ORDER BY practice_time DESC
+        ORDER BY practice_time DESC, id DESC
         LIMIT ${limit}`,
       [wrongQuestionId]
     )
@@ -353,9 +363,9 @@ export class WrongQuestionRepository {
       `SELECT
           COUNT(DISTINCT wqb.id) AS book_count,
           COUNT(DISTINCT wq.id) AS total_wrong_questions,
-          COUNT(CASE WHEN wq.mastery_level='mastered' THEN 1 END) AS mastered_count,
-          COUNT(CASE WHEN wq.mastery_level='partially_mastered' THEN 1 END) AS partially_mastered_count,
-          COUNT(CASE WHEN wq.mastery_level='not_mastered' THEN 1 END) AS not_mastered_count,
+          COUNT(DISTINCT CASE WHEN wq.mastery_level='mastered' THEN wq.id END) AS mastered_count,
+          COUNT(DISTINCT CASE WHEN wq.mastery_level='partially_mastered' THEN wq.id END) AS partially_mastered_count,
+          COUNT(DISTINCT CASE WHEN wq.mastery_level='not_mastered' THEN wq.id END) AS not_mastered_count,
           COUNT(DISTINCT pr.id) AS total_practice_count,
           COUNT(CASE WHEN pr.is_correct=1 THEN 1 END) AS correct_practice_count
          FROM wrong_question_books wqb

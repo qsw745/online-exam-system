@@ -9,6 +9,7 @@ import {
   STANDARD_QUICK_JUMPER,
 } from '@/shared/constants/pagination'
 import './GlobalPagination.css'
+import { useIsMobile } from '@/shared/hooks/useMobile'
 
 const cx = (...classes: Array<string | undefined | false>) => classes.filter(Boolean).join(' ')
 
@@ -43,6 +44,7 @@ export default function GlobalPagination({
   unit = '条',
   resetPageOnSizeChange = true,
 }: GlobalPaginationProps) {
+  const isMobile = useIsMobile()
   const handleChange = (page: number, size: number) => {
     const next = resolvePaginationChange(page, size, pageSize, { resetPageOnSizeChange })
     if (next.pageSize !== pageSize) onPageSizeChange?.(next.page, next.pageSize)
@@ -59,8 +61,9 @@ export default function GlobalPagination({
         total={total}
         current={current}
         pageSize={pageSize}
-        showSizeChanger={showSizeChanger}
-        showQuickJumper={normalizeQuickJumper(showQuickJumper)}
+        simple={isMobile ? { readOnly: true } : false}
+        showSizeChanger={!isMobile && showSizeChanger}
+        showQuickJumper={!isMobile && normalizeQuickJumper(showQuickJumper)}
         pageSizeOptions={pageSizeOptions}
         onChange={handleChange}
         itemRender={(page, type, originalElement) => {

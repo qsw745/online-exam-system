@@ -1,16 +1,18 @@
 
 import { useFavorites } from '@/shared/hooks/useFavorites'
-import { App, Button, Card, Col, Empty, Modal, Row, Space, Typography } from 'antd'
+import { App, Alert, Button, Card, Col, Empty, Input, Modal, Row, Space, Typography } from 'antd'
 import { BookOpen, Heart, Plus, Star } from 'lucide-react'
 import CreateFavoriteModal from '../components/CreateFavoriteModal'
 import EditFavoriteModal from '../components/EditFavoriteModal'
 import FavoriteItems from '../components/FavoriteItems'
 import FavoritesList from '../components/FavoritesList'
 import { translate } from '@/shared/utils/i18n'
+import { useNavigate } from 'react-router-dom'
 const { Title, Text } = Typography
 
 export default function FavoritesPage() {
-  const { message } = App.useApp()
+  const { message, modal } = App.useApp()
+  const navigate = useNavigate()
   const {
     favorites,
     selected,
@@ -27,23 +29,23 @@ export default function FavoritesPage() {
     updateFavorite,
     deleteFavorite,
     removeItem,
-    shareFavorite,
+    shareFavorite, error, itemsError, fetchFavorites, retryItems, shareLink, setShareLink, pendingItems,
   } = useFavorites()
 
-  const onDelete = (id: number) => {
-    Modal.confirm({
+  const onDelete = async (id: number) => {
+    await modal.confirm({
       title: translate('papers.confirm_delete'),
       content: translate('auto.55f8f1225b'),
-      onOk: () => deleteFavorite(id).catch(() => message.error(translate('auto.c127a4863b'))),
+      onOk: async () => { try { await deleteFavorite(id) } catch (error) { message.error(translate('auto.c127a4863b')); throw error } },
     })
   }
 
   return (
-    <div >
+    <div className="student-favorites">
    
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         {/* 标题 + 按钮 */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div className="student-page-header">
           <Space align="center">
             <Heart style={{ width: 24, height: 24, color: '#f5222d' }} />
             <Title level={2} style={{ margin: 0 }}>
@@ -53,11 +55,11 @@ export default function FavoritesPage() {
             {translate('auto.be459bcd93')}</Button>
         </div>
 
-        <Row gutter={24}>
+        <Row gutter={[16, 16]}>
           {/* 左侧列表 */}
           <Col xs={24} lg={10}>
             <Card title={translate('auto.1ece63b7c9')} style={{ height: '100%' }}>
-              {loading ? (
+              {error ? <Alert type="error" showIcon message="收藏夹暂时无法显示" description={error} action={<Button onClick={fetchFavorites}>重试</Button>} /> : loading ? (
                 <Empty description={translate('app.loading')} />
               ) : favorites.length === 0 ? (
                 <Empty description={translate('auto.5111da5937')} />
@@ -70,7 +72,7 @@ export default function FavoritesPage() {
                     setSelectedId(fav.id)
                     setEditOpen(true)
                   }}
-                  onShare={fav => shareFavorite(fav.id).catch(() => message.error(translate('auto.19a9339497')))}
+                  onShare={fav => shareFavorite(fav.id).catch(() => { message.error(translate('auto.19a9339497')) })}
                   onDelete={fav => onDelete(fav.id)}
                 />
               )}
@@ -92,12 +94,13 @@ export default function FavoritesPage() {
               }
               style={{ height: '100%' }}
             >
-              {selected ? (
+              {itemsError ? <Alert type="error" showIcon message={itemsError} action={<Button onClick={retryItems}>重试</Button>} /> : selected ? (
                 <FavoriteItems
                   items={items}
+                  pendingItems={pendingItems}
                   loading={itemsLoading}
-                  onView={qid => window.open(`/questions/${qid}`, '_blank')}
-                  onRemove={id => removeItem(id).catch(() => message.error(translate('papers.remove_failed')))}
+                  onView={qid => navigate(`/questions/${qid}/practice`)}
+                  onRemove={id => removeItem(id).catch(() => { message.error(translate('papers.remove_failed')) })}
                 />
               ) : (
                 <div style={{ textAlign: 'center', padding: '48px 0' }}>
@@ -109,6 +112,10 @@ export default function FavoritesPage() {
           </Col>
         </Row>
 
+        <Modal open={!!shareLink} title="分享收藏夹" footer={null} onCancel={() => setShareLink(null)}>
+          <Typography.Paragraph>链接已生成，可长按下方内容复制后分享。</Typography.Paragraph>
+          <Input.TextArea aria-label="分享链接" readOnly value={shareLink ?? ''} autoSize onFocus={event => event.target.select()} />
+        </Modal>
         {/* 创建 / 编辑模态框 */}
         <CreateFavoriteModal
           open={createOpen}
@@ -116,7 +123,7 @@ export default function FavoritesPage() {
           onSubmit={vals =>
             createFavorite(vals)
               .then(() => setCreateOpen(false))
-              .catch(() => message.error(translate('auto.83d3a1137b')))
+              .catch(() => { message.error(translate('auto.83d3a1137b')) })
           }
         />
         <EditFavoriteModal
@@ -126,7 +133,7 @@ export default function FavoritesPage() {
           onSubmit={vals =>
             updateFavorite(vals)
               .then(() => setEditOpen(false))
-              .catch(() => message.error(translate('auto.5008e77ced')))
+              .catch(() => { message.error(translate('auto.5008e77ced')) })
           }
         />
       </Space>

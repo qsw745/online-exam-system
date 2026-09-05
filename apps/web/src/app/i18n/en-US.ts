@@ -21,6 +21,7 @@ export default {
   'app.back': 'Back',
   'app.next': 'Next',
   'app.previous': 'Previous',
+  'app.retry': 'Retry',
   'app.submit': 'Submit',
   'app.reset': 'Reset',
   'app.refresh': 'Refresh',

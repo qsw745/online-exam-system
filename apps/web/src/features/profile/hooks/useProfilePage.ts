@@ -1,144 +1,123 @@
-// features/profile/hooks/useProfilePage.ts
 import { profileApi, type ProfileForm } from '@/shared/api/endpoints/profile'
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { App } from 'antd'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { getAbsoluteAvatarUrl, revokeObjectUrl } from '../utils/avatar'
-import { translate } from '@/shared/utils/i18n'
+
+const fields = ['nickname', 'email', 'phone', 'bio', 'school', 'class_name'] as const
+const profileFields = (data: ProfileForm | null | undefined): ProfileForm =>
+  Object.fromEntries(fields.map(key => [key, data?.[key] ?? '']))
 
 export function useProfilePage() {
-  const { message } = App.useApp() // ✅ 从 App 上下文取 message，避免静态方法警告
-  const { user, refreshUser } = useAuth() // ✅ 新增的刷新方法（见 AuthContext）
+  const { message } = App.useApp()
+  const { user, applyProfile } = useAuth()
   const { t } = useLanguage()
-
-  // 表单
-  const [form, setForm] = useState<ProfileForm>({
-    nickname: user?.nickname ?? '',
-    email: user?.email ?? '',
-    phone: (user as any)?.phone ?? '',
-    bio: (user as any)?.bio ?? '',
-    school: user?.school || '',
-    class_name: user?.class_name || '',
-  })
-
-  // 头像
+  const [form, setFormValue] = useState<ProfileForm>(() => profileFields(user))
   const [avatarFile, setAvatarFile] = useState<File | null>(null)
-  const [previewUrl, setPreviewUrl] = useState<string>('')
-
-  // 加载态
+  const [previewUrl, setPreviewUrl] = useState('')
+  const [savedAvatar, setSavedAvatar] = useState(user?.avatar_url ?? '')
+  const [initialLoading, setInitialLoading] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
+  const generation = useRef(0)
+  const submitLock = useRef(false)
+  const editedFields = useRef(new Set<string>())
+  const lastUrl = useRef('')
 
-  // 同步用户更新
-  useEffect(() => {
-    if (!user) return
-    setForm(prev => ({
-      ...prev,
-      nickname: user.nickname ?? prev.nickname ?? '',
-      email: user.email ?? prev.email ?? '',
-      phone: (user as any)?.phone ?? prev.phone ?? '',
-      bio: (user as any)?.bio ?? prev.bio ?? '',
-      school: user.school || prev.school || '',
-      class_name: user.class_name || prev.class_name || '',
-    }))
-  }, [user])
-
-  useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const ret = await profileApi.get()
-        if ((ret as any)?.success !== true) throw new Error((ret as any)?.error || 'load profile failed')
-        const data: ProfileForm | undefined = (ret as any)?.data
-        if (!data || cancelled) return
-        setForm(prev => ({
-          ...prev,
-          nickname: data.nickname ?? prev.nickname ?? '',
-          email: data.email ?? prev.email ?? '',
-          phone: data.phone ?? prev.phone ?? '',
-          bio: data.bio ?? prev.bio ?? '',
-          school: data.school ?? prev.school ?? '',
-          class_name: data.class_name ?? prev.class_name ?? '',
-        }))
-      } catch (e) {
-        console.error('load profile error', e)
-        message.error(t('profile.load_error') || translate('auto.253f1fcbe7'))
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    generation.current += 1
+    submitLock.current = false
+    editedFields.current.clear()
+    return () => { generation.current += 1 }
   }, [user?.id])
 
-  // 预览 URL 释放
-  const lastUrl = useRef<string>('')
   useEffect(() => {
-    return () => revokeObjectUrl(lastUrl.current)
-  }, [])
-  const onAvatarPick = (file: File) => {
-    if (!/^image\//.test(file.type)) {
-      message.error(t('profile.image_only') || translate('users.avatar.only_image'))
-      return
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      message.error(t('profile.image_too_large') || translate('auto.d3d55cf710'))
-      return
-    }
-    setAvatarFile(file)
-    const url = URL.createObjectURL(file)
+    let active = true
+    setInitialLoading(true)
+    setError(null)
+    setSaveError(null)
+    setLoading(false)
+    setAvatarFile(null)
+    setPreviewUrl('')
     revokeObjectUrl(lastUrl.current)
-    lastUrl.current = url
-    setPreviewUrl(url)
+    lastUrl.current = ''
+    void profileApi.get().then(result => {
+      if (!active) return
+      if (!result.success || !result.data) throw new Error(('error' in result ? result.error : '') || '个人资料加载失败，请重试')
+      const data = profileFields(result.data)
+      setFormValue(previous => Object.fromEntries(fields.map(key => [key, editedFields.current.has(key) ? previous[key] : data[key]])))
+      setSavedAvatar(result.data.avatar_url || result.data.avatar || '')
+    }).catch(error => {
+      if (active) setError(error instanceof Error ? error.message : '个人资料加载失败，请重试')
+    }).finally(() => { if (active) setInitialLoading(false) })
+    return () => { active = false }
+  }, [user?.id, retry])
+
+  useEffect(() => () => revokeObjectUrl(lastUrl.current), [])
+  const setForm = useCallback((patch: Partial<ProfileForm>) => {
+    for (const key of Object.keys(patch)) editedFields.current.add(key)
+    setFormValue(previous => ({ ...previous, ...patch }))
+    setSaveError(null)
+  }, [])
+
+  const onAvatarPick = (file: File) => {
+    if (loading || initialLoading) return
+    if (!/^image\//.test(file.type)) { message.error(t('profile.image_only')); return }
+    if (file.size > 5 * 1024 * 1024) { message.error(t('profile.image_too_large')); return }
+    revokeObjectUrl(lastUrl.current)
+    lastUrl.current = URL.createObjectURL(file)
+    setAvatarFile(file)
+    setPreviewUrl(lastUrl.current)
+    setSaveError(null)
   }
 
-  const avatarSrc = useMemo(() => {
-    const apiBase = import.meta.env.VITE_API_URL || ''
-    const raw = user?.avatar_url || (user as any)?.avatar || ''
-    const absolute = getAbsoluteAvatarUrl(raw, apiBase)
-    return previewUrl || absolute || '/default-avatar.png'
-  }, [previewUrl, user?.avatar_url, user])
-
   const submit = async () => {
+    if (submitLock.current || initialLoading || error || !user?.id) return
+    const payload = Object.fromEntries(fields.map(key => [key, form[key]?.trim() ?? ''])) as ProfileForm
+    if (!payload.nickname || payload.nickname.length > 50) { setSaveError('昵称需为 1–50 个字符'); return }
+    if (!payload.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(payload.email)) { setSaveError('请输入有效的邮箱地址'); return }
+    if (payload.phone && (payload.phone.length < 3 || payload.phone.length > 30)) { setSaveError('联系电话需为 3–30 个字符，或留空'); return }
+    const version = generation.current
+    submitLock.current = true
     setLoading(true)
+    setSaveError(null)
+    let profileSaved = false
     try {
-      // 1) 更新资料
-      await profileApi.update({
-        nickname: form.nickname?.trim(),
-        email: form.email?.trim(),
-        phone: form.phone?.trim(),
-        bio: form.bio?.trim(),
-        school: form.school?.trim(),
-        class_name: form.class_name?.trim(),
-      })
-
-      // 2) 上传头像（若选择了新头像）
+      const result = await profileApi.update(payload)
+      if (version !== generation.current) return
+      if (!result.success || !result.data) throw new Error(('error' in result ? result.error : '') || '资料保存失败，请重试')
+      profileSaved = true
+      const data = profileFields(result.data)
+      setFormValue(data)
+      applyProfile(user.id, { ...data, avatar_url: result.data.avatar_url || result.data.avatar || savedAvatar })
       if (avatarFile) {
         const fd = new FormData()
         fd.append('avatar', avatarFile)
-        await profileApi.uploadAvatar(fd)
+        const uploaded = await profileApi.uploadAvatar(fd)
+        if (version !== generation.current) return
+        if (!uploaded.success || !uploaded.data) throw new Error(('error' in uploaded ? uploaded.error : '') || '头像上传失败')
+        const avatar = uploaded.data.avatar_url || uploaded.data.avatar
+        if (!avatar) throw new Error('头像上传结果不完整，请重试')
+        setSavedAvatar(avatar)
+        applyProfile(user.id, { avatar_url: avatar })
+        setAvatarFile(null)
+        setPreviewUrl('')
+        revokeObjectUrl(lastUrl.current)
+        lastUrl.current = ''
       }
-
-      // 3) 强制刷新服务端用户信息（会实际发请求）
-      await refreshUser()
-
-      message.success(t('profile.update_success') || translate('auto.df6259d848'))
-    } catch (e: any) {
-      console.error('update profile error', e)
-      message.error(e?.message || t('profile.update_error') || translate('roles.message.update_failed'))
+      message.success(t('profile.update_success'))
+    } catch (error) {
+      if (version !== generation.current) return
+      const detail = error instanceof Error ? error.message : '保存失败，请重试'
+      setSaveError(profileSaved ? `个人资料已保存，头像尚未保存：${detail}。已保留所选图片，请重试。` : detail)
     } finally {
-      setLoading(false)
+      if (version === generation.current) { submitLock.current = false; setLoading(false) }
     }
   }
 
-  return {
-    t,
-    user,
-    form,
-    setForm,
-    avatarSrc,
-    onAvatarPick,
-    loading,
-    submit,
-  }
+  return { t, user, form, setForm, avatarSrc: previewUrl || getAbsoluteAvatarUrl(savedAvatar || user?.avatar_url) || '/default-avatar.png',
+    onAvatarPick, initialLoading, loading, error, saveError, retry: () => setRetry(value => value + 1), submit }
 }

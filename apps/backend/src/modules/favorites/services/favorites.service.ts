@@ -58,7 +58,7 @@ export class FavoritesService {
         name: input.name,
         description: input.description,
         is_public: input.is_public,
-        category_id: input.category_id ?? undefined,
+        category_id: input.category_id,
       })
       if (!ok) throw HttpError.internal('更新失败')
     })

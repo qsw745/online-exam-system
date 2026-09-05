@@ -1,6 +1,6 @@
 import { App } from 'antd'
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api, isSuccess, wrongQuestions as wqApi } from '@/shared/api/http'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { isSuccess, wrongQuestions as wqApi } from '@/shared/api/http'
 import { translate } from '@/shared/utils/i18n'
 
 export type WQFilter = 'unmastered' | 'mastered' | 'all'
@@ -38,17 +38,18 @@ const normalizeList = (payload: any): WrongQuestion[] => {
     // 题目ID优先用 question_id；如果后端没给，再回退 id
     question_id: Number(q?.question_id ?? q?.qid ?? q?.question?.id ?? q?.id ?? 0),
     question_type: q?.question_type ?? q?.type ?? 'single_choice',
-    is_mastered: !!(q?.is_mastered ?? q?.mastered ?? false),
+    is_mastered: [true, 1, '1', 'true'].includes(q?.is_mastered ?? q?.mastered ?? false),
     content: q?.content ?? '',
     wrong_count: Number(q?.wrong_count ?? q?.wrongCount ?? 0),
     correct_count: Number(q?.correct_count ?? q?.correctCount ?? 0),
-    last_practice_time: q?.last_practice_time ?? q?.lastPracticeTime ?? new Date().toISOString(),
+    last_practice_time: q?.last_practice_time ?? q?.lastPracticeTime ?? '',
   }))
 }
 
 const normalizeTotal = (payload: any, fallback = 0) => {
   const d = payload?.data ?? payload
-  return Number(d?.total ?? d?.pagination?.total ?? d?.totalCount ?? fallback)
+  const total = Number(d?.total ?? d?.pagination?.total ?? d?.totalCount ?? fallback)
+  return Number.isFinite(total) && total >= 0 ? total : fallback
 }
 
 const normalizeStats = (payload: any): PracticeStats => {
@@ -62,7 +63,7 @@ const normalizeStats = (payload: any): PracticeStats => {
   return {
     wrongQuestions: Number(d?.wrongQuestions ?? d?.wrong_questions ?? 0),
     masteredQuestions: Number(d?.masteredQuestions ?? d?.mastered_questions ?? 0),
-    accuracy,
+    accuracy: Number.isFinite(accuracy) ? Math.max(0, Math.min(100, accuracy!)) : undefined,
     totalPractices:
       typeof d?.totalPractices === 'number'
         ? d.totalPractices
@@ -72,82 +73,18 @@ const normalizeStats = (payload: any): PracticeStats => {
   }
 }
 
-/** ====== 使用封装好的 axios 请求（带后备路径的兼容） ====== */
+/** 当前服务以题目 ID 操作错题。失败不会改用含义不同的旧端点重试写入。 */
 const svc = {
-  async list(params: { page?: number; limit?: number; filter?: WQFilter }) {
-    const { page, limit, filter } = params
-    const p: any = { page, limit }
-    if (filter === 'mastered') p.mastered = true
-    if (filter === 'unmastered') p.mastered = false
-
-    try {
-      // 首选新路由：/questions/wrong-questions
-      const res = await wqApi.getWrongQuestions(p as any)
-      const payload = (res as any)?.data ?? res
-      const list = normalizeList(payload)
-      const total = normalizeTotal(payload, list.length)
-      return { list, total }
-    } catch {
-      // 兼容老路由：/wrong-questions?filter=...
-      const fallbackParams: any = { page, limit }
-      if (filter && filter !== 'all') fallbackParams.filter = filter
-      const r2 = await api.get('/wrong-questions', { params: fallbackParams })
-      const payload2 = (r2 as any)?.data ?? r2
-      const list = normalizeList(payload2)
-      const total = normalizeTotal(payload2, list.length)
-      return { list, total }
-    }
+  async list(page: number, limit: number, filter: WQFilter) {
+    const res = await wqApi.getWrongQuestions({ page, limit, mastered: filter === 'all' ? undefined : filter === 'mastered' })
+    if (!isSuccess(res)) throw new Error(res.error || '错题加载失败')
+    const list = normalizeList(res.data)
+    return { list, total: normalizeTotal(res.data, list.length) }
   },
-
-  async stats(): Promise<PracticeStats> {
-    try {
-      const res = await wqApi.getPracticeStats()
-      const payload = (res as any)?.data ?? res
-      return normalizeStats(payload)
-    } catch {
-      // 兼容老路由
-      const r2 = await api.get('/wrong-questions/stats')
-      const payload2 = (r2 as any)?.data ?? r2
-      return normalizeStats(payload2)
-    }
-  },
-
-  async markMastered(qidOrRid: number) {
-    // 有的后端要“记录ID”，有的要“题目ID”；依次尝试
-    try {
-      const r = await wqApi.markAsMastered(qidOrRid) // PUT /questions/wrong-questions/:id/mastered
-      if (isSuccess(r)) return true
-    } catch {}
-    try {
-      await api.post('/wrong-questions/mark-mastered', { question_id: qidOrRid })
-      return true
-    } catch {}
-    try {
-      await api.put(`/wrong-questions/${qidOrRid}/mastered`)
-      return true
-    } catch {}
-    try {
-      await api.post('/wrong-questions/mark', { question_id: qidOrRid, mastered: true })
-      return true
-    } catch {}
-    return false
-  },
-
-  async remove(qidOrRid: number) {
-    // 先按记录ID删；失败再按题目ID删
-    try {
-      const r = await wqApi.removeFromWrongQuestions(qidOrRid) // DELETE /questions/wrong-questions/:id
-      if (isSuccess(r)) return true
-    } catch {}
-    try {
-      await api.delete(`/wrong-questions/${qidOrRid}`)
-      return true
-    } catch {}
-    try {
-      await api.post('/wrong-questions/remove', { question_id: qidOrRid })
-      return true
-    } catch {}
-    return false
+  async stats() {
+    const res = await wqApi.getPracticeStats()
+    if (!isSuccess(res)) throw new Error(res.error || '练习统计加载失败')
+    return normalizeStats(res.data)
   },
 }
 
@@ -155,129 +92,109 @@ export function useWrongQuestions(initialFilter: WQFilter = 'unmastered') {
   const { message } = App.useApp()
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-
-  const [filter, setFilter] = useState<WQFilter>(initialFilter)
+  const [error, setError] = useState<string | null>(null)
+  const [statsError, setStatsError] = useState<string | null>(null)
+  const [filter, setFilterValue] = useState<WQFilter>(initialFilter)
   const [page, setPage] = useState(1)
-  const [pageSize] = useState(10)
-
+  const pageSize = 10
   const [list, setList] = useState<WrongQuestion[]>([])
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState<PracticeStats | null>(null)
+  const [pendingIds, setPendingIds] = useState<Set<number>>(new Set())
+  const pendingRef = useRef(new Set<number>())
+  const mounted = useRef(false)
+  useLayoutEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  const listVersion = useRef(0)
+  const statsVersion = useRef(0)
+  const currentView = useRef({ filter, page })
+  useLayoutEffect(() => { currentView.current = { filter, page } }, [filter, page])
 
-  const loadList = useCallback(
-    async (p = 1) => {
-      setLoading(true)
-      try {
-        const { list, total } = await svc.list({ page: p, limit: pageSize, filter })
-        setList(list)
-        setTotal(total)
-        setPage(p)
-      } catch (e: any) {
-        console.error(e)
-        message.error(e?.message || translate('auto.4096ebd1fe'))
+  const loadList = useCallback(async function fetchPage(requestedPage = 1, requestedFilter = filter): Promise<boolean> {
+    const version = ++listVersion.current
+    setLoading(true)
+    setError(null)
+    try {
+      const result = await svc.list(requestedPage, pageSize, requestedFilter)
+      if (version !== listVersion.current) return false
+      const lastPage = Math.max(1, Math.ceil(result.total / pageSize))
+      if (requestedPage > lastPage) return fetchPage(lastPage, requestedFilter)
+      setList(result.list)
+      setTotal(result.total)
+      setPage(requestedPage)
+      return true
+    } catch (error) {
+      if (version === listVersion.current) {
         setList([])
         setTotal(0)
-      } finally {
-        setLoading(false)
+        setError(error instanceof Error ? error.message : '错题加载失败')
       }
-    },
-    [filter, pageSize, message]
-  )
+      return false
+    } finally {
+      if (version === listVersion.current) setLoading(false)
+    }
+  }, [filter])
 
   const loadStats = useCallback(async () => {
+    const version = ++statsVersion.current
     try {
-      const s = await svc.stats()
-      setStats(s)
-    } catch {
-      // 静默
+      const data = await svc.stats()
+      if (version !== statsVersion.current) return false
+      setStats(data)
+      setStatsError(null)
+      return true
+    } catch (error) {
+      if (version === statsVersion.current) setStatsError(error instanceof Error ? error.message : '练习统计加载失败')
+      return false
     }
   }, [])
 
   useEffect(() => {
-    loadList(1)
-    loadStats()
-  }, [filter, loadList, loadStats])
+    void loadList(1)
+    return () => { listVersion.current += 1 }
+  }, [loadList])
+  useEffect(() => {
+    void loadStats()
+    return () => { statsVersion.current += 1 }
+  }, [loadStats])
+
+  const setFilter = useCallback((next: WQFilter) => {
+    if (next === filter) return
+    listVersion.current += 1
+    setList([])
+    setPage(1)
+    setFilterValue(next)
+  }, [filter])
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
-    await Promise.all([loadList(page), loadStats()])
+    const results = await Promise.all([loadList(page), loadStats()])
     setRefreshing(false)
-    message.success(translate('auto.519b29552c'))
+    if (results.every(Boolean)) message.success(translate('auto.519b29552c'))
   }, [loadList, loadStats, page, message])
 
-  const markMastered = useCallback(
-    async (qidOrRid: number) => {
-      const prev = list
-      const next = prev.map(q => (q.question_id === qidOrRid || q.id === qidOrRid ? { ...q, is_mastered: true } : q))
-      setList(next)
-      const prevStats = stats
-      if (prevStats) {
-        const wasUnmastered = prev.some(q => (q.question_id === qidOrRid || q.id === qidOrRid) && !q.is_mastered)
-        setStats({
-          ...prevStats,
-          masteredQuestions: prevStats.masteredQuestions + (wasUnmastered ? 1 : 0),
-          wrongQuestions: Math.max(0, prevStats.wrongQuestions - 0),
-        })
-      }
-      try {
-        const ok = await svc.markMastered(qidOrRid)
-        if (!ok) throw new Error('failed')
-      } catch (e: any) {
-        setList(prev) // 回滚
-        if (prevStats) setStats(prevStats)
-        message.error(e?.message || translate('app.operation_failed'))
-      }
-    },
-    [list, stats, message]
-  )
+  const mutate = useCallback(async (qid: number, action: 'master' | 'remove') => {
+    if (!Number.isSafeInteger(qid) || qid <= 0 || pendingRef.current.has(qid)) return
+    pendingRef.current.add(qid)
+    setPendingIds(new Set(pendingRef.current))
+    try {
+      const res = action === 'master' ? await wqApi.markAsMastered(qid) : await wqApi.removeFromWrongQuestions(qid)
+      if (!mounted.current) return
+      if (!isSuccess(res)) throw new Error(res.error || '操作失败，请重试')
+      message.success(action === 'master' ? '已标记为掌握' : translate('auto.298b7582b3'))
+      const current = currentView.current
+      await Promise.all([loadList(current.page, current.filter), loadStats()])
+    } catch (error) {
+      if (mounted.current) message.error(error instanceof Error ? error.message : translate('app.operation_failed'))
+    } finally {
+      pendingRef.current.delete(qid)
+      if (mounted.current) setPendingIds(new Set(pendingRef.current))
+    }
+  }, [loadList, loadStats, message])
+  const markMastered = useCallback((id: number) => mutate(id, 'master'), [mutate])
+  const remove = useCallback((id: number) => mutate(id, 'remove'), [mutate])
+  const onPageChange = useCallback((page: number) => loadList(page), [loadList])
+  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total])
 
-  const remove = useCallback(
-    async (qidOrRid: number) => {
-      const prev = list
-      const next = prev.filter(q => q.question_id !== qidOrRid && q.id !== qidOrRid)
-      setList(next)
-      const prevStats = stats
-      if (prevStats) {
-        const removed = prev.find(q => q.question_id === qidOrRid || q.id === qidOrRid)
-        setStats({
-          ...prevStats,
-          wrongQuestions: Math.max(0, prevStats.wrongQuestions - (removed ? 1 : 0)),
-          masteredQuestions: Math.max(0, prevStats.masteredQuestions - (removed?.is_mastered ? 1 : 0)),
-        })
-      }
-      try {
-        const ok = await svc.remove(qidOrRid)
-        if (!ok) throw new Error('failed')
-        message.success(translate('auto.298b7582b3'))
-        if (next.length === 0 && page > 1) loadList(page - 1)
-      } catch (e: any) {
-        setList(prev) // 回滚
-        if (prevStats) setStats(prevStats)
-        message.error(e?.message || translate('app.operation_failed'))
-      }
-    },
-    [list, stats, page, loadList, message]
-  )
-
-  const onPageChange = useCallback((p: number) => loadList(p), [loadList])
-  const totalPages = useMemo(() => Math.max(1, Math.ceil(total / pageSize)), [total, pageSize])
-
-  return {
-    // state
-    loading,
-    refreshing,
-    filter,
-    list,
-    stats,
-    page,
-    pageSize,
-    total,
-    totalPages,
-    // actions
-    setFilter,
-    refresh,
-    markMastered,
-    remove,
-    onPageChange,
-  }
+  return { loading, refreshing, error, statsError, filter, list, stats, page, pageSize, total, totalPages,
+    pendingIds, setFilter, refresh, markMastered, remove, onPageChange }
 }

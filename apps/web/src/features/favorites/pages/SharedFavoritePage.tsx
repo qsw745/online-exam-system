@@ -16,6 +16,7 @@ type SharedFavoritePayload = {
 export default function SharedFavoritePage() {
   const { code = '' } = useParams<{ code: string }>()
   const navigate = useNavigate()
+  const [retry, setRetry] = React.useState(0)
   const [loading, setLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [data, setData] = React.useState<SharedFavoritePayload | null>(null)
@@ -28,7 +29,7 @@ export default function SharedFavoritePage() {
         setError(null)
         const payload = await favoritesApi.getShared(code)
         if (!alive) return
-        if (!payload) {
+        if (!payload?.favorite || !Array.isArray(payload.items)) {
           setError('分享链接不存在或已失效')
           setData(null)
           return
@@ -50,12 +51,12 @@ export default function SharedFavoritePage() {
     return () => {
       alive = false
     }
-  }, [code])
+  }, [code, retry])
 
   if (loading) {
     return (
       <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Spin tip={translate('visible.a826e787c0')} size="large" />
+        <Spin tip={translate('visible.a826e787c0')} size="large"><div style={{ minWidth: 200, minHeight: 160 }} /></Spin>
       </div>
     )
   }
@@ -67,8 +68,9 @@ export default function SharedFavoritePage() {
         title={translate('auto.08224d52f1')}
         subTitle={error || translate('visible.bf2e94aad7')}
         extra={
-          <Space>
-            <Button onClick={() => navigate(-1)}>{translate('app.back')}</Button>
+          <Space wrap>
+            <Button onClick={() => setRetry(value => value + 1)}>{translate('app.retry')}</Button>
+            <Button onClick={() => navigate('/student/learning')}>{translate('app.back')}</Button>
             <Button type="primary" href={withAppBasePath('/login')}>
               {translate('auto.6da511835b')}</Button>
           </Space>
@@ -81,7 +83,8 @@ export default function SharedFavoritePage() {
   const ownerName = owner?.nickname || owner?.username || '未知用户'
 
   return (
-    <div style={{ maxWidth: 960, margin: '32px auto', padding: '0 16px' }}>
+    <div className="student-shared-favorite" style={{ maxWidth: 960, margin: '32px auto', padding: '0 16px' }}>
+      <Button style={{ marginBottom: 16 }} onClick={() => navigate('/student/learning')}>返回学习中心</Button>
       <Card style={{ marginBottom: 24 }}>
         <Space direction="vertical" size="middle" style={{ width: '100%' }}>
           <div>
@@ -108,13 +111,15 @@ export default function SharedFavoritePage() {
               <List.Item key={item.id}>
                 <List.Item.Meta
                   title={
-                    <Space size="small">
-                      <Text strong>{(item as any).title || `收藏项 #${item.item_id}`}</Text>
-                      <Tag>{item.item_type}</Tag>
+                    <Space size="small" wrap>
+                      <Text strong>{item.question_title || item.title || '未命名收藏内容'}</Text>
+                      <Tag>{item.item_type === 'question' ? '题目' : item.item_type}</Tag>
                     </Space>
                   }
-                  description={(item as any).description || `目标 ID：${item.item_id}`}
+                  description={item.description || undefined}
                 />
+                {(!item.item_type || item.item_type === 'question') && Number(item.question_id ?? item.item_id) > 0 &&
+                  <Button onClick={() => navigate(`/questions/${Number(item.question_id ?? item.item_id)}/practice`)}>开始练习</Button>}
               </List.Item>
             )}
           />

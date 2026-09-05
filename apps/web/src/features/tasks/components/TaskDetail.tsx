@@ -1,9 +1,9 @@
 import React from 'react'
 import { Card, Descriptions, Space, Tag, Typography, Button } from 'antd'
-import dayjs from '@/shared/utils/dayjs'
 import StatusTag from './StatusTag'
 import type { Task } from '@/shared/types/tasks'
-import { isStartableStatus, getTaskStatusLabel } from '../constants/taskStatus'
+import { getTaskStatusLabel } from '../constants/taskStatus'
+import { getStudentTaskAction } from '../constants/studentTaskAction'
 import { translate } from '@/shared/utils/i18n'
 import { formatDateTime } from '@/shared/utils/datetime'
 
@@ -24,35 +24,25 @@ export const TaskDetail: React.FC<{
     )
   }
   if (!task) {
-    return <Card variant="outlined">{translate('auto.4459e7acb5')}</Card>
+    return <Card variant="outlined"><Space direction="vertical">{translate('auto.4459e7acb5')}<Button onClick={onBack}>{translate('app.back')}</Button></Space></Card>
   }
 
   const assigned: any[] = (task as any).assigned_users ?? (task as any).assignedUsers ?? []
   const resultStatus = String((task as any).my_result_status || '').toLowerCase()
   const hasDoneResult = task.type === 'exam' && ['completed', 'submitted', 'graded'].includes(resultStatus)
   const hasResultDetail = hasDoneResult && (task as any).my_result_id != null
-  const visibleStatus = hasDoneResult ? 'completed' : resultStatus === 'in_progress' ? 'in_progress' : task.status
-
-  // ✅ “可开始”支持 published；时间窗口仍需满足
-  const canStart = (() => {
-    if (hasDoneResult) return false
-    const now = new Date()
-    const s = task.start_time ? new Date(task.start_time) : undefined
-    const e = task.end_time ? new Date(task.end_time) : undefined
-    if (s && now < s) return false
-    if (e && now > e) return false
-    return isStartableStatus(task.status as any)
-  })()
+  const action = getStudentTaskAction(task)
+  const visibleStatus = action.visibleStatus
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
+    <Space className="student-task-detail" direction="vertical" size={16} style={{ width: '100%' }}>
       <Title level={3} style={{ margin: 0 }}>
         {translate('menus.tasks-detail')}</Title>
 
       <Card
         title={task.title || '—'}
         extra={
-          <Space>
+          <Space wrap>
             <Button onClick={onBack}>{translate('app.back')}</Button>
             {onEdit && (
               <Button type="primary" ghost onClick={() => onEdit(task)}>
@@ -65,15 +55,16 @@ export const TaskDetail: React.FC<{
               </Button>
             )}
             {hasDoneResult && !hasResultDetail && <Button disabled>{translate('dashboard.status_completed')}</Button>}
-            {onStart && canStart && (
-              <Button type="primary" onClick={() => onStart(task)}>
-                {task.type === 'exam' ? translate('visible.d5b9caf5ec') : translate('auto.5c007a10e6')}
+            {onStart && !hasDoneResult && (
+              <Button type="primary" disabled={action.disabled} onClick={() => onStart(task)}>
+                {action.label}
               </Button>
             )}
           </Space>
         }
         variant="outlined"
       >
+        {action.reason && <Typography.Paragraph type="secondary">{action.reason}</Typography.Paragraph>}
         <Descriptions column={1} bordered size="middle">
           <Descriptions.Item label={translate('papers.desc2')}>{task.description || '-'}</Descriptions.Item>
           <Descriptions.Item label={translate('systemConfig.col_type')}>{task.type === 'exam' ? translate('nav.exams') : translate('menus.exam-practice')}</Descriptions.Item>

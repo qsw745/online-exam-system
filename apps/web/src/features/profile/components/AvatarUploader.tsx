@@ -8,7 +8,9 @@ export default function AvatarUploader({
   onPick,
   email,
   subtitle,
+  disabled,
 }: {
+  disabled?: boolean
   src?: string | null
   onPick: (file: File) => void
   email?: string
@@ -19,7 +21,7 @@ export default function AvatarUploader({
   const [previewOpen, setPreviewOpen] = useState(false)
 
   return (
-    <div style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
+    <div className="student-avatar" style={{ display: 'flex', gap: 16, alignItems: 'center', marginBottom: 24 }}>
       <div style={{ position: 'relative' }}>
         <Tooltip title={safeSrc ? translate('visible.d730178fef') : undefined}>
           <Avatar
@@ -55,11 +57,14 @@ export default function AvatarUploader({
           <input
             id={inputId}
             type="file"
+            disabled={disabled}
+            aria-label={translate('users.action.upload_avatar')}
             accept="image/*"
             style={{ display: 'none' }}
             onChange={e => {
               const f = e.target.files?.[0]
               if (f) onPick(f)
+              e.target.value = ''
             }}
           />
         </label>
@@ -70,6 +75,7 @@ export default function AvatarUploader({
             type="button"
             onClick={() => setPreviewOpen(true)}
             title={translate('auto.c09b520714')}
+            aria-label={translate('auto.c09b520714')}
             style={{
               position: 'absolute',
               top: 0,
@@ -91,9 +97,9 @@ export default function AvatarUploader({
         ) : null}
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <div className="student-avatar__copy" style={{ display: 'flex', flexDirection: 'column' }}>
         {email ? <span style={{ fontWeight: 600 }}>{email}</span> : null}
-        {subtitle ? <span style={{ color: '#999' }}>{subtitle}</span> : null}
+        {subtitle ? <span style={{ color: 'var(--ant-color-text-secondary)' }}>{subtitle}</span> : null}
       </div>
 
       <Modal

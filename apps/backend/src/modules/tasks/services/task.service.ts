@@ -524,7 +524,7 @@ export class TaskService {
       })
     }
 
-    return { attemptId, submissionId, score, correctCount, replayed }
+    return { attemptId, submissionId, resultId: examResultId, score, correctCount, replayed }
   }
 
   /** 🔥 开始/继续考试（兼容传 taskId 或 examId 的情况） */
@@ -578,6 +578,7 @@ export class TaskService {
     return {
       taskId: meta.taskId,
       examId: meta.exam_id,
+      resultId: result.id,
       paperId: meta.paper_id,
       attemptId: result.attempt_id,
       duration: meta.duration ?? 60,

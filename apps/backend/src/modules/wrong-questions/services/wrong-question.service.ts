@@ -1,6 +1,7 @@
 // apps/backend/src/modules/wrong-questions/services/wrong-question.service.ts
-import type { MasteryLevel, PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.model'
+import type { PracticeRecord, WrongQuestion, WrongQuestionBook } from '../domain/wq.model'
 import { WrongQuestionRepository } from '../repositories/wq.repository.js'
+import { masteryFromRecentPractice } from '../domain/mastery.js'
 
 export class WrongQuestionService {
   constructor(private readonly repo = new WrongQuestionRepository()) {}
@@ -38,22 +39,23 @@ export class WrongQuestionService {
     return { questions: rows, total }
   }
 
-  async updateWrongQuestion(id: number, _userId: number, patch: Partial<WrongQuestion>) {
+  async updateWrongQuestion(id: number, userId: number, patch: Partial<WrongQuestion>) {
+    if (!(await this.repo.ensureWrongQuestionOwnership(id, userId))) throw new Error('无权操作此错题')
     return this.repo.updateWrongQuestion(id, patch)
   }
 
-  removeWrongQuestion(id: number, _userId: number) {
+  async removeWrongQuestion(id: number, userId: number) {
+    if (!(await this.repo.ensureWrongQuestionOwnership(id, userId))) throw new Error('无权操作此错题')
     return this.repo.removeWrongQuestionCascade(id)
   }
 
   // practice
   async addPracticeRecord(data: Omit<PracticeRecord, 'id' | 'created_at'>) {
+    if (!(await this.repo.ensureWrongQuestionOwnership(data.wrong_question_id, data.user_id))) throw new Error('无权操作此错题')
     const id = await this.repo.addPracticeRecord(data)
     // 更新 mastery（近 5 次全对 -> mastered；近 3 次全对 -> partially_mastered）
     const flags = await this.repo.recentCorrectFlags(data.wrong_question_id, 5)
-    let level: MasteryLevel = 'not_mastered'
-    if (flags.length >= 5 && flags.every(Boolean)) level = 'mastered'
-    else if (flags.slice(0, 3).every(Boolean)) level = 'partially_mastered'
+    const level = masteryFromRecentPractice(flags)
     await this.repo.setMasteryLevel(data.wrong_question_id, level)
     return id
   }

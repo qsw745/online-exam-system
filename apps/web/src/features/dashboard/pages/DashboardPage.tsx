@@ -4,8 +4,6 @@ import { Space, Typography, Row, Col, message } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { useLanguage } from '@/shared/contexts/LanguageContext'
 import { useDashboard } from '@/shared/hooks/useDashboard'
-import { tasksApi } from '@/shared/api/endpoints/tasks'
-import { isSuccess } from '@/shared/api/http'
 import { DashboardStatsCards } from '../components/DashboardStatsCards'
 import { RecentTasksList } from '../components/RecentTasksList'
 import { RecentResultsList } from '../components/RecentResultsList'
@@ -46,15 +44,10 @@ const DashboardPage: React.FC = () => {
           return
         }
         if (task.type !== 'exam') {
-          nav(`/learning/practice/${task.id}`)
+          nav(`/learning/practice?taskId=${encodeURIComponent(task.id)}`)
           return
         }
-        const res: any = await tasksApi.startExam?.(task.id)
-        if (!isSuccess(res)) throw new Error(res?.message || res?.error || '开始任务失败')
-        const payload = res.data ?? {}
-        const examId = payload.examId ?? payload.exam_id ?? task.exam_id
-        if (!examId) throw new Error(translate('auto.4118324af2'))
-        nav(`/exam/${examId}`, { state: { ...payload, taskId: task.id } })
+        nav(`/exam/task/${task.id}`)
       } catch (e: any) {
         message.error(e?.message || translate('auto.776c716fa1'))
       }

@@ -11,6 +11,7 @@ import type {
   ProgressStats,
   Subject,
 } from '../domain/learning-progress.model.js'
+import type { ProgressRange } from '../repositories/progress-filter.js'
 import { LearningProgressRepository } from '../repositories/learning-progress.repository.js'
 
 type Queryable = { query<T = any>(sql: string, params?: any[]): Promise<[T, any]> }
@@ -87,10 +88,10 @@ export class LearningProgressService {
   }
 
   // 统计
-  async getProgressStats(userId: number, period: string, subjectId?: number): Promise<ProgressStats> {
-    const days = period === '90d' ? 90 : period === '30d' ? 30 : 7
-    const daily = (await this.repo.dailyStats(userId, subjectId, days)) as DailyRow[]
-    const total = await this.repo.totalStats(userId, subjectId, days)
+  async getProgressStats(userId: number, period: string, subjectId?: number, range: ProgressRange = {}): Promise<ProgressStats> {
+    const days = period === 'all' ? undefined : period === '90d' ? 90 : period === '30d' ? 30 : 7
+    const daily = (await this.repo.dailyStats(userId, subjectId, days, range)) as DailyRow[]
+    const total = await this.repo.totalStats(userId, subjectId, days, range)
     return {
       dailyStats: daily.map((d: DailyRow) => ({
         date: d.date,
@@ -105,6 +106,7 @@ export class LearningProgressService {
         correct_answers: total?.correct_answers ?? 0,
         avg_accuracy: total?.avg_accuracy ?? 0,
         study_days: total?.study_days ?? 0,
+        subjects_studied: total?.subjects_studied ?? 0,
       },
       period,
     }

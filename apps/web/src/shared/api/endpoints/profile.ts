@@ -18,16 +18,9 @@ export const profileApi = {
 
   // 更新资料（昵称/学校/班级/邮箱/电话/签名等）
   update: (payload: ProfileForm) => {
-    // 过滤空字符串，避免后端校验失败（如 phone 为空字符串）
-    const normalized: ProfileForm = {}
-    Object.entries(payload || {}).forEach(([k, v]) => {
-      if (typeof v === 'string') {
-        const trimmed = v.trim()
-        if (trimmed) (normalized as any)[k] = trimmed
-      } else if (v !== undefined) {
-        ;(normalized as any)[k] = v
-      }
-    })
+    // 可选字段的空字符串表示主动清空，不能被过滤掉。
+    const normalized = Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined)
+      .map(([key, value]) => [key, typeof value === 'string' ? value.trim() : value]))
     return api.put<ProfileForm>('/profile', normalized)
   },
 

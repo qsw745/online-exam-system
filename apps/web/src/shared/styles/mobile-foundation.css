@@ -5,7 +5,22 @@
   --wenheng-paper: #f7f9fc;
   --wenheng-cloud: #e7ecf3;
   --wenheng-danger: #d94a4a;
+  --wenheng-surface: #fff;
+  --wenheng-muted: #667085;
   --student-mobile-nav-height: 64px;
+}
+
+[data-theme='dark'] {
+  --wenheng-ink: #e2e8f0;
+  --wenheng-jade: #53d5a8;
+  --wenheng-paper: #050b16;
+  --wenheng-cloud: #1e293b;
+  --wenheng-surface: #0b1220;
+  --wenheng-muted: #94a3b8;
+}
+
+[data-app-target='ios'] body {
+  background: var(--wenheng-paper);
 }
 
 .wenheng-brand {
@@ -35,6 +50,161 @@
 
 .mobile-student-nav {
   display: none;
+  position: fixed;
+  z-index: 900;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  min-height: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom));
+  padding: 6px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
+  border-top: 1px solid var(--wenheng-cloud);
+  background: var(--wenheng-surface);
+  background: color-mix(in srgb, var(--wenheng-surface) 96%, transparent);
+  backdrop-filter: blur(18px);
+}
+
+.mobile-student-nav--app {
+  display: grid;
+}
+
+.mobile-student-nav__item {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 52px;
+  border-radius: 12px;
+  color: var(--wenheng-muted);
+  text-decoration: none;
+  font-size: 12px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.mobile-student-nav__item[aria-current='page'] {
+  color: var(--wenheng-jade);
+  font-weight: 700;
+  background: color-mix(in srgb, var(--wenheng-jade) 9%, transparent);
+}
+
+.mobile-app-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 12px;
+  padding: calc(12px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 24px) max(12px, env(safe-area-inset-left));
+  overflow-wrap: anywhere;
+}
+
+.mobile-app-shell .ant-space-item,
+.student-task-card__layout > .ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.student-task-card__layout > .ant-space-item:first-child {
+  flex: 1;
+}
+
+.student-task-card__action {
+  display: grid;
+  gap: 8px;
+}
+
+.student-task-card__action-reason {
+  max-width: 200px;
+  font-size: 12px;
+}
+
+.student-task-card__description {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+
+.student-settings-page {
+  padding: 24px;
+}
+
+.student-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.student-learning-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  max-width: 100%;
+}
+
+.student-favorites .ant-card-head-title {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  padding-block: 16px;
+}
+
+.mobile-app-shell .ant-btn {
+  min-height: 44px;
+}
+
+.mobile-app-shell .student-task-card__layout {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.student-profile-links {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.student-profile-links .ant-btn {
+  flex: 1 1 120px;
+}
+
+.student-avatar__copy {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.student-task-date-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+}
+
+.student-task-date-range label {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  color: var(--wenheng-muted);
+  font-size: 12px;
+}
+
+.student-task-date-range input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--wenheng-cloud);
+  border-radius: 8px;
+  background: var(--wenheng-surface);
+  color: var(--wenheng-ink);
+  font: inherit;
+  font-size: 16px;
+  color-scheme: light;
+}
+
+[data-theme='dark'] .student-task-date-range input {
+  color-scheme: dark;
 }
 
 .student-learning-grid {
@@ -111,40 +281,167 @@
     padding: 12px 12px calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px) !important;
   }
 
-  .mobile-app-shell {
-    min-height: 100vh;
-    padding-bottom: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
-  }
-
   .mobile-student-nav {
-    position: fixed;
-    z-index: 1250;
-    right: 0;
-    bottom: 0;
-    left: 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    min-height: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom));
-    padding: 6px 8px env(safe-area-inset-bottom);
-    border-top: 1px solid var(--wenheng-cloud);
-    background: color-mix(in srgb, #fff 94%, transparent);
-    backdrop-filter: blur(18px);
   }
 
-  .mobile-student-nav__item {
-    display: grid;
-    place-items: center;
-    align-content: center;
-    gap: 2px;
-    min-height: 52px;
-    color: #667085;
-    text-decoration: none;
-    font-size: 11px;
+  .mobile-app-shell .ant-card-body,
+  .app-content--student-mobile .ant-card-body {
+    padding: 16px;
   }
 
-  .mobile-student-nav__item[aria-current='page'] {
-    color: var(--wenheng-jade);
-    font-weight: 700;
+  .mobile-app-shell .ant-card-head,
+  .app-content--student-mobile .ant-card-head {
+    padding-inline: 16px;
+  }
+
+  .mobile-app-shell .ant-btn,
+  .app-content--student-mobile .ant-btn {
+    min-height: 44px;
+  }
+
+  .mobile-app-shell input.ant-input,
+  .mobile-app-shell textarea.ant-input,
+  .mobile-app-shell .ant-select-selection-search-input {
+    font-size: 16px;
+  }
+
+  .student-task-detail .ant-card-head-wrapper {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding-block: 16px;
+  }
+
+  .student-task-detail .ant-card-head-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .student-task-detail .ant-card-extra {
+    margin-inline-start: 0;
+    width: 100%;
+  }
+
+  .student-task-detail .ant-descriptions-item-content,
+  .student-task-card {
+    overflow-wrap: anywhere;
+  }
+
+  .student-task-detail .ant-descriptions-item-label {
+    width: 88px;
+  }
+
+  .student-favorites .ant-list-item {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .student-favorites .ant-list-item-action {
+    align-self: flex-end;
+    margin-inline-start: 0;
+  }
+
+  .student-favorites .ant-list-item-meta {
+    width: 100%;
+  }
+
+  .student-favorites .ant-list-item-meta-content {
+    overflow-wrap: anywhere;
+  }
+
+  .student-favorites .ant-card-head-title {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    padding-block: 16px;
+  }
+
+  .global-pagination .ant-pagination {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .global-pagination .ant-pagination-total-text {
+    width: 100%;
+    text-align: center;
+  }
+
+  .global-pagination .ant-pagination-prev,
+  .global-pagination .ant-pagination-next,
+  .global-pagination .ant-pagination-simple-pager {
+    min-width: 44px;
+    height: 44px;
+    line-height: 44px;
+  }
+
+  .student-settings-page,
+  .mobile-app-shell .student-profile-page {
+    padding: 0;
+  }
+
+  .student-setting-row {
+    gap: 12px;
+  }
+
+  .student-setting-row > .ant-col:first-child {
+    flex: 1 1 100px;
+    min-width: 0;
+  }
+
+  .student-setting-row > .ant-col:last-child {
+    flex-shrink: 0;
+  }
+
+  .student-avatar > div:first-child {
+    flex-shrink: 0;
+  }
+
+  .student-results-status {
+    display: flex;
+    width: 100%;
+  }
+
+  .student-results-status > .ant-space-item:last-child {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .student-results-status .ant-select {
+    width: 100% !important;
+  }
+
+  .student-practice-filters .ant-space,
+  .student-practice-filters .ant-space-item {
+    max-width: 100%;
+  }
+
+  .student-practice-filters .ant-select {
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  .student-dashboard .ant-list-item {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .student-dashboard .ant-list-item-meta {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .student-learning-filters,
+  .student-learning-filters > .student-task-date-range {
+    width: 100%;
+  }
+
+  .student-dashboard .ant-list-item-action {
+    margin-inline-start: auto;
   }
 
   .student-learning-grid {
@@ -155,6 +452,24 @@
   .student-task-filters,
   .student-task-filters > .ant-space-item {
     width: 100%;
+  }
+
+  .student-task-advanced,
+  .student-task-advanced > .ant-space-item {
+    width: 100%;
+  }
+
+  .student-task-filter-actions {
+    display: flex;
+  }
+
+  .student-task-filter-actions > .ant-space-item {
+    flex: 1;
+  }
+
+  .student-dashboard-stats > .ant-col {
+    flex: 0 0 50%;
+    max-width: 50%;
   }
 
   .student-task-filters > .ant-space-item {
@@ -207,8 +522,12 @@
     justify-content: space-between;
   }
 
+  .exam-top-card .ant-col:last-child {
+    width: 100%;
+  }
+
   .exam-submit-actions > .ant-space-item:last-child {
-    flex: 1 0 100%;
+    flex: 0 1 auto;
   }
 
   .exam-submit-actions > .ant-space-item:last-child .ant-btn {
@@ -233,26 +552,30 @@
 }
 
 @media (max-width: 479px) {
-  .login-page {
+  .auth-page {
     flex-direction: column;
     justify-content: flex-start !important;
-    padding: 16px !important;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
     overflow-y: auto !important;
   }
 
-  .login-top-controls {
+  .auth-top-controls {
     position: static !important;
     z-index: 1;
     width: 100%;
     justify-content: flex-end;
   }
 
-  .login-top-controls .ant-btn {
+  .auth-top-controls .ant-btn {
     min-height: 44px;
   }
 
-  .login-card .ant-card-body {
+  .auth-card .ant-card-body {
     padding: 20px !important;
+  }
+
+  .auth-card input.ant-input {
+    font-size: 16px;
   }
 }
 
@@ -264,4 +587,300 @@
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
   }
+}
+
+/* 公共认证页面在键盘打开、小屏横屏及深色模式下保持可滚动。 */
+.auth-page {
+  min-height: 100dvh !important;
+  gap: 16px;
+}
+
+[data-theme='dark'] .auth-page {
+  background: linear-gradient(135deg, #020617, #0b1220) !important;
+}
+
+.auth-card {
+  flex-shrink: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px), (max-height: 600px) {
+  .auth-page {
+    flex-direction: column;
+    justify-content: flex-start !important;
+    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
+  }
+
+  .auth-top-controls {
+    position: static !important;
+    align-self: stretch;
+    justify-content: flex-end;
+  }
+
+  .auth-card input.ant-input {
+    font-size: 16px;
+  }
+}
+
+.exam-page .ant-typography,
+.exam-page .ant-radio-wrapper,
+.exam-page .ant-checkbox-wrapper,
+.student-result-detail .ant-typography {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.exam-page .ant-radio-wrapper,
+.exam-page .ant-checkbox-wrapper {
+  min-height: 44px;
+  align-items: flex-start;
+  padding-block: 8px;
+}
+
+.exam-page .ant-radio-wrapper > span:last-child,
+.exam-page .ant-checkbox-wrapper > span:last-child {
+  min-width: 0;
+}
+
+.exam-page .ant-typography img {
+  max-width: 100%;
+  height: auto;
+}
+
+.exam-page .ant-typography table,
+.exam-page .ant-typography pre {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+@media (max-width: 767px) {
+  .exam-top-card .ant-col {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .exam-top-card h4 {
+    font-size: 18px;
+    line-height: 1.4;
+  }
+
+  .exam-top-card .exam-description {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .exam-page textarea.ant-input {
+    font-size: 16px;
+    scroll-margin-block: 220px 24px;
+  }
+}
+
+@media (max-height: 600px) {
+  .exam-sticky-header {
+    position: static !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .exam-page .ant-radio,
+  .exam-page .ant-checkbox {
+    align-self: flex-start;
+    margin-top: 3px;
+  }
+
+  .auth-top-controls .ant-btn {
+    min-height: 44px;
+  }
+}
+
+/* 练习与错题：长选项、触控操作和深色反馈。 */
+:root {
+  --practice-correct-bg: #f6ffed;
+  --practice-wrong-bg: #fff2f0;
+  --practice-selected-bg: #f0f5ff;
+}
+
+[data-theme='dark'] {
+  --practice-correct-bg: #162b1d;
+  --practice-wrong-bg: #331d22;
+  --practice-selected-bg: #162941;
+}
+
+.student-practice-session,
+.student-practice-session .ant-space-item,
+.practice-question-card,
+.student-wrong-item .ant-space-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.student-practice-session .ant-typography,
+.practice-question-card,
+.student-wrong-item {
+  overflow-wrap: anywhere;
+}
+
+.practice-session-toolbar {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.practice-answer-option .ant-card-body > div > div {
+  min-width: 0;
+  align-items: flex-start !important;
+}
+
+.practice-answer-option .ant-radio-wrapper,
+.practice-answer-option .ant-checkbox-wrapper,
+.practice-answer-option svg {
+  flex-shrink: 0;
+}
+
+.practice-answer-option .ant-card-body {
+  padding: 14px;
+}
+
+.student-wrong-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.student-wrong-item__layout {
+  gap: 16px;
+}
+
+[data-app-target='ios'] .practice-bulk-toolbar {
+  top: env(safe-area-inset-top) !important;
+}
+
+.practice-back-top {
+  bottom: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 16px);
+}
+
+@media (max-width: 767px) {
+  .student-practice-session {
+    padding: 0 !important;
+  }
+
+  .practice-session-toolbar,
+  .student-wrong-item__layout {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+
+  .practice-session-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .practice-session-actions .ant-btn {
+    width: 100%;
+    min-height: 44px;
+  }
+
+  .student-practice-session textarea.ant-input {
+    font-size: 16px;
+  }
+
+  .student-wrong-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .student-wrong-item__actions {
+    justify-content: flex-end;
+  }
+
+  .student-wrong-item__actions .ant-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .practice-bulk-toolbar {
+    top: 0 !important;
+  }
+}
+
+@media (max-height: 600px) {
+  .practice-bulk-toolbar {
+    position: static !important;
+  }
+}
+
+.practice-question-heading {
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.practice-question-heading > .ant-space {
+  flex-shrink: 0;
+}
+
+/* 个人资料、学习统计与分享详情的窄屏内容。 */
+.student-profile-stats__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.student-shared-favorite,
+.student-shared-favorite .ant-space-item,
+.student-learning-progress .ant-timeline-item-content {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-shared-favorite .ant-list-item-meta-title .ant-space {
+  max-width: 100%;
+}
+[data-app-target='ios'] .student-shared-favorite {
+  padding-top: env(safe-area-inset-top) !important;
+  padding-bottom: env(safe-area-inset-bottom) !important;
+}
+@media (max-width: 767px) {
+  .student-profile-stats__grid {
+    gap: 10px;
+  }
+  .student-profile-stats .ant-statistic-content {
+    font-size: 21px;
+    overflow-wrap: anywhere;
+  }
+  .student-shared-favorite .ant-card-body {
+    padding: 16px;
+  }
+  .student-shared-favorite .ant-btn {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  .student-learning-filters > .ant-select {
+    width: 100% !important;
+  }
+  .student-learning-progress .ant-statistic-content {
+    display: flex;
+    align-items: baseline;
+    font-size: 20px;
+    min-width: 0;
+  }
+  .student-learning-progress .ant-statistic-content-value {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
+.student-learning-duration {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 0.25em;
+}
+
+.student-learning-duration > span {
+  display: inline-block;
+  max-width: 100%;
 }

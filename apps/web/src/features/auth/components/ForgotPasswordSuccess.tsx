@@ -9,6 +9,7 @@ const { Title, Text } = Typography
 export const ForgotPasswordSuccess: React.FC = () => {
   return (
     <div
+      className="auth-page"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -18,7 +19,7 @@ export const ForgotPasswordSuccess: React.FC = () => {
         background: 'linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%)',
       }}
     >
-      <Card style={{ width: '100%', maxWidth: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+      <Card className="auth-card" style={{ width: '100%', maxWidth: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
         <div style={{ textAlign: 'center' }}>
           <Space direction="vertical" size={24} style={{ width: '100%' }}>
             <div

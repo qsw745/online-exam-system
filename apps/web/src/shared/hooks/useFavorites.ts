@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { App } from 'antd'
 import { favoritesApi, type Favorite, type FavoriteItem } from '@/shared/api/endpoints/favorites'
 import { translate } from '@/shared/utils/i18n'
@@ -8,7 +8,7 @@ function normalizeFavorite(f: any): Favorite {
   return {
     ...f,
     // 关键：把 0/1/true/false 统一成 boolean，避免在 JSX 中渲染出数字 0
-    is_public: !!f?.is_public,
+    is_public: [true, 1, '1', 'true'].includes(f?.is_public),
     // 计数类字段转 number，避免 undefined/字符串参与运算
     items_count: Number(f?.items_count ?? 0),
     // 可能为空的外键统一成 null
@@ -25,6 +25,15 @@ export function useFavorites() {
 
   const [loading, setLoading] = useState(true)
   const [itemsLoading, setItemsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [itemsError, setItemsError] = useState<string | null>(null)
+  const [shareLink, setShareLink] = useState<string | null>(null)
+  const listVersion = useRef(0)
+  const pending = useRef(new Set<string>())
+  const [pendingItems, setPendingItems] = useState(new Set<number>())
+  const itemsRequestVersion = useRef(0)
+  const selectedIdRef = useRef(selectedId)
+  useLayoutEffect(() => { selectedIdRef.current = selectedId }, [selectedId])
 
   const [createOpen, setCreateOpen] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
@@ -32,31 +41,37 @@ export function useFavorites() {
   const selected = useMemo(() => favorites.find(f => f.id === selectedId) ?? null, [favorites, selectedId])
 
   const fetchFavorites = useCallback(async () => {
+    const version = ++listVersion.current
+    setError(null)
     try {
       setLoading(true)
       const list = await favoritesApi.list()
+      if (version !== listVersion.current) return
       const normalized = Array.isArray(list) ? list.map(normalizeFavorite) : []
       setFavorites(normalized)
-      if (!selectedId && normalized.length > 0) setSelectedId(normalized[0].id)
+      setSelectedId(current => normalized.some(f => f.id === current) ? current : normalized[0]?.id ?? null)
     } catch (e: any) {
-      console.error(e)
-      message.error(translate('auto.f32af26ff3'))
+      if (version === listVersion.current) setError(e?.message || translate('auto.f32af26ff3'))
     } finally {
-      setLoading(false)
+      if (version === listVersion.current) setLoading(false)
     }
-  }, [message, selectedId])
+  }, [])
 
   const fetchItems = useCallback(
     async (fid: number) => {
+      const version = ++itemsRequestVersion.current
       try {
         setItemsLoading(true)
+        setItemsError(null)
+        setItems([])
         const list = await favoritesApi.items(fid)
+        if (version !== itemsRequestVersion.current || selectedIdRef.current !== fid) return
         setItems(list ?? [])
       } catch (e: any) {
-        console.error(e)
-        message.error(translate('auto.559f885b42'))
+        if (version !== itemsRequestVersion.current || selectedIdRef.current !== fid) return
+        setItemsError(e?.message || translate('auto.559f885b42'))
       } finally {
-        setItemsLoading(false)
+        if (version === itemsRequestVersion.current) setItemsLoading(false)
       }
     },
     [message]
@@ -91,48 +106,59 @@ export function useFavorites() {
     async (fid: number) => {
       await favoritesApi.remove(fid)
       setFavorites(prev => prev.filter(f => f.id !== fid))
-      if (selectedId === fid) {
-        setSelectedId(null)
+      setSelectedId(current => current === fid ? null : current)
+      if (selectedIdRef.current === fid) {
         setItems([])
       }
       message.success(translate('auto.c3c1119821'))
     },
-    [message, selectedId]
+    [message]
   )
 
-  const removeItem = useCallback(
-    async (itemId: number) => {
-      if (!selected) return
-      await favoritesApi.removeItem(selected.id, itemId)
-      setItems(prev => prev.filter(i => i.id !== itemId))
-      setFavorites(prev =>
-        prev.map(f => (f.id === selected.id ? { ...f, items_count: Math.max(0, Number(f.items_count ?? 0) - 1) } : f))
-      )
+  const removeItem = useCallback(async (itemId: number) => {
+    if (!selected) return
+    const fid = selected.id
+    const key = `${fid}:${itemId}`
+    if (pending.current.has(key)) return
+    pending.current.add(key)
+    setPendingItems(previous => new Set(previous).add(itemId))
+    try {
+      await favoritesApi.removeItem(fid, itemId)
+      if (selectedIdRef.current === fid) setItems(previous => previous.filter(item => item.id !== itemId))
+      setFavorites(previous => previous.map(f => f.id === fid ? { ...f, items_count: Math.max(0, f.items_count - 1) } : f))
       message.success(translate('auto.46c52b46d4'))
-    },
-    [message, selected]
-  )
+    } finally {
+      pending.current.delete(key)
+      setPendingItems(previous => { const next = new Set(previous); next.delete(itemId); return next })
+    }
+  }, [selected, message])
 
   const shareFavorite = useCallback(
     async (fid: number) => {
       const link = await favoritesApi.share(fid)
       if (!link) throw new Error(translate('auto.406bf2ab41'))
-      if (navigator?.clipboard?.writeText) {
+      setShareLink(link)
+      try {
+        if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
         await navigator.clipboard.writeText(link)
         message.success(translate('auto.df304eb663'))
-      } else {
-        window.open(link, '_blank')
-      }
+      } catch { message.info('分享链接已生成，可长按链接手动复制。') }
     },
     [message]
   )
 
   useEffect(() => {
-    fetchFavorites()
+    void fetchFavorites()
+    return () => { listVersion.current += 1 }
   }, [fetchFavorites])
 
   useEffect(() => {
-    if (selectedId) fetchItems(selectedId)
+    if (selectedId != null) void fetchItems(selectedId)
+    else {
+      setItems([])
+      setItemsLoading(false)
+    }
+    return () => { itemsRequestVersion.current += 1 }
   }, [selectedId, fetchItems])
 
   return {
@@ -151,7 +177,8 @@ export function useFavorites() {
     updateFavorite,
     deleteFavorite,
     removeItem,
-    shareFavorite,
+    shareFavorite, error, itemsError, fetchFavorites, retryItems: () => selectedId != null && fetchItems(selectedId),
+    shareLink, setShareLink, pendingItems,
   }
 }
 

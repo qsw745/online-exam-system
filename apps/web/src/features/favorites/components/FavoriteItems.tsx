@@ -34,11 +34,12 @@ function getDifficultyText(d?: string) {
 type Props = {
   items: FavoriteItem[]
   loading: boolean
+  pendingItems?: Set<number>
   onView: (qid: number) => void
   onRemove: (itemId: number) => void
 }
 
-export default function FavoriteItems({ items, loading, onView, onRemove }: Props) {
+export default function FavoriteItems({ items, loading, onView, onRemove, pendingItems }: Props) {
   if (!loading && items.length === 0) return <Empty description={translate('auto.9f1c610c1a')} />
   return (
     <Spin spinning={loading}>
@@ -50,10 +51,10 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
               <Button
                 key="view"
                 type="link"
-                disabled={!(item.question_id ?? item.item_id)}
+                disabled={(!!item.item_type && item.item_type !== 'question') || !(Number(item.question_id ?? item.item_id) > 0)}
                 onClick={() => {
-                  const qid = item.question_id ?? item.item_id
-                  if (typeof qid === 'number') onView(qid)
+                  const qid = Number(item.question_id ?? item.item_id)
+                  if (Number.isSafeInteger(qid) && qid > 0) onView(qid)
                 }}
               >
                 {translate('questions.page_view')}</Button>,
@@ -62,6 +63,7 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
                 type="text"
                 danger
                 icon={<Trash2 style={{ width: 16, height: 16 }} />}
+                disabled={pendingItems?.has(item.id)}
                 onClick={() => onRemove(item.id)}
               >
                 {translate('papers.op_remove')}</Button>,
@@ -70,12 +72,12 @@ export default function FavoriteItems({ items, loading, onView, onRemove }: Prop
             <List.Item.Meta
               title={
                 <div className="flex items-center space-x-2">
-                  <span>{item.question_title}</span>
+                  <span>{item.question_title || item.title || `收藏项 #${item.id}`}</span>
                   <Tag color={getDifficultyColor(item.difficulty)}>{getDifficultyText(item.difficulty)}</Tag>
                 </div>
               }
               description={
-                <Space size="large">
+                <Space size="small" wrap>
                   <Text type="secondary" style={{ fontSize: 14 }}>
                     {translate('auto.75b468a7bc')}{item.subject || '-'}
                   </Text>

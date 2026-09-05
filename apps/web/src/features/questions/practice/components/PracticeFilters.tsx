@@ -7,6 +7,7 @@ const { Text } = Typography
 
 type Props = {
   /** ✅ 多选题型（精确类型） */
+  disabled?: boolean
   types: QuestionType[]
   difficulty: Difficulty
   search: string
@@ -23,6 +24,7 @@ type Props = {
 }
 
 export default function PracticeFilters({
+  disabled,
   types,
   difficulty,
   search,
@@ -52,7 +54,7 @@ export default function PracticeFilters({
   ] as const
 
   return (
-    <Card>
+    <Card className="student-practice-filters">
       {/* 第 1 行：搜索 + 练习模式/按钮 */}
       <Row gutter={[12, 12]} align="middle">
         <Col xs={24} lg={12}>
@@ -77,10 +79,10 @@ export default function PracticeFilters({
               ]}
             />
             {mode === 'bulk' ? (
-              <Button type="primary" onClick={onEnterBulk}>
+              <Button type="primary" disabled={disabled} onClick={onEnterBulk}>
                 {translate('auto.221f7f5ae5')}</Button>
             ) : (
-              <Button type="primary" onClick={() => onEnterSingle(firstCardIndex.current)}>
+              <Button type="primary" disabled={disabled} onClick={() => onEnterSingle(firstCardIndex.current)}>
                 {translate('auto.f79ce1cf2c')}</Button>
             )}
           </Space>

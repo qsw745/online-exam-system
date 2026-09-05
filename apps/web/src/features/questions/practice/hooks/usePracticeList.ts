@@ -37,10 +37,13 @@ export function usePracticeList() {
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(12)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [retry, setRetry] = useState(0)
+  const refetch = useCallback(() => setRetry(value => value + 1), [])
   const [error, setError] = useState<string | null>(null)
   const [list, setList] = useState<QuestionListItem[]>([])
   const [total, setTotal] = useState(0)
+  const [loadedPage, setLoadedPage] = useState(0)
 
   const debouncedSearch = useDebounce(search, 300)
 
@@ -90,6 +93,7 @@ export function usePracticeList() {
         const d = norm.data as any
         // 兼容多种返回：数组 / { items } / { list } / { questions }
         const items: any[] = Array.isArray(d) ? d : d?.items ?? d?.list ?? d?.questions ?? []
+        if (!Array.isArray(items)) throw new Error('题目列表数据不完整，请重试')
         const totalFromApi =
           (d?.total as number) ?? (d?.totalQuestions as number) ?? (d?.pagination?.total as number) ?? items.length
 
@@ -114,6 +118,7 @@ export function usePracticeList() {
 
         if (!mounted) return
         setList(deduped)
+        setLoadedPage(params.page)
         setTotal(Number(totalFromApi || deduped.length))
       } catch (e: any) {
         if (!mounted) return
@@ -127,7 +132,7 @@ export function usePracticeList() {
     return () => {
       mounted = false
     }
-  }, [params])
+  }, [params, retry])
 
   // 任一筛选变化回到第一页
   useEffect(() => {
@@ -139,8 +144,10 @@ export function usePracticeList() {
     total,
     page,
     pageSize,
-    loading,
+    loading: loading || search !== debouncedSearch,
     error,
+    refetch,
+    loadedPage,
 
     /** ✅ 多选题型 */
     types,

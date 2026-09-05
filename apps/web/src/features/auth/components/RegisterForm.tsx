@@ -23,6 +23,7 @@ export const RegisterForm: React.FC<Props> = ({ loading, onSubmit, t }) => {
   return (
     <Form<RegisterValues>
       form={form}
+      disabled={loading}
       layout="vertical"
       initialValues={{
         email: '',
@@ -64,7 +65,7 @@ export const RegisterForm: React.FC<Props> = ({ loading, onSubmit, t }) => {
               <Input
                 size="large"
                 maxLength={2}
-                disabled={mainland}
+                disabled={mainland || loading}
                 autoCapitalize="characters"
                 placeholder="例如 US"
               />

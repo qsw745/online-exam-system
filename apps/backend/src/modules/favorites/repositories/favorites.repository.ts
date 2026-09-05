@@ -35,6 +35,9 @@ type FavoriteSchema = {
 }
 
 type FavoriteItemSchema = {
+  typeColumn: 'item_type' | 'entity_type'
+  idColumn: 'item_id' | 'entity_id'
+  hasExtra: boolean
   hasTitle: boolean
   hasDescription: boolean
   hasTags: boolean
@@ -72,6 +75,9 @@ export class FavoritesRepository {
   private async getFavoriteItemsSchema(conn?: PoolConnection): Promise<FavoriteItemSchema> {
     if (this.favoriteItemsSchema) return this.favoriteItemsSchema
     const schema: FavoriteItemSchema = {
+      typeColumn: (await hasColumn('favorite_items', 'item_type', conn)) ? 'item_type' : 'entity_type',
+      idColumn: (await hasColumn('favorite_items', 'item_id', conn)) ? 'item_id' : 'entity_id',
+      hasExtra: await hasColumn('favorite_items', 'extra', conn),
       hasTitle: await hasColumn('favorite_items', 'title', conn),
       hasDescription: await hasColumn('favorite_items', 'description', conn),
       hasTags: await hasColumn('favorite_items', 'tags', conn),
@@ -267,15 +273,16 @@ export class FavoritesRepository {
     if (!orderParts.length) orderParts.push('fi.id DESC')
     const orderClause = `ORDER BY ${orderParts.join(', ')}`
     const [rows] = await this.db(conn).query<IFavoriteItem[]>(
-      `SELECT fi.* FROM favorite_items fi WHERE fi.favorite_id = ? ${orderClause}`,
+      `SELECT ${this.itemSelection(schema)} FROM favorite_items fi WHERE fi.favorite_id = ? ${orderClause}`,
       [favoriteId]
     )
     return rows
   }
 
   async existsItem(favoriteId: number, type: string, itemId: number, conn?: PoolConnection): Promise<boolean> {
+    const schema = await this.getFavoriteItemsSchema(conn)
     const [rows] = await this.db(conn).query<RowDataPacket[]>(
-      'SELECT id FROM favorite_items WHERE favorite_id = ? AND item_type = ? AND item_id = ?',
+      `SELECT id FROM favorite_items WHERE favorite_id = ? AND ${schema.typeColumn} = ? AND ${schema.idColumn} = ?`,
       [favoriteId, type, itemId]
     )
     return rows.length > 0
@@ -294,9 +301,16 @@ export class FavoritesRepository {
     }
   ): Promise<number> {
     const schema = await this.getFavoriteItemsSchema(conn)
-    const cols = ['favorite_id', 'item_type', 'item_id']
+    const cols = ['favorite_id', schema.typeColumn, schema.idColumn]
     const qms = ['?', '?', '?']
     const args: any[] = [data.favorite_id, data.item_type, data.item_id]
+
+    // 早期迁移使用 entity_type/entity_id + extra；保留原结构和已有元数据。
+    if (schema.hasExtra) {
+      cols.push('extra')
+      qms.push('?')
+      args.push(JSON.stringify({ title: data.title, description: data.description, tags: data.tags, notes: data.notes }))
+    }
 
     if (schema.hasTitle) {
       cols.push('title')
@@ -340,6 +354,21 @@ export class FavoritesRepository {
     return ret.affectedRows > 0
   }
 
+  private itemText(schema: FavoriteItemSchema, field: 'title' | 'description' | 'tags' | 'notes'): string {
+    const present = { title: schema.hasTitle, description: schema.hasDescription, tags: schema.hasTags, notes: schema.hasNotes }
+    if (present[field]) return `fi.${field}`
+    return schema.hasExtra ? `JSON_UNQUOTE(JSON_EXTRACT(fi.extra, '$.${field}'))` : 'NULL'
+  }
+
+  private itemSelection(schema: FavoriteItemSchema): string {
+    return [
+      'fi.*',
+      `fi.${schema.typeColumn} AS item_type`,
+      `fi.${schema.idColumn} AS item_id`,
+      ...(['title', 'description', 'tags', 'notes'] as const).map(field => `${this.itemText(schema, field)} AS ${field}`),
+    ].join(', ')
+  }
+
   async searchItems(
     userId: number,
     opt: { keyword?: string; item_type?: string; favorite_id?: number },
@@ -350,16 +379,8 @@ export class FavoritesRepository {
     const args: any[] = [userId]
     if (opt.keyword) {
       const likeParts: string[] = []
-      if (schema.hasTitle) {
-        likeParts.push('fi.title LIKE ?')
-        args.push(`%${opt.keyword}%`)
-      }
-      if (schema.hasDescription) {
-        likeParts.push('fi.description LIKE ?')
-        args.push(`%${opt.keyword}%`)
-      }
-      if (schema.hasNotes) {
-        likeParts.push('fi.notes LIKE ?')
+      for (const field of ['title', 'description', 'notes'] as const) {
+        likeParts.push(`${this.itemText(schema, field)} LIKE ?`)
         args.push(`%${opt.keyword}%`)
       }
       if (likeParts.length) {
@@ -367,7 +388,7 @@ export class FavoritesRepository {
       }
     }
     if (opt.item_type) {
-      where += ' AND fi.item_type = ?'
+      where += ` AND fi.${schema.typeColumn} = ?`
       args.push(opt.item_type)
     }
     if (opt.favorite_id) {
@@ -382,7 +403,7 @@ export class FavoritesRepository {
     const orderClause = `ORDER BY ${orderParts.join(', ')}`
 
     const [rows] = await this.db(conn).query<IFavoriteItem[]>(
-      `SELECT fi.*
+      `SELECT ${this.itemSelection(schema)}
        FROM favorite_items fi
        JOIN favorites f ON fi.favorite_id = f.id
        ${where}

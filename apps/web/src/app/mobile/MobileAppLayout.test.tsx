@@ -2,6 +2,8 @@ import { render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import '@/shared/styles/mobile-foundation.css'
+
 import MobileAppLayout from './MobileAppLayout'
 
 const authState = vi.hoisted(() => ({
@@ -38,7 +40,14 @@ describe('MobileAppLayout', () => {
 
     renderLayout()
 
-    expect(screen.getByText('学生首页内容')).toBeInTheDocument()
+    const pageContent = screen.getByText('学生首页内容')
+    const appShell = pageContent.closest('main')
+
+    expect(pageContent).toBeInTheDocument()
+    expect(appShell).not.toBeNull()
+    // 安全区的 env()/max() 布局由浏览器检查，jsdom 不计算这些 CSS 值。
+    expect(appShell).toHaveClass('mobile-app-shell')
+    expect(screen.getByRole('navigation', { name: '考生主导航' })).toHaveClass('mobile-student-nav--app')
     expect(screen.getByRole('navigation', { name: '考生主导航' })).toBeInTheDocument()
   })
 

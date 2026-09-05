@@ -36,8 +36,13 @@ export interface FavoriteCategory {
   sort_order: number
 }
 
+function ensureSuccess(res: any) {
+  if (!res?.success) throw new Error(res?.error || '收藏操作失败，请重试')
+}
+
 /* ---- 轻量归一化辅助 ---- */
 function pickArray<T = any>(res: any, fallback: T[] = []): T[] {
+  ensureSuccess(res)
   const d = res?.data
   if (Array.isArray(d)) return d as T[]
   if (Array.isArray(d?.data)) return d.data as T[]
@@ -47,9 +52,10 @@ function pickArray<T = any>(res: any, fallback: T[] = []): T[] {
   return fallback
 }
 function pickObject<T = any>(res: any, fallback: T | null = null): T | null {
+  ensureSuccess(res)
   const d = res?.data
-  if (d && typeof d === 'object') return d as T
   if (d?.data && typeof d.data === 'object') return d.data as T
+  if (d && typeof d === 'object') return d as T
   return fallback
 }
 
@@ -80,10 +86,13 @@ export const favoritesApi = {
     return pickObject<Favorite>(res)
   },
   async remove(id: number): Promise<void> {
-    await api.delete(`/favorites/${id}`)
+    ensureSuccess(await api.delete(`/favorites/${id}`))
+  },
+  async addItem(favoriteId: number, payload: { question_id: number; title?: string }): Promise<void> {
+    ensureSuccess(await api.post(`/favorites/${favoriteId}/items`, payload))
   },
   async removeItem(favoriteId: number, itemId: number): Promise<void> {
-    await api.delete(`/favorites/${favoriteId}/items/${itemId}`)
+    ensureSuccess(await api.delete(`/favorites/${favoriteId}/items/${itemId}`))
   },
   async share(id: number): Promise<string | null> {
     const res = await api.post(`/favorites/${id}/share`)

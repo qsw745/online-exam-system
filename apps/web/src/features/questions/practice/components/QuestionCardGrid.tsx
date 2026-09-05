@@ -26,8 +26,16 @@ export default function QuestionCardGrid({ loading, list, onCardClick }: Props) 
         {list.map((q, idx) => (
           <Col key={q.id} xs={24} sm={12} md={8} lg={6}>
             <Card
+              className="practice-question-card"
               hoverable
-              onClick={() => onCardClick(idx)}
+              role="button"
+              tabIndex={loading ? -1 : 0}
+              aria-disabled={loading}
+              aria-label={`练习题目 ${idx + 1}`}
+              onKeyDown={event => {
+                if (!loading && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onCardClick(idx) }
+              }}
+              onClick={() => { if (!loading) onCardClick(idx) }}
               style={{ height: 180, display: 'flex', flexDirection: 'column', cursor: 'pointer' }}
             >
               <Space direction="vertical" style={{ flex: 1 }}>
@@ -41,7 +49,7 @@ export default function QuestionCardGrid({ loading, list, onCardClick }: Props) 
                 </Space>
                 <div
                   style={{
-                    color: '#555',
+                    color: 'var(--ant-color-text-secondary)',
                     lineHeight: 1.5,
                     overflow: 'hidden',
                     display: '-webkit-box',

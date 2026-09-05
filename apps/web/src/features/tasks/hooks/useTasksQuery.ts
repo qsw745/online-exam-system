@@ -1,7 +1,7 @@
 // src/features/tasks/hooks/useTasksQuery.ts
 import { App } from 'antd'
 import dayjs from '@/shared/utils/dayjs'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { tasksApi } from '@/shared/api/endpoints/tasks'
 import { isSuccess } from '@/shared/api/http'
 import { translate } from '@/shared/utils/i18n'
@@ -49,6 +49,8 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(false)
   const [rows, setRows] = useState<Task[]>([])
+  const [error, setError] = useState<string | null>(null)
+  const requestVersion = useRef(0)
 
   const params = useMemo(() => {
     const p: any = {
@@ -67,7 +69,9 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
   }, [filters, page, pageSize, options.scope])
 
   const fetch = useCallback(async () => {
+    const version = ++requestVersion.current
     setLoading(true)
+    setError(null)
     try {
       // 优先 mine 接口，回退到 list + ?mine=1
       const apiCaller =
@@ -76,11 +80,9 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
           : (tasksApi as any).list
 
       const res: any = await apiCaller?.(params)
+      if (version !== requestVersion.current) return
       if (!isSuccess(res)) {
-        message.error(res?.error || res?.message || translate('tasks.load_error'))
-        setRows([])
-        setTotal(0)
-        return
+        throw new Error(res?.error || res?.message || translate('tasks.load_error'))
       }
       const d = res.data
       if (Array.isArray(d)) {
@@ -96,17 +98,19 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
         setTotal(0)
       }
     } catch (e: any) {
-      console.error(e)
+      if (version !== requestVersion.current) return
+      setError(e?.message || translate('tasks.load_error'))
       message.error(e?.message || translate('tasks.load_error'))
       setRows([])
       setTotal(0)
     } finally {
-      setLoading(false)
+      if (version === requestVersion.current) setLoading(false)
     }
   }, [params, message, options.scope])
 
   useEffect(() => {
-    fetch()
+    void fetch()
+    return () => { requestVersion.current += 1 }
   }, [fetch])
 
   const search = (next: TaskFilters) => {
@@ -126,6 +130,7 @@ export function useTasksQuery(initialPageSize = 10, options: Options = { scope: 
     setPage,
     setPageSize,
     loading,
+    error,
     filters,
     search,
     reset,

@@ -53,6 +53,7 @@ export interface ResultsList {
 function unwrap(res: any): any {
   if (!res) return res
   if (typeof res === 'object') {
+    if (res.success === false) throw new Error(res.error || res.message || '成绩加载失败，请稍后重试')
     if ('ok' in res) {
       if (res.ok) return res.data ?? res.result ?? res.payload ?? {}
       throw new Error(res?.message || '请求失败')
@@ -101,7 +102,11 @@ export const resultsApi = {
   async getDetail(id: string | number): Promise<ResultDetail> {
     const res = await getJson(`/results/${id}`, { include: 'questions' })
     const payload = unwrap(res)
-    return (payload?.data ?? payload) as ResultDetail
+    const detail = payload?.data ?? payload
+    if (!detail || !/^[1-9]\d*$/.test(String(detail.id)) || !Array.isArray(detail.questions)) {
+      throw new Error('成绩数据不完整，请重试')
+    }
+    return detail as ResultDetail
   },
 }
 

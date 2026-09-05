@@ -17,6 +17,7 @@ export const PrivacyCard: React.FC<{
         label={t('settings.profile_visibility')}
         control={
           <Select<ProfileVisibility>
+            aria-label={t('settings.profile_visibility')}
             value={value.profile_visibility}
             onChange={v => onChange({ ...value, profile_visibility: v })}
             style={{ width: 140 }}
@@ -30,12 +31,12 @@ export const PrivacyCard: React.FC<{
       <SettingRow
         icon={<Bell size={16} />}
         label={t('settings.show_activity')}
-        control={<Switch checked={value.show_activity} onChange={v => onChange({ ...value, show_activity: v })} />}
+        control={<Switch aria-label={t('settings.show_activity')} checked={value.show_activity} onChange={v => onChange({ ...value, show_activity: v })} />}
       />
       <SettingRow
         icon={<Trophy size={16} />}
         label={t('settings.show_results')}
-        control={<Switch checked={value.show_results} onChange={v => onChange({ ...value, show_results: v })} />}
+        control={<Switch aria-label={t('settings.show_results')} checked={value.show_results} onChange={v => onChange({ ...value, show_results: v })} />}
       />
     </Space>
   </SettingSection>

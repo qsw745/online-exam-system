@@ -34,6 +34,8 @@ interface User {
   data_region?: DataRegion
 }
 
+type EditableProfile = Partial<Pick<User, 'nickname' | 'email' | 'phone' | 'bio' | 'school' | 'class_name' | 'avatar_url'>>
+
 interface AuthContextType {
   user: User | null
   loading: boolean
@@ -63,6 +65,7 @@ interface AuthContextType {
     }
   ) => Promise<{ needVerification?: boolean; email?: string }>
   signOut: () => Promise<void>
+  applyProfile: (userId: string, profile: EditableProfile) => void
   refreshUser: () => Promise<void>
   reload: () => Promise<void>
 }
@@ -339,6 +342,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     signInWithSession,
     signUp,
     signOut,
+    applyProfile: (userId, profile) => setUser(current => current?.id === userId ? { ...current, ...profile } : current),
     refreshUser,
     reload: refreshUser,
   }

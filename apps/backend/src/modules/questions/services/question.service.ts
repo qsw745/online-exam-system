@@ -618,26 +618,13 @@ export class QuestionService {
   async recordPractice(userId: number, body: { question_id: number; is_correct: boolean; answer: any }) {
     const { question_id, is_correct, answer } = body
     await QuestionRepository.insertPractice(userId, question_id, is_correct, answer)
-    if (!is_correct) {
-      const existed = await QuestionRepository.selectWrong(userId, question_id)
-      if (existed.length > 0) await QuestionRepository.incWrong(userId, question_id)
-      else await QuestionRepository.insertWrong(userId, question_id)
-    } else {
-      const existed = await QuestionRepository.selectWrong(userId, question_id)
-      if (existed.length > 0) {
-        await QuestionRepository.incCorrect(userId, question_id)
-        const count = await QuestionRepository.selectCorrectCount(userId, question_id)
-        if (count >= 3) await QuestionRepository.setMastered(userId, question_id)
-      }
-    }
   }
 
   async listWrong(userId: number, page: number, limit: number, mastered?: boolean) {
-    let where = 'WHERE wq.user_id = ?'
+    let where = 'WHERE wqb.user_id = ?'
     const vals: any[] = [userId]
     if (mastered !== undefined) {
-      where += ' AND wq.is_mastered = ?'
-      vals.push(mastered ? 1 : 0)
+      where += mastered ? " AND wq.mastery_level = 'mastered'" : " AND wq.mastery_level <> 'mastered'"
     }
     const total = await QuestionRepository.countWrong(where, vals)
     const rows = await QuestionRepository.listWrong(where, vals, limit, (page - 1) * limit)

@@ -29,8 +29,8 @@ const ResetPasswordPage: React.FC = () => {
   const { status, error, loading, submit, countdown, clearError } = useResetPassword(rawToken)
 
   return (
-    <div style={shellStyle}>
-      <Card style={cardStyle}>
+    <div className="auth-page" style={shellStyle}>
+      <Card className="auth-card" style={cardStyle}>
         {status === 'validating' && <ResetStatusCard variant="validating" />}
         {status === 'invalid' && <ResetStatusCard variant="invalid" message={error || undefined} />}
         {status === 'success' && <ResetStatusCard variant="success" countdown={countdown} />}

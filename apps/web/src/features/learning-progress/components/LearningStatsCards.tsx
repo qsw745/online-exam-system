@@ -7,17 +7,18 @@ const fmt = (minutes: number) => {
   const m = Math.max(0, Math.floor(Number(minutes) || 0))
   const h = Math.floor(m / 60),
     left = m % 60
-  return h > 0
-    ? `${h}${translate('time.hour')}${left}${translate('time.minute')}`
-    : `${left}${translate('time.minute')}`
+  return <span className="student-learning-duration">
+    {h > 0 && <span>{h}{translate('time.hour')}</span>}
+    {(left > 0 || h === 0) && <span>{left}{translate('time.minute')}</span>}
+  </span>
 }
 
 export default function LearningStatsCards({ stats }: { stats: LearningStats | null }) {
   const correctRate = Number(stats?.correct_rate ?? 0)
   return (
     <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-      <Col xs={24} sm={12} lg={6}>
-        <Card>
+      <Col xs={12} sm={12} lg={6}>
+        <Card style={{ height: '100%' }}>
           <Statistic
             title={translate('auto.8670d9e44f')}
             value={stats?.total_study_time || 0}
@@ -26,8 +27,8 @@ export default function LearningStatsCards({ stats }: { stats: LearningStats | n
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card>
+      <Col xs={12} sm={12} lg={6}>
+        <Card style={{ height: '100%' }}>
           <Statistic
             title={translate('auto.430f401c3f')}
             value={stats?.questions_practiced || 0}
@@ -35,8 +36,8 @@ export default function LearningStatsCards({ stats }: { stats: LearningStats | n
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card>
+      <Col xs={12} sm={12} lg={6}>
+        <Card style={{ height: '100%' }}>
           <Statistic
             title={translate('auto.8dc159502e')}
             value={correctRate}
@@ -46,11 +47,11 @@ export default function LearningStatsCards({ stats }: { stats: LearningStats | n
           />
         </Card>
       </Col>
-      <Col xs={24} sm={12} lg={6}>
-        <Card>
+      <Col xs={12} sm={12} lg={6}>
+        <Card style={{ height: '100%' }}>
           <Statistic
-            title={translate('auto.f36ae23535')}
-            value={stats?.streak_days || 0}
+            title="学习天数"
+            value={stats?.study_days || 0}
             suffix={translate('visible.c3304d1e49')}
             prefix={<Award className="w-4 h-4 text-purple-500" />}
           />

@@ -32,7 +32,9 @@ router.post(
 /** 统计 */
 router.get(
   '/stats',
-  [query('period').optional().isIn(['7d', '30d', '90d']), query('subjectId').optional().isInt({ min: 1 })],
+  [query('period').optional().isIn(['7d', '30d', '90d', 'all']), query('subjectId').optional().isInt({ min: 1 }),
+    query('start_date').optional().matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
+    query('end_date').optional().matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }).custom((value, { req }) => !req.query?.start_date || value >= req.query.start_date)],
   validateRequest,
   wrap(learningProgressController.getProgressStats.bind(learningProgressController))
 )
@@ -125,9 +127,9 @@ router.get(
 router.get(
   '/records',
   [
-    query('start_date').optional().isISO8601(),
-    query('end_date').optional().isISO8601(),
-    query('subject').optional().isString(),
+    query('start_date').optional().matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }),
+    query('end_date').optional().matches(/^\d{4}-\d{2}-\d{2}$/).isISO8601({ strict: true }).custom((value, { req }) => !req.query?.start_date || value >= req.query.start_date),
+    query('subject').optional().matches(/^(all|[1-9]\d*)$/),
     query('limit').optional().isInt({ min: 1, max: 100 }),
   ],
   validateRequest,

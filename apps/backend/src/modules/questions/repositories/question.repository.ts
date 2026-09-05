@@ -1,5 +1,7 @@
 // apps/backend/src/modules/questions/repositories/question.repository.ts
 import { pool } from '@/config/database.js'
+import { withTransaction } from '@/infrastructure/db/transaction.js'
+import { recordQuestionPractice } from './practice-record.js'
 import type { ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import type { IQuestion } from '../domain/question.model.js'
 
@@ -283,48 +285,12 @@ export const QuestionRepository = {
   },
 
   // ===== 练习 / 错题本 =====
-  async insertPractice(userId: number, questionId: number, isCorrect: boolean, answer: any) {
-    await db.query('INSERT INTO practice_records (user_id, question_id, is_correct, user_answer) VALUES (?, ?, ?, ?)', [
-      userId,
-      questionId,
-      isCorrect,
-      JSON.stringify(answer),
-    ])
-  },
-  async selectWrong(userId: number, questionId: number) {
-    const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT * FROM wrong_questions WHERE user_id = ? AND question_id = ?',
-      [userId, questionId]
-    )
-    return rows as any[]
-  },
-  async incWrong(userId: number, questionId: number) {
-    await db.query(
-      'UPDATE wrong_questions SET wrong_count = wrong_count + 1, last_practice_time = NOW(), is_mastered = FALSE WHERE user_id = ? AND question_id = ?',
-      [userId, questionId]
-    )
-  },
-  async insertWrong(userId: number, questionId: number) {
-    await db.query(
-      'INSERT INTO wrong_questions (user_id, question_id, wrong_count, correct_count) VALUES (?, ?, 1, 0)',
-      [userId, questionId]
-    )
-  },
-  async incCorrect(userId: number, questionId: number) {
-    await db.query(
-      'UPDATE wrong_questions SET correct_count = correct_count + 1, last_practice_time = NOW() WHERE user_id = ? AND question_id = ?',
-      [userId, questionId]
-    )
-  },
-  async selectCorrectCount(userId: number, questionId: number): Promise<number> {
-    const [rows] = await db.query<RowDataPacket[]>(
-      'SELECT correct_count FROM wrong_questions WHERE user_id = ? AND question_id = ?',
-      [userId, questionId]
-    )
-    return Number((rows as any[])[0]?.correct_count ?? 0)
+  async insertPractice(userId: number, questionId: number, isCorrect: boolean, answer: unknown) {
+    await withTransaction(conn => recordQuestionPractice(conn, userId, questionId, isCorrect, answer))
   },
   async setMastered(userId: number, questionId: number) {
-    await db.query('UPDATE wrong_questions SET is_mastered = TRUE WHERE user_id = ? AND question_id = ?', [
+    await db.query(`UPDATE wrong_questions wq JOIN wrong_question_books wqb ON wqb.id = wq.book_id
+       SET wq.mastery_level = 'mastered', wq.updated_at = NOW() WHERE wqb.user_id = ? AND wq.question_id = ?`, [
       userId,
       questionId,
     ])
@@ -332,11 +298,13 @@ export const QuestionRepository = {
   async listWrong(whereSql: string, vals: any[], limit: number, offset: number) {
     const [rows] = await db.query<RowDataPacket[]>(
       `SELECT 
-        wq.*, q.content, q.question_type, q.options, q.correct_answer, q.explanation, q.knowledge_points, q.tags
+        wq.*, (wq.mastery_level = 'mastered') AS is_mastered, wq.updated_at AS last_practice_time,
+        q.content, q.question_type, q.options, q.correct_answer, q.explanation, q.knowledge_points, q.tags
        FROM wrong_questions wq
        JOIN questions q ON wq.question_id = q.id
+       JOIN wrong_question_books wqb ON wqb.id = wq.book_id
        ${whereSql}
-       ORDER BY wq.last_practice_time DESC
+       ORDER BY wq.updated_at DESC, wq.id DESC
        LIMIT ? OFFSET ?`,
       [...vals, limit, offset]
     )
@@ -344,13 +312,24 @@ export const QuestionRepository = {
   },
   async countWrong(whereSql: string, vals: any[]): Promise<number> {
     const [[row]] = await db.query<RowDataPacket[]>(
-      `SELECT COUNT(*) as total FROM wrong_questions wq ${whereSql}`,
+      `SELECT COUNT(*) as total FROM wrong_questions wq JOIN wrong_question_books wqb ON wqb.id = wq.book_id ${whereSql}`,
       vals
     )
     return Number((row as any)?.total) || 0
   },
   async removeWrong(userId: number, questionId: number) {
-    await db.query('DELETE FROM wrong_questions WHERE user_id = ? AND question_id = ?', [userId, questionId])
+    await withTransaction(async conn => {
+      await conn.query(
+        `DELETE pr FROM wrong_question_practice_records pr
+         JOIN wrong_questions wq ON wq.id = pr.wrong_question_id
+         JOIN wrong_question_books wqb ON wqb.id = wq.book_id
+         WHERE wqb.user_id = ? AND wq.question_id = ?`, [userId, questionId],
+      )
+      await conn.query(
+        `DELETE wq FROM wrong_questions wq JOIN wrong_question_books wqb ON wqb.id = wq.book_id
+         WHERE wqb.user_id = ? AND wq.question_id = ?`, [userId, questionId],
+      )
+    })
   },
   async practicedIds(userId: number): Promise<number[]> {
     const [rows] = await db.query<RowDataPacket[]>(
@@ -369,11 +348,15 @@ export const QuestionRepository = {
       [userId]
     )
     const [[wrong]] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as total FROM wrong_questions WHERE user_id = ? AND is_mastered = FALSE',
+      `SELECT COUNT(DISTINCT wq.question_id) as total FROM wrong_questions wq
+       JOIN wrong_question_books wqb ON wqb.id = wq.book_id
+       WHERE wqb.user_id = ? AND wq.mastery_level <> 'mastered'`,
       [userId]
     )
     const [[mastered]] = await db.query<RowDataPacket[]>(
-      'SELECT COUNT(*) as total FROM wrong_questions WHERE user_id = ? AND is_mastered = TRUE',
+      `SELECT COUNT(DISTINCT wq.question_id) as total FROM wrong_questions wq
+       JOIN wrong_question_books wqb ON wqb.id = wq.book_id
+       WHERE wqb.user_id = ? AND wq.mastery_level = 'mastered'`,
       [userId]
     )
     return {

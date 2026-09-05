@@ -40,7 +40,7 @@ export default function ResultsFilters({
           />
         </Col>
         <Col xs={24} md={8}>
-          <Space>
+          <Space className="student-results-status">
             <Filter style={{ width: 16, height: 16, color: '#999' }} />
             <Select value={status} onChange={onStatusChange as any} style={{ width: 200 }}>
               <Option value="all">{allStatusText}</Option>

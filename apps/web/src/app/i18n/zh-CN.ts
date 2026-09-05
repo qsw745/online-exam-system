@@ -21,6 +21,7 @@ export default {
   'app.back': '返回',
   'app.next': '下一步',
   'app.previous': '上一步',
+  'app.retry': '重试',
   'app.submit': '提交',
   'app.reset': '重置',
   'app.refresh': '刷新',

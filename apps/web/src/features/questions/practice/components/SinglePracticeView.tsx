@@ -1,5 +1,5 @@
 // src/features/questions/practice/components/SinglePracticeView.tsx
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -14,7 +14,7 @@ import {
   SkipForward,
   Sparkles,
 } from 'lucide-react'
-import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, message, Input } from 'antd'
+import { Button, Card, Checkbox, Radio, Space, Spin, Tag, Typography, App, Alert, Input } from 'antd'
 import { wrongQuestions } from '@/shared/api/http'
 import {
   getQuestionById,
@@ -23,21 +23,13 @@ import {
   removeQuestionFromFavorites,
 } from '@/features/questions/practice/utils/practiceApi'
 import { aiApi } from '@/shared/api/endpoints/ai'
+import { judgePracticeQuestion, parsePracticeGrade, type PracticeQuestion } from '../utils/practiceQuestion'
 import { translate } from '@/shared/utils/i18n'
 
 const { Title, Text } = Typography
 const { TextArea } = Input
 
-type Question = {
-  id: string | number
-  content: string
-  question_type: 'single_choice' | 'multiple_choice' | 'true_false' | 'short_answer' | string
-  options?: Array<{ content: string; is_correct: boolean }>
-  correct_answer?: number[] | string
-  explanation?: string
-  difficulty?: 'easy' | 'medium' | 'hard' | string
-  knowledge_points?: string[]
-}
+type Question = PracticeQuestion
 
 type Props = {
   ids: string[]
@@ -46,23 +38,11 @@ type Props = {
   onIndexChange?: (index: number) => void
   onNextPage?: () => boolean | void
   hasNextPage?: boolean
+  navigationBusy?: boolean
 }
 
 const SHORT_ANSWER_PASS_RATE = 0.6
 const SHORT_ANSWER_MAX_SCORE = 10
-
-function judge(q: Question, selected: number[], text: string) {
-  if (q.question_type === 'single_choice' || q.question_type === 'multiple_choice') {
-    const correct = q.options?.map((opt, i) => (opt.is_correct ? i : -1)).filter(i => i !== -1) || []
-    return selected.length === correct.length && selected.every(i => correct.includes(i))
-  }
-  if (q.question_type === 'true_false') {
-    const idx = (q.correct_answer as string) === 'true' ? 0 : 1
-    return selected[0] === idx
-  }
-  if (q.question_type === 'short_answer') return false
-  return false
-}
 
 export default function SinglePracticeView({
   ids,
@@ -71,7 +51,17 @@ export default function SinglePracticeView({
   onIndexChange,
   onNextPage,
   hasNextPage,
+  navigationBusy = false,
 }: Props) {
+  const { message } = App.useApp()
+  const generation = useRef(0)
+  const submitLock = useRef(false)
+  const explainLock = useRef(false)
+  const favoriteLock = useRef(false)
+  const favoriteVersion = useRef(0)
+  const [favoriteLoading, setFavoriteLoading] = useState(false)
+  const [recordError, setRecordError] = useState<string | null>(null)
+  const [retry, setRetry] = useState(0)
   const [index, setIndex] = useState(startIndex)
   const qid = ids[index]
   const cacheRef = useRef<Map<string, Question>>(new Map())
@@ -91,14 +81,28 @@ export default function SinglePracticeView({
   const [gradeLoading, setGradeLoading] = useState(false)
   const [gradeDetail, setGradeDetail] = useState<{ score: number; maxScore: number; feedback?: string } | null>(null)
 
+  useLayoutEffect(() => {
+    generation.current += 1
+    submitLock.current = false
+    explainLock.current = false
+    favoriteLock.current = false
+    return () => { generation.current += 1 }
+  }, [qid])
+
   // 加载题目
   useEffect(() => {
     let mounted = true
     ;(async () => {
-      if (!qid) return
+      if (!qid) { setError('没有可练习的题目，请返回列表'); setQ(null); return }
       try {
         setLoading(true)
         setError(null)
+        setQ(null)
+        setFav(false)
+        setAiLoading(false)
+        setGradeLoading(false)
+        setFavoriteLoading(false)
+        setRecordError(null)
         let data = cacheRef.current.get(qid)
         if (!data) {
           const fetched = (await getQuestionById(qid)) as Question | undefined
@@ -115,10 +119,8 @@ export default function SinglePracticeView({
         setShowExp(false)
         setAiExp(null)
         setGradeDetail(null)
-        try {
-          const f = await isQuestionFavorited(qid)
-          if (mounted) setFav(!!f)
-        } catch {}
+        const favoriteReadVersion = favoriteVersion.current
+        void isQuestionFavorited(qid).then(f => { if (mounted && favoriteReadVersion === favoriteVersion.current) setFav(f) }).catch(() => undefined)
       } catch (e: any) {
         if (mounted) setError(e?.message || '加载题目失败')
       } finally {
@@ -128,7 +130,7 @@ export default function SinglePracticeView({
     return () => {
       mounted = false
     }
-  }, [qid])
+  }, [qid, retry])
 
   useEffect(() => {
     setIndex(startIndex)
@@ -141,67 +143,69 @@ export default function SinglePracticeView({
   const progress = useMemo(() => `${index + 1} / ${ids.length}`, [index, ids.length])
 
   const submit = async () => {
-    if (!q) return
-    let ok = judge(q, selected, text)
-    if (q.question_type === 'short_answer') {
-      setGradeLoading(true)
-      try {
-        const payload = {
-          question: q.content,
-          rubric: q.correct_answer,
-          answer: text,
-          max_score: SHORT_ANSWER_MAX_SCORE,
-        }
-        const res: any = await aiApi.gradeShortAnswer(payload)
+    if (!q || answered || submitLock.current || loading) return
+    if (q.question_type === 'short_answer' ? !text.trim() : !selected.length) return
+    const version = generation.current
+    submitLock.current = true
+    setGradeLoading(true)
+    setRecordError(null)
+    try {
+      let ok = judgePracticeQuestion(q, selected)
+      if (q.question_type === 'short_answer') {
+        const res: any = await aiApi.gradeShortAnswer({ question: q.content, rubric: q.correct_answer,
+          answer: text, max_score: SHORT_ANSWER_MAX_SCORE })
+        if (version !== generation.current) return
         if (!res?.success) throw new Error(res?.error || 'AI 评分失败')
-        const root = res?.data ?? {}
-        const data = root?.data ?? root
-        const score = Number(data?.score)
-        const maxScore = Number(data?.max_score ?? payload.max_score)
-        if (Number.isFinite(score) && Number.isFinite(maxScore)) {
-          ok = score >= maxScore * SHORT_ANSWER_PASS_RATE
-          setGradeDetail({ score, maxScore, feedback: data?.feedback })
-          message.info(`AI 评分：${score}/${maxScore}`)
-        } else {
-          ok = false
-          setGradeDetail(null)
-          message.warning(translate('auto.96c89051c8'))
-        }
-      } catch (e: any) {
-        message.error(e?.message || translate('auto.58acb9c05d'))
-        return
-      } finally {
+        const detail = parsePracticeGrade(res.data?.data ?? res.data, SHORT_ANSWER_MAX_SCORE)
+        ok = detail.score >= detail.maxScore * SHORT_ANSWER_PASS_RATE
+        setGradeDetail(detail)
+      }
+      if (version !== generation.current) return
+      setCorrect(ok)
+      setAnswered(true)
+      setShowExp(true)
+      try {
+        const result = await wrongQuestions.recordPractice({ question_id: Number(q.id), is_correct: ok,
+          answer: q.question_type === 'short_answer' ? text : selected })
+        if (!result.success) throw new Error(result.error || '练习记录未确认')
+      } catch {
+        if (version === generation.current) setRecordError('本次练习记录尚未确认，答题结果保留在当前页面。请稍后查看学习记录。')
+      }
+    } catch (error) {
+      if (version === generation.current) message.error(error instanceof Error ? error.message : '评分失败，请重试')
+    } finally {
+      if (version === generation.current) {
+        submitLock.current = false
         setGradeLoading(false)
       }
     }
-    setCorrect(ok)
-    setAnswered(true)
-    setShowExp(true)
-    try {
-      await wrongQuestions.recordPractice({
-        question_id: parseInt(String(q.id), 10),
-        is_correct: ok,
-        answer: q.question_type === 'short_answer' ? text : selected,
-      })
-    } catch {}
   }
 
-  const goPrev = () => setIndex(i => Math.max(0, i - 1))
+  const goPrev = () => { if (!navigationBusy) setIndex(i => Math.max(0, i - 1)) }
   const goNext = () => {
-    setIndex(i => {
-      const next = i + 1
-      if (next >= ids.length) {
-        if (hasNextPage && onNextPage) {
-          const ok = onNextPage()
-          if (ok !== false) message.success(translate('auto.37b2d3e7ca'))
-          return i
-        }
-        message.success(translate('auto.470bf1ba8f'))
-        onExit()
-        return i
-      }
-      return next
-    })
+    if (navigationBusy) return
+    if (index + 1 < ids.length) { setIndex(index + 1); return }
+    if (hasNextPage && onNextPage) { onNextPage(); return }
+    onExit()
+  }
+
+  const toggleFavorite = async () => {
+    if (!q || favoriteLock.current) return
+    const version = generation.current
+    favoriteVersion.current += 1
+    favoriteLock.current = true
+    setFavoriteLoading(true)
+    try {
+      if (fav) await removeQuestionFromFavorites(String(q.id))
+      else await addQuestionToFavorites(String(q.id), q.content.slice(0, 100))
+      if (version !== generation.current) return
+      setFav(!fav)
+      message.success(translate(fav ? 'auto.0fc87e8309' : 'auto.143a521b56'))
+    } catch (error) {
+      if (version === generation.current) message.error(error instanceof Error ? error.message : '收藏操作失败')
+    } finally {
+      if (version === generation.current) { favoriteLock.current = false; setFavoriteLoading(false) }
+    }
   }
 
   const typeLabel = (t?: string) =>
@@ -211,7 +215,9 @@ export default function SinglePracticeView({
     (({ easy: translate('questions.easy'), medium: translate('questions.medium'), hard: translate('questions.hard') } as any)[d || ''] || d)
 
   const requestAiExplain = async () => {
-    if (!q || aiLoading) return
+    if (!q || explainLock.current) return
+    const version = generation.current
+    explainLock.current = true
     setAiLoading(true)
     try {
       const payload = {
@@ -222,6 +228,7 @@ export default function SinglePracticeView({
         user_answer: q.question_type === 'short_answer' ? text : selected,
       }
       const res: any = await aiApi.explainQuestion(payload)
+      if (version !== generation.current) return
       if (!res?.success) throw new Error(res?.error || 'AI 解析失败')
       const root = res?.data ?? {}
       const data = root?.data ?? root
@@ -233,54 +240,41 @@ export default function SinglePracticeView({
         message.warning(translate('auto.7d03e91106'))
       }
     } catch (e: any) {
-      message.error(e?.message || translate('auto.c740b0c5d5'))
+      if (version === generation.current) message.error(e?.message || translate('auto.c740b0c5d5'))
     } finally {
-      setAiLoading(false)
+      if (version === generation.current) { explainLock.current = false; setAiLoading(false) }
     }
   }
 
   const isLast = index === ids.length - 1
-  const canAdvance = !isLast || !!hasNextPage
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
+    <div className="student-practice-session" style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="practice-session-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Space>
             <Button icon={<ArrowLeft size={16} />} onClick={onExit}>
               {translate('papers.back_to_list')}</Button>
             {!!ids.length && <Tag color="blue">{translate('auto.960bcbcd93')}{progress}</Tag>}
           </Space>
-          <Space>
-            <Button icon={<ChevronLeft size={16} />} onClick={goPrev} disabled={index === 0}>
+          <Space className="practice-session-actions" wrap>
+            <Button icon={<ChevronLeft size={16} />} onClick={goPrev} disabled={navigationBusy || index === 0}>
               {translate('exam.previous')}</Button>
             <Button
               icon={<SkipForward size={16} />}
               onClick={goNext}
+              disabled={navigationBusy}
               style={{ color: '#fa8c16', borderColor: '#fa8c16' }}
             >
               {translate('auto.31a98593f1')}</Button>
-            <Button type="primary" onClick={goNext} disabled={!canAdvance}>
+            <Button type="primary" onClick={goNext} disabled={navigationBusy}>
               {isLast && hasNextPage ? translate('visible.67a246a344') : translate('exam.next')} <ChevronRight size={16} />
             </Button>
             <Button
               icon={fav ? <Heart size={16} /> : <HeartOff size={16} />}
-              onClick={async () => {
-                if (!q) return
-                try {
-                  if (fav) {
-                    await removeQuestionFromFavorites(String(q.id))
-                    setFav(false)
-                    message.success(translate('auto.0fc87e8309'))
-                  } else {
-                    await addQuestionToFavorites(String(q.id), (q.content || '').slice(0, 100))
-                    setFav(true)
-                    message.success(translate('auto.143a521b56'))
-                  }
-                } catch (e: any) {
-                  message.error(e?.message || translate('app.operation_failed'))
-                }
-              }}
+              onClick={toggleFavorite}
+              loading={favoriteLoading}
+              disabled={!q || loading}
               danger={fav}
               type={fav ? 'primary' : 'default'}
             >
@@ -299,6 +293,7 @@ export default function SinglePracticeView({
           </Space>
         </div>
 
+        {recordError && <Alert type="warning" showIcon message={recordError} />}
         <Spin spinning={loading} tip={translate('questions.loading')}>
           {!loading && error && (
             <Card>
@@ -306,14 +301,16 @@ export default function SinglePracticeView({
                 <AlertTriangle size={64} color="#ff4d4f" />
                 <Title level={3}>{translate('auto.a51a5ae17e')}</Title>
                 <Text type="secondary">{error}</Text>
+                <Button onClick={() => setRetry(value => value + 1)}>{translate('app.retry')}</Button>
               </Space>
             </Card>
           )}
 
-          {!loading && q && (
+          {!loading && !error && q && (
             <>
               <Card>
                 <div
+                  className="practice-question-heading"
                   style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}
                 >
                   <Space>
@@ -351,14 +348,15 @@ export default function SinglePracticeView({
                       return (
                         <Card
                           key={i}
+                          className="practice-answer-option"
                           size="small"
                           style={{
-                            backgroundColor: showC ? '#f6ffed' : showW ? '#fff2f0' : isSel ? '#f0f5ff' : '#fafafa',
+                            backgroundColor: showC ? 'var(--practice-correct-bg)' : showW ? 'var(--practice-wrong-bg)' : isSel ? 'var(--practice-selected-bg)' : 'var(--ant-color-fill-alter)',
                             borderColor: showC ? '#b7eb8f' : showW ? '#ffccc7' : isSel ? '#91caff' : '#d9d9d9',
                             cursor: answered ? 'default' : 'pointer',
                           }}
                           onClick={() => {
-                            if (answered) return
+                            if (answered || gradeLoading) return
                             if (q.question_type === 'single_choice') setSelected([i])
                             else setSelected(prev => (prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]))
                           }}
@@ -366,14 +364,16 @@ export default function SinglePracticeView({
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                               <Option
+                                aria-label={opt.content}
+                                onClick={event => event.stopPropagation()}
                                 checked={isSel}
                                 onChange={() => {
-                                  if (answered) return
+                                  if (answered || gradeLoading) return
                                   if (q.question_type === 'single_choice') setSelected([i])
                                   else
                                     setSelected(prev => (prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]))
                                 }}
-                                disabled={answered}
+                                disabled={answered || gradeLoading}
                                 style={{ marginRight: 12 }}
                               />
                               <Text>{opt.content}</Text>
@@ -398,20 +398,23 @@ export default function SinglePracticeView({
                       return (
                         <Card
                           key={i}
+                          className="practice-answer-option"
                           size="small"
                           style={{
-                            backgroundColor: showC ? '#f6ffed' : showW ? '#fff2f0' : isSel ? '#f0f5ff' : '#fafafa',
+                            backgroundColor: showC ? 'var(--practice-correct-bg)' : showW ? 'var(--practice-wrong-bg)' : isSel ? 'var(--practice-selected-bg)' : 'var(--ant-color-fill-alter)',
                             borderColor: showC ? '#b7eb8f' : showW ? '#ffccc7' : isSel ? '#91caff' : '#d9d9d9',
                             cursor: answered ? 'default' : 'pointer',
                           }}
-                          onClick={() => !answered && setSelected([i])}
+                          onClick={() => !answered && !gradeLoading && setSelected([i])}
                         >
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                             <div style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
                               <Radio
+                                aria-label={label}
+                                onClick={event => event.stopPropagation()}
                                 checked={isSel}
-                                onChange={() => !answered && setSelected([i])}
-                                disabled={answered}
+                                onChange={() => !answered && !gradeLoading && setSelected([i])}
+                                disabled={answered || gradeLoading}
                                 style={{ marginRight: 12 }}
                               />
                               <Text>{label}</Text>
@@ -431,7 +434,7 @@ export default function SinglePracticeView({
                       value={text}
                       onChange={e => setText(e.target.value)}
                       placeholder={translate('auto.977e722666')}
-                      disabled={answered}
+                      disabled={answered || gradeLoading}
                       rows={6}
                     />
                   </div>
@@ -445,7 +448,7 @@ export default function SinglePracticeView({
                     onClick={submit}
                     loading={gradeLoading}
                     disabled={
-                      ((q.question_type === 'single_choice' ||
+                      gradeLoading || ((q.question_type === 'single_choice' ||
                         q.question_type === 'multiple_choice' ||
                         q.question_type === 'true_false') &&
                         selected.length === 0) ||
@@ -457,6 +460,7 @@ export default function SinglePracticeView({
                   <Space>
                     <Button
                       icon={<BookOpen size={16} />}
+                      disabled={gradeLoading}
                       onClick={() => {
                         setSelected([])
                         setText('')
@@ -464,10 +468,11 @@ export default function SinglePracticeView({
                         setCorrect(false)
                         setShowExp(false)
                         setGradeDetail(null)
+                        setRecordError(null)
                       }}
                     >
                       {translate('auto.a5e6460134')}</Button>
-                    <Button type="primary" size="large" onClick={goNext} disabled={!canAdvance}>
+                    <Button type="primary" size="large" onClick={goNext} disabled={navigationBusy}>
                       {isLast ? (hasNextPage ? translate('visible.67a246a344') : translate('visible.400fc97c8d')) : translate('exam.next')}{' '}
                       {!isLast && <ChevronRight size={16} />}
                     </Button>
@@ -481,7 +486,7 @@ export default function SinglePracticeView({
                     <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
                       {translate('aiAssistant.action.explain_question')}</Title>
                   }
-                  style={{ backgroundColor: '#f0f5ff', borderColor: '#91caff' }}
+                  style={{ backgroundColor: 'var(--practice-selected-bg)', borderColor: 'var(--ant-color-primary-border)' }}
                 >
                   <Text style={{ color: '#1890ff', lineHeight: 1.6 }}>{q.explanation}</Text>
                 </Card>

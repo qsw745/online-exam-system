@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Alert, App, Button, Card, Modal, Space, Typography } from 'antd'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, matchPath, useLocation, useNavigate } from 'react-router-dom'
 
 import { useAuth } from '@/shared/contexts/AuthContext'
 import { useLogin } from '../../auth/hooks/useLogin'
@@ -17,6 +17,8 @@ import { translate } from '@/shared/utils/i18n'
 import BrandMark from '@/shared/components/BrandMark'
 import { brand } from '@/shared/config/brand'
 import { resolveAppTarget } from '@/platform/appTarget'
+import { getLoginReturnPath } from '@/shared/router/loginReturnPath'
+import { mobileRouteManifest } from '@/app/mobile/mobileRouteManifest'
 import { resolveAuthCapabilities } from '../mobileAuthCapabilities'
 
 const { Title, Text } = Typography
@@ -101,6 +103,7 @@ const LoginPage: React.FC = () => {
 
   const { user, loading: authLoading } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const navigatedRef = useRef(false)
 
   useEffect(() => {
@@ -110,6 +113,14 @@ const LoginPage: React.FC = () => {
       const go = (to: string) => {
         navigatedRef.current = true
         navigate(to, { replace: true, state: { __bump: Date.now() } })
+      }
+      const returnPath = getLoginReturnPath(location.state, location.search)
+      const mobileReturnAllowed = returnPath && mobileRouteManifest.some(route =>
+        route.auth === 'required' && matchPath(route.path, returnPath.split(/[?#]/)[0]),
+      )
+      if (returnPath && (appTarget !== 'ios' || mobileReturnAllowed)) {
+        go(returnPath)
+        return
       }
       if (appTarget === 'ios') {
         go('/dashboard')
@@ -122,7 +133,7 @@ const LoginPage: React.FC = () => {
           .then(tree => go(pickDefaultHome(tree)))
           .catch(() => go('/dashboard'))
     }
-  }, [authLoading, user, navigate])
+  }, [authLoading, user, navigate, location.state, location.search])
 
   if (!authLoading && user) return null
 
@@ -146,7 +157,7 @@ const LoginPage: React.FC = () => {
 
   return (
     <div
-      className="login-page"
+      className="login-page auth-page"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -159,14 +170,14 @@ const LoginPage: React.FC = () => {
       }}
     >
       <AuthTopControls
-        className="login-top-controls"
+        className="login-top-controls auth-top-controls"
         style={{
           position: 'absolute',
           top: 24,
           right: 24,
         }}
       />
-      <Card className="login-card" style={cardStyle} styles={{ body: { padding: 32 } }}>
+      <Card className="login-card auth-card" style={cardStyle} styles={{ body: { padding: 32 } }}>
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
             <BrandMark size={56} inverse={isDark} />

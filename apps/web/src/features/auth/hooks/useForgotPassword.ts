@@ -1,16 +1,19 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { forgotPassword } from '@/shared/api/http' // 继续使用现有 http 模块
 
 export function useForgotPassword() {
+  const inFlight = useRef(false)
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const submit = useCallback(async (email: string) => {
+    if (inFlight.current) return
+    inFlight.current = true
     setLoading(true)
     setError(null)
     try {
-      const res = await forgotPassword(email)
+      const res = await forgotPassword(email.trim())
       // 兼容 ApiResult 结构
       if ((res as any)?.success) {
         setSuccess(true)
@@ -21,6 +24,7 @@ export function useForgotPassword() {
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || '发送重置邮件失败，请稍后重试')
     } finally {
+      inFlight.current = false
       setLoading(false)
     }
   }, [])

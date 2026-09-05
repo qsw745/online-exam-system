@@ -1,6 +1,6 @@
 // apps/web/src/features/wrong-questions/pages/WrongQuestionsPage.tsx
 
-import { Button, Card, Empty, Segmented, Space, Spin, Typography } from 'antd'
+import { Alert, Button, Card, Empty, Segmented, Space, Spin, Typography } from 'antd'
 import { BookOpen, RefreshCw } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { WrongQuestionItem } from '../components/WrongQuestionItem'
@@ -12,8 +12,8 @@ const { Title, Text } = Typography
 // 小工具：统一中文展示
 function StatBox({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div style={{ minWidth: 140 }}>
-      <div style={{ fontSize: 12, color: '#999' }}>{label}</div>
+    <div className="student-wrong-stat">
+      <div style={{ fontSize: 12, color: 'var(--ant-color-text-secondary)' }}>{label}</div>
       <div style={{ fontSize: 22, fontWeight: 600 }}>{value}</div>
     </div>
   )
@@ -24,6 +24,9 @@ export default function WrongQuestionsPage() {
   const {
     loading,
     refreshing,
+    error,
+    statsError,
+    pendingIds,
     filter,
     list,
     stats,
@@ -78,19 +81,19 @@ export default function WrongQuestionsPage() {
         {/* 统计：中文展示 */}
         {zhStats && (
           <Card>
-            <Space size="large" wrap>
+            <div className="student-wrong-stats">
               <StatBox label={translate('auto.61de46de99')} value={zhStats.总练习次数} />
               <StatBox label={translate('auto.8dc159502e')} value={zhStats.正确率} />
               <StatBox label={translate('auto.44736e6a6b')} value={zhStats.错题数量} />
               <StatBox label={translate('auto.eaadada177')} value={zhStats.已掌握数量} />
-            </Space>
+            </div>
           </Card>
         )}
 
         {/* 过滤条 */}
         <Card>
           <Space className="student-wrong-questions__filters" align="center" wrap>
-            <div style={{ color: '#666' }}>{translate('auto.f7c8e8edcf')}</div>
+            <div style={{ color: 'var(--ant-color-text-secondary)' }}>{translate('auto.f7c8e8edcf')}</div>
             <Segmented
               value={filter}
               onChange={v => setFilter(v as any)}
@@ -103,8 +106,12 @@ export default function WrongQuestionsPage() {
           </Space>
         </Card>
 
+        {statsError && <Alert type="warning" showIcon message={statsError} />}
+        {error && <Alert type="error" showIcon message="错题暂时无法显示" description={error}
+          action={<Button onClick={() => void refresh()} loading={refreshing}>{translate('app.retry')}</Button>} />}
+
         {/* 列表 */}
-        {list.length === 0 ? (
+        {!error && (list.length === 0 ? (
           <Card>
             <Empty
               image={<BookOpen style={{ width: 64, height: 64, color: '#d9d9d9' }} />}
@@ -132,13 +139,14 @@ export default function WrongQuestionsPage() {
               <WrongQuestionItem
                 key={item.question_id ?? (item as any).id}
                 item={item}
+                busy={pendingIds.has(item.question_id)}
                 onView={qid => navigate(`/questions/${qid}/practice`)}
                 onMark={markMastered}
                 onRemove={remove}
               />
             ))}
           </Space>
-        )}
+        ))}
 
         {totalPages > 1 && (
           <GlobalPagination

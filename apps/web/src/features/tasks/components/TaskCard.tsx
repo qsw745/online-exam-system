@@ -1,9 +1,9 @@
 import React from 'react'
-import { Button, Card, Space, Tag, Typography, Tooltip } from 'antd'
+import { Button, Card, Space, Tag, Typography } from 'antd'
 import { Calendar } from 'lucide-react'
 import StatusTag from './StatusTag'
 import type { Task } from '../hooks/useTasksQuery'
-import dayjs from '@/shared/utils/dayjs'
+import { getStudentTaskAction } from '../constants/studentTaskAction'
 import { translate } from '@/shared/utils/i18n'
 import { formatDateTime } from '@/shared/utils/datetime'
 
@@ -13,31 +13,13 @@ function fmt(t?: string | number | Date | null) {
   return t ? formatDateTime(t) : '-'
 }
 
-function canStart(task: Task) {
-  // 允许开始的几种状态（与后端对齐）
-  const allowed = new Set(['not_started', 'published', 'in_progress'])
-  if (!allowed.has(task.status)) return { ok: false, reason: '状态不允许开始' }
-
-  const now = dayjs()
-  const s = task.start_time ? dayjs(task.start_time) : null
-  const e = task.end_time ? dayjs(task.end_time) : null
-  if (s && now.isBefore(s)) return { ok: false, reason: '未到开始时间' }
-  if (e && !now.isBefore(e)) return { ok: false, reason: '已过截止时间' }
-
-  if (task.type === 'exam' && !task.exam_id) return { ok: false, reason: '缺少考试ID' }
-  return { ok: true }
-}
-
-function startLabel(t?: Task['type']) {
-  return t === 'exam' ? '开始考试' : '开始练习'
-}
-
 export const TaskCard: React.FC<{
   task: Task
   onStart: (task: Task) => void
+  onView?: (task: Task) => void
   loading?: boolean
-}> = ({ task, onStart, loading }) => {
-  const check = canStart(task)
+}> = ({ task, onStart, onView, loading }) => {
+  const action = getStudentTaskAction(task)
 
   return (
     <Card className="student-task-card" loading={!!loading}>
@@ -48,11 +30,11 @@ export const TaskCard: React.FC<{
               {task.title}
             </Title>
             <Tag color={task.type === 'exam' ? 'red' : 'blue'}>{task.type === 'exam' ? translate('nav.exams') : translate('menus.exam-practice')}</Tag>
-            <StatusTag status={task.status} />
+            <StatusTag status={action.visibleStatus} />
           </Space>
 
           {task.description ? (
-            <Text type="secondary" style={{ display: 'block', marginBottom: 16 }}>
+            <Text className="student-task-card__description" type="secondary" style={{ marginBottom: 16 }}>
               {task.description}
             </Text>
           ) : null}
@@ -74,15 +56,11 @@ export const TaskCard: React.FC<{
         </div>
 
         <div className="student-task-card__action">
-          {check.ok ? (
-            <Button type="primary" onClick={() => onStart(task)}>
-              {startLabel(task.type)}
-            </Button>
-          ) : (
-            <Tooltip title={check.reason}>
-              <Button disabled>{startLabel(task.type)}</Button>
-            </Tooltip>
-          )}
+          <Button type="primary" disabled={action.disabled} onClick={() => onStart(task)}>
+            {action.label}
+          </Button>
+          {action.reason && <Text type="secondary" className="student-task-card__action-reason">{action.reason}</Text>}
+          {onView && <Button onClick={() => onView(task)}>查看详情</Button>}
         </div>
       </Space>
     </Card>

@@ -43,7 +43,8 @@ export class LearningProgressController {
       const stats = await service.getProgressStats(
         userId,
         String(req.query.period || '7d'),
-        req.query.subjectId ? Number(req.query.subjectId) : undefined
+        req.query.subjectId ? Number(req.query.subjectId) : undefined,
+        { start: req.query.start_date as string | undefined, end: req.query.end_date as string | undefined }
       )
       return res.ok<ProgressStats>(stats)
     } catch (e: any) {
