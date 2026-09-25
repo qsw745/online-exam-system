@@ -72,7 +72,7 @@ export const RecentTasksList: React.FC<Props> = ({
     <Card
       title={title}
       extra={
-        <Link to="/tasks/my" style={{ color: '#1890ff' }}>
+        <Link to="/tasks/my" style={{ color: 'var(--wenheng-action, #1890ff)' }}>
           {viewAllText}
         </Link>
       }

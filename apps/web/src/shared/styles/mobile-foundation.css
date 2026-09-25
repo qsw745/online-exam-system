@@ -7,7 +7,7 @@
   --wenheng-danger: #d94a4a;
   --wenheng-surface: #fff;
   --wenheng-muted: #667085;
-  --student-mobile-nav-height: 64px;
+  --student-mobile-nav-height: 60px;
 }
 
 [data-theme='dark'] {
@@ -21,6 +21,27 @@
 
 [data-app-target='ios'] body {
   background: var(--wenheng-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 由文档统一滚动，和路由的 ScrollRestoration 保持一致。
+   height: 100% + overflow-x: hidden 会把 body 变成独立滚动容器，
+   切换标签时 window.scrollTo 无法清除它在长页面上留下的位置。 */
+html[data-app-target='ios'],
+[data-app-target='ios'] body,
+[data-app-target='ios'] #root {
+  height: auto;
+  min-height: 100dvh;
+  overflow-x: clip;
+}
+
+[data-app-target='ios'] {
+  --wenheng-action: #128266;
+  --wenheng-stat: var(--wenheng-ink);
+}
+
+[data-app-target='ios'][data-theme='dark'] {
+  --wenheng-action: #53d5a8;
 }
 
 .wenheng-brand {
@@ -57,11 +78,13 @@
   left: 0;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   min-height: calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom));
-  padding: 6px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
-  border-top: 1px solid var(--wenheng-cloud);
+  box-sizing: border-box;
+  padding: 3px max(8px, env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px, env(safe-area-inset-left));
+  border-top: 1px solid color-mix(in srgb, var(--wenheng-cloud) 75%, transparent);
   background: var(--wenheng-surface);
   background: color-mix(in srgb, var(--wenheng-surface) 96%, transparent);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 .mobile-student-nav--app {
@@ -72,20 +95,34 @@
   display: grid;
   place-items: center;
   align-content: center;
-  gap: 4px;
-  min-height: 52px;
+  gap: 1px;
+  min-height: 56px;
   border-radius: 12px;
   color: var(--wenheng-muted);
   text-decoration: none;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 16px;
   -webkit-tap-highlight-color: transparent;
 }
 
 .mobile-student-nav__item[aria-current='page'] {
-  color: var(--wenheng-jade);
-  font-weight: 700;
-  background: color-mix(in srgb, var(--wenheng-jade) 9%, transparent);
+  color: var(--wenheng-action, var(--wenheng-jade));
+  font-weight: 600;
 }
+
+.mobile-student-nav__icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 30px;
+  border-radius: 12px;
+}
+
+.mobile-student-nav__item[aria-current='page'] .mobile-student-nav__icon {
+  background: color-mix(in srgb, var(--wenheng-jade) 10%, transparent);
+}
+
+.mobile-student-nav__item:active { opacity: .65; }
 
 .mobile-app-shell {
   min-height: 100vh;
@@ -94,9 +131,68 @@
   max-width: 1120px;
   margin: 0 auto;
   padding: 12px;
-  padding: calc(12px + env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 24px) max(12px, env(safe-area-inset-left));
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(var(--student-mobile-nav-height) + env(safe-area-inset-bottom) + 24px) max(16px, env(safe-area-inset-left));
   overflow-wrap: anywhere;
 }
+
+.mobile-app-back-row {
+  display: flex;
+  margin: -8px 0 8px -8px;
+}
+
+.mobile-app-back-row a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 8px;
+  gap: 2px;
+  color: var(--wenheng-action);
+  font-size: 16px;
+}
+
+.mobile-app-shell h2.ant-typography {
+  margin: 0 0 8px;
+  font-size: 28px;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+}
+
+.mobile-app-shell .ant-card-head-title {
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.mobile-app-shell .ant-card-extra a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+}
+
+.mobile-app-shell .ant-form-item { margin-bottom: 20px; }
+.mobile-app-shell .ant-form-item-label { padding-bottom: 6px; }
+.mobile-app-shell .ant-input-affix-wrapper > input.ant-input { min-height: 0; }
+.mobile-app-shell input, .mobile-app-shell textarea { scroll-margin-block: 96px; }
+
+.mobile-app-shell .student-dashboard { gap: 20px !important; }
+.mobile-app-shell .student-dashboard-stats .ant-statistic-content { font-size: 28px; font-weight: 600; }
+.mobile-app-shell .student-dashboard-stats .ant-statistic-content-prefix { margin-inline-end: 8px; }
+.mobile-app-shell .student-dashboard-stats .ant-statistic-content-prefix svg { width: 20px; height: 20px; color: var(--wenheng-action); }
+.mobile-app-shell .student-dashboard .ant-empty { margin-block: 12px; }
+.mobile-app-shell .student-dashboard .ant-empty-image { height: 44px; margin-bottom: 12px; }
+.mobile-app-shell .student-dashboard .ant-empty-image svg { width: 36px !important; height: 36px !important; color: var(--wenheng-muted) !important; opacity: .55; }
+.mobile-app-shell .ant-empty-description { color: var(--wenheng-muted); }
+.mobile-app-shell .ant-empty-image { height: 64px; margin-bottom: 16px; }
+.mobile-app-shell .ant-empty-image svg { max-height: 100%; max-width: 100%; }
+.mobile-app-shell .ant-empty h3.ant-typography { font-size: 18px; }
+.mobile-app-shell .student-wrong-questions { padding: 0 !important; }
+.mobile-app-shell .student-practice-heading { background: transparent; border: 0; box-shadow: none; }
+.mobile-app-shell .student-practice-heading .ant-card-body { padding: 0; }
+.mobile-app-shell .student-practice-heading h3.ant-typography { font-size: 28px; line-height: 1.3; margin-bottom: 8px !important; }
+[data-app-target='ios'] .ant-message { top: calc(env(safe-area-inset-top) + 12px) !important; }
+[data-app-target='ios'] .exam-page {
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)) !important;
+}
+[data-app-target='ios'] .exam-sticky-header { top: env(safe-area-inset-top) !important; }
 
 .mobile-app-shell .ant-space-item,
 .student-task-card__layout > .ant-space-item {
@@ -212,6 +308,47 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
 }
+
+.student-learning-entry .ant-card-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 104px;
+}
+
+.student-learning-entry__icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
+  border-radius: 14px;
+  color: var(--wenheng-action, var(--wenheng-jade));
+  background: color-mix(in srgb, var(--wenheng-jade) 9%, var(--wenheng-surface));
+}
+
+.student-learning-entry__copy { flex: 1; min-width: 0; }
+.student-learning-entry__copy h4.ant-typography { margin: 0 0 4px; font-size: 17px; }
+.student-learning-entry__copy > span { display: block; font-size: 13px; line-height: 1.6; }
+.student-learning-entry__arrow { flex-shrink: 0; color: var(--wenheng-muted); opacity: .6; }
+
+.student-profile-save .ant-btn { min-width: 128px; }
+.mobile-app-shell .student-profile-save .ant-btn { width: 100%; }
+.student-profile-logout { width: 100%; }
+.mobile-app-shell .student-profile-links { gap: 12px; }
+.mobile-app-shell .student-profile-links .ant-btn { min-height: 52px; }
+.mobile-app-shell .student-settings-actions .ant-btn { flex: 1; }
+.mobile-app-shell .student-setting-row { min-height: 44px; padding-block: 6px; margin-bottom: 8px !important; }
+.mobile-app-shell .student-setting-row:last-child { margin-bottom: 0 !important; }
+
+.mobile-app-shell .student-avatar__image { width: 72px !important; height: 72px !important; }
+.mobile-app-shell .student-avatar__copy { gap: 4px; font-size: 14px; }
+.student-avatar__upload { position: relative; width: 44px; height: 44px; flex-shrink: 0; display: grid; place-items: center; color: var(--wenheng-action, #1890ff); border-radius: 12px; background: color-mix(in srgb, var(--wenheng-jade) 9%, var(--wenheng-surface)); }
+.student-avatar__upload input { position: absolute; inset: 0; opacity: 0; width: 100%; height: 100%; cursor: pointer; }
+.student-avatar__upload:focus-within { outline: 2px solid var(--wenheng-action, #1890ff); outline-offset: 2px; }
+.student-avatar__upload:has(input:disabled) { opacity: .45; }
+.student-avatar__preview { padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: zoom-in; }
+.student-avatar__copy { flex: 1; }
 
 .touch-target {
   min-width: 44px;
@@ -421,6 +558,15 @@
     width: 100%;
   }
 
+  .student-practice-types,
+  .student-practice-difficulty { display: flex; width: 100%; flex-wrap: nowrap; }
+  .student-practice-types > .ant-space-item:nth-child(2),
+  .student-practice-difficulty > .ant-space-item:last-child { flex: 1; min-width: 0; }
+  .student-practice-types > .ant-space-item:last-child { display: none; }
+  .student-practice-mode { display: flex; justify-content: flex-start !important; }
+  .student-practice-mode > .ant-space-item:last-child { width: 100%; }
+  .student-practice-mode > .ant-space-item:last-child .ant-btn { width: 100%; }
+
   .student-dashboard .ant-list-item {
     display: flex;
     flex-direction: column;
@@ -515,6 +661,9 @@
     padding: 12px;
   }
 }
+
+/* 显式覆盖栅格布局，键盘出现时隐藏整个底栏。 */
+.mobile-student-nav[hidden] { display: none; }
 
 @media (max-width: 559px) {
   .exam-submit-actions {

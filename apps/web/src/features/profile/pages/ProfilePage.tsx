@@ -1,6 +1,6 @@
 // features/profile/pages/ProfilePage.tsx
 import { App, Alert, Button, Card, Space, Spin, Typography } from 'antd'
-import { Save } from 'lucide-react'
+import { ChartNoAxesColumnIncreasing, LogOut, Save, Settings } from 'lucide-react'
 import AvatarUploader from '../components/AvatarUploader'
 import ProfileForm from '../components/ProfileForm'
 import ProfileStats from '../components/ProfileStats'
@@ -25,29 +25,29 @@ function ProfilePageContent() {
   const navigate = useNavigate()
   const { signOut } = useAuth()
   const { modal, message } = App.useApp()
+  const confirmSignOut = () => modal.confirm({
+    title: '退出当前账号？',
+    content: '退出后需要重新登录，已提交的学习记录会保留。',
+    okText: '退出登录',
+    cancelText: '取消',
+    onOk: async () => {
+      try {
+        await signOut()
+        navigate('/login', { replace: true })
+      } catch {
+        message.error('退出失败，请稍后重试')
+        throw new Error('退出失败')
+      }
+    },
+  })
 
   return (
     <App>
       <Space className="student-profile-page" direction="vertical" size="large" style={{ width: '100%', margin: '0 auto' }}>
-        <Title level={2}>{t('profile.title')}</Title>
+        <Title level={2}>{resolveAppTarget(import.meta.env.VITE_APP_TARGET) === 'ios' ? '我的' : t('profile.title')}</Title>
         {user?.role === 'student' && <div className="student-profile-links">
-          <Button onClick={() => navigate('/results')}>我的成绩</Button>
-          <Button onClick={() => navigate('/settings')}>应用设置</Button>
-          <Button onClick={() => modal.confirm({
-            title: '退出当前账号？',
-            content: '退出后需要重新登录，已提交的学习记录会保留。',
-            okText: '退出登录',
-            cancelText: '取消',
-            onOk: async () => {
-              try {
-                await signOut()
-                navigate('/login', { replace: true })
-              } catch {
-                message.error('退出失败，请稍后重试')
-                throw new Error('退出失败')
-              }
-            },
-          })}>退出登录</Button>
+          <Button icon={<ChartNoAxesColumnIncreasing size={18} />} onClick={() => navigate('/results')}>我的成绩</Button>
+          <Button icon={<Settings size={18} />} onClick={() => navigate('/settings')}>应用设置</Button>
         </div>}
 
         {error && <Alert type="error" showIcon message="个人资料暂时无法显示" description={error} action={<Button onClick={retry}>重试</Button>} />}
@@ -76,7 +76,7 @@ function ProfilePageContent() {
           </Spin>
           {saveError && <Alert type="error" showIcon message={saveError} style={{ marginBottom: 16 }} />}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <div className="student-profile-save" style={{ display: 'flex', justifyContent: 'flex-end' }}>
             <Button type="primary" loading={loading} disabled={initialLoading || !!error} icon={<Save style={{ width: 20, height: 20 }} />} onClick={submit}>
               {loading ? t('settings.saving_changes') : t('settings.save_changes')}
             </Button>
@@ -86,6 +86,7 @@ function ProfilePageContent() {
         <ProfileStats key={user?.id} t={t} />
         {authCapabilities.faceLogin && <FaceLoginCard />}
         <AccountDeletionCard />
+        {user?.role === 'student' && <Button className="student-profile-logout" icon={<LogOut size={18} />} onClick={confirmSignOut}>退出登录</Button>}
       </Space>
     </App>
   )

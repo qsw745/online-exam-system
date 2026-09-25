@@ -14,6 +14,10 @@ export const LIFECYCLE_SCHEMA_AUDIT_SQL = `
   SELECT TABLE_NAME AS tableName, COLUMN_NAME AS columnName, NULL AS referencedTableName
     FROM information_schema.COLUMNS
    WHERE TABLE_SCHEMA = DATABASE()
+     AND TABLE_NAME IN (
+       SELECT TABLE_NAME FROM information_schema.TABLES
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_TYPE = 'BASE TABLE'
+     )
      AND (
        COLUMN_NAME IN (
          'user_id','actor_user_id','created_by','updated_by','assigned_by','shared_by','reviewer_user_id',

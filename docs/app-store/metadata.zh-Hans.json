@@ -1,0 +1,14 @@
+{
+  "name": "问衡",
+  "subtitle": "练习、考试与学习进度管理",
+  "locale": "zh-Hans",
+  "version": "1.0",
+  "primaryCategory": "EDUCATION",
+  "promotionalText": "把学习任务、题目练习、错题复习和成绩记录放在一起，让每一步学习都有迹可循。",
+  "description": "问衡是一款面向个人学习者与机构考生的学习和测评应用。\n\n【学习任务】\n集中查看待完成任务、考试安排和最近成绩，按自己的节奏推进学习。\n\n【题目练习】\n按知识点练习题目，查看作答结果，巩固尚未掌握的内容。\n\n【错题与收藏】\n回看错题，收藏重要题目，方便后续复习。\n\n【考试与成绩】\n参加机构安排的考试，查看答题和同步状态，并在成绩发布后查看结果。考试内容、时间和规则由考试组织者提供。\n\n【学习进度】\n了解练习完成情况和薄弱方向，为下一次学习找到重点。\n\n【个人资料与账号管理】\n管理个人资料、账号设置和隐私授权，在应用内发起账号注销。\n\n问衡需要联网和有效账号使用相关服务。仅在明确要求严格监考的考试中，经单独告知和同意后才会使用摄像头、麦克风及身份核验功能；日常学习不会因此要求开启这些权限。",
+  "keywords": "学习,练习,考试,测评,错题本,题库,成绩,学习进度,在线考试",
+  "supportUrl": "https://qisw.top/wenheng/support.html",
+  "privacyPolicyUrl": "https://qisw.top/wenheng/privacy.html",
+  "marketingUrl": "https://qisw.top/wenheng/about.html",
+  "copyright": "2026 祁世伟"
+}

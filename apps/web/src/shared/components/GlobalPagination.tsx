@@ -1,4 +1,5 @@
-import { Pagination } from 'antd'
+import { Button, Pagination } from 'antd'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { PaginationProps } from 'antd'
 import type { ReactNode } from 'react'
 import {
@@ -54,6 +55,20 @@ export default function GlobalPagination({
   const showTotal = renderTotal
     ? (totalNum: number, range: [number, number]) => renderTotal(totalNum, range)
     : (totalNum: number, range: [number, number]) => formatPaginationTotal(totalNum, range, unit)
+
+  if (isMobile) {
+    if (total === 0) return null
+    const pages = Math.max(1, Math.ceil(total / pageSize))
+    const page = Math.min(pages, Math.max(1, current))
+    return <div className={cx('global-pagination', 'global-pagination--mobile', className)}>
+      <span className="global-pagination__total">{showTotal(total, [(page - 1) * pageSize + 1, Math.min(page * pageSize, total)])}</span>
+      {pages > 1 && <div className="global-pagination__controls">
+        <Button aria-label="上一页" icon={<ChevronLeft size={18} />} disabled={page === 1} onClick={() => handleChange(page - 1, pageSize)} />
+        <span className="global-pagination__page" aria-live="polite">{page} / {pages}</span>
+        <Button aria-label="下一页" icon={<ChevronRight size={18} />} disabled={page === pages} onClick={() => handleChange(page + 1, pageSize)} />
+      </div>}
+    </div>
+  }
 
   return (
     <div className={cx('global-pagination', fullWidth ? 'global-pagination--full' : 'global-pagination--inline', className)}>

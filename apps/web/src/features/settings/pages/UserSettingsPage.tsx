@@ -27,7 +27,7 @@ export default function SettingsPage() {
 
   return (
     <div className="student-settings-page">
-      <Title level={2} style={{ marginBottom: 32 }}>
+      <Title level={2} style={{ marginBottom: 20 }}>
         {t('settings.title')}
       </Title>
 
@@ -49,7 +49,7 @@ export default function SettingsPage() {
 
       {saveError && <Alert type="error" showIcon message={saveError} description="修改内容已保留，请重试保存。" style={{ marginTop: 16 }} />}
       {/* 底部操作 */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
+      <div className="student-settings-actions" style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 24 }}>
         <Button onClick={reset} disabled={loading || !isDirty}>
           {t('app.reset')}
         </Button>

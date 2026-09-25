@@ -288,8 +288,11 @@ export default function SinglePracticeView({
             >
               {showExp ? translate('visible.fbdfb3c5b1') : translate('visible.716d473a0a')}
             </Button>
-            <Button icon={<Sparkles size={16} />} onClick={requestAiExplain} loading={aiLoading} disabled={!q}>
-              {translate('auto.710dba6721')}</Button>
+            {import.meta.env.VITE_AI_ENABLED !== 'false' && (
+              <Button icon={<Sparkles size={16} />} onClick={requestAiExplain} loading={aiLoading} disabled={!q}>
+                {translate('auto.710dba6721')}
+              </Button>
+            )}
           </Space>
         </div>
 

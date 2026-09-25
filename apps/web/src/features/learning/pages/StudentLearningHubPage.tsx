@@ -1,5 +1,5 @@
 import { Card, Typography } from 'antd'
-import { ArrowRight, BookOpenCheck, ChartNoAxesColumnIncreasing, Heart, RotateCcw } from 'lucide-react'
+import { ChevronRight, BookOpenCheck, ChartNoAxesColumnIncreasing, Heart, RotateCcw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 const { Title, Text } = Typography
@@ -41,13 +41,13 @@ export default function StudentLearningHubPage() {
       <div className="student-learning-grid" style={{ marginTop: 20 }}>
         {learningEntries.map(({ to, title, description, icon: Icon }) => (
           <Link key={to} to={to} aria-label={title} style={{ textDecoration: 'none' }}>
-            <Card hoverable style={{ height: '100%' }}>
-              <Icon size={24} color="#18A77B" aria-hidden="true" />
-              <Title level={4} style={{ margin: '14px 0 6px' }}>
-                {title}
-              </Title>
-              <Text type="secondary">{description}</Text>
-              <ArrowRight size={18} aria-hidden="true" style={{ float: 'right', marginTop: 18 }} />
+            <Card className="student-learning-entry" hoverable style={{ height: '100%' }}>
+              <span className="student-learning-entry__icon"><Icon size={23} aria-hidden="true" /></span>
+              <div className="student-learning-entry__copy">
+                <Title level={4}>{title}</Title>
+                <Text type="secondary">{description}</Text>
+              </div>
+              <ChevronRight className="student-learning-entry__arrow" size={18} aria-hidden="true" />
             </Card>
           </Link>
         ))}

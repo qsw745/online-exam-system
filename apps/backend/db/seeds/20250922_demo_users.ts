@@ -1,12 +1,11 @@
 import type { Knex } from 'knex'
 
+import { buildDemoUserSeedRows } from '../../src/infrastructure/db/demo-user-seed'
+
 export async function seed(knex: Knex): Promise<void> {
   const hasUsers = await knex.schema.hasTable('users')
   const hasRoles = await knex.schema.hasTable('roles')
   if (!hasUsers || !hasRoles) return
-
-  // 预置的 bcrypt 哈希（demo123456）
-  const HASH = '$2b$10$CzKY36g1xwWlKkjG9fL/JupZ3peZxvE5zb1FTGMvOZGl7CQ4W8eXi'
 
   // 确保 users 有 password 列
   const hasPassword = await knex.schema.hasColumn('users', 'password')
@@ -34,20 +33,8 @@ export async function seed(knex: Knex): Promise<void> {
   const roles = await knex('roles').whereIn('code', ['ADMIN', 'TEACHER', 'STUDENT'])
   const roleIdByCode = Object.fromEntries(roles.map((r: any) => [r.code, r.id]))
 
-  // 2) 三个用户 upsert（只写 password）
-  const base = (email: string, username: string, role: 'admin' | 'teacher' | 'student') => ({
-    username,
-    email,
-    ...(hasRole ? { role } : {}),
-    is_disabled: 0,
-    created_at: knex.fn.now(),
-    updated_at: knex.fn.now(),
-  })
-  const rows = [
-    { ...base('admin@demo.com', 'admin', 'admin'), password: HASH },
-    { ...base('teacher@demo.com', 'teacher', 'teacher'), password: HASH },
-    { ...base('student@demo.com', 'student', 'student'), password: HASH },
-  ]
+  // 2) 三个用户 upsert；稳定 public_id 让全新移动账号库也可重复播种
+  const rows = buildDemoUserSeedRows(knex.fn.now(), hasRole)
 
   try {
     const mergeColumns = ['is_disabled', 'updated_at']

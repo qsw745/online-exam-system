@@ -43,6 +43,7 @@ import { ensureDefaultMenuGrants } from './bootstrap/defaultMenuGrants'
 import { formatTime, log } from '@/infrastructure/logging/logger'
 
 import { CODES } from '@/types/response'
+import { buildAllowedCorsOrigins, resolveCorsOrigin } from '@/config/cors'
 
 /** uploads 目录 */
 const UPLOADS_DIR = (process as any).env?.UPLOADS_DIR || path.resolve(process.cwd(), 'uploads')
@@ -79,12 +80,17 @@ app.use(requestId())
 app.use(responseEnvelope())
 
 // 3) CORS
-const FRONTEND_ORIGIN = String((process as any).env?.FRONTEND_URL || 'http://localhost:5173').replace(/\/$/, '')
+const ALLOWED_CORS_ORIGINS = buildAllowedCorsOrigins((process as any).env?.FRONTEND_URL)
+type CorsOriginValue = boolean | string | RegExp | Array<boolean | string | RegExp>
+type CorsOriginCallback = (err: Error | null, origin?: CorsOriginValue) => void
+const corsOptions = {
+  origin: (requestOrigin: string | undefined, callback: CorsOriginCallback) => {
+    callback(null, resolveCorsOrigin(requestOrigin, ALLOWED_CORS_ORIGINS))
+  },
+  credentials: true,
+}
 app.use(
-  cors({
-    origin: FRONTEND_ORIGIN,
-    credentials: true,
-  })
+  cors(corsOptions)
 )
 
 // 4) 解析体

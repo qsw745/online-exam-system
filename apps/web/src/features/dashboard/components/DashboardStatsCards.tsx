@@ -24,8 +24,8 @@ export const DashboardStatsCards: React.FC<{
           <Statistic
             title={labels.total}
             value={stats.total_tasks}
-            prefix={<FileText style={{ color: '#1890ff' }} />}
-            valueStyle={{ color: '#1890ff' }}
+            prefix={<FileText style={{ color: 'var(--wenheng-stat, #1890ff)' }} />}
+            valueStyle={{ color: 'var(--wenheng-stat, #1890ff)' }}
           />
         </Card>
       </Col>
@@ -35,8 +35,8 @@ export const DashboardStatsCards: React.FC<{
           <Statistic
             title={labels.completed}
             value={stats.completed_tasks}
-            prefix={<Clock style={{ color: '#52c41a' }} />}
-            valueStyle={{ color: '#52c41a' }}
+            prefix={<Clock style={{ color: 'var(--wenheng-stat, #52c41a)' }} />}
+            valueStyle={{ color: 'var(--wenheng-stat, #52c41a)' }}
           />
         </Card>
       </Col>
@@ -47,8 +47,8 @@ export const DashboardStatsCards: React.FC<{
             title={labels.average}
             value={stats.average_score}
             precision={1}
-            prefix={<TrendingUp style={{ color: '#faad14' }} />}
-            valueStyle={{ color: '#faad14' }}
+            prefix={<TrendingUp style={{ color: 'var(--wenheng-stat, #faad14)' }} />}
+            valueStyle={{ color: 'var(--wenheng-stat, #faad14)' }}
           />
         </Card>
       </Col>
@@ -58,8 +58,8 @@ export const DashboardStatsCards: React.FC<{
           <Statistic
             title={labels.best}
             value={stats.best_score}
-            prefix={<Trophy style={{ color: '#f5222d' }} />}
-            valueStyle={{ color: '#f5222d' }}
+            prefix={<Trophy style={{ color: 'var(--wenheng-stat, #f5222d)' }} />}
+            valueStyle={{ color: 'var(--wenheng-stat, #f5222d)' }}
           />
         </Card>
       </Col>

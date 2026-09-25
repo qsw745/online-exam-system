@@ -22,6 +22,8 @@ function renderLayout(pathname = '/dashboard') {
         <Route path="/login" element={<div>登录页</div>} />
         <Route element={<MobileAppLayout />}>
           <Route path="/dashboard" element={<div>学生首页内容</div>} />
+          <Route path="/profile" element={<div>个人资料内容</div>} />
+          <Route path="/settings" element={<div>设置内容</div>} />
           <Route path="/exam/:id" element={<div>考试内容</div>} />
         </Route>
       </Routes>
@@ -49,6 +51,7 @@ describe('MobileAppLayout', () => {
     expect(appShell).toHaveClass('mobile-app-shell')
     expect(screen.getByRole('navigation', { name: '考生主导航' })).toHaveClass('mobile-student-nav--app')
     expect(screen.getByRole('navigation', { name: '考生主导航' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: '返回首页' })).not.toBeInTheDocument()
   })
 
   it.each(['teacher', 'admin'])('%s 不加载后台菜单并显示 Web 后台指引', (role) => {
@@ -66,6 +69,13 @@ describe('MobileAppLayout', () => {
     renderLayout()
 
     expect(screen.getByText('登录页')).toBeInTheDocument()
+  })
+
+  it('二级页面提供所属栏目的返回入口，主入口不重复显示返回按钮', () => {
+    authState.user = { id: 'student-1', email: 'student@example.com', role: 'student' }
+    renderLayout('/settings')
+    expect(screen.getByRole('link', { name: '返回我的' })).toHaveAttribute('href', '/profile')
+    expect(screen.getByRole('navigation').querySelector('[aria-current="page"]')).toHaveTextContent('我的')
   })
 
   it('考试页面保持沉浸模式且不显示底部导航', () => {

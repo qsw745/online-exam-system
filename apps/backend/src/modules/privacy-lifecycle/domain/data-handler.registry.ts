@@ -41,12 +41,12 @@ export const LIFECYCLE_DATASETS = [
   ),
   dataset('account_deletion_requests', ['user_id'], [], 'ACCOUNT_ROW', 'ANONYMIZE', 'delete_account'),
 
-  dataset('refresh_tokens', ['user_id'], ['jti'], 'AUTH_CREDENTIALS', 'DELETE', 'delete_auth_credentials'),
+  dataset('refresh_tokens', ['user_id'], ['jti', 'ip', 'user_agent'], 'AUTH_CREDENTIALS', 'DELETE', 'delete_auth_credentials'),
   dataset('password_reset_tokens', ['user_id'], ['token'], 'AUTH_CREDENTIALS', 'DELETE', 'delete_auth_credentials'),
   dataset(
     'user_oauth_accounts',
     ['user_id'],
-    ['provider_user_id'],
+    ['provider_user_id', 'email', 'avatar_url'],
     'AUTH_CREDENTIALS',
     'DELETE',
     'delete_auth_credentials',
@@ -63,11 +63,9 @@ export const LIFECYCLE_DATASETS = [
   dataset('face_credentials', ['user_id'], ['embedding'], 'FACE_CREDENTIALS', 'DELETE', 'delete_face_credentials'),
 
   dataset('user_settings', ['user_id'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
-  dataset('favorite_categories', ['user_id'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
   dataset('favorites', ['user_id'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
   dataset('favorite_shares', ['shared_by'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
   dataset('wrong_question_books', ['user_id'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
-  dataset('wrong_questions', ['user_id'], [], 'PROFILE_AND_SETTINGS', 'DELETE', 'delete_profile_learning_data'),
   dataset(
     'wrong_question_practice_records',
     ['user_id'],
@@ -207,6 +205,8 @@ export const LIFECYCLE_DATASETS = [
     'redact_audit_actors',
   ),
   dataset('tasks', ['user_id'], [], 'SECURITY_LOGS', 'ANONYMIZE', 'redact_audit_actors'),
+  dataset('exams', ['created_by'], [], 'SECURITY_LOGS', 'ANONYMIZE', 'redact_audit_actors'),
+  dataset('task_assignments', ['assigned_by'], [], 'SECURITY_LOGS', 'ANONYMIZE', 'redact_audit_actors'),
   dataset(
     'task_department_assignments',
     ['assigned_by'],

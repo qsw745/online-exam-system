@@ -32,11 +32,11 @@ export const createRedactSecurityLogsHandler = (
       }
       if (afterId === 0) {
         await connection.query(
-          'DELETE lf FROM login_failures lf JOIN users u ON u.id=? WHERE lf.email=u.email',
+          'DELETE lf FROM login_failures lf JOIN users u ON u.id=? WHERE lf.email COLLATE utf8mb4_unicode_ci=u.email COLLATE utf8mb4_unicode_ci',
           [parent.userId],
         )
         await connection.query(
-          'DELETE lf FROM auth_login_failures lf JOIN users u ON u.id=? WHERE lf.email=u.email',
+          'DELETE lf FROM auth_login_failures lf JOIN users u ON u.id=? WHERE lf.email COLLATE utf8mb4_unicode_ci=u.email COLLATE utf8mb4_unicode_ci',
           [parent.userId],
         )
       }

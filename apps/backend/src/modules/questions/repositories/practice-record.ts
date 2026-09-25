@@ -1,5 +1,8 @@
 import type { PoolConnection, ResultSetHeader, RowDataPacket } from 'mysql2/promise'
 import { masteryFromRecentPractice } from '../../wrong-questions/domain/mastery.js'
+import { LearningProgressRepository } from '../../learning-progress/repositories/learning-progress.repository.js'
+
+const learningProgress = new LearningProgressRepository()
 
 /** 必须在事务中调用，使练习记录与错题本同步成功或一同回滚。 */
 export async function recordQuestionPractice(
@@ -14,6 +17,8 @@ export async function recordQuestionPractice(
   await conn.query('INSERT INTO practice_records (user_id, question_id, is_correct, user_answer) VALUES (?, ?, ?, ?)', [
     userId, questionId, isCorrect, JSON.stringify(answer ?? null),
   ])
+  // 题库练习也计入学习页；题目没有科目字段，不猜测科目或作答时长。
+  await learningProgress.upsertProgress(conn, userId, null, 0, 1, isCorrect ? 1 : 0, isCorrect ? 100 : 0)
   const [wrongRows] = await conn.query<RowDataPacket[]>(
     `SELECT wq.id FROM wrong_questions wq
      JOIN wrong_question_books book ON book.id = wq.book_id

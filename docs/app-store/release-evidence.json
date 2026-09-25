@@ -1,0 +1,408 @@
+{
+  "checkedAt": "2026-09-09T04:10:13.422210+00:00",
+  "appId": "6809678010",
+  "versionId": "70f11074-53a7-4359-a770-418ac6bb4e1d",
+  "version": {
+    "platform": "IOS",
+    "versionString": "1.0",
+    "appStoreState": "WAITING_FOR_REVIEW",
+    "appVersionState": "WAITING_FOR_REVIEW",
+    "copyright": "2026 祁世伟",
+    "reviewType": "APP_STORE",
+    "releaseType": "AFTER_APPROVAL",
+    "earliestReleaseDate": null,
+    "usesIdfa": null,
+    "downloadable": true,
+    "createdDate": "2026-09-07T21:53:20-07:00"
+  },
+  "buildId": "48b4ac4c-e847-4cb4-b693-bafbcf5f35a3",
+  "build": {
+    "version": "2026.9.84",
+    "uploadedDate": "2026-09-08T00:58:58-07:00",
+    "expirationDate": "2026-12-06T23:58:58-08:00",
+    "expired": false,
+    "minOsVersion": "16.0",
+    "lsMinimumSystemVersion": null,
+    "computedMinMacOsVersion": "13.0",
+    "computedMinVisionOsVersion": "1.0",
+    "iconAssetToken": {
+      "templateUrl": "https://is1-ssl.mzstatic.com/image/thumb/Purple221/v4/c8/5c/55/c85c5570-cd42-83e5-64e0-795c3aee254b/AppIcon76x76@2x_U007eipad.png/{w}x{h}bb.{f}",
+      "width": 152,
+      "height": 152
+    },
+    "processingState": "VALID",
+    "buildAudienceType": "APP_STORE_ELIGIBLE",
+    "usesNonExemptEncryption": false
+  },
+  "screenshots": [
+    {
+      "displayType": "APP_IPHONE_67",
+      "screenshots": [
+        {
+          "fileName": "01-learning.png",
+          "status": "COMPLETE",
+          "id": "2ec4b46e-7c4c-4e56-befe-29fe3cdfa510"
+        },
+        {
+          "fileName": "02-answer.png",
+          "status": "COMPLETE",
+          "id": "8f7090cf-3563-4c2e-bb39-ad1ca4b797e6"
+        },
+        {
+          "fileName": "03-questions.png",
+          "status": "COMPLETE",
+          "id": "96ee1eb7-c344-4c7f-9d92-df036353bc98"
+        }
+      ]
+    },
+    {
+      "displayType": "APP_IPAD_PRO_3GEN_129",
+      "screenshots": [
+        {
+          "fileName": "01-learning.png",
+          "status": "COMPLETE",
+          "id": "c920c6d8-40ea-4713-8256-3e0f810422ff"
+        },
+        {
+          "fileName": "02-questions.png",
+          "status": "COMPLETE",
+          "id": "18f511d4-8b86-44a8-b87f-b13a0c6cdc3b"
+        },
+        {
+          "fileName": "03-answer.png",
+          "status": "COMPLETE",
+          "id": "ab98c2e9-2eef-4be4-831c-72ee08ba75bf"
+        }
+      ]
+    }
+  ],
+  "basePrice": {
+    "data": [
+      {
+        "type": "appPrices",
+        "id": "eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAiLCJzZCI6MC4wLCJlZCI6MC4wfQ",
+        "attributes": {
+          "manual": true,
+          "startDate": null,
+          "endDate": null
+        },
+        "relationships": {
+          "appPricePoint": {
+            "data": {
+              "type": "appPricePoints",
+              "id": "eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAifQ"
+            }
+          },
+          "territory": {
+            "data": {
+              "type": "territories",
+              "id": "CHN"
+            }
+          }
+        },
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v2/appPrices/eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAiLCJzZCI6MC4wLCJlZCI6MC4wfQ"
+        }
+      }
+    ],
+    "included": [
+      {
+        "type": "appPricePoints",
+        "id": "eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAifQ",
+        "attributes": {
+          "customerPrice": "0.0",
+          "proceeds": "0.0"
+        },
+        "relationships": {
+          "equalizations": {
+            "links": {
+              "self": "https://api.appstoreconnect.apple.com/v3/appPricePoints/eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAifQ/relationships/equalizations",
+              "related": "https://api.appstoreconnect.apple.com/v3/appPricePoints/eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAifQ/equalizations"
+            }
+          },
+          "territory": {}
+        },
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v3/appPricePoints/eyJzIjoiNjgwOTY3ODAxMCIsInQiOiJDSE4iLCJwIjoiMTAwMDAifQ"
+        }
+      },
+      {
+        "type": "territories",
+        "id": "CHN",
+        "attributes": {
+          "currency": "CNY"
+        },
+        "links": {
+          "self": "https://api.appstoreconnect.apple.com/v1/territories/CHN"
+        }
+      }
+    ],
+    "links": {
+      "self": "https://api.appstoreconnect.apple.com/v1/appPriceSchedules/6809678010/manualPrices?include=appPricePoint%2Cterritory"
+    },
+    "meta": {
+      "paging": {
+        "total": 1,
+        "limit": 50
+      }
+    }
+  },
+  "uiVerified": {
+    "privacyPublished": true,
+    "privacyTypes": 11,
+    "purpose": "App functionality",
+    "linkedToIdentity": true,
+    "tracking": false,
+    "availableTerritories": [
+      "CHN"
+    ],
+    "macOptIn": false,
+    "visionOptIn": false,
+    "submissionValidationMissing": [],
+    "appIcpFiling": "鄂ICP备2022002925号-5A；已在 App Store Connect 保存并刷新回读",
+    "contentRightsDeclaration": "USES_THIRD_PARTY_CONTENT",
+    "contentRightsUserConfirmed": true,
+    "reviewSubmissionConfirmation": "已提交 1 个项目",
+    "versionStatus": "正在等待审核",
+    "reviewSubmissionStatus": "等待审核",
+    "appIcpFilingDetails": {
+      "checkedAt": "2026-09-09T12:10:13.422210+08:00",
+      "filingNumber": "鄂ICP备2022002925号-5A",
+      "saved": true,
+      "verifiedAfterReload": true,
+      "providerNameConfirmation": {
+        "appleProvider": "qi shiwei",
+        "filingProvider": "祁世伟",
+        "confirmedSameOwner": true
+      },
+      "url": "https://appstoreconnect.apple.com/apps/6809678010/distribution/info"
+    }
+  },
+  "submittedForReview": true,
+  "productionFinalCheck": {
+    "login": 200,
+    "refresh": 200,
+    "learning": {
+      "success": true,
+      "code": "OK",
+      "status": 200,
+      "message": "OK",
+      "data": {
+        "dailyStats": [
+          {
+            "date": "2026-09-08",
+            "total_study_time": 0,
+            "total_questions": 1,
+            "correct_answers": 1,
+            "avg_accuracy": 100
+          }
+        ],
+        "totalStats": {
+          "total_study_time": 0,
+          "total_questions": 1,
+          "correct_answers": 1,
+          "avg_accuracy": 100,
+          "study_days": 1,
+          "subjects_studied": 0
+        },
+        "period": "all"
+      },
+      "trace": {
+        "requestId": "45efabce-dab5-432f-8e34-edf5b8f4056c",
+        "timestamp": "2026-09-08T06:40:52.677Z",
+        "durationMs": 24
+      }
+    }
+  },
+  "phoneInstalled": {
+    "bundleId": "top.qisw.wenheng",
+    "version": "1.0",
+    "build": "2026.9.83",
+    "launchSucceeded": true
+  },
+  "backendImage": "wenheng-api:20260908-r3",
+  "filing": {
+    "checkedAt": "2026-09-09T12:10:13.422210+08:00",
+    "provider": "Aliyun",
+    "orderId": "2030835875006",
+    "appName": "问衡",
+    "stage": "AUTHORITY_APPROVED",
+    "submittedForProviderReview": true,
+    "filingNumber": "鄂ICP备2022002925号-5A",
+    "bundleId": "top.qisw.wenheng",
+    "domain": "qisw.top",
+    "entryServer": "101.37.21.147",
+    "language": "中文简体",
+    "category": "生活服务 / 工具",
+    "publicKeyFormat": "DER SubjectPublicKeyInfo hex",
+    "certificateSha1": "936D8657644A84B0D1E07A2735011BA5AA6AC481",
+    "identityVerificationQrOpened": true,
+    "categoryReviewNote": "个人主体未提供教育分类；按相近工具分类填写，备注完整披露机构考试等真实功能，页面提示可能涉及企业、行业信息，待审核确认。",
+    "orderUrl": "https://beian.aliyun.com/pcContainer/orderDetail?baOrderId=2030835875006&orderType=5",
+    "submittedAt": "2026-09-08T15:33:00+08:00",
+    "identityVerificationComplete": true,
+    "materialsComplete": true,
+    "providerReviewEstimate": null,
+    "authoritySubmissionStage": "已提交（最终管局审核通过）",
+    "smsVerificationStage": "未单独回读；最终管局审核通过",
+    "authorityReviewStage": "管局审核通过",
+    "latestVerificationAttempt": {
+      "checkedAt": "2026-09-09T12:10:13.422210+08:00",
+      "result": "AUTHORITY_APPROVED_AND_APPLE_SAVED",
+      "providerStageReverified": true,
+      "filingNumberRetrieved": true,
+      "note": "本人完成手机验证后，阿里云已完成订单显示问衡管局审核通过；已备案 App 列表和详情均显示本备案号。Apple 完成中英文主体名称归属确认，保存后刷新页面仍显示同一号码。"
+    },
+    "verificationHistory": [
+      {
+        "checkedAt": "2026-09-09T11:59:32.349163+08:00",
+        "userReport": "备案已经过了",
+        "result": "PHONE_VERIFICATION_REQUIRED",
+        "providerStageReverified": false,
+        "filingNumberRetrieved": false,
+        "note": "刷新订单后要求手机短信验证，刷新前显示的是上次页面的初审状态，未当作最新审批结果。等待本人验证或提供完整问衡 App 备案号。"
+      }
+    ],
+    "historicalProviderReview": {
+      "checkedAt": "2026-09-08T16:06:54.278133+08:00",
+      "stage": "ALIYUN_INITIAL_REVIEW_IN_PROGRESS",
+      "providerReviewEstimate": "今天20点前审核（2026-09-08页面显示）",
+      "authoritySubmissionStage": "未进行",
+      "smsVerificationStage": "未进行",
+      "authorityReviewStage": "未进行"
+    },
+    "registeredCategory": "工具",
+    "registeredRemarks": "问衡是个人开发的免费学习练习与测评工具，提供题目练习、错题整理、收藏、学习进度记录。",
+    "registeredDetailsUrl": "https://beian.aliyun.com/pcContainer/sitedetail?siteId=9945091&appName=问衡&siteRecordNum=鄂ICP备2022002925号-5A"
+  },
+  "reviewSubmission": {
+    "id": "8e05fabe-bd47-4093-9a7e-1ba12dbb9acb",
+    "platform": "IOS",
+    "submittedDate": "2026-09-08T08:01:39.287Z",
+    "state": "WAITING_FOR_REVIEW"
+  },
+  "reviewInvestigation": {
+    "initialAcceptedAt": "2026-09-08T15:34:39.728+08:00",
+    "initialVersionState": "WAITING_FOR_REVIEW",
+    "invalidBinaryObservedAt": "2026-09-08T15:36:18+08:00",
+    "specificAppleError": {
+      "code": "ITMS-90111",
+      "message": "Unsupported SDK or Xcode version",
+      "instruction": "App submissions must use the latest Xcode and SDK Release Candidates (RC).",
+      "emailSubject": "Action needed: The uploaded build for 问衡 has one or more issues.",
+      "receivedAt": "2026-09-08T15:35:00+08:00",
+      "version": "1.0",
+      "build": "2026.9.83"
+    },
+    "reviewPageHasDetailedReason": false,
+    "buildProcessingState": "VALID",
+    "buildAudienceType": "APP_STORE_ELIGIBLE",
+    "localSignatureVerification": "codesign --verify --deep --strict: passed",
+    "appStoreProfileExpires": "2027-08-22T13:08:24Z",
+    "bundleAndTeamMatch": true,
+    "getTaskAllow": false,
+    "privacyManifestsPresent": [
+      "App",
+      "Capacitor",
+      "Cordova"
+    ],
+    "gmailMatchingErrorEmails": 0,
+    "qqMailStatus": "logged in; error email read from actual Apple account holder mailbox",
+    "rebuildAttemptedAfterRejection": true,
+    "resubmittedAfterRejection": true,
+    "localBuildHost": {
+      "macOS": "27.0 beta 8",
+      "build": "26A5425a",
+      "xcode": "26.6",
+      "xcodeBuild": "17F113",
+      "sdk": "26.5",
+      "sdkBuild": "23F81a"
+    },
+    "rootCauseHypothesis": "The app was archived on macOS 27 beta, outside the official supported host range for Xcode 26.6. Rebuild identical sources and dependencies on stable macOS to verify.",
+    "stableBuildHost": {
+      "provider": "local Parallels macOS VM",
+      "macOS": "26.6",
+      "build": "25G72",
+      "xcode": "26.6",
+      "xcodeBuild": "17F113"
+    },
+    "newBuild": "2026.9.84",
+    "sourceAndDependencyVersionsUnchanged": true,
+    "newArchiveSucceeded": true,
+    "finalArtifact": {
+      "path": "/Users/qsw/work/project/online-exam-system/apps/web/.build/appstore/export-2026.9.84/App.ipa",
+      "size": 13914664,
+      "sha256": "ac5fc44ce94e66fbd84f4f727a219826d1871f74f6e35efc99e75a66e02bb520",
+      "build": "2026.9.84",
+      "macOSBuild": "25G72",
+      "xcodeBuild": "17F113",
+      "sdk": "iphoneos26.5",
+      "signatureValid": true,
+      "productionApiVerified": true
+    },
+    "appleUploadPreflight": "VERIFY SUCCEEDED with no errors",
+    "vmRestoredToOriginalSuspendedState": true,
+    "guestTemporaryBuildFilesRemoved": true,
+    "signingKeysTransferredToGuest": false,
+    "frameworkBinariesUnchanged": true,
+    "compiledWebAssetsIdenticalToPreviousBuild": true,
+    "resubmittedAt": "2026-09-08T08:01:39.287Z",
+    "delayedChecks": [
+      {
+        "checkedAt": "2026-09-08T08:04:06.819335+00:00",
+        "secondsSinceResubmission": 148,
+        "versionState": "WAITING_FOR_REVIEW",
+        "submissionState": "WAITING_FOR_REVIEW"
+      },
+      {
+        "checkedAt": "2026-09-08T08:06:54.278133+00:00",
+        "secondsSinceResubmission": 315,
+        "versionState": "WAITING_FOR_REVIEW",
+        "submissionState": "WAITING_FOR_REVIEW",
+        "selectedBuild": "2026.9.84",
+        "items": [
+          "READY_FOR_REVIEW"
+        ]
+      }
+    ],
+    "newBuildErrorEmailObserved": false,
+    "latestMailCheck": "Search for 问衡 returned only the original 15:35 error for build 83.",
+    "resolution": "Re-archived unchanged sources on supported stable macOS; rebuilt version remains WAITING_FOR_REVIEW after delayed checks."
+  },
+  "submissionAttempts": [
+    {
+      "buildId": "a910fb93-c2c6-4c5c-9c4d-71e19256cfb0",
+      "build": "2026.9.83",
+      "submittedAt": "2026-09-08T07:34:39.728Z",
+      "versionState": "INVALID_BINARY",
+      "reviewState": "UNRESOLVED_ISSUES",
+      "errorCode": "ITMS-90111",
+      "buildMachineOSBuild": "26A5425a",
+      "reviewSubmissionId": "8e05fabe-bd47-4093-9a7e-1ba12dbb9acb"
+    },
+    {
+      "buildId": "48b4ac4c-e847-4cb4-b693-bafbcf5f35a3",
+      "build": "2026.9.84",
+      "submittedAt": "2026-09-08T08:01:39.287Z",
+      "versionState": "WAITING_FOR_REVIEW",
+      "reviewState": "WAITING_FOR_REVIEW",
+      "errorCode": null,
+      "buildMachineOSBuild": "25G72",
+      "reviewSubmissionId": "8e05fabe-bd47-4093-9a7e-1ba12dbb9acb",
+      "lastVerifiedAt": "2026-09-08T08:06:54.278133+00:00"
+    }
+  ],
+  "finalArtifact": {
+    "path": "/Users/qsw/work/project/online-exam-system/apps/web/.build/appstore/export-2026.9.84/App.ipa",
+    "size": 13914664,
+    "sha256": "ac5fc44ce94e66fbd84f4f727a219826d1871f74f6e35efc99e75a66e02bb520",
+    "build": "2026.9.84",
+    "macOSBuild": "25G72",
+    "xcodeBuild": "17F113",
+    "sdk": "iphoneos26.5",
+    "signatureValid": true,
+    "productionApiVerified": true,
+    "certificateSha1": "936D8657644A84B0D1E07A2735011BA5AA6AC481"
+  },
+  "uploadDeliveryId": "48b4ac4c-e847-4cb4-b693-bafbcf5f35a3"
+}

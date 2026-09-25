@@ -1,0 +1,7 @@
+[Unit]
+Description=Wenheng daily backup and data retention
+After=docker.service network-online.target
+[Service]
+Type=oneshot
+ExecStart=/opt/wenheng/maintenance.sh
+TimeoutStartSec=30min

@@ -1,4 +1,5 @@
 import { LifecyclePolicyError } from '../domain/lifecycle.policy'
+import { deleteLocalAvatar } from './delete-local-avatar'
 import type { DeletionManifestStager } from '../services/deletion-manifest.service'
 import type { LifecycleHandler, LifecycleTransaction } from '../services/lifecycle-worker.service'
 import { defaultLifecycleHandlerDatabase, requireAccountParent, type LifecycleHandlerDatabase } from './handler-support'
@@ -40,7 +41,7 @@ export async function assertNoIdentityToAnonymousLink(
         JOIN account_deletion_requests adr ON adr.user_id=pic.user_id
        WHERE adr.request_id=? AND pic.anonymous_subject_id IS NOT NULL
        UNION ALL
-       SELECT prc.id FROM proctoring_review_cases prc
+       SELECT prc.case_id FROM proctoring_review_cases prc
         JOIN account_deletion_requests adr ON adr.user_id=prc.user_id
        WHERE adr.request_id=? AND prc.anonymous_subject_id IS NOT NULL
      ) identity_links`,
@@ -87,7 +88,7 @@ export function createDeleteAccountHandler(input: {
         }
         await assertNoIdentityToAnonymousLink(connection, parent.requestId)
         const [users] = await connection.query(
-          'SELECT public_id, email FROM users WHERE id=? LIMIT 1 FOR UPDATE',
+          'SELECT public_id, email, avatar_url FROM users WHERE id=? LIMIT 1 FOR UPDATE',
           [parent.userId],
         )
         const user = (users as any[])?.[0]
@@ -107,6 +108,8 @@ export function createDeleteAccountHandler(input: {
           completedAt: context.now,
           notificationEmail: String(user.email || ''),
         })
+        // 在丢失文件归属之前清除本地头像；失败时可重试，避免注销后遗留可访问的图片。
+        await deleteLocalAvatar(connection, Number(parent.userId), user.avatar_url)
         await connection.query('DELETE FROM users WHERE id=?', [parent.userId])
         const [requests] = await connection.query(
           'SELECT user_id FROM account_deletion_requests WHERE request_id=? LIMIT 1',

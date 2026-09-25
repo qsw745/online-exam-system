@@ -4,6 +4,8 @@ const ACTOR_TABLES = [
   { table: 'proctoring_review_decisions', subjectColumn: 'actor_user_id', mode: 'CLEAR' as const },
   { table: 'proctoring_review_messages', subjectColumn: 'actor_user_id', mode: 'CLEAR' as const },
   { table: 'tasks', subjectColumn: 'user_id', mode: 'CLEAR' as const },
+  { table: 'exams', subjectColumn: 'created_by', mode: 'CLEAR' as const },
+  { table: 'task_assignments', subjectColumn: 'assigned_by', mode: 'CLEAR' as const },
   { table: 'task_department_assignments', subjectColumn: 'assigned_by', mode: 'CLEAR' as const },
   { table: 'announcements', subjectColumn: 'created_by', mode: 'CLEAR' as const },
   { table: 'files', subjectColumn: 'created_by', mode: 'CLEAR' as const },

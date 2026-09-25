@@ -112,36 +112,30 @@ export function createFixedTableHandler(input: {
         for (let tableIndex = start.tableIndex; tableIndex < input.specs.length; tableIndex += 1) {
           const spec = input.specs[tableIndex]
           if (!(await tableExists(connection, spec.table))) continue
-          const afterId = tableIndex === start.tableIndex ? start.afterId : 0
-          const [rows] = await connection.query(
-            `SELECT id FROM ${spec.table}
-              WHERE ${spec.subjectColumn}=? AND id>? ORDER BY id LIMIT ?`,
-            [parent.userId, afterId, context.batchSize],
-          )
-          const ids = (rows as Array<{ id: string | number }>).map(row => row.id)
-          if (ids.length === 0) continue
-          const placeholders = ids.map(() => '?').join(',')
+          // Each batch removes the subject link. Query it again rather than assuming
+          // every legacy table has a numeric id (some use user_id or UUID keys).
           let result: unknown
           if (spec.mode === 'CLEAR') {
             const columns = [spec.subjectColumn, ...(spec.clearColumns ?? [])]
             ;[result] = await connection.query(
               `UPDATE ${spec.table} SET ${columns.map(column => `${column}=NULL`).join(', ')}
-                WHERE id IN (${placeholders})`,
-              ids,
+                WHERE ${spec.subjectColumn}=? LIMIT ?`,
+              [parent.userId, context.batchSize],
             )
           } else {
-            ;[result] = await connection.query(`DELETE FROM ${spec.table} WHERE id IN (${placeholders})`, ids)
+            ;[result] = await connection.query(`DELETE FROM ${spec.table} WHERE ${spec.subjectColumn}=? LIMIT ?`, [parent.userId, context.batchSize])
           }
-          const lastId = Number(ids[ids.length - 1])
-          const tableDone = ids.length < context.batchSize
+          const processedCount = affectedRows(result)
+          if (processedCount === 0) continue
+          const tableDone = processedCount < context.batchSize
           const lastTable = tableIndex === input.specs.length - 1
           return {
-            processedCount: Math.max(ids.length, affectedRows(result)),
+            processedCount,
             nextCursor: tableDone && !lastTable
               ? { afterId: encodeCursor(tableIndex + 1, 0) }
               : tableDone && lastTable
                 ? null
-                : { afterId: encodeCursor(tableIndex, lastId) },
+                : { afterId: encodeCursor(tableIndex, 0) },
             done: tableDone && lastTable,
           }
         }

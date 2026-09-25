@@ -8,15 +8,16 @@ import { buildPasswordResetEmail, buildVerificationEmail } from './email.templat
 class EmailService {
   private transporter: any | null = null
   private isConfigured = false
+  private readonly ready: Promise<void>
 
   constructor() {
-    void this.initializeTransporter()
+    this.ready = this.initializeTransporter()
   }
 
   private async initializeTransporter() {
     try {
       if (!process?.env?.EMAIL_HOST || !process?.env?.EMAIL_USER || !process?.env?.EMAIL_PASS) {
-        log.warn('邮件服务未配置，将使用控制台输出模拟发送')
+        log.warn(process.env.NODE_ENV === 'production' ? '邮件服务未配置，拒绝发送' : '邮件服务未配置，将使用控制台输出模拟发送')
         this.isConfigured = false
         return
       }
@@ -40,15 +41,9 @@ class EmailService {
         return
       }
 
-      this.transporter.verify((error: any) => {
-        if (error) {
-          log.error('邮件服务配置验证失败:', error?.message || error)
-          this.isConfigured = false
-        } else {
-          log.info('邮件服务配置验证成功')
-          this.isConfigured = true
-        }
-      })
+      await this.transporter.verify()
+      log.info('邮件服务配置验证成功')
+      this.isConfigured = true
     } catch (error) {
       log.error('邮件服务初始化失败:', error)
       this.isConfigured = false
@@ -56,14 +51,14 @@ class EmailService {
   }
 
   async sendPasswordResetEmail(to: string, resetToken: string, username: string): Promise<boolean> {
-    const base = process?.env?.FRONTEND_URL || 'http://localhost:5173'
+    const base = process?.env?.PUBLIC_FRONTEND_URL || process?.env?.FRONTEND_URL || 'http://localhost:5173'
     const resetUrl = `${String(base).replace(/\/$/, '')}/reset-password?token=${encodeURIComponent(resetToken)}`
     const template = buildPasswordResetEmail({ username, resetUrl })
     return this.sendEmail(to, template)
   }
 
   async sendVerificationEmail(to: string, verifyToken: string, username: string): Promise<boolean> {
-    const base = process?.env?.FRONTEND_URL || 'http://localhost:5173'
+    const base = process?.env?.PUBLIC_FRONTEND_URL || process?.env?.FRONTEND_URL || 'http://localhost:5173'
     const verifyUrl = `${String(base).replace(/\/$/, '')}/verify-email?token=${encodeURIComponent(verifyToken)}`
     const template = buildVerificationEmail({ username, verifyUrl })
     return this.sendEmail(to, template)
@@ -79,7 +74,10 @@ class EmailService {
 
   private async sendEmail(to: string, template: EmailTemplate): Promise<boolean> {
     try {
+      await this.ready
       if (!this.isConfigured || !this.transporter) {
+        // 正式服务必须确认真实投递，不能把模拟输出当作成功。
+        if (process.env.NODE_ENV === 'production') return false
         console.log('\n=== 模拟邮件发送（邮件服务未配置）===')
         console.log(`收件人: ${to}`)
         console.log(`主题: ${template.subject}`)
@@ -104,6 +102,7 @@ class EmailService {
   }
 
   async testConnection(): Promise<boolean> {
+    await this.ready
     if (!this.isConfigured || !this.transporter) return false
     try {
       await this.transporter.verify()

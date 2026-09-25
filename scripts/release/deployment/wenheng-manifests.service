@@ -1,0 +1,18 @@
+[Unit]
+Description=Wenheng independent deletion receipt receiver
+After=network.target docker.service
+[Service]
+Type=simple
+User=wenheng-receiver
+Group=wenheng-receiver
+EnvironmentFile=/opt/wenheng-manifests/receiver.env
+ExecStart=/usr/local/bin/wenheng-node /opt/wenheng-manifests/receiver.mjs
+Restart=on-failure
+StateDirectory=wenheng-manifests
+StateDirectoryMode=0700
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+[Install]
+WantedBy=multi-user.target

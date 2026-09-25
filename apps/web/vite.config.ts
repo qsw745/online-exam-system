@@ -24,6 +24,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    // Vite 会在 API 代理之前处理 OPTIONS；原生 App 的预检也必须显式放行。
+    cors: {
+      origin: [
+        /^https?:\/\/(?:(?:[^:]+\.)?localhost|127\.0\.0\.1|\[::1\])(?::\d+)?$/,
+        'capacitor://localhost',
+        'ionic://localhost',
+      ],
+      credentials: true,
+    },
     proxy: {
       // 工作流走 Java Flowable 后端（更具体的前缀放前面，优先匹配）
       '/api/workflows': {

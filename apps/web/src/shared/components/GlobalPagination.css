@@ -14,6 +14,12 @@
   justify-content: flex-start;
 }
 
+.global-pagination--mobile { justify-content: space-between; flex-wrap: wrap; }
+.global-pagination__total { color: var(--wenheng-muted, #667085); font-size: 13px; }
+.global-pagination__controls { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.global-pagination__controls .ant-btn { min-width: 44px; min-height: 44px; }
+.global-pagination__page { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; color: var(--wenheng-ink, #10233f); }
+
 .global-pagination .ant-pagination {
   display: flex;
   align-items: center;

@@ -1,6 +1,6 @@
 // src/features/tasks/pages/MyTasksPage.tsx
 import React from 'react'
-import { Alert, Card, Space, Input, Select, DatePicker, Button, App } from 'antd'
+import { Alert, Card, Space, Input, Select, DatePicker, Button, App, Typography } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { TasksTable } from '../components/TasksTable'
 import MobileTaskList from '../components/MobileTaskList'
@@ -17,6 +17,7 @@ const MyTasksPage: React.FC = () => {
   const nav = useNavigate()
   const { message } = App.useApp()
   const isMobile = useIsMobile()
+  const isNativeApp = resolveAppTarget(import.meta.env.VITE_APP_TARGET) === 'ios'
 
   const { rows, total, page, pageSize, setPage, setPageSize, loading, error, refetch, filters, search, reset } = useTasksQuery(10, {
     scope: 'mine',
@@ -59,8 +60,9 @@ const MyTasksPage: React.FC = () => {
   }
 
   return (
-    <Space direction="vertical" size={16} style={{ width: '100%' }}>
-      <Card title={translate('menus.tasks-my')} variant="outlined"
+    <Space className="student-tasks-page" direction="vertical" size={16} style={{ width: '100%' }}>
+      {isNativeApp && <div><Typography.Title level={2}>任务</Typography.Title><Typography.Text type="secondary">查看考试与练习安排。</Typography.Text></div>}
+      <Card title={isNativeApp ? '查找任务' : translate('menus.tasks-my')} variant="outlined"
         extra={isMobile && <Button type="text" aria-expanded={filtersExpanded} aria-controls="student-task-advanced"
           onClick={() => setFiltersExpanded(value => !value)}>{filtersExpanded ? '收起筛选' : '筛选条件'}</Button>}>
         <Space className="student-task-filters" wrap>

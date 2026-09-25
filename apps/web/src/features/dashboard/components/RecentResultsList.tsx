@@ -27,7 +27,7 @@ export const RecentResultsList: React.FC<{
     <Card
       title={title}
       extra={
-        <Link to="/exam/results" style={{ color: '#1890ff' }}>
+        <Link to="/exam/results" style={{ color: 'var(--wenheng-action, #1890ff)' }}>
           {viewAllText}
         </Link>
       }

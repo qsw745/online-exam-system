@@ -68,7 +68,7 @@ export default function PracticeFilters({
           />
         </Col>
         <Col xs={24} lg={12}>
-          <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Space className="student-practice-mode" wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Text type="secondary">{translate('auto.4484498f44')}</Text>
             <Segmented
               value={mode}
@@ -92,10 +92,11 @@ export default function PracticeFilters({
       {/* 第 2 行：题型(多选) + 难度 */}
       <Row gutter={[12, 12]} align="middle" style={{ marginTop: 8 }}>
         <Col xs={24} lg={12}>
-          <Space wrap>
+          <Space className="student-practice-types" wrap>
             <Text type="secondary">{translate('auto.bdc36ea3d9')}</Text>
             <Select
               mode="multiple"
+              aria-label={translate('auto.bdc36ea3d9')}
               allowClear
               style={{ minWidth: 280 }}
               placeholder={translate('auto.79b46fdca0')}
@@ -110,7 +111,7 @@ export default function PracticeFilters({
           </Space>
         </Col>
         <Col xs={24} lg={12}>
-          <Space wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Space className="student-practice-difficulty" wrap style={{ width: '100%', justifyContent: 'flex-end' }}>
             <Text type="secondary">{translate('auto.08a090d362')}</Text>
             <Select
               value={difficulty}

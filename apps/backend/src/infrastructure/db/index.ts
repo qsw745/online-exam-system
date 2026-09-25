@@ -5,6 +5,7 @@
 import '@/config/env'
 import { createPool, type Pool } from 'mysql2/promise'
 import { enableSqlDebug } from '@/config/sql-debug'
+import { buildDatabaseConnectionOptions } from './connection-options'
 
 // ✅ 本地 shim
 declare const process: any
@@ -21,10 +22,7 @@ if (!process.env.DB_HOST || !process.env.DB_USER || !process.env.DB_PASSWORD || 
 
 // 统一连接池（promise 版）
 export const pool: Pool = createPool({
-  host: process.env.DB_HOST as string,
-  user: process.env.DB_USER as string,
-  password: process.env.DB_PASSWORD as string,
-  database: process.env.DB_NAME as string,
+  ...buildDatabaseConnectionOptions(process.env),
   waitForConnections: true,
   connectionLimit: Number(process.env.DB_CONN_LIMIT ?? 10),
   queueLimit: 0,

@@ -1,9 +1,30 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import MobileStudentNav, { shouldShowMobileStudentNav, type MobileNavVisibilityInput } from './MobileStudentNav'
 
 describe('MobileStudentNav', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('输入时为软键盘让出空间，收起键盘后恢复主导航', () => {
+    const viewport = Object.assign(new EventTarget(), { height: 852 })
+    vi.stubGlobal('visualViewport', viewport)
+    render(<MemoryRouter><input aria-label="昵称" /><MobileStudentNav appLayout /></MemoryRouter>)
+    act(() => screen.getByRole('textbox', { name: '昵称' }).focus())
+    act(() => { viewport.height = 510; viewport.dispatchEvent(new Event('resize')) })
+    expect(screen.queryByRole('navigation', { name: '考生主导航' })).not.toBeInTheDocument()
+    act(() => { viewport.height = 852; viewport.dispatchEvent(new Event('resize')) })
+    expect(screen.getByRole('navigation', { name: '考生主导航' })).toBeInTheDocument()
+  })
+
+  it('没有输入焦点时，视口变小仍保留导航', () => {
+    const viewport = Object.assign(new EventTarget(), { height: 852 })
+    vi.stubGlobal('visualViewport', viewport)
+    render(<MemoryRouter><MobileStudentNav appLayout /></MemoryRouter>)
+    act(() => { viewport.height = 510; viewport.dispatchEvent(new Event('resize')) })
+    expect(screen.getByRole('navigation', { name: '考生主导航' })).toBeInTheDocument()
+  })
+
   it.each<[MobileNavVisibilityInput, boolean]>([
     [{ role: 'student', pathname: '/dashboard', isMobile: true }, true],
     [{ role: 'teacher', pathname: '/dashboard', isMobile: true }, false],

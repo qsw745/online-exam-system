@@ -1,0 +1,41 @@
+name: wenheng
+x-backend: &backend
+  image: wenheng-api:20260908-r3
+  restart: unless-stopped
+  env_file: .env
+  networks: [exam]
+  volumes:
+    - uploads:/app/uploads
+    - secrets:/app/secrets
+  logging:
+    driver: json-file
+    options: {max-size: 10m, max-file: '3'}
+services:
+  api:
+    <<: *backend
+    container_name: wenheng-api
+    ports: ['127.0.0.1:3082:3000']
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+  lifecycle:
+    <<: *backend
+    container_name: wenheng-lifecycle
+    command: ['node', 'dist/modules/privacy-lifecycle/workers/lifecycle.worker.js']
+  outbox:
+    <<: *backend
+    container_name: wenheng-outbox
+    command: ['node', 'dist/modules/privacy-lifecycle/workers/lifecycle-outbox.worker.js']
+networks:
+  exam:
+    external: true
+    name: online-exam-system_default
+volumes:
+  uploads:
+    external: true
+    name: online-exam-system_uploads
+  secrets:
+    external: true
+    name: online-exam-system_backend-secrets

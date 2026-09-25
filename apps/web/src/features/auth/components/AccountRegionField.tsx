@@ -1,5 +1,5 @@
 import { Alert, Segmented, Space, Typography } from 'antd'
-import type { DataRegion } from '@/platform/region/accountRegion'
+import { enabledDataRegions, type DataRegion } from '@/platform/region/accountRegion'
 
 const { Text } = Typography
 
@@ -22,7 +22,7 @@ export function AccountRegionField({ value, onChange, disabled, compact = false 
         options={[
           { label: '中国大陆', value: 'CN' },
           { label: '海外地区', value: 'GLOBAL' },
-        ]}
+        ].filter(option => enabledDataRegions.includes(option.value as DataRegion))}
         onChange={next => onChange(next as DataRegion)}
       />
       {!compact && (

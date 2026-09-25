@@ -6,12 +6,14 @@ import enUS from 'antd/locale/en_US'
 import { adminSettingsApi } from '@/shared/api/endpoints/admin-settings'
 import { setDateTimeFormat } from '@/shared/utils/datetime'
 import { setWatermarkConfig } from '@/shared/utils/watermark'
+import { resolveAppTarget } from '@/platform/appTarget'
 
 type Mode = 'light' | 'dark'
 type ThemeCtx = { mode: Mode; toggle: () => void; setMode: (m: Mode) => void }
 
 const ThemeContext = createContext<ThemeCtx | null>(null)
 const STORAGE_KEY = 'app-theme-mode'
+const isNativeApp = resolveAppTarget(import.meta.env.VITE_APP_TARGET) === 'ios'
 const STATIC_MODAL_METHODS = ['confirm', 'info', 'success', 'error', 'warning', 'warn'] as const
 const originalStaticModalMethods = new Map<string, any>()
 
@@ -101,20 +103,21 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
 
   const themeConfig: ThemeConfig = useMemo(
     () => {
+      const primary = isNativeApp ? '#128266' : '#3b82f6'
       const baseTokens = {
-        colorPrimary: '#3b82f6',
-        borderRadius: 8,
-        fontSize: 14,
-        controlHeight: 36,
+        colorPrimary: primary,
+        borderRadius: isNativeApp ? 12 : 8,
+        fontSize: isNativeApp ? 15 : 14,
+        controlHeight: isNativeApp ? 44 : 36,
         zIndexPopupBase: POPUP_Z,
       }
       const lightTokens = {
-        colorBgLayout: '#f5f7fb',
+        colorBgLayout: isNativeApp ? '#f7f9fc' : '#f5f7fb',
         colorBgContainer: '#ffffff',
         colorBgElevated: '#ffffff',
-        colorText: '#111827',
-        colorTextSecondary: '#475569',
-        colorTextTertiary: '#94a3b8',
+        colorText: isNativeApp ? '#10233f' : '#111827',
+        colorTextSecondary: isNativeApp ? '#5f6f84' : '#475569',
+        colorTextTertiary: isNativeApp ? '#748296' : '#94a3b8',
         colorBorder: '#e2e8f0',
         colorBorderSecondary: '#e2e8f0',
         colorSplit: '#e2e8f0',
@@ -152,15 +155,16 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
             itemBorderRadius: 8,
           },
           Button: {
-            controlHeight: 36,
-            colorPrimary: '#3b82f6',
-            colorPrimaryHover: '#2563eb',
-            colorPrimaryActive: '#1d4ed8',
-            borderRadius: 8,
+            controlHeight: isNativeApp ? 44 : 36,
+            colorPrimary: primary,
+            colorPrimaryHover: isNativeApp ? '#169775' : '#2563eb',
+            colorPrimaryActive: isNativeApp ? '#0d6c53' : '#1d4ed8',
+            borderRadius: isNativeApp ? 12 : 8,
+            ...(isNativeApp ? { primaryShadow: 'none', defaultShadow: 'none', fontWeight: 500 } : {}),
           },
-          Card: { borderRadiusLG: 12, paddingLG: 20, colorBgContainer: mode === 'dark' ? '#111827' : undefined },
-          Input: { borderRadius: 8, activeShadow: '0 0 0 2px rgba(59,130,246,.2)' },
-          Select: { borderRadius: 8 },
+          Card: { borderRadiusLG: isNativeApp ? 16 : 12, paddingLG: 20, colorBgContainer: mode === 'dark' ? '#111827' : undefined },
+          Input: { borderRadius: isNativeApp ? 12 : 8, activeShadow: isNativeApp ? '0 0 0 2px rgba(18,130,102,.12)' : '0 0 0 2px rgba(59,130,246,.2)' },
+          Select: { borderRadius: isNativeApp ? 12 : 8 },
           Table: {
             rowHoverBg: mode === 'dark' ? 'rgba(59,130,246,.06)' : 'rgba(59,130,246,.04)',
             headerBg: mode === 'dark' ? '#0f172a' : undefined,
@@ -169,7 +173,7 @@ export const AntdThemeProvider: React.FC<React.PropsWithChildren> = ({ children 
           Modal: { borderRadiusLG: 12, padding: 16, colorBgMask: 'rgba(2,6,23,.55)' },
           Tag: { defaultBg: mode === 'dark' ? '#0f172a' : undefined },
           Tooltip: { colorBgSpotlight: mode === 'dark' ? '#111827' : undefined },
-          Tabs: { itemActiveColor: mode === 'dark' ? '#e2e8f0' : undefined, inkBarColor: '#3b82f6' },
+          Tabs: { itemActiveColor: mode === 'dark' ? '#e2e8f0' : undefined, inkBarColor: primary },
         },
       }
     },

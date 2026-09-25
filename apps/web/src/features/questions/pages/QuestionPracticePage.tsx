@@ -184,7 +184,7 @@ function PracticePageContent() {
       {view === 'list' && (
         <div className="student-practice-page">
           <Space direction="vertical" size="large" style={{ width: '100%' }}>
-            <Card>
+            <Card className="student-practice-heading">
               <Title level={3} style={{ margin: 0 }}>
                 {translate('menus.learning-practice')}</Title>
               <Text type="secondary">{t('questions.search_placeholder')}</Text>

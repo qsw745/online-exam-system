@@ -8,6 +8,7 @@ import { DashboardStatsCards } from '../components/DashboardStatsCards'
 import { RecentTasksList } from '../components/RecentTasksList'
 import { RecentResultsList } from '../components/RecentResultsList'
 import { translate } from '@/shared/utils/i18n'
+import { resolveAppTarget } from '@/platform/appTarget'
 
 const { Title, Text } = Typography
 
@@ -64,7 +65,7 @@ const DashboardPage: React.FC = () => {
     <Space className="student-dashboard" direction="vertical" size="large" style={{ width: '100%' }}>
       <div>
         <Title level={2} style={{ marginBottom: 8 }}>
-          {t('dashboard.title')}
+          {resolveAppTarget(import.meta.env.VITE_APP_TARGET) === 'ios' ? t('mobileNav.home') : t('dashboard.title')}
         </Title>
         <Text type="secondary">{t('dashboard.description')}</Text>
       </div>

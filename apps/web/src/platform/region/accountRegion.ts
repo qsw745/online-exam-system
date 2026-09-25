@@ -1,5 +1,9 @@
 export type DataRegion = 'CN' | 'GLOBAL'
 
+const configuredRegions = String(import.meta.env.VITE_ENABLED_DATA_REGIONS || 'CN,GLOBAL').split(',')
+export const enabledDataRegions: DataRegion[] = (['CN', 'GLOBAL'] as const).filter(region => configuredRegions.includes(region))
+if (!enabledDataRegions.length) throw new Error('No enabled data regions')
+
 export const PREFERRED_DATA_REGION_KEY = 'wenheng_data_region'
 
 type ReadStorage = Pick<Storage, 'getItem'>
@@ -20,9 +24,10 @@ export function normalizeDataRegion(value: unknown): DataRegion | null {
 
 export function readPreferredDataRegion(storage: ReadStorage | undefined = defaultReadStorage()): DataRegion {
   try {
-    return normalizeDataRegion(storage?.getItem(PREFERRED_DATA_REGION_KEY)) ?? 'CN'
+    const stored = normalizeDataRegion(storage?.getItem(PREFERRED_DATA_REGION_KEY))
+    return stored && enabledDataRegions.includes(stored) ? stored : enabledDataRegions[0]
   } catch {
-    return 'CN'
+    return enabledDataRegions[0]
   }
 }
 
